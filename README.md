@@ -30,7 +30,7 @@ Not supported
 ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-with-cutout-creation.gif)
 
 #### Specialized Bin
-![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-creation.gif)
+![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/specialized-bin-creation.gif)
 
 ## Installation
 
