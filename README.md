@@ -26,6 +26,10 @@ Not supported
 - no scoop is automatically generated although it can be easily added in Fusion with a few clicks
 - bins are generated stackable and have thicker walls `2.4mm` instead of `1.2mm` as in the original, at the moment there is no support for thinner walls
 
+#### Regular bin
+![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-with-cutout-creation.gif)
+
+#### Specialized Bin
 ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-creation.gif)
 
 ## Installation
