@@ -1,0 +1,13 @@
+{
+	"autodeskProduct":	"Fusion360",
+	"type":	"addin",
+	"id":	"bbbd3c0a-34f1-4bcf-b9f9-accd46c35cd0",
+	"author":	"",
+	"description":	{
+		"":	""
+	},
+	"version":	"0.1",
+	"runOnStartup":	true,
+	"supportedOS":	"windows|mac",
+	"editEnabled":	true
+}
