@@ -90,6 +90,7 @@ def createGridfinityBase(
             baseTopPlane.edges.item(3),
             screwHoleOffset
             )
+        screwHoleFeatureInput.participantBodies = [targetComponent.bRepBodies.item(0)]
         screwHoleFeatureInput.setAllExtent(adsk.fusion.ExtentDirections.PositiveExtentDirection)
         screwHoleFeature = holeFeatures.add(screwHoleFeatureInput)
         patternInputBodies.add(screwHoleFeature)
@@ -125,10 +126,17 @@ def createGridfinityBase(
             True
             )
 
-        magnetCutoutExtrude = extrudeFeatures.addSimple(
+        magnetCutoutExtrudeInput = extrudeFeatures.createInput(
             magnetCutoutSketch.profiles.item(0),
-            adsk.core.ValueInput.createByReal(-input.magnetCutoutsDepth),
             adsk.fusion.FeatureOperations.CutFeatureOperation)
+        magnetCutoutExtrudeInputExtent = adsk.fusion.DistanceExtentDefinition.create(adsk.core.ValueInput.createByReal(input.magnetCutoutsDepth))
+        magnetCutoutExtrudeInput.participantBodies = [baseBottomExtrude.bodies.item(0)]
+        magnetCutoutExtrudeInput.setOneSideExtent(
+            magnetCutoutExtrudeInputExtent,
+            adsk.fusion.ExtentDirections.NegativeExtentDirection,
+            adsk.core.ValueInput.createByReal(0),
+        )
+        magnetCutoutExtrude = extrudeFeatures.add(magnetCutoutExtrudeInput)
         patternInputBodies.add(magnetCutoutExtrude)
         
         if input.hasScrewHoles:
@@ -172,10 +180,18 @@ def createGridfinityBase(
             constraints.addHorizontal(bottomTangentLine)
             constraints.addHorizontal(topTangentLine)
 
-            printHelperGrooveCut = extrudeFeatures.addSimple(
+            printHelperGrooveCutInput = extrudeFeatures.createInput(
                 printHelperGrooveSketch.profiles.item(0),
-                adsk.core.ValueInput.createByReal(-DIMENSION_PRINT_HELPER_GROOVE_DEPTH),
-                adsk.fusion.FeatureOperations.CutFeatureOperation)
+                adsk.fusion.FeatureOperations.CutFeatureOperation,
+                )
+            printHelperGrooveCutExtent = adsk.fusion.DistanceExtentDefinition.create(adsk.core.ValueInput.createByReal(DIMENSION_PRINT_HELPER_GROOVE_DEPTH))
+            printHelperGrooveCutInput.setOneSideExtent(
+                printHelperGrooveCutExtent,
+                adsk.fusion.ExtentDirections.NegativeExtentDirection,
+                adsk.core.ValueInput.createByReal(0),
+            )
+            printHelperGrooveCutInput.participantBodies = [baseBottomExtrude.bodies.item(0)]
+            printHelperGrooveCut = extrudeFeatures.add(printHelperGrooveCutInput)
 
             patternInputBodies.add(printHelperGrooveCut)
 

@@ -120,9 +120,15 @@ def createGridfinityBinBody(
 
     # extrude inside
     cutoutDepth = (binBodyTotalHeight - BIN_BODY_BOTTOM_THICKNESS) if emptyBin else BIN_CONNECTION_RECESS_DEPTH
-    extrudeCutout = extrudeFeatures.addSimple(binBodyOpeningSketch.profiles.item(0),
-        adsk.core.ValueInput.createByReal(-cutoutDepth),
-        adsk.fusion.FeatureOperations.CutFeatureOperation)
+    extrudeCutoutInput = extrudeFeatures.createInput(binBodyOpeningSketch.profiles.item(0), adsk.fusion.FeatureOperations.CutFeatureOperation)
+    extrudeCutoutInput.participantBodies = [binBodyExtrude.bodies.item(0)]
+    extrudeCutoutInputExtent = adsk.fusion.DistanceExtentDefinition.create(adsk.core.ValueInput.createByReal(cutoutDepth))
+    extrudeCutoutInput.setOneSideExtent(
+        extrudeCutoutInputExtent,
+        adsk.fusion.ExtentDirections.NegativeExtentDirection,
+        adsk.core.ValueInput.createByReal(0),
+    )
+    extrudeCutout = extrudeFeatures.add(extrudeCutoutInput)
 
     # top chamfer
     chamferFeatures: adsk.fusion.ChamferFeatures = features.chamferFeatures
