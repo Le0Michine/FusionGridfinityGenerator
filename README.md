@@ -19,12 +19,19 @@ Not supported
 - base measurement can be changed, default is 42mm for base width and 7mm for the unit of height
 - height is specified in base units and measured from the top of the base to the top of the bin body
 - generated bins are stackable
+- there are options available for magnet or screw holes
+- when magnet and screw holes are enabled together a groove will be generated to help with printability
 
 Not supported
-- no magnet/screw cutouts at the bottom right now
 - no tab is automatically generated
 - no scoop is automatically generated although it can be easily added in Fusion with a few clicks
 - bins are generated stackable and have thicker walls `2.4mm` instead of `1.2mm` as in the original, at the moment there is no support for thinner walls
+
+#### Bin bottom options
+![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-solid-bottom.gif)
+![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-magnet-cutouts-and-screw-holes-with-groove.gif)
+![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-magnet-cutouts.gif)
+![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-screw-holes.gif)
 
 #### Regular bin
 ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-with-cutout-creation.gif)
