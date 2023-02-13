@@ -7,6 +7,7 @@ from ... import config
 from ...lib.gridfinityUtils.const import BASE_TOTAL_HEIGHT, BIN_CORNER_FILLET_RADIUS, BIN_XY_TOLERANCE, DIMENSION_DEFAULT_WIDTH_UNIT
 from ...lib.gridfinityUtils.baseGenerator import createGridfinityBase
 from ...lib.gridfinityUtils.binBodyGenerator import chamferEdgesByLength, createBox, createGridfinityBinBody, filletEdgesByLength
+from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
 
 app = adsk.core.Application.get()
 ui = app.userInterface
@@ -124,7 +125,10 @@ def command_execute(args: adsk.core.CommandEventArgs):
         newCmpOcc.activate()
         gridfinityBaseplateComponent: adsk.fusion.Component = newCmpOcc.component
         features: adsk.fusion.Features = gridfinityBaseplateComponent.features
-        baseBody = createGridfinityBase(base_width_unit.value, 0, gridfinityBaseplateComponent)
+        baseGeneratorInput = BaseGeneratorInput()
+        baseGeneratorInput.baseWidth = base_width_unit.value
+        baseGeneratorInput.xyTolerance = 0
+        baseBody = createGridfinityBase(baseGeneratorInput, gridfinityBaseplateComponent)
 
         # replicate base in rectangular pattern
         rectangularPatternFeatures: adsk.fusion.RectangularPatternFeatures = features.rectangularPatternFeatures
@@ -135,6 +139,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
             adsk.core.ValueInput.createByReal(plate_width.value),
             adsk.core.ValueInput.createByReal(base_width_unit.value),
             adsk.fusion.PatternDistanceType.SpacingPatternDistanceType)
+        patternInput.directionTwoEntity = gridfinityBaseplateComponent.yConstructionAxis
         patternInput.quantityTwo = adsk.core.ValueInput.createByReal(plate_length.value)
         patternInput.distanceTwo = adsk.core.ValueInput.createByReal(base_width_unit.value)
         rectangularPattern = rectangularPatternFeatures.add(patternInput)

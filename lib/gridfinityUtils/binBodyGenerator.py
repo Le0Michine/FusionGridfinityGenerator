@@ -1,7 +1,7 @@
 import adsk.core, adsk.fusion, traceback
 import os
 
-from .const import BIN_BODY_BOTTOM_THICKNESS, BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS, BIN_CONNECTION_RECESS_DEPTH, BIN_CORNER_FILLET_RADIUS, BIN_LIP_CHAMFER, BIN_WALL_THICKNESS
+from .const import BIN_BODY_BOTTOM_THICKNESS, BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS, BIN_CONNECTION_RECESS_DEPTH, BIN_CORNER_FILLET_RADIUS, BIN_LIP_CHAMFER, BIN_WALL_THICKNESS, DEFAULT_FILTER_TOLERANCE
 from .sketchUtils import createRectangle
 from ...lib import fusion360utils as futil
 from ... import config
@@ -51,7 +51,7 @@ def filletEdgesByLength(
     filletFeatures: adsk.fusion.FilletFeatures = features.filletFeatures
     bottomFilletInput = filletFeatures.createInput()
     bottomFilletInput.isRollingBallCorner = True
-    bottomFilletEdges = selectEdgesByLengtth(faces, filterEdgeLength, 0.00001)
+    bottomFilletEdges = selectEdgesByLengtth(faces, filterEdgeLength, DEFAULT_FILTER_TOLERANCE)
     bottomFilletInput.edgeSetInputs.addConstantRadiusEdgeSet(bottomFilletEdges, adsk.core.ValueInput.createByReal(radius), True)
     filletFeatures.add(bottomFilletInput)
 

@@ -25,3 +25,15 @@ def createRectangle(
         rectangleLines.item(1).endSketchPoint,
         adsk.fusion.DimensionOrientations.VerticalDimensionOrientation,
         rectangleLines.item(1).endSketchPoint.geometry)
+
+def filterCirclesByRadius(
+    radius: float,
+    tolerance: float,
+    sketchCircles: adsk.fusion.SketchCircles,
+    ):
+    filteredCircles = []
+    for circle in sketchCircles:
+        if abs (circle.radius - radius) < tolerance:
+            filteredCircles.append(circle)
+        
+    return filteredCircles

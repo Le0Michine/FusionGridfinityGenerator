@@ -7,6 +7,7 @@ from ... import config
 from ...lib.gridfinityUtils.const import BIN_XY_TOLERANCE, DIMENSION_DEFAULT_HEIGHT_UNIT, DIMENSION_DEFAULT_WIDTH_UNIT
 from ...lib.gridfinityUtils.baseGenerator import createGridfinityBase
 from ...lib.gridfinityUtils.binBodyGenerator import createGridfinityBinBody
+from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
 
 app = adsk.core.Application.get()
 ui = app.userInterface
@@ -91,6 +92,8 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     inputs.addValueInput('bin_width', 'Bin width', '', adsk.core.ValueInput.createByString('2'))
     inputs.addValueInput('bin_length', 'Bin length', '', adsk.core.ValueInput.createByString('3'))
     inputs.addValueInput('bin_height', 'Bin height', '', adsk.core.ValueInput.createByString('10'))
+    inputs.addBoolValueInput('bin_screw_holes', 'Add screw holes', True, '', False)
+    inputs.addBoolValueInput('bin_magnet_cutouts', 'Add magnet cutouts', True, '', False)
     inputs.addBoolValueInput('bin_empty', 'Generate empty bin', True, '', True)
 
     # TODO Connect to the events that are needed by this command.
@@ -114,6 +117,8 @@ def command_execute(args: adsk.core.CommandEventArgs):
     bin_width: adsk.core.ValueCommandInput = inputs.itemById('bin_width')
     bin_length: adsk.core.ValueCommandInput = inputs.itemById('bin_length')
     bin_height: adsk.core.ValueCommandInput = inputs.itemById('bin_height')
+    bin_screw_holes: adsk.core.BoolValueCommandInput = inputs.itemById('bin_screw_holes')
+    bin_magnet_cutouts: adsk.core.BoolValueCommandInput = inputs.itemById('bin_magnet_cutouts')
     bin_empty: adsk.core.BoolValueCommandInput = inputs.itemById('bin_empty')
 
     # Do something interesting
@@ -130,7 +135,14 @@ def command_execute(args: adsk.core.CommandEventArgs):
         newCmpOcc.activate()
         gridfinityBinComponent: adsk.fusion.Component = newCmpOcc.component
         features: adsk.fusion.Features = gridfinityBinComponent.features
-        baseBody = createGridfinityBase(base_width_unit.value, tolerance, gridfinityBinComponent)
+
+        baseGeneratorInput = BaseGeneratorInput()
+        baseGeneratorInput.baseWidth = base_width_unit.value
+        baseGeneratorInput.xyTolerance = tolerance
+        baseGeneratorInput.hasScrewHoles = bin_screw_holes.value
+        baseGeneratorInput.hasMagnetCutouts = bin_magnet_cutouts.value
+
+        baseBody = createGridfinityBase(baseGeneratorInput, gridfinityBinComponent)
 
         # replicate base in rectangular pattern
         rectangularPatternFeatures: adsk.fusion.RectangularPatternFeatures = features.rectangularPatternFeatures
@@ -141,6 +153,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
             adsk.core.ValueInput.createByReal(bin_width.value),
             adsk.core.ValueInput.createByReal(base_width_unit.value),
             adsk.fusion.PatternDistanceType.SpacingPatternDistanceType)
+        patternInput.directionTwoEntity = gridfinityBinComponent.yConstructionAxis
         patternInput.quantityTwo = adsk.core.ValueInput.createByReal(bin_length.value)
         patternInput.distanceTwo = adsk.core.ValueInput.createByReal(base_width_unit.value)
         rectangularPattern = rectangularPatternFeatures.add(patternInput)
