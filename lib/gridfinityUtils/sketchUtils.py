@@ -37,3 +37,22 @@ def filterCirclesByRadius(
             filteredCircles.append(circle)
         
     return filteredCircles
+
+def createOffsetProfileSketch(
+    planarEntity: adsk.core.Base,
+    offsetValue: float,
+    targetComponent: adsk.fusion.Component,
+    ):
+    sketches: adsk.fusion.Sketches = targetComponent.sketches
+    sketch: adsk.fusion.Sketch = sketches.add(planarEntity)
+    constraints: adsk.fusion.GeometricConstraints = sketch.geometricConstraints
+    constraints: adsk.fusion.GeometricConstraints = sketch.geometricConstraints
+    curvesList: list[adsk.fusion.SketchCurve] = []
+    for curve in sketch.sketchCurves:
+        curvesList.append(curve)
+        curve.isConstruction = True
+    constraints.addOffset(curvesList,
+        adsk.core.ValueInput.createByReal(offsetValue),
+        sketch.sketchCurves.sketchLines.item(0).startSketchPoint.geometry)
+
+    return sketch

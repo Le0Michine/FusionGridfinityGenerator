@@ -1,9 +1,13 @@
 import adsk.core, adsk.fusion, traceback
 import os
 
-from .const import BIN_BODY_BOTTOM_THICKNESS, BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS, BIN_CONNECTION_RECESS_DEPTH, BIN_CORNER_FILLET_RADIUS, BIN_LIP_CHAMFER, BIN_WALL_THICKNESS, DEFAULT_FILTER_TOLERANCE
-from .sketchUtils import createRectangle
+
+
+from .const import BIN_BODY_BOTTOM_THICKNESS, BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS, BIN_CONNECTION_RECESS_DEPTH, BIN_CORNER_FILLET_RADIUS, BIN_LIP_CHAMFER, BIN_LIP_WALL_THICKNESS, DEFAULT_FILTER_TOLERANCE
+from .sketchUtils import createOffsetProfileSketch, createRectangle
 from ...lib import fusion360utils as futil
+from ...lib.gridfinityUtils.extrudeUtils import simpleDistanceExtrude
+from ...lib.gridfinityUtils.binBodyGeneratorInput import BinBodyGeneratorInput
 from ... import config
 
 app = adsk.core.Application.get()
@@ -29,7 +33,7 @@ def createBox(
         adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
     return extrude
 
-def selectEdgesByLengtth(
+def selectEdgesByLength(
     faces: adsk.fusion.BRepFaces,
     filterEdgeLength: float,
     filterEdgeTolerance: float,
@@ -51,7 +55,7 @@ def filletEdgesByLength(
     filletFeatures: adsk.fusion.FilletFeatures = features.filletFeatures
     bottomFilletInput = filletFeatures.createInput()
     bottomFilletInput.isRollingBallCorner = True
-    bottomFilletEdges = selectEdgesByLengtth(faces, filterEdgeLength, DEFAULT_FILTER_TOLERANCE)
+    bottomFilletEdges = selectEdgesByLength(faces, filterEdgeLength, DEFAULT_FILTER_TOLERANCE)
     bottomFilletInput.edgeSetInputs.addConstantRadiusEdgeSet(bottomFilletEdges, adsk.core.ValueInput.createByReal(radius), True)
     filletFeatures.add(bottomFilletInput)
 
@@ -65,30 +69,23 @@ def chamferEdgesByLength(
     features: adsk.fusion.Features = targetComponent.features
     chamferFeatures: adsk.fusion.ChamferFeatures = features.chamferFeatures
     chamferInput = chamferFeatures.createInput2()
-    chamfer_edges = selectEdgesByLengtth(faces, filterEdgeLength, filterEdgeTolerance)
+    chamfer_edges = selectEdgesByLength(faces, filterEdgeLength, filterEdgeTolerance)
     chamferInput.chamferEdgeSets.addEqualDistanceChamferEdgeSet(chamfer_edges,
         adsk.core.ValueInput.createByReal(distance),
         True)
     chamferFeatures.add(chamferInput)
 
 def createGridfinityBinBody(
-    baseWidth: float,
-    binWidth: int,
-    binLength: int,
-    hightUnit: float,
-    binHeight: int,
-    tolerance: float,
+    input: BinBodyGeneratorInput,
     targetComponent: adsk.fusion.Component,
-    emptyBin: bool = True
     ):
 
-    actualBodyWidth = (baseWidth * binWidth) - tolerance * 2.0
-    actualBodyLength = (baseWidth * binLength) - tolerance * 2.0
-    binBodyTotalHeight = binHeight * hightUnit
+    actualBodyWidth = (input.baseWidth * input.binWidth) - input.xyTolerance * 2.0
+    actualBodyLength = (input.baseWidth * input.binLength) - input.xyTolerance * 2.0
+    binBodyTotalHeight = input.binHeight * input.heightUnit
     features: adsk.fusion.Features = targetComponent.features
     filletFeatures: adsk.fusion.FilletFeatures = features.filletFeatures
     extrudeFeatures: adsk.fusion.ExtrudeFeatures = features.extrudeFeatures
-    sketches: adsk.fusion.Sketches = targetComponent.sketches
     # create rectangle for the body
     binBodyExtrude = createBox(
         actualBodyWidth,
@@ -98,7 +95,7 @@ def createGridfinityBinBody(
         targetComponent.xYConstructionPlane
     )
 
-    # fillet
+    # round corners
     filletEdgesByLength(
         binBodyExtrude.faces,
         BIN_CORNER_FILLET_RADIUS,
@@ -106,47 +103,70 @@ def createGridfinityBinBody(
         targetComponent,
     )
 
-    # sketch on top
-    binBodyOpeningSketch: adsk.fusion.Sketch = sketches.add(binBodyExtrude.endFaces.item(0))
-    binBodyOpeningSketchConstraints: adsk.fusion.GeometricConstraints = binBodyOpeningSketch.geometricConstraints
-    curvesList: list[adsk.fusion.SketchCurve] = []
-    for curve in binBodyOpeningSketch.sketchCurves:
-        curvesList.append(curve)
-    binBodyOpeningSketchConstraints.addOffset(curvesList,
-        adsk.core.ValueInput.createByReal(-BIN_WALL_THICKNESS),
-        binBodyOpeningSketch.sketchCurves.sketchLines.item(0).startSketchPoint.geometry)
-    for curve in curvesList:
-        curve.isConstruction = True
+    bottomCutoutFace: adsk.fusion.BRepFace = binBodyExtrude.endFaces.item(0);
+    currentDepth = 0.0
+    if input.hasLip:
+        # sketch on top
+        binBodyOpeningSketch = createOffsetProfileSketch(
+            bottomCutoutFace,
+            -BIN_LIP_WALL_THICKNESS,
+            targetComponent,
+        )
+        # extrude inside
+        lipCutout = simpleDistanceExtrude(
+            binBodyOpeningSketch.profiles.item(0),
+            adsk.fusion.FeatureOperations.CutFeatureOperation,
+            BIN_CONNECTION_RECESS_DEPTH,
+            adsk.fusion.ExtentDirections.NegativeExtentDirection,
+            targetComponent,
+        )
+        # top chamfer
+        chamferFeatures: adsk.fusion.ChamferFeatures = features.chamferFeatures
+        topLipChamferInput = chamferFeatures.createInput2()
+        topLipChamferEdges = adsk.core.ObjectCollection.create()
+        # use one edge for chamfer, the rest will be automatically detected with tangent chain condition
+        topLipChamferEdges.add(lipCutout.faces.item(0).edges.item(0))
+        topLipChamferInput.chamferEdgeSets.addEqualDistanceChamferEdgeSet(topLipChamferEdges,
+            adsk.core.ValueInput.createByReal(BIN_LIP_CHAMFER),
+            True)
+        chamferFeatures.add(topLipChamferInput)
 
-    # extrude inside
-    cutoutDepth = (binBodyTotalHeight - BIN_BODY_BOTTOM_THICKNESS) if emptyBin else BIN_CONNECTION_RECESS_DEPTH
-    extrudeCutoutInput = extrudeFeatures.createInput(binBodyOpeningSketch.profiles.item(0), adsk.fusion.FeatureOperations.CutFeatureOperation)
-    extrudeCutoutInput.participantBodies = [binBodyExtrude.bodies.item(0)]
-    extrudeCutoutInputExtent = adsk.fusion.DistanceExtentDefinition.create(adsk.core.ValueInput.createByReal(cutoutDepth))
-    extrudeCutoutInput.setOneSideExtent(
-        extrudeCutoutInputExtent,
-        adsk.fusion.ExtentDirections.NegativeExtentDirection,
-        adsk.core.ValueInput.createByReal(0),
-    )
-    extrudeCutout = extrudeFeatures.add(extrudeCutoutInput)
+        bottomCutoutFace = lipCutout.endFaces.item(0)
+        currentDepth += BIN_CONNECTION_RECESS_DEPTH
 
-    # top chamfer
-    chamferFeatures: adsk.fusion.ChamferFeatures = features.chamferFeatures
-    chamferInput = chamferFeatures.createInput2()
-    chamfer_edges = adsk.core.ObjectCollection.create()
-    # use one edge for chamfer, the rest will be automatically detected with tangent chain condition
-    chamfer_edges.add(extrudeCutout.faces.item(0).edges.item(0))
-    chamferInput.chamferEdgeSets.addEqualDistanceChamferEdgeSet(chamfer_edges,
-        adsk.core.ValueInput.createByReal(BIN_LIP_CHAMFER),
-        True)
-    chamferFeatures.add(chamferInput)
+    if not input.isSolid:
+        offset = (BIN_LIP_WALL_THICKNESS - input.wallThickness) if input.hasLip else -input.wallThickness
+        innerCutoutSketch = createOffsetProfileSketch(
+            bottomCutoutFace,
+            offset,
+            targetComponent,
+        )
 
-    if emptyBin:
+        innerCutout = simpleDistanceExtrude(
+            innerCutoutSketch.profiles.item(0),
+            adsk.fusion.FeatureOperations.CutFeatureOperation,
+            binBodyTotalHeight - BIN_BODY_BOTTOM_THICKNESS - currentDepth,
+            adsk.fusion.ExtentDirections.NegativeExtentDirection,
+            targetComponent,
+        )
+
+        if input.hasLip and offset >= 0:
+            # bottom lip chamfer, no lip if main wall thicker or same size as the lip
+            chamferFeatures: adsk.fusion.ChamferFeatures = features.chamferFeatures
+            bottomLipChamferInput = chamferFeatures.createInput2()
+            bottomLipChamferEdges = adsk.core.ObjectCollection.create()
+            # use one edge for chamfer, the rest will be automatically detected with tangent chain condition
+            bottomLipChamferEdges.add(innerCutout.startFaces.item(0).edges.item(0))
+            bottomLipChamferInput.chamferEdgeSets.addEqualDistanceChamferEdgeSet(bottomLipChamferEdges,
+                adsk.core.ValueInput.createByReal(offset),
+                True)
+            chamferFeatures.add(bottomLipChamferInput)
+        
         # fillet at the bottom
         bottomFilletInput = filletFeatures.createInput()
         bottomFilletInput.isRollingBallCorner = True
         bottomFilletEdges = adsk.core.ObjectCollection.create()
-        bottomFilletEdges.add(extrudeCutout.endFaces.item(0).edges.item(0))
+        bottomFilletEdges.add(innerCutout.endFaces.item(0).edges.item(0))
         bottomFilletInput.edgeSetInputs.addConstantRadiusEdgeSet(bottomFilletEdges,
             adsk.core.ValueInput.createByReal(BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS),
             True)

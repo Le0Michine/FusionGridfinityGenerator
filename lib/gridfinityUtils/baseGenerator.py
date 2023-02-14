@@ -5,6 +5,7 @@ import os
 from .const import BASE_TOTAL_HEIGHT, BIN_CORNER_FILLET_RADIUS, DEFAULT_FILTER_TOLERANCE, DIMENSION_PRINT_HELPER_GROOVE_DEPTH, DIMENSION_SCREW_HOLES_DISTANCE
 from .sketchUtils import createRectangle, filterCirclesByRadius
 from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
+from ...lib.gridfinityUtils.extrudeUtils import simpleDistanceExtrude
 from ...lib import fusion360utils as futil
 from ... import config
 
@@ -126,17 +127,13 @@ def createGridfinityBase(
             True
             )
 
-        magnetCutoutExtrudeInput = extrudeFeatures.createInput(
+        magnetCutoutExtrude = simpleDistanceExtrude(
             magnetCutoutSketch.profiles.item(0),
-            adsk.fusion.FeatureOperations.CutFeatureOperation)
-        magnetCutoutExtrudeInputExtent = adsk.fusion.DistanceExtentDefinition.create(adsk.core.ValueInput.createByReal(input.magnetCutoutsDepth))
-        magnetCutoutExtrudeInput.participantBodies = [baseBottomExtrude.bodies.item(0)]
-        magnetCutoutExtrudeInput.setOneSideExtent(
-            magnetCutoutExtrudeInputExtent,
+            adsk.fusion.FeatureOperations.CutFeatureOperation,
+            input.magnetCutoutsDepth,
             adsk.fusion.ExtentDirections.NegativeExtentDirection,
-            adsk.core.ValueInput.createByReal(0),
+            targetComponent,
         )
-        magnetCutoutExtrude = extrudeFeatures.add(magnetCutoutExtrudeInput)
         patternInputBodies.add(magnetCutoutExtrude)
         
         if input.hasScrewHoles:

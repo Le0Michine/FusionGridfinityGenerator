@@ -4,10 +4,11 @@ import os
 
 from ...lib import fusion360utils as futil
 from ... import config
-from ...lib.gridfinityUtils.const import BIN_XY_TOLERANCE, DIMENSION_DEFAULT_HEIGHT_UNIT, DIMENSION_DEFAULT_WIDTH_UNIT
+from ...lib.gridfinityUtils.const import BIN_WALL_THICKNESS, BIN_XY_TOLERANCE, DIMENSION_DEFAULT_HEIGHT_UNIT, DIMENSION_DEFAULT_WIDTH_UNIT
 from ...lib.gridfinityUtils.baseGenerator import createGridfinityBase
-from ...lib.gridfinityUtils.binBodyGenerator import createGridfinityBinBody
 from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
+from ...lib.gridfinityUtils.binBodyGenerator import createGridfinityBinBody
+from ...lib.gridfinityUtils.binBodyGeneratorInput import BinBodyGeneratorInput
 
 app = adsk.core.Application.get()
 ui = app.userInterface
@@ -92,9 +93,11 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     inputs.addValueInput('bin_width', 'Bin width', '', adsk.core.ValueInput.createByString('2'))
     inputs.addValueInput('bin_length', 'Bin length', '', adsk.core.ValueInput.createByString('3'))
     inputs.addValueInput('bin_height', 'Bin height', '', adsk.core.ValueInput.createByString('10'))
+    inputs.addValueInput('bin_wall_thickness', 'Bin wall thickness', defaultLengthUnits, adsk.core.ValueInput.createByReal(BIN_WALL_THICKNESS))
     inputs.addBoolValueInput('bin_screw_holes', 'Add screw holes', True, '', False)
     inputs.addBoolValueInput('bin_magnet_cutouts', 'Add magnet cutouts', True, '', False)
-    inputs.addBoolValueInput('bin_empty', 'Generate empty bin', True, '', True)
+    inputs.addBoolValueInput('bin_solid', 'Generate solid bin for custom tools', True, '', False)
+    inputs.addBoolValueInput('with_lip', 'Generate lip for stackability', True, '', True)
 
     # TODO Connect to the events that are needed by this command.
     futil.add_handler(args.command.execute, command_execute, local_handlers=local_handlers)
@@ -117,9 +120,11 @@ def command_execute(args: adsk.core.CommandEventArgs):
     bin_width: adsk.core.ValueCommandInput = inputs.itemById('bin_width')
     bin_length: adsk.core.ValueCommandInput = inputs.itemById('bin_length')
     bin_height: adsk.core.ValueCommandInput = inputs.itemById('bin_height')
+    bin_wall_thickness: adsk.core.ValueCommandInput = inputs.itemById('bin_wall_thickness')
     bin_screw_holes: adsk.core.BoolValueCommandInput = inputs.itemById('bin_screw_holes')
     bin_magnet_cutouts: adsk.core.BoolValueCommandInput = inputs.itemById('bin_magnet_cutouts')
-    bin_empty: adsk.core.BoolValueCommandInput = inputs.itemById('bin_empty')
+    bin_solid: adsk.core.BoolValueCommandInput = inputs.itemById('bin_solid')
+    with_lip: adsk.core.BoolValueCommandInput = inputs.itemById('with_lip')
 
     # Do something interesting
     try:
@@ -160,14 +165,20 @@ def command_execute(args: adsk.core.CommandEventArgs):
         
 
         # create bin body
-        binBody = createGridfinityBinBody(base_width_unit.value,
-            bin_width.value,
-            bin_length.value,
-            height_unit.value,
-            bin_height.value,
-            tolerance,
+        binBodyInput = BinBodyGeneratorInput()
+        binBodyInput.hasLip = with_lip.value
+        binBodyInput.binWidth = bin_width.value
+        binBodyInput.binLength = bin_length.value
+        binBodyInput.binHeight = bin_height.value
+        binBodyInput.baseWidth = base_width_unit.value
+        binBodyInput.heightUnit = height_unit.value
+        binBodyInput.xyTolerance = tolerance
+        binBodyInput.isSolid = bin_solid.value
+        binBodyInput.wallThickness = bin_wall_thickness.value
+        binBody = createGridfinityBinBody(
+            binBodyInput,
             gridfinityBinComponent,
-            bin_empty.value)
+            )
 
         # merge everything
         toolBodies = adsk.core.ObjectCollection.create()

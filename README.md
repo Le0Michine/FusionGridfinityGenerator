@@ -9,7 +9,7 @@ Addin for Fusion 360 allowing quick generation of simple [gridfinity](https://ww
 - accepts amount of bases X and Y directions
 - base measurement can be changed, default is 42mm
 
-Not supported
+Not supported at the moment
 - no weighted plates option right now
 
 ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/baseplate-creation.gif)
@@ -18,14 +18,14 @@ Not supported
 - accepts amount of bases X and Y directions
 - base measurement can be changed, default is 42mm for base width and 7mm for the unit of height
 - height is specified in base units and measured from the top of the base to the top of the bin body
-- generated bins are stackable
+- generated bins can have a lip for better stackability or a straight wall
+- wall thickness can be adjusted
 - there are options available for magnet or screw holes
 - when magnet and screw holes are enabled together a groove will be generated to help with printability
 
-Not supported
+Not supported at the moment
 - no tab is automatically generated
 - no scoop is automatically generated although it can be easily added in Fusion with a few clicks
-- bins are generated stackable and have thicker walls `2.4mm` instead of `1.2mm` as in the original, at the moment there is no support for thinner walls
 
 #### Bin bottom options
 Solid bottom             |  With screw holes | With magnet cutouts | Combined
@@ -51,6 +51,10 @@ git clone https://github.com/Le0Michine/FusionGridfinityGenerator.git
 - Select path to the repository downloaded on the first step, `GridfinityGenerator` should appear in the list of add ins
 - Select `GridfinityGenerator` and click run to launch the add in
 - `Gridfinity bin` and `Gridfinity baseplate` options should apperar in `Create` menu in the Solid body worspace environment
+
+## Update
+
+To update the script download latest sources into the same location and relaunch fusion.
 
 ## Credits
 
