@@ -2,9 +2,10 @@ import adsk.core, adsk.fusion, traceback
 import os
 
 
+
 from ...lib import fusion360utils as futil
 from ... import config
-from ...lib.gridfinityUtils.const import BIN_WALL_THICKNESS, BIN_XY_TOLERANCE, DIMENSION_DEFAULT_HEIGHT_UNIT, DIMENSION_DEFAULT_WIDTH_UNIT
+from ...lib.gridfinityUtils.const import BIN_WALL_THICKNESS, BIN_XY_TOLERANCE, DEFAULT_FILTER_TOLERANCE, DIMENSION_DEFAULT_HEIGHT_UNIT, DIMENSION_DEFAULT_WIDTH_UNIT
 from ...lib.gridfinityUtils.baseGenerator import createGridfinityBase
 from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
 from ...lib.gridfinityUtils.binBodyGenerator import createGridfinityBinBody
@@ -36,6 +37,22 @@ ICON_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resource
 # Local list of event handlers used to maintain a reference so
 # they are not released and garbage collected.
 local_handlers = []
+
+# Constants
+BIN_BASE_WIDTH_UNIT_INPUT_ID = 'base_width_unit'
+BIN_HEIGHT_UNIT_INPUT_ID = 'height_unit'
+BIN_WIDTH_INPUT_ID = 'bin_width'
+BIN_LENGTH_INPUT_ID = 'bin_length'
+BIN_HEIGHT_INPUT_ID = 'bin_height'
+BIN_WIDTH_INPUT_ID = 'bin_width'
+BIN_WALL_THICKNESS_INPUT_ID = 'bin_wall_thickness'
+BIN_SCREW_HOLES_INPUT_ID = 'bin_screw_holes'
+BIN_MAGNET_CUTOUTS_INPUT_ID = 'bin_magnet_cutouts'
+BIN_WITH_LIP_INPUT_ID = 'with_lip'
+BIN_TYPE_DROPDOWN_ID = 'bin_type'
+BIN_TYPE_HOLLOW = 'Hollow'
+BIN_TYPE_SHELLED = 'Shelled'
+BIN_TYPE_SOLID = 'Solid'
 
 
 # Executed when add-in is run.
@@ -83,21 +100,33 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     # General logging for debug.
     futil.log(f'{CMD_NAME} Command Created Event')
 
+    args.command.setDialogInitialSize(400, 500)
+
     # https://help.autodesk.com/view/fusion360/ENU/?contextId=CommandInputs
     inputs = args.command.commandInputs
 
     # Create a value input field and set the default using 1 unit of the default length unit.
     defaultLengthUnits = app.activeProduct.unitsManager.defaultLengthUnits
-    inputs.addValueInput('base_width_unit', 'Base width', defaultLengthUnits, adsk.core.ValueInput.createByReal(DIMENSION_DEFAULT_WIDTH_UNIT))
-    inputs.addValueInput('height_unit', 'Height unit', defaultLengthUnits, adsk.core.ValueInput.createByReal(DIMENSION_DEFAULT_HEIGHT_UNIT))
-    inputs.addValueInput('bin_width', 'Bin width', '', adsk.core.ValueInput.createByString('2'))
-    inputs.addValueInput('bin_length', 'Bin length', '', adsk.core.ValueInput.createByString('3'))
-    inputs.addValueInput('bin_height', 'Bin height', '', adsk.core.ValueInput.createByString('10'))
-    inputs.addValueInput('bin_wall_thickness', 'Bin wall thickness', defaultLengthUnits, adsk.core.ValueInput.createByReal(BIN_WALL_THICKNESS))
-    inputs.addBoolValueInput('bin_screw_holes', 'Add screw holes', True, '', False)
-    inputs.addBoolValueInput('bin_magnet_cutouts', 'Add magnet cutouts', True, '', False)
-    inputs.addBoolValueInput('bin_solid', 'Generate solid bin for custom tools', True, '', False)
-    inputs.addBoolValueInput('with_lip', 'Generate lip for stackability', True, '', True)
+    basicSizesGroup = inputs.addGroupCommandInput('basic_sizes', 'Basic sizes')
+    basicSizesGroup.children.addValueInput(BIN_BASE_WIDTH_UNIT_INPUT_ID, 'Base width', defaultLengthUnits, adsk.core.ValueInput.createByReal(DIMENSION_DEFAULT_WIDTH_UNIT))
+    basicSizesGroup.children.addValueInput(BIN_HEIGHT_UNIT_INPUT_ID, 'Height unit', defaultLengthUnits, adsk.core.ValueInput.createByReal(DIMENSION_DEFAULT_HEIGHT_UNIT))
+
+    binDimensionsGroup = inputs.addGroupCommandInput('bin_dimensions', 'Main dimensions')
+    binDimensionsGroup.children.addValueInput(BIN_WIDTH_INPUT_ID, 'Bin width', '', adsk.core.ValueInput.createByString('2'))
+    binDimensionsGroup.children.addValueInput(BIN_LENGTH_INPUT_ID, 'Bin length', '', adsk.core.ValueInput.createByString('3'))
+    binDimensionsGroup.children.addValueInput(BIN_HEIGHT_INPUT_ID, 'Bin height', '', adsk.core.ValueInput.createByString('10'))
+
+    binFeaturesGroup = inputs.addGroupCommandInput('bin_features', 'Extra features')
+
+    binTypeDropdown = binFeaturesGroup.children.addDropDownCommandInput(BIN_TYPE_DROPDOWN_ID, 'Bin type', adsk.core.DropDownStyles.LabeledIconDropDownStyle)
+    binTypeDropdown.listItems.add(BIN_TYPE_HOLLOW, True)
+    binTypeDropdown.listItems.add(BIN_TYPE_SHELLED, False)
+    binTypeDropdown.listItems.add(BIN_TYPE_SOLID, False)
+
+    binFeaturesGroup.children.addValueInput(BIN_WALL_THICKNESS_INPUT_ID, 'Bin wall thickness', defaultLengthUnits, adsk.core.ValueInput.createByReal(BIN_WALL_THICKNESS))
+    binFeaturesGroup.children.addBoolValueInput(BIN_SCREW_HOLES_INPUT_ID, 'Add screw holes', True, '', False)
+    binFeaturesGroup.children.addBoolValueInput(BIN_MAGNET_CUTOUTS_INPUT_ID, 'Add magnet cutouts', True, '', False)
+    binFeaturesGroup.children.addBoolValueInput(BIN_WITH_LIP_INPUT_ID, 'Generate lip for stackability', True, '', True)
 
     # TODO Connect to the events that are needed by this command.
     futil.add_handler(args.command.execute, command_execute, local_handlers=local_handlers)
@@ -115,16 +144,20 @@ def command_execute(args: adsk.core.CommandEventArgs):
 
     # Get a reference to command's inputs.
     inputs = args.command.commandInputs
-    base_width_unit: adsk.core.ValueCommandInput = inputs.itemById('base_width_unit')
-    height_unit: adsk.core.ValueCommandInput = inputs.itemById('height_unit')
-    bin_width: adsk.core.ValueCommandInput = inputs.itemById('bin_width')
-    bin_length: adsk.core.ValueCommandInput = inputs.itemById('bin_length')
-    bin_height: adsk.core.ValueCommandInput = inputs.itemById('bin_height')
-    bin_wall_thickness: adsk.core.ValueCommandInput = inputs.itemById('bin_wall_thickness')
-    bin_screw_holes: adsk.core.BoolValueCommandInput = inputs.itemById('bin_screw_holes')
-    bin_magnet_cutouts: adsk.core.BoolValueCommandInput = inputs.itemById('bin_magnet_cutouts')
-    bin_solid: adsk.core.BoolValueCommandInput = inputs.itemById('bin_solid')
-    with_lip: adsk.core.BoolValueCommandInput = inputs.itemById('with_lip')
+    base_width_unit: adsk.core.ValueCommandInput = inputs.itemById(BIN_BASE_WIDTH_UNIT_INPUT_ID)
+    height_unit: adsk.core.ValueCommandInput = inputs.itemById(BIN_HEIGHT_UNIT_INPUT_ID)
+    bin_width: adsk.core.ValueCommandInput = inputs.itemById(BIN_WIDTH_INPUT_ID)
+    bin_length: adsk.core.ValueCommandInput = inputs.itemById(BIN_LENGTH_INPUT_ID)
+    bin_height: adsk.core.ValueCommandInput = inputs.itemById(BIN_HEIGHT_INPUT_ID)
+    bin_wall_thickness: adsk.core.ValueCommandInput = inputs.itemById(BIN_WALL_THICKNESS_INPUT_ID)
+    bin_screw_holes: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_SCREW_HOLES_INPUT_ID)
+    bin_magnet_cutouts: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_MAGNET_CUTOUTS_INPUT_ID)
+    with_lip: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_WITH_LIP_INPUT_ID)
+    dropdownInput: adsk.core.DropDownCommandInput = inputs.itemById(BIN_TYPE_DROPDOWN_ID)
+
+    isHollow = dropdownInput.selectedItem.name == BIN_TYPE_HOLLOW
+    isSolid = dropdownInput.selectedItem.name == BIN_TYPE_SOLID
+    isShelled = dropdownInput.selectedItem.name == BIN_TYPE_SHELLED
 
     # Do something interesting
     try:
@@ -144,8 +177,8 @@ def command_execute(args: adsk.core.CommandEventArgs):
         baseGeneratorInput = BaseGeneratorInput()
         baseGeneratorInput.baseWidth = base_width_unit.value
         baseGeneratorInput.xyTolerance = tolerance
-        baseGeneratorInput.hasScrewHoles = bin_screw_holes.value
-        baseGeneratorInput.hasMagnetCutouts = bin_magnet_cutouts.value
+        baseGeneratorInput.hasScrewHoles = bin_screw_holes.value and not isShelled
+        baseGeneratorInput.hasMagnetCutouts = bin_magnet_cutouts.value and not isShelled
 
         baseBody = createGridfinityBase(baseGeneratorInput, gridfinityBinComponent)
 
@@ -166,14 +199,14 @@ def command_execute(args: adsk.core.CommandEventArgs):
 
         # create bin body
         binBodyInput = BinBodyGeneratorInput()
-        binBodyInput.hasLip = with_lip.value
+        binBodyInput.hasLip = with_lip.value and not isShelled
         binBodyInput.binWidth = bin_width.value
         binBodyInput.binLength = bin_length.value
         binBodyInput.binHeight = bin_height.value
         binBodyInput.baseWidth = base_width_unit.value
         binBodyInput.heightUnit = height_unit.value
         binBodyInput.xyTolerance = tolerance
-        binBodyInput.isSolid = bin_solid.value
+        binBodyInput.isSolid = isSolid or isShelled
         binBodyInput.wallThickness = bin_wall_thickness.value
         binBody = createGridfinityBinBody(
             binBodyInput,
@@ -189,13 +222,25 @@ def command_execute(args: adsk.core.CommandEventArgs):
         combineFeatureInput = combineFeatures.createInput(binBody, toolBodies)
         combineFeatures.add(combineFeatureInput)
         gridfinityBinComponent.bRepBodies.item(0).name = binName
-        
+
+        binBody = gridfinityBinComponent.bRepBodies.item(0)
+
+        if isShelled:
+            shellFeatures = gridfinityBinComponent.features.shellFeatures
+            shellBinObjects = adsk.core.ObjectCollection.create()
+            faces = list(binBody.faces)
+            # face.boundingBox.maxPoint.z ~ face.boundingBox.minPoint.z => face horizontal
+            # face.boundingBox.maxPoint.z > 0 any face above ground
+            topFace = [face for face in faces if abs(face.boundingBox.maxPoint.z - face.boundingBox.minPoint.z) < DEFAULT_FILTER_TOLERANCE and face.boundingBox.maxPoint.z > 0][0]
+            shellBinObjects.add(topFace)
+            shellBinInput = shellFeatures.createInput(shellBinObjects, False)
+            shellBinInput.insideThickness = adsk.core.ValueInput.createByReal(binBodyInput.wallThickness)
+            shellFeatures.add(shellBinInput)
 
         
     except:
         if ui:
             ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
-
 
 # This event handler is called when the command needs to compute a new preview in the graphics window.
 def command_preview(args: adsk.core.CommandEventArgs):
@@ -209,9 +254,33 @@ def command_preview(args: adsk.core.CommandEventArgs):
 def command_input_changed(args: adsk.core.InputChangedEventArgs):
     changed_input = args.input
     inputs = args.inputs
+    wallThicknessInput = inputs.itemById(BIN_WALL_THICKNESS_INPUT_ID)
+    hasScrewHolesInput = inputs.itemById(BIN_SCREW_HOLES_INPUT_ID)
+    hasMagnetCutoutsInput = inputs.itemById(BIN_MAGNET_CUTOUTS_INPUT_ID)
+    withLipInput = inputs.itemById(BIN_WITH_LIP_INPUT_ID)
+
 
     # General logging for debug.
     futil.log(f'{CMD_NAME} Input Changed Event fired from a change to {changed_input.id}')
+
+    if changed_input.id == BIN_TYPE_DROPDOWN_ID:
+        dropdownInput: adsk.core.DropDownCommandInput = changed_input.cast()
+        selectedItem = dropdownInput.selectedItem.name
+        if selectedItem == BIN_TYPE_HOLLOW:
+            wallThicknessInput.isEnabled = True
+            hasScrewHolesInput.isEnabled = True
+            hasMagnetCutoutsInput.isEnabled = True
+            withLipInput.isEnabled = True
+        elif selectedItem == BIN_TYPE_SHELLED:
+            wallThicknessInput.isEnabled = True
+            hasScrewHolesInput.isEnabled = False
+            hasMagnetCutoutsInput.isEnabled = False
+            withLipInput.isEnabled = False
+        elif selectedItem == BIN_TYPE_SOLID:
+            wallThicknessInput.isEnabled = False
+            hasScrewHolesInput.isEnabled = True
+            hasMagnetCutoutsInput.isEnabled = True
+            withLipInput.isEnabled = True
 
 
 # This event handler is called when the user interacts with any of the inputs in the dialog

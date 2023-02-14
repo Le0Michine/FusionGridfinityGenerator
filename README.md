@@ -22,17 +22,23 @@ Not supported at the moment
 - wall thickness can be adjusted
 - there are options available for magnet or screw holes
 - when magnet and screw holes are enabled together a groove will be generated to help with printability
+- bin can be shelled with constant wall thickness to save printing time
 
 Not supported at the moment
 - no tab is automatically generated
 - no scoop is automatically generated although it can be easily added in Fusion with a few clicks
 
 #### Bin bottom options
-Solid bottom             |  With screw holes | With magnet cutouts | Combined
+Solid bottom | With screw holes | With magnet cutouts | Combined
 :-------------------------:|:-------------------------:|:-------------------------:|:-------------------------:
 ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-solid-bottom.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-screw-holes.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-magnet-cutouts.png)  | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-magnet-cutouts-and-screw-holes-with-groove.png)
 
-#### Regular bin
+#### Bin type options
+Hollow bin | Shelled bin | Solid bin
+:-------------------------:|:-------------------------:|:-------------------------:
+![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/hollow-bin.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/shelled-bin.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/solid-bin.png)
+
+#### Hollow bin
 ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-with-cutout-creation.gif)
 
 #### Specialized Bin
