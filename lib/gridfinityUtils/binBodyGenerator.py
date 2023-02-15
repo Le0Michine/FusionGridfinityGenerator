@@ -6,6 +6,7 @@ import os
 from .const import BIN_BODY_BOTTOM_THICKNESS, BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS, BIN_CONNECTION_RECESS_DEPTH, BIN_CORNER_FILLET_RADIUS, BIN_LIP_CHAMFER, BIN_LIP_WALL_THICKNESS, DEFAULT_FILTER_TOLERANCE
 from .sketchUtils import createOffsetProfileSketch, createRectangle
 from ...lib import fusion360utils as futil
+from . import faceUtils
 from ...lib.gridfinityUtils.extrudeUtils import simpleDistanceExtrude
 from ...lib.gridfinityUtils.binBodyGeneratorInput import BinBodyGeneratorInput
 from ... import config
@@ -149,8 +150,9 @@ def createGridfinityBinBody(
             adsk.fusion.ExtentDirections.NegativeExtentDirection,
             targetComponent,
         )
+        bottomCutoutFace = innerCutout.endFaces.item(0)
 
-        if input.hasLip and offset >= 0:
+        if input.hasLip and offset > 0:
             # bottom lip chamfer, no lip if main wall thicker or same size as the lip
             chamferFeatures: adsk.fusion.ChamferFeatures = features.chamferFeatures
             bottomLipChamferInput = chamferFeatures.createInput2()
@@ -166,9 +168,9 @@ def createGridfinityBinBody(
         bottomFilletInput = filletFeatures.createInput()
         bottomFilletInput.isRollingBallCorner = True
         bottomFilletEdges = adsk.core.ObjectCollection.create()
-        bottomFilletEdges.add(innerCutout.endFaces.item(0).edges.item(0))
+        bottomFilletEdges.add(faceUtils.shortestEdge(bottomCutoutFace))
         bottomFilletInput.edgeSetInputs.addConstantRadiusEdgeSet(bottomFilletEdges,
-            adsk.core.ValueInput.createByReal(BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS),
+            adsk.core.ValueInput.createByReal(max(BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS, BIN_CORNER_FILLET_RADIUS - input.wallThickness)),
             True)
         filletFeatures.add(bottomFilletInput)
 

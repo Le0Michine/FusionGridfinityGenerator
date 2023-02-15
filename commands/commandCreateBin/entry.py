@@ -1,11 +1,15 @@
 import adsk.core, adsk.fusion, traceback
 import os
+import math
 
 
 
 from ...lib import fusion360utils as futil
 from ... import config
-from ...lib.gridfinityUtils.const import BIN_WALL_THICKNESS, BIN_XY_TOLERANCE, DEFAULT_FILTER_TOLERANCE, DIMENSION_DEFAULT_HEIGHT_UNIT, DIMENSION_DEFAULT_WIDTH_UNIT
+from ...lib.gridfinityUtils.const import BIN_LIP_WALL_THICKNESS, BIN_WALL_THICKNESS, BIN_XY_TOLERANCE, DEFAULT_FILTER_TOLERANCE, DIMENSION_DEFAULT_HEIGHT_UNIT, DIMENSION_DEFAULT_WIDTH_UNIT
+from ...lib.gridfinityUtils import geometryUtils
+from ...lib.gridfinityUtils import faceUtils
+from ...lib.gridfinityUtils import shellUtils
 from ...lib.gridfinityUtils.baseGenerator import createGridfinityBase
 from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
 from ...lib.gridfinityUtils.binBodyGenerator import createGridfinityBinBody
@@ -199,7 +203,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
 
         # create bin body
         binBodyInput = BinBodyGeneratorInput()
-        binBodyInput.hasLip = with_lip.value and not isShelled
+        binBodyInput.hasLip = with_lip.value
         binBodyInput.binWidth = bin_width.value
         binBodyInput.binLength = bin_length.value
         binBodyInput.binHeight = bin_height.value
@@ -226,16 +230,44 @@ def command_execute(args: adsk.core.CommandEventArgs):
         binBody = gridfinityBinComponent.bRepBodies.item(0)
 
         if isShelled:
-            shellFeatures = gridfinityBinComponent.features.shellFeatures
-            shellBinObjects = adsk.core.ObjectCollection.create()
-            faces = list(binBody.faces)
             # face.boundingBox.maxPoint.z ~ face.boundingBox.minPoint.z => face horizontal
-            # face.boundingBox.maxPoint.z > 0 any face above ground
-            topFace = [face for face in faces if abs(face.boundingBox.maxPoint.z - face.boundingBox.minPoint.z) < DEFAULT_FILTER_TOLERANCE and face.boundingBox.maxPoint.z > 0][0]
-            shellBinObjects.add(topFace)
-            shellBinInput = shellFeatures.createInput(shellBinObjects, False)
-            shellBinInput.insideThickness = adsk.core.ValueInput.createByReal(binBodyInput.wallThickness)
-            shellFeatures.add(shellBinInput)
+            # largest horizontal face
+            horizontalFaces = [face for face in binBody.faces if geometryUtils.isHorizontal(face)]
+            topFace = faceUtils.maxByArea(horizontalFaces)
+            topFaceMinPoint = topFace.boundingBox.minPoint
+            if binBodyInput.hasLip:
+                splitBodyFeatures = features.splitBodyFeatures
+                splitBodyInput = splitBodyFeatures.createInput(
+                    binBody,
+                    topFace,
+                    True
+                )
+                splitBodies = splitBodyFeatures.add(splitBodyInput)
+                bottomBody = min(splitBodies.bodies, key=lambda x: x.boundingBox.minPoint.z)
+                topBody = max(splitBodies.bodies, key=lambda x: x.boundingBox.minPoint.z)
+                horizontalFaces = [face for face in bottomBody.faces if geometryUtils.isHorizontal(face)]
+                topFace = faceUtils.maxByArea(horizontalFaces)
+                shellUtils.simpleShell([topFace], binBodyInput.wallThickness, gridfinityBinComponent)
+                toolBodies = adsk.core.ObjectCollection.create()
+                toolBodies.add(topBody)
+                combineAfterShellFeatureInput = combineFeatures.createInput(bottomBody, toolBodies)
+                combineFeatures.add(combineAfterShellFeatureInput)
+                binBody = gridfinityBinComponent.bRepBodies.item(0)
+            else:
+                shellUtils.simpleShell([topFace], binBodyInput.wallThickness, gridfinityBinComponent)
+
+            chamferEdge = [edge for edge in binBody.edges if geometryUtils.isHorizontal(edge)
+                and math.isclose(edge.boundingBox.minPoint.z, topFaceMinPoint.z, abs_tol=DEFAULT_FILTER_TOLERANCE)
+                and math.isclose(edge.boundingBox.minPoint.x, topFaceMinPoint.x, abs_tol=DEFAULT_FILTER_TOLERANCE)][0]
+            if binBodyInput.hasLip and BIN_LIP_WALL_THICKNESS - binBodyInput.wallThickness > 0:
+                chamferFeatures: adsk.fusion.ChamferFeatures = features.chamferFeatures
+                chamferInput = chamferFeatures.createInput2()
+                chamfer_edges = adsk.core.ObjectCollection.create()
+                chamfer_edges.add(chamferEdge)
+                chamferInput.chamferEdgeSets.addEqualDistanceChamferEdgeSet(chamfer_edges,
+                    adsk.core.ValueInput.createByReal(BIN_LIP_WALL_THICKNESS - binBodyInput.wallThickness),
+                    True)
+                chamferFeatures.add(chamferInput)
 
         
     except:
@@ -275,7 +307,7 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
             wallThicknessInput.isEnabled = True
             hasScrewHolesInput.isEnabled = False
             hasMagnetCutoutsInput.isEnabled = False
-            withLipInput.isEnabled = False
+            withLipInput.isEnabled = True
         elif selectedItem == BIN_TYPE_SOLID:
             wallThicknessInput.isEnabled = False
             hasScrewHolesInput.isEnabled = True
