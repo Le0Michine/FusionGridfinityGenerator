@@ -52,6 +52,7 @@ BIN_WIDTH_INPUT_ID = 'bin_width'
 BIN_WALL_THICKNESS_INPUT_ID = 'bin_wall_thickness'
 BIN_SCREW_HOLES_INPUT_ID = 'bin_screw_holes'
 BIN_MAGNET_CUTOUTS_INPUT_ID = 'bin_magnet_cutouts'
+BIN_HAS_SCOOP_INPUT_ID = 'bin_has_scoop'
 BIN_WITH_LIP_INPUT_ID = 'with_lip'
 BIN_TYPE_DROPDOWN_ID = 'bin_type'
 BIN_TYPE_HOLLOW = 'Hollow'
@@ -131,6 +132,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     binFeaturesGroup.children.addBoolValueInput(BIN_SCREW_HOLES_INPUT_ID, 'Add screw holes', True, '', False)
     binFeaturesGroup.children.addBoolValueInput(BIN_MAGNET_CUTOUTS_INPUT_ID, 'Add magnet cutouts', True, '', False)
     binFeaturesGroup.children.addBoolValueInput(BIN_WITH_LIP_INPUT_ID, 'Generate lip for stackability', True, '', True)
+    binFeaturesGroup.children.addBoolValueInput(BIN_HAS_SCOOP_INPUT_ID, 'Add scoop', True, '', False)
 
     # TODO Connect to the events that are needed by this command.
     futil.add_handler(args.command.execute, command_execute, local_handlers=local_handlers)
@@ -157,6 +159,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
     bin_screw_holes: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_SCREW_HOLES_INPUT_ID)
     bin_magnet_cutouts: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_MAGNET_CUTOUTS_INPUT_ID)
     with_lip: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_WITH_LIP_INPUT_ID)
+    has_scoop: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_SCOOP_INPUT_ID)
     dropdownInput: adsk.core.DropDownCommandInput = inputs.itemById(BIN_TYPE_DROPDOWN_ID)
 
     isHollow = dropdownInput.selectedItem.name == BIN_TYPE_HOLLOW
@@ -212,6 +215,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
         binBodyInput.xyTolerance = tolerance
         binBodyInput.isSolid = isSolid or isShelled
         binBodyInput.wallThickness = bin_wall_thickness.value
+        binBodyInput.hasScoop = has_scoop.value and isHollow
         binBody = createGridfinityBinBody(
             binBodyInput,
             gridfinityBinComponent,
@@ -290,6 +294,7 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
     hasScrewHolesInput = inputs.itemById(BIN_SCREW_HOLES_INPUT_ID)
     hasMagnetCutoutsInput = inputs.itemById(BIN_MAGNET_CUTOUTS_INPUT_ID)
     withLipInput = inputs.itemById(BIN_WITH_LIP_INPUT_ID)
+    hasScoopInput = inputs.itemById(BIN_HAS_SCOOP_INPUT_ID)
 
 
     # General logging for debug.
@@ -303,16 +308,19 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
             hasScrewHolesInput.isEnabled = True
             hasMagnetCutoutsInput.isEnabled = True
             withLipInput.isEnabled = True
+            hasScoopInput.isEnabled = True
         elif selectedItem == BIN_TYPE_SHELLED:
             wallThicknessInput.isEnabled = True
             hasScrewHolesInput.isEnabled = False
             hasMagnetCutoutsInput.isEnabled = False
             withLipInput.isEnabled = True
+            hasScoopInput.isEnabled = False
         elif selectedItem == BIN_TYPE_SOLID:
             wallThicknessInput.isEnabled = False
             hasScrewHolesInput.isEnabled = True
             hasMagnetCutoutsInput.isEnabled = True
             withLipInput.isEnabled = True
+            hasScoopInput.isEnabled = False
 
 
 # This event handler is called when the user interacts with any of the inputs in the dialog

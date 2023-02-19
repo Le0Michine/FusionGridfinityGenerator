@@ -8,6 +8,7 @@ class BinBodyGeneratorInput():
         self.isSolid = False
         self.hasLip = False
         self.isStackable = True
+        self.hasScoop = False
 
     @property
     def baseWidth(self) -> float:
@@ -88,5 +89,13 @@ class BinBodyGeneratorInput():
     @hasLip.setter
     def hasLip(self, value: bool):
         self._hasLip = value
+
+    @property
+    def hasScoop(self) -> bool:
+        return self._hasScoop
+
+    @hasScoop.setter
+    def hasScoop(self, value: bool):
+        self._hasScoop = value
 
     

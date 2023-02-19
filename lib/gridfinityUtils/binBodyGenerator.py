@@ -3,12 +3,13 @@ import os
 import math
 
 
-
-
 from .const import BIN_BODY_BOTTOM_THICKNESS, BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS, BIN_CONNECTION_RECESS_DEPTH, BIN_CORNER_FILLET_RADIUS, BIN_LIP_CHAMFER, BIN_LIP_WALL_THICKNESS, BIN_SCOOP_MAX_RADIUS, DEFAULT_FILTER_TOLERANCE
 from .sketchUtils import createOffsetProfileSketch, createRectangle
+from ...lib.gridfinityUtils import geometryUtils
 from ...lib import fusion360utils as futil
+from ...lib.gridfinityUtils import filletUtils
 from . import faceUtils
+from ...lib.gridfinityUtils import commonUtils
 from ...lib.gridfinityUtils.extrudeUtils import simpleDistanceExtrude
 from ...lib.gridfinityUtils.binBodyGeneratorInput import BinBodyGeneratorInput
 from ... import config
@@ -166,14 +167,84 @@ def createGridfinityBinBody(
                 True)
             chamferFeatures.add(bottomLipChamferInput)
         
-        # fillet at the bottom
-        bottomFilletInput = filletFeatures.createInput()
-        bottomFilletInput.isRollingBallCorner = True
-        bottomFilletEdges = adsk.core.ObjectCollection.create()
-        bottomFilletEdges.add(faceUtils.shortestEdge(bottomCutoutFace))
-        bottomFilletInput.edgeSetInputs.addConstantRadiusEdgeSet(bottomFilletEdges,
-            adsk.core.ValueInput.createByReal(max(BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS, BIN_CORNER_FILLET_RADIUS - input.wallThickness)),
-            True)
-        filletFeatures.add(bottomFilletInput)
+        bottomFilletRadius = max(BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS, BIN_CORNER_FILLET_RADIUS - input.wallThickness)
+
+        # scoop
+        if input.hasScoop:
+            yNormalFaces = [face for face in innerCutout.faces if faceUtils.isYNormal(face)]
+            scoopFace = min(yNormalFaces, key=lambda x: x.boundingBox.minPoint.y)
+            scoopOppositeFace = max(yNormalFaces, key=lambda x: x.boundingBox.minPoint.y)
+            if offset > 0: # when offset > 0 we need to offset the wall to compensate lip offset
+                constructionPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
+                constructionPlaneInput.setByOffset(scoopFace, adsk.core.ValueInput.createByReal(offset))
+                constructionPlane = targetComponent.constructionPlanes.add(constructionPlaneInput)
+                sketch: adsk.fusion.Sketch = targetComponent.sketches.add(constructionPlane)
+                sketch.intersectWithSketchPlane(list(binBodyExtrude.bodies))
+                # will get multiple profiles, can select the one with largest area
+                extrudeInput = extrudeFeatures.createInput(
+                    max(sketch.profiles, key=lambda x: x.areaProperties(adsk.fusion.CalculationAccuracy.LowCalculationAccuracy).area),
+                    adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
+                )
+                extrudeExtent: adsk.fusion.ToEntityExtentDefinition = adsk.fusion.ToEntityExtentDefinition.create(
+                    scoopFace,
+                    False,
+                )
+                extrudeInput.setOneSideExtent(
+                    extrudeExtent,
+                    adsk.fusion.ExtentDirections.NegativeExtentDirection,
+                )
+                scoopFaceExtrude = extrudeFeatures.add(extrudeInput)
+
+                cutBodiesInput = features.combineFeatures.createInput(
+                    scoopFaceExtrude.bodies.item(0),
+                    commonUtils.objectCollectionFromList([binBodyExtrude.bodies.item(0)])
+                )
+                cutBodiesInput.operation = adsk.fusion.FeatureOperations.CutFeatureOperation
+                cutBodiesInput.isKeepToolBodies = True
+                cutBodyFeature = features.combineFeatures.add(cutBodiesInput)
+
+                offsetScoopFaceVolume: adsk.fusion.BRepBody
+                offsetScoopFaceVolume = [body for body in cutBodyFeature.bodies if body.boundingBox.contains(scoopFace.boundingBox.maxPoint)][0]
+                for body in list(cutBodyFeature.bodies):
+                    # delete bodies left after cut
+                    if not body == offsetScoopFaceVolume:
+                        features.removeFeatures.add(body)
+
+                combineBodiesInput = features.combineFeatures.createInput(
+                    binBodyExtrude.bodies.item(0),
+                    commonUtils.objectCollectionFromList([scoopFaceExtrude.bodies.item(0)]),
+                )
+                combineBodiesInput.operation = adsk.fusion.FeatureOperations.JoinFeatureOperation
+                features.combineFeatures.add(combineBodiesInput)
+
+            scoopEdge = min(bottomCutoutFace.edges, key=lambda x: x.tangentiallyConnectedEdges.count)
+            scoopFilletInput = filletFeatures.createInput()
+            scoopFilletInput.isRollingBallCorner = True
+            scoopFilletEdges = adsk.core.ObjectCollection.create()
+            scoopFilletEdges.add(scoopEdge)
+            
+            scoopRadius = adsk.core.ValueInput.createByReal(min(BIN_SCOOP_MAX_RADIUS, binBodyTotalHeight))
+            scoopFilletInput.edgeSetInputs.addConstantRadiusEdgeSet(
+                scoopFilletEdges,
+                scoopRadius,
+                False,
+                )
+            filletFeatures.add(scoopFilletInput)
+
+            scoopOppositeEdge = min([edge for edge in scoopOppositeFace.edges if geometryUtils.isHorizontal(edge)], key=lambda x: x.startVertex.geometry.z)
+            # fillet at the bottom
+            filletUtils.createFillet(
+                [scoopOppositeEdge],
+                bottomFilletRadius,
+                targetComponent
+            )
+            
+        else:    
+            # fillet at the bottom
+            filletUtils.createFillet(
+                [faceUtils.shortestEdge(bottomCutoutFace)],
+                bottomFilletRadius,
+                targetComponent
+            )
 
     return binBodyExtrude.bodies.item(0)

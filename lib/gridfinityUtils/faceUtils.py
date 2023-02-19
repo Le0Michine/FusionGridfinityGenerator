@@ -1,5 +1,8 @@
+import math
 import adsk.core, adsk.fusion, traceback
 import os
+
+from .const import DEFAULT_FILTER_TOLERANCE
 
 
 def minByArea(faces: adsk.fusion.BRepFaces):
@@ -17,3 +20,6 @@ def longestEdge(face: adsk.fusion.BRepFace):
 
 def shortestEdge(face: adsk.fusion.BRepFace):
     return min(face.edges, key=lambda x: x.length)
+
+def isYNormal(face: adsk.fusion.BRepFace):
+    return math.isclose(face.boundingBox.minPoint.y, face.boundingBox.maxPoint.y, abs_tol=DEFAULT_FILTER_TOLERANCE)
