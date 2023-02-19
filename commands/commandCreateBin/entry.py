@@ -54,9 +54,15 @@ BIN_LENGTH_INPUT_ID = 'bin_length'
 BIN_HEIGHT_INPUT_ID = 'bin_height'
 BIN_WIDTH_INPUT_ID = 'bin_width'
 BIN_WALL_THICKNESS_INPUT_ID = 'bin_wall_thickness'
+BIN_GENERATE_BASE_INPUT_ID = 'bin_generate_base'
+BIN_GENERATE_BODY_INPUT_ID = 'bin_generate_body'
 BIN_SCREW_HOLES_INPUT_ID = 'bin_screw_holes'
 BIN_MAGNET_CUTOUTS_INPUT_ID = 'bin_magnet_cutouts'
 BIN_HAS_SCOOP_INPUT_ID = 'bin_has_scoop'
+BIN_HAS_TAB_INPUT_ID = 'bin_has_tab'
+BIN_TAB_LENGTH_INPUT_ID = 'bin_tab_length'
+BIN_TAB_POSITION_INPUT_ID = 'bin_tab_position'
+BIN_TAB_ANGLE_INPUT_ID = 'bin_tab_angle'
 BIN_WITH_LIP_INPUT_ID = 'with_lip'
 BIN_TYPE_DROPDOWN_ID = 'bin_type'
 BIN_TYPE_HOLLOW = 'Hollow'
@@ -135,18 +141,31 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     binDimensionsGroup.children.addValueInput(BIN_LENGTH_INPUT_ID, 'Bin length', '', adsk.core.ValueInput.createByString('3'))
     binDimensionsGroup.children.addValueInput(BIN_HEIGHT_INPUT_ID, 'Bin height', '', adsk.core.ValueInput.createByString('10'))
 
-    binFeaturesGroup = inputs.addGroupCommandInput('bin_features', 'Extra features')
-
+    binFeaturesGroup = inputs.addGroupCommandInput('bin_features', 'Bin features')
+    binFeaturesGroup.children.addBoolValueInput(BIN_GENERATE_BODY_INPUT_ID, 'Generate body', True, '', True)
     binTypeDropdown = binFeaturesGroup.children.addDropDownCommandInput(BIN_TYPE_DROPDOWN_ID, 'Bin type', adsk.core.DropDownStyles.LabeledIconDropDownStyle)
     binTypeDropdown.listItems.add(BIN_TYPE_HOLLOW, True)
     binTypeDropdown.listItems.add(BIN_TYPE_SHELLED, False)
     binTypeDropdown.listItems.add(BIN_TYPE_SOLID, False)
 
     binFeaturesGroup.children.addValueInput(BIN_WALL_THICKNESS_INPUT_ID, 'Bin wall thickness', defaultLengthUnits, adsk.core.ValueInput.createByReal(BIN_WALL_THICKNESS))
-    binFeaturesGroup.children.addBoolValueInput(BIN_SCREW_HOLES_INPUT_ID, 'Add screw holes', True, '', False)
-    binFeaturesGroup.children.addBoolValueInput(BIN_MAGNET_CUTOUTS_INPUT_ID, 'Add magnet cutouts', True, '', False)
     binFeaturesGroup.children.addBoolValueInput(BIN_WITH_LIP_INPUT_ID, 'Generate lip for stackability', True, '', True)
     binFeaturesGroup.children.addBoolValueInput(BIN_HAS_SCOOP_INPUT_ID, 'Add scoop', True, '', False)
+
+    binTabFeaturesGroup = binFeaturesGroup.children.addGroupCommandInput('bin_tab_features', 'Label tab')
+    binTabFeaturesGroup.children.addBoolValueInput(BIN_HAS_TAB_INPUT_ID, 'Add label tab', True, '', False)
+    binTabFeaturesGroup.children.addValueInput(BIN_TAB_LENGTH_INPUT_ID, 'Tab length', '', adsk.core.ValueInput.createByString('1'))
+    binTabFeaturesGroup.children.addValueInput(BIN_TAB_POSITION_INPUT_ID, 'Tab offset', '', adsk.core.ValueInput.createByString('0'))
+    binTabFeaturesGroup.children.addValueInput(BIN_TAB_ANGLE_INPUT_ID, 'Tab overhang angle', 'deg', adsk.core.ValueInput.createByString('45'))
+    for input in binTabFeaturesGroup.children:
+        if not input.id == BIN_HAS_TAB_INPUT_ID:
+            input.isEnabled = False
+
+    baseFeaturesGroup = inputs.addGroupCommandInput('base_features', 'Base interface features')
+    baseFeaturesGroup.children.addBoolValueInput(BIN_GENERATE_BASE_INPUT_ID, 'Generate base', True, '', True)
+    baseFeaturesGroup.children.addBoolValueInput(BIN_SCREW_HOLES_INPUT_ID, 'Add screw holes', True, '', False)
+    baseFeaturesGroup.children.addBoolValueInput(BIN_MAGNET_CUTOUTS_INPUT_ID, 'Add magnet cutouts', True, '', False)
+    
 
     # TODO Connect to the events that are needed by this command.
     futil.add_handler(args.command.execute, command_execute, local_handlers=local_handlers)
@@ -171,9 +190,15 @@ def command_execute(args: adsk.core.CommandEventArgs):
     bin_height: adsk.core.ValueCommandInput = inputs.itemById(BIN_HEIGHT_INPUT_ID)
     bin_wall_thickness: adsk.core.ValueCommandInput = inputs.itemById(BIN_WALL_THICKNESS_INPUT_ID)
     bin_screw_holes: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_SCREW_HOLES_INPUT_ID)
+    bin_generate_base: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_GENERATE_BASE_INPUT_ID)
+    bin_generate_body: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_GENERATE_BODY_INPUT_ID)
     bin_magnet_cutouts: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_MAGNET_CUTOUTS_INPUT_ID)
     with_lip: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_WITH_LIP_INPUT_ID)
     has_scoop: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_SCOOP_INPUT_ID)
+    hasTabInput: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_TAB_INPUT_ID)
+    binTabLength: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_LENGTH_INPUT_ID)
+    binTabPosition: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_POSITION_INPUT_ID)
+    binTabAngle: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_ANGLE_INPUT_ID)
     dropdownInput: adsk.core.DropDownCommandInput = inputs.itemById(BIN_TYPE_DROPDOWN_ID)
 
     isHollow = dropdownInput.selectedItem.name == BIN_TYPE_HOLLOW
@@ -189,34 +214,36 @@ def command_execute(args: adsk.core.CommandEventArgs):
 
         # create new component
         newCmpOcc = adsk.fusion.Occurrences.cast(root.occurrences).addNewComponent(adsk.core.Matrix3D.create())
-
         newCmpOcc.component.name = binName
         newCmpOcc.activate()
         gridfinityBinComponent: adsk.fusion.Component = newCmpOcc.component
         features: adsk.fusion.Features = gridfinityBinComponent.features
 
+        # create base interface
         baseGeneratorInput = BaseGeneratorInput()
         baseGeneratorInput.baseWidth = base_width_unit.value
         baseGeneratorInput.xyTolerance = tolerance
         baseGeneratorInput.hasScrewHoles = bin_screw_holes.value and not isShelled
         baseGeneratorInput.hasMagnetCutouts = bin_magnet_cutouts.value and not isShelled
 
-        baseBody = createGridfinityBase(baseGeneratorInput, gridfinityBinComponent)
-
-        # replicate base in rectangular pattern
-        rectangularPatternFeatures: adsk.fusion.RectangularPatternFeatures = features.rectangularPatternFeatures
-        patternInputBodies = adsk.core.ObjectCollection.create()
-        patternInputBodies.add(baseBody)
-        patternInput = rectangularPatternFeatures.createInput(patternInputBodies,
-            gridfinityBinComponent.xConstructionAxis,
-            adsk.core.ValueInput.createByReal(bin_width.value),
-            adsk.core.ValueInput.createByReal(base_width_unit.value),
-            adsk.fusion.PatternDistanceType.SpacingPatternDistanceType)
-        patternInput.directionTwoEntity = gridfinityBinComponent.yConstructionAxis
-        patternInput.quantityTwo = adsk.core.ValueInput.createByReal(bin_length.value)
-        patternInput.distanceTwo = adsk.core.ValueInput.createByReal(base_width_unit.value)
-        rectangularPattern = rectangularPatternFeatures.add(patternInput)
+        baseBody: adsk.fusion.BRepBody
         
+        if bin_generate_base.value:
+            baseBody = createGridfinityBase(baseGeneratorInput, gridfinityBinComponent)
+            # replicate base in rectangular pattern
+            rectangularPatternFeatures: adsk.fusion.RectangularPatternFeatures = features.rectangularPatternFeatures
+            patternInputBodies = adsk.core.ObjectCollection.create()
+            patternInputBodies.add(baseBody)
+            patternInput = rectangularPatternFeatures.createInput(patternInputBodies,
+                gridfinityBinComponent.xConstructionAxis,
+                adsk.core.ValueInput.createByReal(bin_width.value),
+                adsk.core.ValueInput.createByReal(base_width_unit.value),
+                adsk.fusion.PatternDistanceType.SpacingPatternDistanceType)
+            patternInput.directionTwoEntity = gridfinityBinComponent.yConstructionAxis
+            patternInput.quantityTwo = adsk.core.ValueInput.createByReal(bin_length.value)
+            patternInput.distanceTwo = adsk.core.ValueInput.createByReal(base_width_unit.value)
+            rectangularPattern = rectangularPatternFeatures.add(patternInput)
+
 
         # create bin body
         binBodyInput = BinBodyGeneratorInput()
@@ -230,24 +257,31 @@ def command_execute(args: adsk.core.CommandEventArgs):
         binBodyInput.isSolid = isSolid or isShelled
         binBodyInput.wallThickness = bin_wall_thickness.value
         binBodyInput.hasScoop = has_scoop.value and isHollow
-        binBody = createGridfinityBinBody(
-            binBodyInput,
-            gridfinityBinComponent,
-            )
+        binBodyInput.hasTab = hasTabInput.value and isHollow
+        binBodyInput.tabLength = binTabLength.value
+        binBodyInput.tabPosition = binTabPosition.value
+        binBodyInput.tabOverhangAngle = binTabAngle.value
+
+        binBody: adsk.fusion.BRepBody
+
+        if bin_generate_body.value:
+            binBody = createGridfinityBinBody(
+                binBodyInput,
+                gridfinityBinComponent,
+                )
 
         # merge everything
-        toolBodies = adsk.core.ObjectCollection.create()
-        toolBodies.add(baseBody)
-        for body in rectangularPattern.bodies:
-            toolBodies.add(body)
-        combineFeatures = gridfinityBinComponent.features.combineFeatures
-        combineFeatureInput = combineFeatures.createInput(binBody, toolBodies)
-        combineFeatures.add(combineFeatureInput)
-        gridfinityBinComponent.bRepBodies.item(0).name = binName
+        if bin_generate_body.value and bin_generate_base.value:
+            toolBodies = adsk.core.ObjectCollection.create()
+            toolBodies.add(baseBody)
+            for body in rectangularPattern.bodies:
+                toolBodies.add(body)
+            combineFeatures = gridfinityBinComponent.features.combineFeatures
+            combineFeatureInput = combineFeatures.createInput(binBody, toolBodies)
+            combineFeatures.add(combineFeatureInput)
+            gridfinityBinComponent.bRepBodies.item(0).name = binName
 
-        binBody = gridfinityBinComponent.bRepBodies.item(0)
-
-        if isShelled:
+        if isShelled and bin_generate_body.value:
             # face.boundingBox.maxPoint.z ~ face.boundingBox.minPoint.z => face horizontal
             # largest horizontal face
             horizontalFaces = [face for face in binBody.faces if geometryUtils.isHorizontal(face)]
@@ -286,8 +320,6 @@ def command_execute(args: adsk.core.CommandEventArgs):
                     adsk.core.ValueInput.createByReal(BIN_LIP_WALL_THICKNESS - binBodyInput.wallThickness),
                     True)
                 chamferFeatures.add(chamferInput)
-
-        
     except:
         if ui:
             ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
@@ -306,16 +338,22 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
     inputs = args.inputs
     wallThicknessInput = inputs.itemById(BIN_WALL_THICKNESS_INPUT_ID)
     hasScrewHolesInput = inputs.itemById(BIN_SCREW_HOLES_INPUT_ID)
+    hasBase: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_GENERATE_BASE_INPUT_ID)
+    hasBody: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_GENERATE_BODY_INPUT_ID)
+    dropdownInput: adsk.core.DropDownCommandInput = inputs.itemById(BIN_TYPE_DROPDOWN_ID)
     hasMagnetCutoutsInput = inputs.itemById(BIN_MAGNET_CUTOUTS_INPUT_ID)
     withLipInput = inputs.itemById(BIN_WITH_LIP_INPUT_ID)
     hasScoopInput = inputs.itemById(BIN_HAS_SCOOP_INPUT_ID)
+    hasTabInput: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_TAB_INPUT_ID)
+    tabLengthInput = inputs.itemById(BIN_TAB_LENGTH_INPUT_ID)
+    tabPositionInput = inputs.itemById(BIN_TAB_ANGLE_INPUT_ID)
+    tabAngleInput = inputs.itemById(BIN_TAB_POSITION_INPUT_ID)
 
 
     # General logging for debug.
     futil.log(f'{CMD_NAME} Input Changed Event fired from a change to {changed_input.id}')
 
     if changed_input.id == BIN_TYPE_DROPDOWN_ID:
-        dropdownInput: adsk.core.DropDownCommandInput = changed_input.cast()
         selectedItem = dropdownInput.selectedItem.name
         if selectedItem == BIN_TYPE_HOLLOW:
             wallThicknessInput.isEnabled = True
@@ -323,18 +361,34 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
             hasMagnetCutoutsInput.isEnabled = True
             withLipInput.isEnabled = True
             hasScoopInput.isEnabled = True
+            hasTabInput.isEnabled = True
         elif selectedItem == BIN_TYPE_SHELLED:
             wallThicknessInput.isEnabled = True
             hasScrewHolesInput.isEnabled = False
             hasMagnetCutoutsInput.isEnabled = False
             withLipInput.isEnabled = True
             hasScoopInput.isEnabled = False
+            hasTabInput.isEnabled = False
         elif selectedItem == BIN_TYPE_SOLID:
             wallThicknessInput.isEnabled = False
             hasScrewHolesInput.isEnabled = True
             hasMagnetCutoutsInput.isEnabled = True
             withLipInput.isEnabled = True
             hasScoopInput.isEnabled = False
+            hasTabInput.isEnabled = False
+    elif changed_input.id == BIN_GENERATE_BASE_INPUT_ID:
+        hasScrewHolesInput.isEnabled = hasBase.value
+        hasMagnetCutoutsInput.isEnabled = hasBase.value
+    elif changed_input.id == BIN_GENERATE_BODY_INPUT_ID:
+        dropdownInput.isEnabled = hasBody.value
+        wallThicknessInput.isEnabled = hasBody.value
+        withLipInput.isEnabled = hasBody.value
+        hasScoopInput.isEnabled = hasBody.value
+        hasTabInput.isEnabled = hasBody.value
+    elif changed_input.id == BIN_HAS_TAB_INPUT_ID:
+        tabLengthInput.isEnabled = hasTabInput.value
+        tabPositionInput.isEnabled = hasTabInput.value
+        tabAngleInput.isEnabled = hasTabInput.value
 
 
 # This event handler is called when the user interacts with any of the inputs in the dialog

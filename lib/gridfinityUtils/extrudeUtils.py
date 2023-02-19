@@ -6,16 +6,13 @@ def simpleDistanceExtrude(
     operation: adsk.fusion.FeatureOperations,
     distance: float,
     direction: adsk.fusion.ExtentDirections,
+    participantBodies: list[adsk.fusion.BRepBody],
     targetComponent: adsk.fusion.Component,
     ):
     features: adsk.fusion.Features = targetComponent.features
     extrudeFeatures: adsk.fusion.ExtrudeFeatures = features.extrudeFeatures
-
-    participatingBodies = []
-    for body in targetComponent.bRepBodies:
-        participatingBodies.append(body)
     extrudeInput = extrudeFeatures.createInput(profile, operation)
-    extrudeInput.participantBodies = participatingBodies
+    extrudeInput.participantBodies = participantBodies
     extrudeExtent = adsk.fusion.DistanceExtentDefinition.create(adsk.core.ValueInput.createByReal(distance))
     extrudeInput.setOneSideExtent(
         extrudeExtent,

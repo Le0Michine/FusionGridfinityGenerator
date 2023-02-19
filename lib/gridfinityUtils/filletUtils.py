@@ -9,6 +9,7 @@ from . import faceUtils
 def createFillet(
     edges: list[adsk.fusion.BRepEdge],
     radius: float,
+    isTangentChain: bool,
     targetComponent: adsk.fusion.Component,
     ):
     features: adsk.fusion.Features = targetComponent.features
@@ -20,5 +21,5 @@ def createFillet(
     filletInput.edgeSetInputs.addConstantRadiusEdgeSet(
         filletEdges,
         adsk.core.ValueInput.createByReal(radius),
-        True)
+        isTangentChain)
     return filletFeatures.add(filletInput)

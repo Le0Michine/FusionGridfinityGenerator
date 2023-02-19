@@ -6,7 +6,7 @@
 	"description":	{
 		"":	""
 	},
-	"version":	"0.1",
+	"version":	"0.2",
 	"runOnStartup":	true,
 	"supportedOS":	"windows|mac",
 	"editEnabled":	true

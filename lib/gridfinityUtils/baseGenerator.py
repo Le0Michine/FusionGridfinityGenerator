@@ -22,7 +22,7 @@ def createGridfinityBase(
     # create rectangle for the base
     sketches: adsk.fusion.Sketches = targetComponent.sketches
     base_plate_sketch: adsk.fusion.Sketch = sketches.add(targetComponent.xYConstructionPlane)
-    createRectangle(actual_base_width, actual_base_width, base_plate_sketch)
+    createRectangle(actual_base_width, actual_base_width, base_plate_sketch.originPoint.geometry, base_plate_sketch)
         
     # extrude
     topExtrudeDepth = adsk.core.ValueInput.createByReal(0.23)
@@ -33,13 +33,15 @@ def createGridfinityBase(
         adsk.fusion.ExtentDirections.NegativeExtentDirection,
         adsk.core.ValueInput.createByReal(0))
     topExtrudeFeature = extrudeFeatures.add(topExtrudeInput)
+    baseBody = topExtrudeFeature.bodies.item(0)
+    baseBody.name = 'base'
 
     # fillet
     filletFeatures: adsk.fusion.FilletFeatures = features.filletFeatures
     filletInput = filletFeatures.createInput()
     filletInput.isRollingBallCorner = True
     fillet_edges = adsk.core.ObjectCollection.create()
-    faces: adsk.fusion.BRepFaces = targetComponent.bRepBodies.item(0).faces
+    faces: adsk.fusion.BRepFaces = baseBody.faces
     for i in range(0, 4):
         fillet_edges.add(faces.item(i).edges.item(1))
     filletInput.edgeSetInputs.addConstantRadiusEdgeSet(fillet_edges, adsk.core.ValueInput.createByReal(BIN_CORNER_FILLET_RADIUS), True)
@@ -91,7 +93,7 @@ def createGridfinityBase(
             baseTopPlane.edges.item(3),
             screwHoleOffset
             )
-        screwHoleFeatureInput.participantBodies = [targetComponent.bRepBodies.item(0)]
+        screwHoleFeatureInput.participantBodies = [baseBody]
         screwHoleFeatureInput.setAllExtent(adsk.fusion.ExtentDirections.PositiveExtentDirection)
         screwHoleFeature = holeFeatures.add(screwHoleFeatureInput)
         patternInputBodies.add(screwHoleFeature)
@@ -132,6 +134,7 @@ def createGridfinityBase(
             adsk.fusion.FeatureOperations.CutFeatureOperation,
             input.magnetCutoutsDepth,
             adsk.fusion.ExtentDirections.NegativeExtentDirection,
+            [baseBottomExtrude.bodies.item(0)],
             targetComponent,
         )
         patternInputBodies.add(magnetCutoutExtrude)
@@ -204,4 +207,4 @@ def createGridfinityBase(
         patternInput.distanceTwo = adsk.core.ValueInput.createByReal(DIMENSION_SCREW_HOLES_DISTANCE)
         rectangularPatternFeatures.add(patternInput)
 
-    return targetComponent.bRepBodies.item(0)
+    return baseBody
