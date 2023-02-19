@@ -69,6 +69,8 @@ BIN_TYPE_HOLLOW = 'Hollow'
 BIN_TYPE_SHELLED = 'Shelled'
 BIN_TYPE_SOLID = 'Solid'
 
+BIN_TAB_FEATURES_GROUP_ID = 'bin_tab_features'
+
 
 # Executed when add-in is run.
 def start():
@@ -152,7 +154,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     binFeaturesGroup.children.addBoolValueInput(BIN_WITH_LIP_INPUT_ID, 'Generate lip for stackability', True, '', True)
     binFeaturesGroup.children.addBoolValueInput(BIN_HAS_SCOOP_INPUT_ID, 'Add scoop', True, '', False)
 
-    binTabFeaturesGroup = binFeaturesGroup.children.addGroupCommandInput('bin_tab_features', 'Label tab')
+    binTabFeaturesGroup = binFeaturesGroup.children.addGroupCommandInput(BIN_TAB_FEATURES_GROUP_ID, 'Label tab')
     binTabFeaturesGroup.children.addBoolValueInput(BIN_HAS_TAB_INPUT_ID, 'Add label tab', True, '', False)
     binTabFeaturesGroup.children.addValueInput(BIN_TAB_LENGTH_INPUT_ID, 'Tab length', '', adsk.core.ValueInput.createByString('1'))
     binTabFeaturesGroup.children.addValueInput(BIN_TAB_POSITION_INPUT_ID, 'Tab offset', '', adsk.core.ValueInput.createByString('0'))
@@ -348,6 +350,7 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
     tabLengthInput = inputs.itemById(BIN_TAB_LENGTH_INPUT_ID)
     tabPositionInput = inputs.itemById(BIN_TAB_ANGLE_INPUT_ID)
     tabAngleInput = inputs.itemById(BIN_TAB_POSITION_INPUT_ID)
+    binTabFeaturesGroup: adsk.core.GroupCommandInput = inputs.itemById(BIN_TAB_FEATURES_GROUP_ID)
 
 
     # General logging for debug.
@@ -384,7 +387,13 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
         wallThicknessInput.isEnabled = hasBody.value
         withLipInput.isEnabled = hasBody.value
         hasScoopInput.isEnabled = hasBody.value
-        hasTabInput.isEnabled = hasBody.value
+        binTabFeaturesGroup.isEnabled = hasBody.value
+        for input in binTabFeaturesGroup.children:
+            if input.id == BIN_HAS_TAB_INPUT_ID:
+                hasTabInput = input
+                input.isEnabled = hasBody.value
+            else:
+                input.isEnabled = hasBody.value and hasTabInput.value
     elif changed_input.id == BIN_HAS_TAB_INPUT_ID:
         tabLengthInput.isEnabled = hasTabInput.value
         tabPositionInput.isEnabled = hasTabInput.value

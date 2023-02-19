@@ -5,6 +5,10 @@ Addin for Fusion 360 allowing quick generation of simple [gridfinity](https://ww
 
 ## Features
 
+Bin options | Baseplate options
+:-------------------------:|:-------------------------:
+![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/fusion-dialog-bin-generator.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/fusion-dialog-baseplate-generator.png)
+
 ### Baseplates
 - accepts amount of bases X and Y directions
 - base measurement can be changed, default is 42mm
@@ -23,10 +27,11 @@ Not supported at the moment
 - there are options available for magnet or screw holes
 - when magnet and screw holes are enabled together a groove will be generated to help with printability
 - bin can be shelled with constant wall thickness to save printing time
+- label tab can be generated (length, offset and overhang angle are adjustable)
+- can generate only base or bin body part
 
 Not supported at the moment
-- no tab is automatically generated
-- no scoop is automatically generated although it can be easily added in Fusion with a few clicks
+- no compartment walls configuiration available
 
 #### Bin bottom options
 Solid bottom | With screw holes | With magnet cutouts | Combined
