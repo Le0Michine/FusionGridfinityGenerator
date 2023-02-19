@@ -1,7 +1,7 @@
 import adsk.core, adsk.fusion, traceback
 import os
 
-
+from ...lib import configUtils
 from ...lib import fusion360utils as futil
 from ... import config
 from ...lib.gridfinityUtils.const import BASE_TOTAL_HEIGHT, BIN_CORNER_FILLET_RADIUS, BIN_XY_TOLERANCE, DIMENSION_DEFAULT_WIDTH_UNIT
@@ -32,6 +32,8 @@ COMMAND_BESIDE_ID = 'ScriptsManagerCommand'
 # Resource location for command icons, here we assume a sub folder in this directory named "resources".
 ICON_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources', '')
 
+CONFIG_FOLDER_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'commandConfig')
+
 # Local list of event handlers used to maintain a reference so
 # they are not released and garbage collected.
 local_handlers = []
@@ -39,6 +41,8 @@ local_handlers = []
 
 # Executed when add-in is run.
 def start():
+    addinConfig = configUtils.readConfig(CONFIG_FOLDER_PATH)
+
     # Create a command Definition.
     cmd_def = ui.commandDefinitions.addButtonDefinition(CMD_ID, CMD_NAME, CMD_Description, ICON_FOLDER)
 
@@ -56,7 +60,8 @@ def start():
     control = panel.controls.addCommand(cmd_def, COMMAND_BESIDE_ID, False)
 
     # Specify if the command is promoted to the main toolbar. 
-    control.isPromoted = IS_PROMOTED
+    control.isPromoted = addinConfig['UI'].getboolean('is_promoted')
+    # control.isPromoted = IS_PROMOTED
 
 
 # Executed when add-in is stopped.
@@ -64,8 +69,12 @@ def stop():
     # Get the various UI elements for this command
     workspace = ui.workspaces.itemById(WORKSPACE_ID)
     panel = workspace.toolbarPanels.itemById(PANEL_ID)
-    command_control = panel.controls.itemById(CMD_ID)
+    command_control: adsk.core.CommandControl = panel.controls.itemById(CMD_ID)
     command_definition = ui.commandDefinitions.itemById(CMD_ID)
+
+    addinConfig = configUtils.readConfig(CONFIG_FOLDER_PATH)
+    addinConfig['UI']['is_promoted'] = 'yes' if command_control.isPromoted else 'no'
+    configUtils.writeConfig(addinConfig, CONFIG_FOLDER_PATH)
 
     # Delete the button command control
     if command_control:
@@ -169,7 +178,6 @@ def command_execute(args: adsk.core.CommandEventArgs):
             gridfinityBaseplateComponent,
         )
 
-
         # cut everything
         toolBodies = adsk.core.ObjectCollection.create()
         toolBodies.add(baseBody)
@@ -180,8 +188,6 @@ def command_execute(args: adsk.core.CommandEventArgs):
         combineFeatureInput.operation = adsk.fusion.FeatureOperations.CutFeatureOperation
         combineFeatures.add(combineFeatureInput)
         gridfinityBaseplateComponent.bRepBodies.item(0).name = binName
-        
-
         
     except:
         if ui:
