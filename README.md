@@ -12,9 +12,14 @@ Bin options | Baseplate options
 ### Baseplates
 - accepts amount of bases X and Y directions
 - base measurement can be changed, default is 42mm
+- there are options to generate thick plate with magnet or/and screw cutouts
+- thick plate can be skeletonized to reduce weight and allow for connection holes support
+- size of magnet cutouts and screw holes can be adjusted
 
-Not supported at the moment
-- no weighted plates option right now
+#### Baseplate types
+Light | Skeleton with connection holes | Full
+:-------------------------:|:-------------------------:|:-------------------------:
+![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/baseplate-light.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/baseplate-skeleton.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/baseplate-full.png)
 
 ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/baseplate-creation.gif)
 
@@ -42,6 +47,17 @@ Solid bottom | With screw holes | With magnet cutouts | Combined
 Hollow bin | Shelled bin | Solid bin
 :-------------------------:|:-------------------------:|:-------------------------:
 ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/hollow-bin.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/shelled-bin.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/solid-bin.png)
+
+#### Bin label tab configuration
+Full length | Single slot | With offset
+:-------------------------:|:-------------------------:|:-------------------------:
+![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-label-tab-full.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-label-tab-single-slot.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-label-tab-with-offset.png)
+
+#### Bin scoop feature
+Scoop enabled | Scoop disabled
+:-------------------------:|:-------------------------:
+![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-scoop-on.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-scoop-off.png)
+
 
 #### Hollow bin
 ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-with-cutout-creation.gif)

@@ -1,13 +1,14 @@
 import adsk.core, adsk.fusion, traceback
 import os
 
+
 from ...lib import configUtils
 from ...lib import fusion360utils as futil
 from ... import config
-from ...lib.gridfinityUtils.const import BASE_TOTAL_HEIGHT, BIN_CORNER_FILLET_RADIUS, BIN_XY_TOLERANCE, DIMENSION_DEFAULT_WIDTH_UNIT
-from ...lib.gridfinityUtils.baseGenerator import createGridfinityBase
-from ...lib.gridfinityUtils.binBodyGenerator import chamferEdgesByLength, createBox, createGridfinityBinBody, filletEdgesByLength
-from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
+from ...lib.gridfinityUtils.const import DIMENSION_DEFAULT_WIDTH_UNIT
+from ...lib.gridfinityUtils.baseplateGenerator import createGridfinityBaseplate
+from ...lib.gridfinityUtils.baseplateGeneratorInput import BaseplateGeneratorInput
+from ...lib.gridfinityUtils import const
 
 app = adsk.core.Application.get()
 ui = app.userInterface
@@ -38,6 +39,28 @@ CONFIG_FOLDER_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'c
 # they are not released and garbage collected.
 local_handlers = []
 
+# Input ids
+BASEPLATE_BASE_UNIT_WIDTH_INPUT = 'base_width_unit'
+BASEPLATE_WIDTH_INPUT = 'plate_width'
+BASEPLATE_LENGTH_INPUT = 'plate_length'
+BASEPLATE_TYPE_DROPDOWN = 'plate_type_dropdown'
+
+BASEPLATE_TYPE_LIGHT = 'Light'
+BASEPLATE_TYPE_FULL = 'Full'
+BASEPLATE_TYPE_SKELETONIZED = 'Skeletonized'
+
+BASEPLATE_WITH_MAGNETS_INPUT = 'with_magnet_cutouts'
+BASEPLATE_MAGNET_DIAMETER_INPUT = 'magnet_diameter'
+BASEPLATE_MAGNET_HEIGHT_INPUT = 'magnet_height'
+
+BASEPLATE_WITH_SCREWS_INPUT = 'with_screw_holes'
+BASEPLATE_SCREW_DIAMETER_INPUT = 'screw_diameter'
+BASEPLATE_SCREW_HEIGHT_INPUT = 'screw_head_diameter'
+
+BASEPLATE_EXTRA_THICKNESS_INPUT = 'extra_bottom_thickness'
+BASEPLATE_BIN_Z_CLEARANCE_INPUT = 'bin_z_clearance'
+BASEPLATE_HAS_CONNECTION_HOLE_INPUT = 'has_connection_hole'
+BASEPLATE_CONNECTION_HOLE_DIAMETER_INPUT = 'connection_hole_diameter'
 
 # Executed when add-in is run.
 def start():
@@ -91,14 +114,41 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     # General logging for debug.
     futil.log(f'{CMD_NAME} Command Created Event')
 
+    args.command.setDialogInitialSize(400, 500)
+
     # https://help.autodesk.com/view/fusion360/ENU/?contextId=CommandInputs
     inputs = args.command.commandInputs
 
     # Create a value input field and set the default using 1 unit of the default length unit.
     defaultLengthUnits = app.activeProduct.unitsManager.defaultLengthUnits
-    inputs.addValueInput('base_width_unit', 'Base width', defaultLengthUnits, adsk.core.ValueInput.createByReal(DIMENSION_DEFAULT_WIDTH_UNIT))
-    inputs.addValueInput('plate_width', 'Plate width', '', adsk.core.ValueInput.createByString('2'))
-    inputs.addValueInput('plate_length', 'Plate length', '', adsk.core.ValueInput.createByString('3'))
+    basicSizesGroup = inputs.addGroupCommandInput('basic_sizes', 'Basic size')
+    basicSizesGroup.children.addValueInput(BASEPLATE_BASE_UNIT_WIDTH_INPUT, 'Base width', defaultLengthUnits, adsk.core.ValueInput.createByReal(DIMENSION_DEFAULT_WIDTH_UNIT))
+
+    mainDimensionsGroup = inputs.addGroupCommandInput('xy_dimensions', 'Main dimensions')
+    mainDimensionsGroup.children.addValueInput(BASEPLATE_WIDTH_INPUT, 'Plate width', '', adsk.core.ValueInput.createByString('2'))
+    mainDimensionsGroup.children.addValueInput(BASEPLATE_LENGTH_INPUT, 'Plate length', '', adsk.core.ValueInput.createByString('3'))
+
+    plateFeaturesGroup = inputs.addGroupCommandInput('plate_features', 'Features')
+    plateTypeDropdown = plateFeaturesGroup.children.addDropDownCommandInput(BASEPLATE_TYPE_DROPDOWN, 'Baseplate type', adsk.core.DropDownStyles.LabeledIconDropDownStyle)
+    plateTypeDropdown.listItems.add(BASEPLATE_TYPE_LIGHT, True)
+    plateTypeDropdown.listItems.add(BASEPLATE_TYPE_SKELETONIZED, False)
+    plateTypeDropdown.listItems.add(BASEPLATE_TYPE_FULL, False)
+
+    magnetCutoutGroup = plateFeaturesGroup.children.addGroupCommandInput('magnet_cutout_group', 'Magnet cutouts')
+    magnetCutoutGroup.children.addBoolValueInput(BASEPLATE_WITH_MAGNETS_INPUT, 'Add magnet cutouts', True, '', True)
+    magnetCutoutGroup.children.addValueInput(BASEPLATE_MAGNET_DIAMETER_INPUT, 'Magnet cutout diameter', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.DIMENSION_MAGNET_CUTOUT_DIAMETER))
+    magnetCutoutGroup.children.addValueInput(BASEPLATE_MAGNET_HEIGHT_INPUT, 'Magnet cutout depth', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.DIMENSION_MAGNET_CUTOUT_DEPTH))
+
+    screwHoleGroup = plateFeaturesGroup.children.addGroupCommandInput('screw_hole_group', 'Screw holes')
+    screwHoleGroup.children.addBoolValueInput(BASEPLATE_WITH_SCREWS_INPUT, 'Add screw holes', True, '', True)
+    screwHoleGroup.children.addValueInput(BASEPLATE_SCREW_DIAMETER_INPUT, 'Screw hole diameter', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.DIMENSION_PLATE_SCREW_HOLE_DIAMETER))
+    screwHoleGroup.children.addValueInput(BASEPLATE_SCREW_HEIGHT_INPUT, 'Screw head cutout diameter', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.DIMENSION_SCREW_HEAD_CUTOUT_DIAMETER))
+
+    advancedPlateSizeGroup = plateFeaturesGroup.children.addGroupCommandInput('advanced_plate_size_group', 'Advanced plate size options')
+    advancedPlateSizeGroup.children.addValueInput(BASEPLATE_EXTRA_THICKNESS_INPUT, 'Extra bottom thickness', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.BASEPLATE_EXTRA_HEIGHT))
+    advancedPlateSizeGroup.children.addValueInput(BASEPLATE_BIN_Z_CLEARANCE_INPUT, 'Clearance between baseplate and bin', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.BASEPLATE_BIN_Z_CLEARANCE))
+    advancedPlateSizeGroup.children.addBoolValueInput(BASEPLATE_HAS_CONNECTION_HOLE_INPUT, 'Add connection holes',  True, '', False)
+    advancedPlateSizeGroup.children.addValueInput(BASEPLATE_CONNECTION_HOLE_DIAMETER_INPUT, 'Connection screw hole diameter', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.DIMENSION_PLATE_CONNECTION_SCREW_HOLE_DIAMETER))
 
     # TODO Connect to the events that are needed by this command.
     futil.add_handler(args.command.execute, command_execute, local_handlers=local_handlers)
@@ -116,78 +166,57 @@ def command_execute(args: adsk.core.CommandEventArgs):
 
     # Get a reference to command's inputs.
     inputs = args.command.commandInputs
-    base_width_unit: adsk.core.ValueCommandInput = inputs.itemById('base_width_unit')
-    height_unit: adsk.core.ValueCommandInput = inputs.itemById('height_unit')
-    plate_width: adsk.core.ValueCommandInput = inputs.itemById('plate_width')
-    plate_length: adsk.core.ValueCommandInput = inputs.itemById('plate_length')
+    base_width_unit: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_BASE_UNIT_WIDTH_INPUT)
+    plate_width: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_WIDTH_INPUT)
+    plate_length: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_LENGTH_INPUT)
+
+    plateTypeDropdown: adsk.core.DropDownCommandInput = inputs.itemById(BASEPLATE_TYPE_DROPDOWN)
+    withMagnets: adsk.core.BoolValueCommandInput = inputs.itemById(BASEPLATE_WITH_MAGNETS_INPUT)
+    magnetDiameter: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_MAGNET_DIAMETER_INPUT)
+    magnetHeight: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_MAGNET_HEIGHT_INPUT)
+
+    withScrews: adsk.core.BoolValueCommandInput = inputs.itemById(BASEPLATE_WITH_SCREWS_INPUT)
+    screwDiameter: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_SCREW_DIAMETER_INPUT)
+    screwHeadDiameter: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_SCREW_HEIGHT_INPUT)
+
+    extraThickness: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_EXTRA_THICKNESS_INPUT)
+    binZClearance: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_BIN_Z_CLEARANCE_INPUT)
+    hasConnectionHoles: adsk.core.BoolValueCommandInput = inputs.itemById(BASEPLATE_HAS_CONNECTION_HOLE_INPUT)
+    connectionHoleDiameter: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_CONNECTION_HOLE_DIAMETER_INPUT)
 
     # Do something interesting
     try:
         des = adsk.fusion.Design.cast(app.activeProduct)
         root = adsk.fusion.Component.cast(des.rootComponent)
-        binName = 'Gridfinity baseplate {}x{}'.format(int(plate_length.value), int(plate_width.value))
+        baseplateName = 'Gridfinity baseplate {}x{}'.format(int(plate_length.value), int(plate_width.value))
 
         # create new component
         newCmpOcc = adsk.fusion.Occurrences.cast(root.occurrences).addNewComponent(adsk.core.Matrix3D.create())
 
-        newCmpOcc.component.name = binName
+        newCmpOcc.component.name = baseplateName
         newCmpOcc.activate()
         gridfinityBaseplateComponent: adsk.fusion.Component = newCmpOcc.component
-        features: adsk.fusion.Features = gridfinityBaseplateComponent.features
-        baseGeneratorInput = BaseGeneratorInput()
-        baseGeneratorInput.baseWidth = base_width_unit.value
-        baseGeneratorInput.xyTolerance = 0
-        baseBody = createGridfinityBase(baseGeneratorInput, gridfinityBaseplateComponent)
+        baseplateGeneratorInput = BaseplateGeneratorInput()
 
-        # replicate base in rectangular pattern
-        rectangularPatternFeatures: adsk.fusion.RectangularPatternFeatures = features.rectangularPatternFeatures
-        patternInputBodies = adsk.core.ObjectCollection.create()
-        patternInputBodies.add(baseBody)
-        patternInput = rectangularPatternFeatures.createInput(patternInputBodies,
-            gridfinityBaseplateComponent.xConstructionAxis,
-            adsk.core.ValueInput.createByReal(plate_width.value),
-            adsk.core.ValueInput.createByReal(base_width_unit.value),
-            adsk.fusion.PatternDistanceType.SpacingPatternDistanceType)
-        patternInput.directionTwoEntity = gridfinityBaseplateComponent.yConstructionAxis
-        patternInput.quantityTwo = adsk.core.ValueInput.createByReal(plate_length.value)
-        patternInput.distanceTwo = adsk.core.ValueInput.createByReal(base_width_unit.value)
-        rectangularPattern = rectangularPatternFeatures.add(patternInput)
-        
+        baseplateGeneratorInput.baseWidth = base_width_unit.value
+        baseplateGeneratorInput.xyTolerance = 0
+        baseplateGeneratorInput.baseplateWidth = plate_width.value
+        baseplateGeneratorInput.baseplateLength = plate_length.value
+        baseplateGeneratorInput.hasExtendedBottom = not plateTypeDropdown.selectedItem.name == BASEPLATE_TYPE_LIGHT
+        baseplateGeneratorInput.hasSkeletonizedBottom = plateTypeDropdown.selectedItem.name == BASEPLATE_TYPE_SKELETONIZED
+        baseplateGeneratorInput.hasMagnetCutouts = withMagnets.value
+        baseplateGeneratorInput.magnetCutoutsDiameter = magnetDiameter.value
+        baseplateGeneratorInput.magnetCutoutsDepth = magnetHeight.value
+        baseplateGeneratorInput.hasScrewHoles = withScrews.value
+        baseplateGeneratorInput.screwHolesDiameter = screwDiameter.value
+        baseplateGeneratorInput.screwHeadCutoutDiameter = screwHeadDiameter.value
+        baseplateGeneratorInput.binZClearance = binZClearance.value
+        baseplateGeneratorInput.bottomExtensionHeight = extraThickness.value
+        baseplateGeneratorInput.hasConnectionHoles = hasConnectionHoles.value
+        baseplateGeneratorInput.connectionScrewHolesDiameter = connectionHoleDiameter.value
 
-        # create bin body
-        mainBody = createBox(
-            plate_width.value * base_width_unit.value,
-            plate_length.value * base_width_unit.value,
-            -BASE_TOTAL_HEIGHT,
-            gridfinityBaseplateComponent,
-            gridfinityBaseplateComponent.xYConstructionPlane,
-            )
-
-        filletEdgesByLength(
-            mainBody.faces,
-            BIN_CORNER_FILLET_RADIUS,
-            BASE_TOTAL_HEIGHT,
-            gridfinityBaseplateComponent,
-            )
-        
-        chamferEdgesByLength(
-            mainBody.endFaces,
-            0.05,
-            plate_length.value * base_width_unit.value,
-            BIN_CORNER_FILLET_RADIUS * 3,
-            gridfinityBaseplateComponent,
-        )
-
-        # cut everything
-        toolBodies = adsk.core.ObjectCollection.create()
-        toolBodies.add(baseBody)
-        for body in rectangularPattern.bodies:
-            toolBodies.add(body)
-        combineFeatures = gridfinityBaseplateComponent.features.combineFeatures
-        combineFeatureInput = combineFeatures.createInput(mainBody.bodies.item(0), toolBodies)
-        combineFeatureInput.operation = adsk.fusion.FeatureOperations.CutFeatureOperation
-        combineFeatures.add(combineFeatureInput)
-        gridfinityBaseplateComponent.bRepBodies.item(0).name = binName
+        baseplateBody = createGridfinityBaseplate(baseplateGeneratorInput, gridfinityBaseplateComponent)
+        baseplateBody.name = baseplateName
         
     except:
         if ui:

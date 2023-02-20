@@ -29,3 +29,12 @@ def isXNormal(face: adsk.fusion.BRepFace):
 
 def isZNormal(face: adsk.fusion.BRepFace):
     return math.isclose(face.boundingBox.minPoint.z, face.boundingBox.maxPoint.z, abs_tol=DEFAULT_FILTER_TOLERANCE)
+
+def getBottomFace(body: adsk.fusion.BRepBody):
+    horizontalFaces = [face for face in body.faces if isZNormal(face)]
+    return min(horizontalFaces, key=lambda x: x.boundingBox.minPoint.z)
+
+def getTopFace(body: adsk.fusion.BRepBody):
+    horizontalFaces = [face for face in body.faces if isZNormal(face)]
+    return max(horizontalFaces, key=lambda x: x.boundingBox.minPoint.z)
+

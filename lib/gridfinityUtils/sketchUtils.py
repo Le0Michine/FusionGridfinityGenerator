@@ -1,5 +1,14 @@
+import math
 import adsk.core, adsk.fusion, traceback
 import os
+
+from . import const
+
+def isVertical(line: adsk.fusion.SketchLine):
+    return math.isclose(line.startSketchPoint.geometry.x, line.endSketchPoint.geometry.x, abs_tol=const.DEFAULT_FILTER_TOLERANCE)
+
+def isHorizontal(line: adsk.fusion.SketchLine):
+    return math.isclose(line.startSketchPoint.geometry.y, line.endSketchPoint.geometry.y, abs_tol=const.DEFAULT_FILTER_TOLERANCE)
 
 def createRectangle(
     width: float,

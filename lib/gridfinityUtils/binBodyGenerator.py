@@ -8,7 +8,7 @@ from .const import BIN_BODY_BOTTOM_THICKNESS, BIN_BODY_CUTOUT_BOTTOM_FILLET_RADI
 from ...lib.gridfinityUtils import geometryUtils
 from ...lib import fusion360utils as futil
 from ...lib.gridfinityUtils import filletUtils
-from . import combineUtils, faceUtils, commonUtils, sketchUtils, edgeUtils
+from . import combineUtils, faceUtils, commonUtils, sketchUtils
 from ...lib.gridfinityUtils.extrudeUtils import simpleDistanceExtrude
 from ...lib.gridfinityUtils.binBodyGeneratorInput import BinBodyGeneratorInput
 from ... import config
@@ -36,18 +36,6 @@ def createBox(
         adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
     return extrude
 
-def selectEdgesByLength(
-    faces: adsk.fusion.BRepFaces,
-    filterEdgeLength: float,
-    filterEdgeTolerance: float,
-    ):
-    filteredEdges = adsk.core.ObjectCollection.create()
-    for face in faces:
-        for edge in face.edges:
-            if abs(edge.length - filterEdgeLength) < filterEdgeTolerance:
-                filteredEdges.add(edge)
-    return filteredEdges
-
 def getVerticalEdges(
     faces: adsk.fusion.BRepFaces,
     ):
@@ -58,49 +46,10 @@ def getVerticalEdges(
                 filteredEdges.append(edge)
     return filteredEdges
 
-def getBottomFace(body: adsk.fusion.BRepBody):
-    horizontalFaces = [face for face in body.faces if faceUtils.isZNormal(face)]
-    return min(horizontalFaces, key=lambda x: x.boundingBox.minPoint.z)
-
-def getTopFace(body: adsk.fusion.BRepBody):
-    horizontalFaces = [face for face in body.faces if faceUtils.isZNormal(face)]
-    return max(horizontalFaces, key=lambda x: x.boundingBox.minPoint.z)
-
-def filletEdgesByLength(
-    faces: adsk.fusion.BRepFaces,
-    radius: float,
-    filterEdgeLength: float,
-    targetComponent: adsk.fusion.Component,
-    ):
-    features: adsk.fusion.Features = targetComponent.features
-    filletFeatures: adsk.fusion.FilletFeatures = features.filletFeatures
-    bottomFilletInput = filletFeatures.createInput()
-    bottomFilletInput.isRollingBallCorner = True
-    bottomFilletEdges = selectEdgesByLength(faces, filterEdgeLength, DEFAULT_FILTER_TOLERANCE)
-    bottomFilletInput.edgeSetInputs.addConstantRadiusEdgeSet(bottomFilletEdges, adsk.core.ValueInput.createByReal(radius), True)
-    filletFeatures.add(bottomFilletInput)
-
-def chamferEdgesByLength(
-    faces: adsk.fusion.BRepFaces,
-    distance: float,
-    filterEdgeLength: float,
-    filterEdgeTolerance: float,
-    targetComponent: adsk.fusion.Component,
-):
-    features: adsk.fusion.Features = targetComponent.features
-    chamferFeatures: adsk.fusion.ChamferFeatures = features.chamferFeatures
-    chamferInput = chamferFeatures.createInput2()
-    chamfer_edges = selectEdgesByLength(faces, filterEdgeLength, filterEdgeTolerance)
-    chamferInput.chamferEdgeSets.addEqualDistanceChamferEdgeSet(chamfer_edges,
-        adsk.core.ValueInput.createByReal(distance),
-        True)
-    chamferFeatures.add(chamferInput)
-
 def excludeEdges(edges: list[adsk.fusion.BRepEdge], toExclude: list[adsk.fusion.BRepEdge]):
     toExcludeIds = [edge.tempId for edge in toExclude]
     return [edge for edge in edges if not edge.tempId in toExcludeIds]
         
-
 def getTopHorizontalEdge(face: adsk.fusion.BRepFace):
     horizontalEdges = [edge for edge in face.edges if geometryUtils.isHorizontal(edge)]
     return max(horizontalEdges, key=lambda x: x.startVertex.geometry.z)
@@ -143,7 +92,7 @@ def createGridfinityBinBody(
     bodiesToSubtract: list[adsk.fusion.BRepBody] = []
 
     # round corners
-    filletEdgesByLength(
+    filletUtils.filletEdgesByLength(
         binBodyExtrude.faces,
         BIN_CORNER_FILLET_RADIUS,
         binBodyTotalHeight,
@@ -254,7 +203,7 @@ def createGridfinityBinBody(
 
         if input.hasLip and offset > 0:
             simpleDistanceExtrude(
-                getTopFace(innerCutoutBody),
+                faceUtils.getTopFace(innerCutoutBody),
                 adsk.fusion.FeatureOperations.JoinFeatureOperation,
                 innerCutoutFilletRadius - offset,
                 adsk.fusion.ExtentDirections.PositiveExtentDirection,
@@ -264,7 +213,7 @@ def createGridfinityBinBody(
             [innerCutoutScoopFace, innerCutoputScoopOppositeFace] = getInnerCutoutScoopFace(innerCutoutBody)
             topEdge = getTopHorizontalEdge(innerCutoutScoopFace)
             topEdgesWithConnectedFilletEdges = [topEdge.tangentiallyConnectedEdges[1], topEdge.tangentiallyConnectedEdges[-1], topEdge]
-            edgesToChamfer = excludeEdges(list(getTopFace(innerCutoutBody).edges), topEdgesWithConnectedFilletEdges)
+            edgesToChamfer = excludeEdges(list(faceUtils.getTopFace(innerCutoutBody).edges), topEdgesWithConnectedFilletEdges)
             if not input.hasScoop:
                 edgesToChamfer = edgesToChamfer + topEdgesWithConnectedFilletEdges
             # bottom lip chamfer, no lip if main wall thicker or same size as the lip
@@ -366,7 +315,7 @@ def createGridfinityBinBody(
             intersectTabInput.operation = adsk.fusion.FeatureOperations.IntersectFeatureOperation
             intersectTabInput.isKeepToolBodies = True
             targetComponent.features.combineFeatures.add(intersectTabInput)
-            tabTopFace = getTopFace(tabBody)
+            tabTopFace = faceUtils.getTopFace(tabBody)
             # get longest edge to apply fillet, relying on fillets left by intersection to shorten other edge
             longestTopTabEdge = max(tabTopFace.edges, key=lambda x: x.length)
             filletUtils.createFillet(
