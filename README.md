@@ -63,9 +63,11 @@ Scoop enabled | Scoop disabled
 ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/gif/bin-with-cutout-creation.gif)
 
 #### Specialized Bin
+
+Creating a 4x2 bin to hold oversized volcano nozzle
 ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/gif/specialized-bin-nozzle-creation.gif)
 
-
+Bin for random round things
 ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/gif/specialized-bin-creation.gif)
 
 ## Installation
