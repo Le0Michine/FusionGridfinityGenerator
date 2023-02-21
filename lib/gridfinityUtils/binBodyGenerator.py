@@ -49,14 +49,6 @@ def getVerticalEdges(
 def excludeEdges(edges: list[adsk.fusion.BRepEdge], toExclude: list[adsk.fusion.BRepEdge]):
     toExcludeIds = [edge.tempId for edge in toExclude]
     return [edge for edge in edges if not edge.tempId in toExcludeIds]
-        
-def getTopHorizontalEdge(face: adsk.fusion.BRepFace):
-    horizontalEdges = [edge for edge in face.edges if geometryUtils.isHorizontal(edge)]
-    return max(horizontalEdges, key=lambda x: x.startVertex.geometry.z)
-
-def getBottomHorizontalEdge(face: adsk.fusion.BRepFace):
-    horizontalEdges = [edge for edge in face.edges if geometryUtils.isHorizontal(edge)]
-    return min(horizontalEdges, key=lambda x: x.startVertex.geometry.z)
 
 def getInnerCutoutScoopFace(
     innerCutout: adsk.fusion.BRepBody
@@ -122,7 +114,7 @@ def createGridfinityBinBody(
         topLipChamferInput = chamferFeatures.createInput2()
         topLipChamferEdges = adsk.core.ObjectCollection.create()
         # use one edge for chamfer, the rest will be automatically detected with tangent chain condition
-        topLipChamferEdges.add(lipCutout.faces.item(0).edges.item(0))
+        topLipChamferEdges.add(faceUtils.getTopHorizontalEdge(lipCutout.faces.item(0)))
         topLipChamferInput.chamferEdgeSets.addEqualDistanceChamferEdgeSet(topLipChamferEdges,
             adsk.core.ValueInput.createByReal(BIN_LIP_CHAMFER),
             True)
@@ -173,7 +165,7 @@ def createGridfinityBinBody(
                 extrudeInput.participantBodies = [innerCutoutBody]
                 extrudeFeatures.add(extrudeInput)
             [innerCutoutScoopFace, innerCutoputScoopOppositeFace] = getInnerCutoutScoopFace(innerCutoutBody)
-            scoopEdge = getBottomHorizontalEdge(innerCutoutScoopFace)
+            scoopEdge = faceUtils.getBottomHorizontalEdge(innerCutoutScoopFace)
             scoopRadius = min(BIN_SCOOP_MAX_RADIUS, binBodyTotalHeight)
             filletUtils.createFillet(
                 [scoopEdge],
@@ -192,7 +184,7 @@ def createGridfinityBinBody(
         )
         # recalculate faces after fillet
         [innerCutoutScoopFace, innerCutoputScoopOppositeFace] = getInnerCutoutScoopFace(innerCutoutBody)
-        scoopOppositeEdge = getBottomHorizontalEdge(innerCutoputScoopOppositeFace)
+        scoopOppositeEdge = faceUtils.getBottomHorizontalEdge(innerCutoputScoopOppositeFace)
 
         filletUtils.createFillet(
             [scoopOppositeEdge],
@@ -211,7 +203,7 @@ def createGridfinityBinBody(
                 targetComponent,
             )
             [innerCutoutScoopFace, innerCutoputScoopOppositeFace] = getInnerCutoutScoopFace(innerCutoutBody)
-            topEdge = getTopHorizontalEdge(innerCutoutScoopFace)
+            topEdge = faceUtils.getTopHorizontalEdge(innerCutoutScoopFace)
             topEdgesWithConnectedFilletEdges = [topEdge.tangentiallyConnectedEdges[1], topEdge.tangentiallyConnectedEdges[-1], topEdge]
             edgesToChamfer = excludeEdges(list(faceUtils.getTopFace(innerCutoutBody).edges), topEdgesWithConnectedFilletEdges)
             if not input.hasScoop:

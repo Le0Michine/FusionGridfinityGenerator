@@ -3,6 +3,7 @@ import adsk.core, adsk.fusion, traceback
 import os
 
 from .const import DEFAULT_FILTER_TOLERANCE
+from . import geometryUtils
 
 
 def minByArea(faces: adsk.fusion.BRepFaces):
@@ -38,3 +39,10 @@ def getTopFace(body: adsk.fusion.BRepBody):
     horizontalFaces = [face for face in body.faces if isZNormal(face)]
     return max(horizontalFaces, key=lambda x: x.boundingBox.minPoint.z)
 
+def getTopHorizontalEdge(face: adsk.fusion.BRepFace):
+    horizontalEdges = [edge for edge in face.edges if geometryUtils.isHorizontal(edge)]
+    return max(horizontalEdges, key=lambda x: x.startVertex.geometry.z)
+
+def getBottomHorizontalEdge(face: adsk.fusion.BRepFace):
+    horizontalEdges = [edge for edge in face.edges if geometryUtils.isHorizontal(edge)]
+    return min(horizontalEdges, key=lambda x: x.startVertex.geometry.z)
