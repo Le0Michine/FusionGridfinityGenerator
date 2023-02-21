@@ -153,7 +153,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     advancedPlateSizeGroup.children.addValueInput(BASEPLATE_CONNECTION_HOLE_DIAMETER_INPUT, 'Connection screw hole diameter', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.DIMENSION_PLATE_CONNECTION_SCREW_HOLE_DIAMETER))
 
     previewGroup = inputs.addGroupCommandInput('preview_group', 'Preview')
-    previewGroup.children.addBoolValueInput(SHOW_PREVIEW_INPUT, 'Show preview', True, '', False)
+    previewGroup.children.addBoolValueInput(SHOW_PREVIEW_INPUT, 'Show preview (slow)', True, '', False)
 
     # TODO Connect to the events that are needed by this command.
     futil.add_handler(args.command.execute, command_execute, local_handlers=local_handlers)

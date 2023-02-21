@@ -71,6 +71,7 @@ BIN_TYPE_SOLID = 'Solid'
 
 BIN_TAB_FEATURES_GROUP_ID = 'bin_tab_features'
 
+SHOW_PREVIEW_INPUT = 'show_preview'
 
 # Executed when add-in is run.
 def start():
@@ -168,6 +169,8 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     baseFeaturesGroup.children.addBoolValueInput(BIN_SCREW_HOLES_INPUT_ID, 'Add screw holes', True, '', False)
     baseFeaturesGroup.children.addBoolValueInput(BIN_MAGNET_CUTOUTS_INPUT_ID, 'Add magnet cutouts', True, '', False)
     
+    previewGroup = inputs.addGroupCommandInput('preview_group', 'Preview')
+    previewGroup.children.addBoolValueInput(SHOW_PREVIEW_INPUT, 'Show preview (slow)', True, '', False)
 
     # TODO Connect to the events that are needed by this command.
     futil.add_handler(args.command.execute, command_execute, local_handlers=local_handlers)
@@ -184,6 +187,110 @@ def command_execute(args: adsk.core.CommandEventArgs):
     futil.log(f'{CMD_NAME} Command Execute Event')
 
     # Get a reference to command's inputs.
+    generateBin(args)
+
+# This event handler is called when the command needs to compute a new preview in the graphics window.
+def command_preview(args: adsk.core.CommandEventArgs):
+    # General logging for debug.
+    futil.log(f'{CMD_NAME} Command Preview Event')
+    inputs = args.command.commandInputs
+    showPreview: adsk.core.BoolValueCommandInput = inputs.itemById(SHOW_PREVIEW_INPUT)
+    if showPreview.value:
+        generateBin(args)
+
+
+# This event handler is called when the user changes anything in the command dialog
+# allowing you to modify values of other inputs based on that change.
+def command_input_changed(args: adsk.core.InputChangedEventArgs):
+    changed_input = args.input
+    inputs = args.inputs
+    wallThicknessInput = inputs.itemById(BIN_WALL_THICKNESS_INPUT_ID)
+    hasScrewHolesInput = inputs.itemById(BIN_SCREW_HOLES_INPUT_ID)
+    hasBase: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_GENERATE_BASE_INPUT_ID)
+    hasBody: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_GENERATE_BODY_INPUT_ID)
+    dropdownInput: adsk.core.DropDownCommandInput = inputs.itemById(BIN_TYPE_DROPDOWN_ID)
+    hasMagnetCutoutsInput = inputs.itemById(BIN_MAGNET_CUTOUTS_INPUT_ID)
+    withLipInput = inputs.itemById(BIN_WITH_LIP_INPUT_ID)
+    hasScoopInput = inputs.itemById(BIN_HAS_SCOOP_INPUT_ID)
+    hasTabInput: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_TAB_INPUT_ID)
+    tabLengthInput = inputs.itemById(BIN_TAB_LENGTH_INPUT_ID)
+    tabPositionInput = inputs.itemById(BIN_TAB_ANGLE_INPUT_ID)
+    tabAngleInput = inputs.itemById(BIN_TAB_POSITION_INPUT_ID)
+    binTabFeaturesGroup: adsk.core.GroupCommandInput = inputs.itemById(BIN_TAB_FEATURES_GROUP_ID)
+
+
+    # General logging for debug.
+    futil.log(f'{CMD_NAME} Input Changed Event fired from a change to {changed_input.id}')
+
+    if changed_input.id == BIN_TYPE_DROPDOWN_ID:
+        selectedItem = dropdownInput.selectedItem.name
+        if selectedItem == BIN_TYPE_HOLLOW:
+            wallThicknessInput.isEnabled = True
+            hasScrewHolesInput.isEnabled = True
+            hasMagnetCutoutsInput.isEnabled = True
+            withLipInput.isEnabled = True
+            hasScoopInput.isEnabled = True
+            hasTabInput.isEnabled = True
+        elif selectedItem == BIN_TYPE_SHELLED:
+            wallThicknessInput.isEnabled = True
+            hasScrewHolesInput.isEnabled = False
+            hasMagnetCutoutsInput.isEnabled = False
+            withLipInput.isEnabled = True
+            hasScoopInput.isEnabled = False
+            hasTabInput.isEnabled = False
+        elif selectedItem == BIN_TYPE_SOLID:
+            wallThicknessInput.isEnabled = False
+            hasScrewHolesInput.isEnabled = True
+            hasMagnetCutoutsInput.isEnabled = True
+            withLipInput.isEnabled = True
+            hasScoopInput.isEnabled = False
+            hasTabInput.isEnabled = False
+    elif changed_input.id == BIN_GENERATE_BASE_INPUT_ID:
+        hasScrewHolesInput.isEnabled = hasBase.value
+        hasMagnetCutoutsInput.isEnabled = hasBase.value
+    elif changed_input.id == BIN_GENERATE_BODY_INPUT_ID:
+        dropdownInput.isEnabled = hasBody.value
+        wallThicknessInput.isEnabled = hasBody.value
+        withLipInput.isEnabled = hasBody.value
+        hasScoopInput.isEnabled = hasBody.value
+        binTabFeaturesGroup.isEnabled = hasBody.value
+        for input in binTabFeaturesGroup.children:
+            if input.id == BIN_HAS_TAB_INPUT_ID:
+                hasTabInput = input
+                input.isEnabled = hasBody.value
+            else:
+                input.isEnabled = hasBody.value and hasTabInput.value
+    elif changed_input.id == BIN_HAS_TAB_INPUT_ID:
+        tabLengthInput.isEnabled = hasTabInput.value
+        tabPositionInput.isEnabled = hasTabInput.value
+        tabAngleInput.isEnabled = hasTabInput.value
+
+
+# This event handler is called when the user interacts with any of the inputs in the dialog
+# which allows you to verify that all of the inputs are valid and enables the OK button.
+def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
+    # General logging for debug.
+    futil.log(f'{CMD_NAME} Validate Input Event')
+
+    inputs = args.inputs
+    
+    # Verify the validity of the input values. This controls if the OK button is enabled or not.
+    valueInput = inputs.itemById('value_input')
+    if valueInput.value >= 0:
+        args.areInputsValid = True
+    else:
+        args.areInputsValid = False
+        
+
+# This event handler is called when the command terminates.
+def command_destroy(args: adsk.core.CommandEventArgs):
+    # General logging for debug.
+    futil.log(f'{CMD_NAME} Command Destroy Event')
+
+    global local_handlers
+    local_handlers = []
+
+def generateBin(args: adsk.core.CommandEventArgs):
     inputs = args.command.commandInputs
     base_width_unit: adsk.core.ValueCommandInput = inputs.itemById(BIN_BASE_WIDTH_UNIT_INPUT_ID)
     height_unit: adsk.core.ValueCommandInput = inputs.itemById(BIN_HEIGHT_UNIT_INPUT_ID)
@@ -325,101 +432,3 @@ def command_execute(args: adsk.core.CommandEventArgs):
     except:
         if ui:
             ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
-
-# This event handler is called when the command needs to compute a new preview in the graphics window.
-def command_preview(args: adsk.core.CommandEventArgs):
-    # General logging for debug.
-    futil.log(f'{CMD_NAME} Command Preview Event')
-    inputs = args.command.commandInputs
-
-
-# This event handler is called when the user changes anything in the command dialog
-# allowing you to modify values of other inputs based on that change.
-def command_input_changed(args: adsk.core.InputChangedEventArgs):
-    changed_input = args.input
-    inputs = args.inputs
-    wallThicknessInput = inputs.itemById(BIN_WALL_THICKNESS_INPUT_ID)
-    hasScrewHolesInput = inputs.itemById(BIN_SCREW_HOLES_INPUT_ID)
-    hasBase: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_GENERATE_BASE_INPUT_ID)
-    hasBody: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_GENERATE_BODY_INPUT_ID)
-    dropdownInput: adsk.core.DropDownCommandInput = inputs.itemById(BIN_TYPE_DROPDOWN_ID)
-    hasMagnetCutoutsInput = inputs.itemById(BIN_MAGNET_CUTOUTS_INPUT_ID)
-    withLipInput = inputs.itemById(BIN_WITH_LIP_INPUT_ID)
-    hasScoopInput = inputs.itemById(BIN_HAS_SCOOP_INPUT_ID)
-    hasTabInput: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_TAB_INPUT_ID)
-    tabLengthInput = inputs.itemById(BIN_TAB_LENGTH_INPUT_ID)
-    tabPositionInput = inputs.itemById(BIN_TAB_ANGLE_INPUT_ID)
-    tabAngleInput = inputs.itemById(BIN_TAB_POSITION_INPUT_ID)
-    binTabFeaturesGroup: adsk.core.GroupCommandInput = inputs.itemById(BIN_TAB_FEATURES_GROUP_ID)
-
-
-    # General logging for debug.
-    futil.log(f'{CMD_NAME} Input Changed Event fired from a change to {changed_input.id}')
-
-    if changed_input.id == BIN_TYPE_DROPDOWN_ID:
-        selectedItem = dropdownInput.selectedItem.name
-        if selectedItem == BIN_TYPE_HOLLOW:
-            wallThicknessInput.isEnabled = True
-            hasScrewHolesInput.isEnabled = True
-            hasMagnetCutoutsInput.isEnabled = True
-            withLipInput.isEnabled = True
-            hasScoopInput.isEnabled = True
-            hasTabInput.isEnabled = True
-        elif selectedItem == BIN_TYPE_SHELLED:
-            wallThicknessInput.isEnabled = True
-            hasScrewHolesInput.isEnabled = False
-            hasMagnetCutoutsInput.isEnabled = False
-            withLipInput.isEnabled = True
-            hasScoopInput.isEnabled = False
-            hasTabInput.isEnabled = False
-        elif selectedItem == BIN_TYPE_SOLID:
-            wallThicknessInput.isEnabled = False
-            hasScrewHolesInput.isEnabled = True
-            hasMagnetCutoutsInput.isEnabled = True
-            withLipInput.isEnabled = True
-            hasScoopInput.isEnabled = False
-            hasTabInput.isEnabled = False
-    elif changed_input.id == BIN_GENERATE_BASE_INPUT_ID:
-        hasScrewHolesInput.isEnabled = hasBase.value
-        hasMagnetCutoutsInput.isEnabled = hasBase.value
-    elif changed_input.id == BIN_GENERATE_BODY_INPUT_ID:
-        dropdownInput.isEnabled = hasBody.value
-        wallThicknessInput.isEnabled = hasBody.value
-        withLipInput.isEnabled = hasBody.value
-        hasScoopInput.isEnabled = hasBody.value
-        binTabFeaturesGroup.isEnabled = hasBody.value
-        for input in binTabFeaturesGroup.children:
-            if input.id == BIN_HAS_TAB_INPUT_ID:
-                hasTabInput = input
-                input.isEnabled = hasBody.value
-            else:
-                input.isEnabled = hasBody.value and hasTabInput.value
-    elif changed_input.id == BIN_HAS_TAB_INPUT_ID:
-        tabLengthInput.isEnabled = hasTabInput.value
-        tabPositionInput.isEnabled = hasTabInput.value
-        tabAngleInput.isEnabled = hasTabInput.value
-
-
-# This event handler is called when the user interacts with any of the inputs in the dialog
-# which allows you to verify that all of the inputs are valid and enables the OK button.
-def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
-    # General logging for debug.
-    futil.log(f'{CMD_NAME} Validate Input Event')
-
-    inputs = args.inputs
-    
-    # Verify the validity of the input values. This controls if the OK button is enabled or not.
-    valueInput = inputs.itemById('value_input')
-    if valueInput.value >= 0:
-        args.areInputsValid = True
-    else:
-        args.areInputsValid = False
-        
-
-# This event handler is called when the command terminates.
-def command_destroy(args: adsk.core.CommandEventArgs):
-    # General logging for debug.
-    futil.log(f'{CMD_NAME} Command Destroy Event')
-
-    global local_handlers
-    local_handlers = []
