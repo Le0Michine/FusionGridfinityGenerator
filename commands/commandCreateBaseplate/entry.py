@@ -62,6 +62,8 @@ BASEPLATE_BIN_Z_CLEARANCE_INPUT = 'bin_z_clearance'
 BASEPLATE_HAS_CONNECTION_HOLE_INPUT = 'has_connection_hole'
 BASEPLATE_CONNECTION_HOLE_DIAMETER_INPUT = 'connection_hole_diameter'
 
+SHOW_PREVIEW_INPUT = 'show_preview'
+
 # Executed when add-in is run.
 def start():
     addinConfig = configUtils.readConfig(CONFIG_FOLDER_PATH)
@@ -150,6 +152,9 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     advancedPlateSizeGroup.children.addBoolValueInput(BASEPLATE_HAS_CONNECTION_HOLE_INPUT, 'Add connection holes',  True, '', False)
     advancedPlateSizeGroup.children.addValueInput(BASEPLATE_CONNECTION_HOLE_DIAMETER_INPUT, 'Connection screw hole diameter', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.DIMENSION_PLATE_CONNECTION_SCREW_HOLE_DIAMETER))
 
+    previewGroup = inputs.addGroupCommandInput('preview_group', 'Preview')
+    previewGroup.children.addBoolValueInput(SHOW_PREVIEW_INPUT, 'Show preview', True, '', False)
+
     # TODO Connect to the events that are needed by this command.
     futil.add_handler(args.command.execute, command_execute, local_handlers=local_handlers)
     futil.add_handler(args.command.inputChanged, command_input_changed, local_handlers=local_handlers)
@@ -163,8 +168,59 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
 def command_execute(args: adsk.core.CommandEventArgs):
     # General logging for debug.
     futil.log(f'{CMD_NAME} Command Execute Event')
+    generateBaseplate(args)
 
+
+# This event handler is called when the command needs to compute a new preview in the graphics window.
+def command_preview(args: adsk.core.CommandEventArgs):
+    # General logging for debug.
+    futil.log(f'{CMD_NAME} Command Preview Event')
     # Get a reference to command's inputs.
+    inputs = args.command.commandInputs
+    showPreview: adsk.core.BoolValueCommandInput = inputs.itemById(SHOW_PREVIEW_INPUT)
+    if showPreview.value:
+        generateBaseplate(args)
+
+
+# This event handler is called when the user changes anything in the command dialog
+# allowing you to modify values of other inputs based on that change.
+def command_input_changed(args: adsk.core.InputChangedEventArgs):
+    changed_input = args.input
+    inputs = args.inputs
+
+    # General logging for debug.
+    futil.log(f'{CMD_NAME} Input Changed Event fired from a change to {changed_input.id}')
+
+
+# This event handler is called when the user interacts with any of the inputs in the dialog
+# which allows you to verify that all of the inputs are valid and enables the OK button.
+def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
+    # General logging for debug.
+    futil.log(f'{CMD_NAME} Validate Input Event')
+
+    inputs = args.inputs
+    
+    # Verify the validity of the input values. This controls if the OK button is enabled or not.
+    valueInput = inputs.itemById('value_input')
+    if valueInput.value >= 0:
+        args.areInputsValid = True
+    else:
+        args.areInputsValid = False
+        
+
+# This event handler is called when the command terminates.
+def command_destroy(args: adsk.core.CommandEventArgs):
+    # General logging for debug.
+    futil.log(f'{CMD_NAME} Command Destroy Event')
+
+    global local_handlers
+    local_handlers = []
+
+
+def generateBaseplate(args: adsk.core.CommandEventArgs):
+    # General logging for debug.
+    futil.log(f'{CMD_NAME} Generating baseplate')
+     # Get a reference to command's inputs.
     inputs = args.command.commandInputs
     base_width_unit: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_BASE_UNIT_WIDTH_INPUT)
     plate_width: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_WIDTH_INPUT)
@@ -221,45 +277,3 @@ def command_execute(args: adsk.core.CommandEventArgs):
     except:
         if ui:
             ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
-
-
-# This event handler is called when the command needs to compute a new preview in the graphics window.
-def command_preview(args: adsk.core.CommandEventArgs):
-    # General logging for debug.
-    futil.log(f'{CMD_NAME} Command Preview Event')
-    inputs = args.command.commandInputs
-
-
-# This event handler is called when the user changes anything in the command dialog
-# allowing you to modify values of other inputs based on that change.
-def command_input_changed(args: adsk.core.InputChangedEventArgs):
-    changed_input = args.input
-    inputs = args.inputs
-
-    # General logging for debug.
-    futil.log(f'{CMD_NAME} Input Changed Event fired from a change to {changed_input.id}')
-
-
-# This event handler is called when the user interacts with any of the inputs in the dialog
-# which allows you to verify that all of the inputs are valid and enables the OK button.
-def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
-    # General logging for debug.
-    futil.log(f'{CMD_NAME} Validate Input Event')
-
-    inputs = args.inputs
-    
-    # Verify the validity of the input values. This controls if the OK button is enabled or not.
-    valueInput = inputs.itemById('value_input')
-    if valueInput.value >= 0:
-        args.areInputsValid = True
-    else:
-        args.areInputsValid = False
-        
-
-# This event handler is called when the command terminates.
-def command_destroy(args: adsk.core.CommandEventArgs):
-    # General logging for debug.
-    futil.log(f'{CMD_NAME} Command Destroy Event')
-
-    global local_handlers
-    local_handlers = []
