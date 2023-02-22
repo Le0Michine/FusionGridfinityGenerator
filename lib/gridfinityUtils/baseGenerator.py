@@ -6,7 +6,7 @@ from .const import BASE_TOTAL_HEIGHT, BIN_CORNER_FILLET_RADIUS, DEFAULT_FILTER_T
 from .sketchUtils import createRectangle, filterCirclesByRadius
 from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
 from ...lib.gridfinityUtils.extrudeUtils import simpleDistanceExtrude
-from . import sketchUtils
+from . import sketchUtils, const
 from ...lib import fusion360utils as futil
 from ... import config
 
@@ -154,7 +154,7 @@ def createGridfinityBase(
         )
         patternInputBodies.add(magnetCutoutExtrude)
         
-        if input.hasScrewHoles:
+        if input.hasScrewHoles and input.magnetCutoutsDepth < const.BASE_TOTAL_HEIGHT:
             printHelperGrooveSketch: adsk.fusion.Sketch = sketches.add(magnetCutoutExtrude.endFaces.item(0))
             constraints: adsk.fusion.GeometricConstraints = printHelperGrooveSketch.geometricConstraints
             for curve in printHelperGrooveSketch.sketchCurves:

@@ -12,6 +12,7 @@ from ...lib.gridfinityUtils.const import BIN_LIP_WALL_THICKNESS, BIN_WALL_THICKN
 from ...lib.gridfinityUtils import geometryUtils
 from ...lib.gridfinityUtils import faceUtils
 from ...lib.gridfinityUtils import shellUtils
+from ...lib.gridfinityUtils import const
 from ...lib.gridfinityUtils.baseGenerator import createGridfinityBase
 from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
 from ...lib.gridfinityUtils.binBodyGenerator import createGridfinityBinBody
@@ -58,6 +59,9 @@ BIN_GENERATE_BASE_INPUT_ID = 'bin_generate_base'
 BIN_GENERATE_BODY_INPUT_ID = 'bin_generate_body'
 BIN_SCREW_HOLES_INPUT_ID = 'bin_screw_holes'
 BIN_MAGNET_CUTOUTS_INPUT_ID = 'bin_magnet_cutouts'
+BIN_SCREW_DIAMETER_INPUT = 'screw_diameter'
+BIN_MAGNET_DIAMETER_INPUT = 'magnet_diameter'
+BIN_MAGNET_HEIGHT_INPUT = 'magnet_height'
 BIN_HAS_SCOOP_INPUT_ID = 'bin_has_scoop'
 BIN_HAS_TAB_INPUT_ID = 'bin_has_tab'
 BIN_TAB_LENGTH_INPUT_ID = 'bin_tab_length'
@@ -136,13 +140,14 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     # Create a value input field and set the default using 1 unit of the default length unit.
     defaultLengthUnits = app.activeProduct.unitsManager.defaultLengthUnits
     basicSizesGroup = inputs.addGroupCommandInput('basic_sizes', 'Basic sizes')
-    basicSizesGroup.children.addValueInput(BIN_BASE_WIDTH_UNIT_INPUT_ID, 'Base width', defaultLengthUnits, adsk.core.ValueInput.createByReal(DIMENSION_DEFAULT_WIDTH_UNIT))
-    basicSizesGroup.children.addValueInput(BIN_HEIGHT_UNIT_INPUT_ID, 'Height unit', defaultLengthUnits, adsk.core.ValueInput.createByReal(DIMENSION_DEFAULT_HEIGHT_UNIT))
+    basicSizesGroup.children.addValueInput(BIN_BASE_WIDTH_UNIT_INPUT_ID, 'Base width unit', defaultLengthUnits, adsk.core.ValueInput.createByReal(DIMENSION_DEFAULT_WIDTH_UNIT))
+    basicSizesGroup.children.addValueInput(BIN_HEIGHT_UNIT_INPUT_ID, 'Bin height unit', defaultLengthUnits, adsk.core.ValueInput.createByReal(DIMENSION_DEFAULT_HEIGHT_UNIT))
 
     binDimensionsGroup = inputs.addGroupCommandInput('bin_dimensions', 'Main dimensions')
-    binDimensionsGroup.children.addValueInput(BIN_WIDTH_INPUT_ID, 'Bin width', '', adsk.core.ValueInput.createByString('2'))
-    binDimensionsGroup.children.addValueInput(BIN_LENGTH_INPUT_ID, 'Bin length', '', adsk.core.ValueInput.createByString('3'))
-    binDimensionsGroup.children.addValueInput(BIN_HEIGHT_INPUT_ID, 'Bin height', '', adsk.core.ValueInput.createByString('10'))
+    binDimensionsGroup.tooltipDescription = 'Set in base units'
+    binDimensionsGroup.children.addValueInput(BIN_WIDTH_INPUT_ID, 'Bin width (u)', '', adsk.core.ValueInput.createByString('2'))
+    binDimensionsGroup.children.addValueInput(BIN_LENGTH_INPUT_ID, 'Bin length (u)', '', adsk.core.ValueInput.createByString('3'))
+    binDimensionsGroup.children.addValueInput(BIN_HEIGHT_INPUT_ID, 'Bin height (u)', '', adsk.core.ValueInput.createByString('10'))
 
     binFeaturesGroup = inputs.addGroupCommandInput('bin_features', 'Bin features')
     binFeaturesGroup.children.addBoolValueInput(BIN_GENERATE_BODY_INPUT_ID, 'Generate body', True, '', True)
@@ -157,8 +162,8 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
 
     binTabFeaturesGroup = binFeaturesGroup.children.addGroupCommandInput(BIN_TAB_FEATURES_GROUP_ID, 'Label tab')
     binTabFeaturesGroup.children.addBoolValueInput(BIN_HAS_TAB_INPUT_ID, 'Add label tab', True, '', False)
-    binTabFeaturesGroup.children.addValueInput(BIN_TAB_LENGTH_INPUT_ID, 'Tab length', '', adsk.core.ValueInput.createByString('1'))
-    binTabFeaturesGroup.children.addValueInput(BIN_TAB_POSITION_INPUT_ID, 'Tab offset', '', adsk.core.ValueInput.createByString('0'))
+    binTabFeaturesGroup.children.addValueInput(BIN_TAB_LENGTH_INPUT_ID, 'Tab length (u)', '', adsk.core.ValueInput.createByString('1'))
+    binTabFeaturesGroup.children.addValueInput(BIN_TAB_POSITION_INPUT_ID, 'Tab offset (u)', '', adsk.core.ValueInput.createByString('0'))
     binTabFeaturesGroup.children.addValueInput(BIN_TAB_ANGLE_INPUT_ID, 'Tab overhang angle', 'deg', adsk.core.ValueInput.createByString('45'))
     for input in binTabFeaturesGroup.children:
         if not input.id == BIN_HAS_TAB_INPUT_ID:
@@ -167,7 +172,10 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     baseFeaturesGroup = inputs.addGroupCommandInput('base_features', 'Base interface features')
     baseFeaturesGroup.children.addBoolValueInput(BIN_GENERATE_BASE_INPUT_ID, 'Generate base', True, '', True)
     baseFeaturesGroup.children.addBoolValueInput(BIN_SCREW_HOLES_INPUT_ID, 'Add screw holes', True, '', False)
+    baseFeaturesGroup.children.addValueInput(BIN_SCREW_DIAMETER_INPUT, 'Screw hole diameter', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.DIMENSION_SCREW_HOLE_DIAMETER))
     baseFeaturesGroup.children.addBoolValueInput(BIN_MAGNET_CUTOUTS_INPUT_ID, 'Add magnet cutouts', True, '', False)
+    baseFeaturesGroup.children.addValueInput(BIN_MAGNET_DIAMETER_INPUT, 'Magnet cutout diameter', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.DIMENSION_MAGNET_CUTOUT_DIAMETER))
+    baseFeaturesGroup.children.addValueInput(BIN_MAGNET_HEIGHT_INPUT, 'Magnet cutout depth', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.DIMENSION_MAGNET_CUTOUT_DEPTH))
     
     previewGroup = inputs.addGroupCommandInput('preview_group', 'Preview')
     previewGroup.children.addBoolValueInput(SHOW_PREVIEW_INPUT, 'Show preview (slow)', True, '', False)
@@ -210,6 +218,9 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
     hasBody: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_GENERATE_BODY_INPUT_ID)
     dropdownInput: adsk.core.DropDownCommandInput = inputs.itemById(BIN_TYPE_DROPDOWN_ID)
     hasMagnetCutoutsInput = inputs.itemById(BIN_MAGNET_CUTOUTS_INPUT_ID)
+    magnetCutoutDiameterInput = inputs.itemById(BIN_MAGNET_DIAMETER_INPUT)
+    magnetCutoutDepthInput = inputs.itemById(BIN_MAGNET_HEIGHT_INPUT)
+    screwHoleDiameterInput = inputs.itemById(BIN_SCREW_DIAMETER_INPUT)
     withLipInput = inputs.itemById(BIN_WITH_LIP_INPUT_ID)
     hasScoopInput = inputs.itemById(BIN_HAS_SCOOP_INPUT_ID)
     hasTabInput: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_TAB_INPUT_ID)
@@ -248,6 +259,9 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
     elif changed_input.id == BIN_GENERATE_BASE_INPUT_ID:
         hasScrewHolesInput.isEnabled = hasBase.value
         hasMagnetCutoutsInput.isEnabled = hasBase.value
+        magnetCutoutDiameterInput.isEnabled = hasBase.value
+        magnetCutoutDepthInput.isEnabled = hasBase.value
+        screwHoleDiameterInput.isEnabled = hasBase.value
     elif changed_input.id == BIN_GENERATE_BODY_INPUT_ID:
         dropdownInput.isEnabled = hasBody.value
         wallThicknessInput.isEnabled = hasBody.value
@@ -302,6 +316,9 @@ def generateBin(args: adsk.core.CommandEventArgs):
     bin_generate_base: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_GENERATE_BASE_INPUT_ID)
     bin_generate_body: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_GENERATE_BODY_INPUT_ID)
     bin_magnet_cutouts: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_MAGNET_CUTOUTS_INPUT_ID)
+    bin_screw_hole_diameter: adsk.core.ValueCommandInput = inputs.itemById(BIN_SCREW_DIAMETER_INPUT)
+    bin_magnet_cutout_diameter: adsk.core.ValueCommandInput = inputs.itemById(BIN_MAGNET_DIAMETER_INPUT)
+    bin_magnet_cutout_depth: adsk.core.ValueCommandInput = inputs.itemById(BIN_MAGNET_HEIGHT_INPUT)
     with_lip: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_WITH_LIP_INPUT_ID)
     has_scoop: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_SCOOP_INPUT_ID)
     hasTabInput: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_TAB_INPUT_ID)
@@ -334,6 +351,9 @@ def generateBin(args: adsk.core.CommandEventArgs):
         baseGeneratorInput.xyTolerance = tolerance
         baseGeneratorInput.hasScrewHoles = bin_screw_holes.value and not isShelled
         baseGeneratorInput.hasMagnetCutouts = bin_magnet_cutouts.value and not isShelled
+        baseGeneratorInput.screwHolesDiameter = bin_screw_hole_diameter.value
+        baseGeneratorInput.magnetCutoutsDiameter = bin_magnet_cutout_diameter.value
+        baseGeneratorInput.magnetCutoutsDepth = bin_magnet_cutout_depth.value
 
         baseBody: adsk.fusion.BRepBody
         

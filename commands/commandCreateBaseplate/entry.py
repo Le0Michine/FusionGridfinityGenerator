@@ -124,11 +124,11 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     # Create a value input field and set the default using 1 unit of the default length unit.
     defaultLengthUnits = app.activeProduct.unitsManager.defaultLengthUnits
     basicSizesGroup = inputs.addGroupCommandInput('basic_sizes', 'Basic size')
-    basicSizesGroup.children.addValueInput(BASEPLATE_BASE_UNIT_WIDTH_INPUT, 'Base width', defaultLengthUnits, adsk.core.ValueInput.createByReal(DIMENSION_DEFAULT_WIDTH_UNIT))
+    basicSizesGroup.children.addValueInput(BASEPLATE_BASE_UNIT_WIDTH_INPUT, 'Base width unit', defaultLengthUnits, adsk.core.ValueInput.createByReal(DIMENSION_DEFAULT_WIDTH_UNIT))
 
     mainDimensionsGroup = inputs.addGroupCommandInput('xy_dimensions', 'Main dimensions')
-    mainDimensionsGroup.children.addValueInput(BASEPLATE_WIDTH_INPUT, 'Plate width', '', adsk.core.ValueInput.createByString('2'))
-    mainDimensionsGroup.children.addValueInput(BASEPLATE_LENGTH_INPUT, 'Plate length', '', adsk.core.ValueInput.createByString('3'))
+    mainDimensionsGroup.children.addValueInput(BASEPLATE_WIDTH_INPUT, 'Plate width (u)', '', adsk.core.ValueInput.createByString('2'))
+    mainDimensionsGroup.children.addValueInput(BASEPLATE_LENGTH_INPUT, 'Plate length (u)', '', adsk.core.ValueInput.createByString('3'))
 
     plateFeaturesGroup = inputs.addGroupCommandInput('plate_features', 'Features')
     plateTypeDropdown = plateFeaturesGroup.children.addDropDownCommandInput(BASEPLATE_TYPE_DROPDOWN, 'Baseplate type', adsk.core.DropDownStyles.LabeledIconDropDownStyle)
@@ -150,7 +150,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     advancedPlateSizeGroup.children.addValueInput(BASEPLATE_EXTRA_THICKNESS_INPUT, 'Extra bottom thickness', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.BASEPLATE_EXTRA_HEIGHT))
     advancedPlateSizeGroup.children.addValueInput(BASEPLATE_BIN_Z_CLEARANCE_INPUT, 'Clearance between baseplate and bin', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.BASEPLATE_BIN_Z_CLEARANCE))
     advancedPlateSizeGroup.children.addBoolValueInput(BASEPLATE_HAS_CONNECTION_HOLE_INPUT, 'Add connection holes',  True, '', False)
-    advancedPlateSizeGroup.children.addValueInput(BASEPLATE_CONNECTION_HOLE_DIAMETER_INPUT, 'Connection screw hole diameter', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.DIMENSION_PLATE_CONNECTION_SCREW_HOLE_DIAMETER))
+    advancedPlateSizeGroup.children.addValueInput(BASEPLATE_CONNECTION_HOLE_DIAMETER_INPUT, 'Connection hole diameter', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.DIMENSION_PLATE_CONNECTION_SCREW_HOLE_DIAMETER))
 
     previewGroup = inputs.addGroupCommandInput('preview_group', 'Preview')
     previewGroup.children.addBoolValueInput(SHOW_PREVIEW_INPUT, 'Show preview (slow)', True, '', False)
