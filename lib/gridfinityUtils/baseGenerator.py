@@ -66,7 +66,7 @@ def createGridfinityBase(
     createRectangle(actual_base_width, actual_base_width, base_plate_sketch.originPoint.geometry, base_plate_sketch)
         
     # extrude
-    topExtrudeDepth = adsk.core.ValueInput.createByReal(0.23)
+    topExtrudeDepth = adsk.core.ValueInput.createByReal(0.215)
     topExtrudeInput = extrudeFeatures.createInput(base_plate_sketch.profiles.item(0),
         adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
     topExtrudeExtent = adsk.fusion.DistanceExtentDefinition.create(topExtrudeDepth)
@@ -100,7 +100,7 @@ def createGridfinityBase(
     chamferFeatures.add(chamferInput)
 
     # extrude again
-    topExtrudeDepth = adsk.core.ValueInput.createByReal(0.27)
+    topExtrudeDepth = adsk.core.ValueInput.createByReal(0.26)
     baseBottomExtrude = extrudeFeatures.addSimple(
         faces.item(8),
         topExtrudeDepth,
