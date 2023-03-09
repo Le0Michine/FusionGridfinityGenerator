@@ -65,7 +65,7 @@ def createGridfinityBinBody(
 
     actualBodyWidth = (input.baseWidth * input.binWidth) - input.xyTolerance * 2.0
     actualBodyLength = (input.baseWidth * input.binLength) - input.xyTolerance * 2.0
-    binBodyTotalHeight = input.binHeight * input.heightUnit
+    binBodyTotalHeight = input.binHeight * input.heightUnit - .1
     features: adsk.fusion.Features = targetComponent.features
     filletFeatures: adsk.fusion.FilletFeatures = features.filletFeatures
     extrudeFeatures: adsk.fusion.ExtrudeFeatures = features.extrudeFeatures
