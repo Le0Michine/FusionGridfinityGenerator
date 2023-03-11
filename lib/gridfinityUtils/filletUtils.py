@@ -34,7 +34,7 @@ def filletEdgesByLength(
     bottomFilletInput.isRollingBallCorner = True
     bottomFilletEdges = edgeUtils.selectEdgesByLength(faces, filterEdgeLength, const.DEFAULT_FILTER_TOLERANCE)
     bottomFilletInput.edgeSetInputs.addConstantRadiusEdgeSet(bottomFilletEdges, adsk.core.ValueInput.createByReal(radius), True)
-    filletFeatures.add(bottomFilletInput)
+    return filletFeatures.add(bottomFilletInput)
 
 def chamferEdgesByLength(
     faces: adsk.fusion.BRepFaces,

@@ -4,7 +4,7 @@ import math
 
 
 
-from .const import BIN_BODY_BOTTOM_THICKNESS, BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS, BIN_CONNECTION_RECESS_DEPTH, BIN_CORNER_FILLET_RADIUS, BIN_LIP_WALL_THICKNESS, BIN_SCOOP_MAX_RADIUS, BIN_TAB_EDGE_FILLET_RADIUS, BIN_TAB_WIDTH, DEFAULT_FILTER_TOLERANCE
+from .const import BIN_BODY_BOTTOM_THICKNESS, BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS, BIN_CONNECTION_RECESS_DEPTH, BIN_CORNER_FILLET_RADIUS, BIN_SCOOP_MAX_RADIUS, BIN_TAB_EDGE_FILLET_RADIUS, BIN_TAB_WIDTH, DEFAULT_FILTER_TOLERANCE
 from ...lib.gridfinityUtils import geometryUtils
 from ...lib import fusion360utils as futil
 from ...lib.gridfinityUtils import filletUtils
@@ -97,7 +97,7 @@ def createGridfinityBinBody(
         # sketch on top
         binBodyOpeningSketch = sketchUtils.createOffsetProfileSketch(
             bottomCutoutFace,
-            -BIN_LIP_WALL_THICKNESS,
+            -const.BIN_LIP_WALL_THICKNESS,
             targetComponent,
         )
         # extrude inside
@@ -116,7 +116,7 @@ def createGridfinityBinBody(
         # use one edge for chamfer, the rest will be automatically detected with tangent chain condition
         topLipChamferEdges.add(faceUtils.getTopHorizontalEdge(lipCutout.faces.item(0)))
         topLipChamferInput.chamferEdgeSets.addEqualDistanceChamferEdgeSet(topLipChamferEdges,
-            adsk.core.ValueInput.createByReal(BIN_LIP_WALL_THICKNESS),
+            adsk.core.ValueInput.createByReal(const.BIN_LIP_WALL_THICKNESS),
             True)
         chamferFeatures.add(topLipChamferInput)
 
@@ -124,7 +124,7 @@ def createGridfinityBinBody(
         currentDepth += BIN_CONNECTION_RECESS_DEPTH
 
     if not input.isSolid:
-        offset = (BIN_LIP_WALL_THICKNESS - input.wallThickness) if input.hasLip else -input.wallThickness
+        offset = (const.BIN_LIP_WALL_THICKNESS - input.wallThickness) if input.hasLip else -input.wallThickness
         innerCutoutSketch: adsk.fusion.Sketch = targetComponent.sketches.add(bottomCutoutFace)
         sketchUtils.convertToConstruction(innerCutoutSketch.sketchCurves)
         sketchUtils.createRectangle(
@@ -231,7 +231,7 @@ def createGridfinityBinBody(
             tabSketch: adsk.fusion.Sketch = targetComponent.sketches.add(tabProfilePlane)
             tabSketchLine = tabSketch.sketchCurves.sketchLines
             tabTopEdgeHeight = binBodyTotalHeight - BIN_CONNECTION_RECESS_DEPTH if input.hasLip else binBodyTotalHeight
-            tabYOffset = input.wallThickness + BIN_LIP_WALL_THICKNESS if input.hasLip else 0
+            tabYOffset = input.wallThickness + const.BIN_LIP_WALL_THICKNESS if input.hasLip else 0
             actualTabWidth = tabYOffset + BIN_TAB_WIDTH
             actualTabHeight = actualTabWidth / math.tan(input.tabOverhangAngle)
             line1 = tabSketchLine.addByTwoPoints(

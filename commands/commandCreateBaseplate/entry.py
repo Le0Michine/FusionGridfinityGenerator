@@ -255,7 +255,6 @@ def generateBaseplate(args: adsk.core.CommandEventArgs):
         baseplateGeneratorInput = BaseplateGeneratorInput()
 
         baseplateGeneratorInput.baseWidth = base_width_unit.value
-        baseplateGeneratorInput.xyTolerance = 0
         baseplateGeneratorInput.baseplateWidth = plate_width.value
         baseplateGeneratorInput.baseplateLength = plate_length.value
         baseplateGeneratorInput.hasExtendedBottom = not plateTypeDropdown.selectedItem.name == BASEPLATE_TYPE_LIGHT
@@ -270,6 +269,7 @@ def generateBaseplate(args: adsk.core.CommandEventArgs):
         baseplateGeneratorInput.bottomExtensionHeight = extraThickness.value
         baseplateGeneratorInput.hasConnectionHoles = hasConnectionHoles.value
         baseplateGeneratorInput.connectionScrewHolesDiameter = connectionHoleDiameter.value
+        baseplateGeneratorInput.xyTolerance = const.BIN_XY_TOLERANCE
 
         baseplateBody = createGridfinityBaseplate(baseplateGeneratorInput, gridfinityBaseplateComponent)
         baseplateBody.name = baseplateName

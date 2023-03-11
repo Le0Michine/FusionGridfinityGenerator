@@ -8,7 +8,6 @@ import math
 from ...lib import configUtils
 from ...lib import fusion360utils as futil
 from ... import config
-from ...lib.gridfinityUtils.const import BIN_LIP_WALL_THICKNESS, BIN_WALL_THICKNESS, BIN_XY_TOLERANCE, DEFAULT_FILTER_TOLERANCE, DIMENSION_DEFAULT_HEIGHT_UNIT, DIMENSION_DEFAULT_WIDTH_UNIT
 from ...lib.gridfinityUtils import geometryUtils
 from ...lib.gridfinityUtils import faceUtils
 from ...lib.gridfinityUtils import shellUtils
@@ -140,8 +139,8 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     # Create a value input field and set the default using 1 unit of the default length unit.
     defaultLengthUnits = app.activeProduct.unitsManager.defaultLengthUnits
     basicSizesGroup = inputs.addGroupCommandInput('basic_sizes', 'Basic sizes')
-    basicSizesGroup.children.addValueInput(BIN_BASE_WIDTH_UNIT_INPUT_ID, 'Base width unit', defaultLengthUnits, adsk.core.ValueInput.createByReal(DIMENSION_DEFAULT_WIDTH_UNIT))
-    basicSizesGroup.children.addValueInput(BIN_HEIGHT_UNIT_INPUT_ID, 'Bin height unit', defaultLengthUnits, adsk.core.ValueInput.createByReal(DIMENSION_DEFAULT_HEIGHT_UNIT))
+    basicSizesGroup.children.addValueInput(BIN_BASE_WIDTH_UNIT_INPUT_ID, 'Base width unit', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.DIMENSION_DEFAULT_WIDTH_UNIT))
+    basicSizesGroup.children.addValueInput(BIN_HEIGHT_UNIT_INPUT_ID, 'Bin height unit', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.DIMENSION_DEFAULT_HEIGHT_UNIT))
 
     binDimensionsGroup = inputs.addGroupCommandInput('bin_dimensions', 'Main dimensions')
     binDimensionsGroup.tooltipDescription = 'Set in base units'
@@ -156,7 +155,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     binTypeDropdown.listItems.add(BIN_TYPE_SHELLED, False)
     binTypeDropdown.listItems.add(BIN_TYPE_SOLID, False)
 
-    binFeaturesGroup.children.addValueInput(BIN_WALL_THICKNESS_INPUT_ID, 'Bin wall thickness', defaultLengthUnits, adsk.core.ValueInput.createByReal(BIN_WALL_THICKNESS))
+    binFeaturesGroup.children.addValueInput(BIN_WALL_THICKNESS_INPUT_ID, 'Bin wall thickness', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.BIN_WALL_THICKNESS))
     binFeaturesGroup.children.addBoolValueInput(BIN_WITH_LIP_INPUT_ID, 'Generate lip for stackability', True, '', True)
     binFeaturesGroup.children.addBoolValueInput(BIN_HAS_SCOOP_INPUT_ID, 'Add scoop', True, '', False)
 
@@ -335,7 +334,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
     try:
         des = adsk.fusion.Design.cast(app.activeProduct)
         root = adsk.fusion.Component.cast(des.rootComponent)
-        tolerance = BIN_XY_TOLERANCE
+        tolerance = const.BIN_XY_TOLERANCE
         binName = 'Gridfinity bin {}x{}x{}'.format(int(bin_length.value), int(bin_width.value), int(bin_height.value))
 
         # create new component
@@ -438,15 +437,15 @@ def generateBin(args: adsk.core.CommandEventArgs):
                 shellUtils.simpleShell([topFace], binBodyInput.wallThickness, gridfinityBinComponent)
 
             chamferEdge = [edge for edge in binBody.edges if geometryUtils.isHorizontal(edge)
-                and math.isclose(edge.boundingBox.minPoint.z, topFaceMinPoint.z, abs_tol=DEFAULT_FILTER_TOLERANCE)
-                and math.isclose(edge.boundingBox.minPoint.x, topFaceMinPoint.x, abs_tol=DEFAULT_FILTER_TOLERANCE)][0]
-            if binBodyInput.hasLip and BIN_LIP_WALL_THICKNESS - binBodyInput.wallThickness > 0:
+                and math.isclose(edge.boundingBox.minPoint.z, topFaceMinPoint.z, abs_tol=const.DEFAULT_FILTER_TOLERANCE)
+                and math.isclose(edge.boundingBox.minPoint.x, topFaceMinPoint.x, abs_tol=const.DEFAULT_FILTER_TOLERANCE)][0]
+            if binBodyInput.hasLip and const.BIN_LIP_WALL_THICKNESS - binBodyInput.wallThickness > 0:
                 chamferFeatures: adsk.fusion.ChamferFeatures = features.chamferFeatures
                 chamferInput = chamferFeatures.createInput2()
                 chamfer_edges = adsk.core.ObjectCollection.create()
                 chamfer_edges.add(chamferEdge)
                 chamferInput.chamferEdgeSets.addEqualDistanceChamferEdgeSet(chamfer_edges,
-                    adsk.core.ValueInput.createByReal(BIN_LIP_WALL_THICKNESS - binBodyInput.wallThickness),
+                    adsk.core.ValueInput.createByReal(const.BIN_LIP_WALL_THICKNESS - binBodyInput.wallThickness),
                     True)
                 chamferFeatures.add(chamferInput)
     except:
