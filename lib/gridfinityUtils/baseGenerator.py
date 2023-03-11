@@ -2,11 +2,11 @@ import adsk.core, adsk.fusion, traceback
 import os
 
 
-from .const import BASE_TOTAL_HEIGHT, BIN_CORNER_FILLET_RADIUS, DEFAULT_FILTER_TOLERANCE, DIMENSION_PRINT_HELPER_GROOVE_DEPTH, DIMENSION_SCREW_HOLES_DISTANCE
+from .const import BIN_CORNER_FILLET_RADIUS, DEFAULT_FILTER_TOLERANCE, DIMENSION_PRINT_HELPER_GROOVE_DEPTH, DIMENSION_SCREW_HOLES_DISTANCE
 from .sketchUtils import createRectangle, filterCirclesByRadius
 from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
 from ...lib.gridfinityUtils.extrudeUtils import simpleDistanceExtrude
-from . import sketchUtils, const
+from . import sketchUtils, const, edgeUtils
 from ...lib import fusion360utils as futil
 from ... import config
 
@@ -56,7 +56,7 @@ def createMagnetCutoutSketch(
 def createGridfinityBase(
     input: BaseGeneratorInput,
     targetComponent: adsk.fusion.Component,
-    ):
+):
     actual_base_width = input.baseWidth - input.xyTolerance * 2.0
     features: adsk.fusion.Features = targetComponent.features
     extrudeFeatures: adsk.fusion.ExtrudeFeatures = features.extrudeFeatures
@@ -65,55 +65,52 @@ def createGridfinityBase(
     base_plate_sketch: adsk.fusion.Sketch = sketches.add(targetComponent.xYConstructionPlane)
     createRectangle(actual_base_width, actual_base_width, base_plate_sketch.originPoint.geometry, base_plate_sketch)
         
-    # extrude
-    topExtrudeDepth = adsk.core.ValueInput.createByReal(0.23)
-    topExtrudeInput = extrudeFeatures.createInput(base_plate_sketch.profiles.item(0),
+    # extrude top section
+    topSectionExtrudeDepth = adsk.core.ValueInput.createByReal(const.BIN_BASE_TOP_SECTION_HEIGH)
+    topSectionExtrudeInput = extrudeFeatures.createInput(base_plate_sketch.profiles.item(0),
         adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
-    topExtrudeExtent = adsk.fusion.DistanceExtentDefinition.create(topExtrudeDepth)
-    topExtrudeInput.setOneSideExtent(topExtrudeExtent,
+    topSectionExtrudeExtent = adsk.fusion.DistanceExtentDefinition.create(topSectionExtrudeDepth)
+    topSectionExtrudeInput.setOneSideExtent(topSectionExtrudeExtent,
         adsk.fusion.ExtentDirections.NegativeExtentDirection,
         adsk.core.ValueInput.createByReal(0))
-    topExtrudeFeature = extrudeFeatures.add(topExtrudeInput)
-    baseBody = topExtrudeFeature.bodies.item(0)
+    topSectionExtrudeFeature = extrudeFeatures.add(topSectionExtrudeInput)
+    baseBody = topSectionExtrudeFeature.bodies.item(0)
     baseBody.name = 'base'
 
-    # fillet
+    # fillet on corners
     filletFeatures: adsk.fusion.FilletFeatures = features.filletFeatures
     filletInput = filletFeatures.createInput()
     filletInput.isRollingBallCorner = True
-    fillet_edges = adsk.core.ObjectCollection.create()
-    faces: adsk.fusion.BRepFaces = baseBody.faces
-    for i in range(0, 4):
-        fillet_edges.add(faces.item(i).edges.item(1))
+    fillet_edges = edgeUtils.selectEdgesByLength(baseBody.faces, const.BIN_BASE_TOP_SECTION_HEIGH, const.DEFAULT_FILTER_TOLERANCE)
     filletInput.edgeSetInputs.addConstantRadiusEdgeSet(fillet_edges, adsk.core.ValueInput.createByReal(BIN_CORNER_FILLET_RADIUS), True)
     filletFeatures.add(filletInput)
 
-    # chamfer
+    # chamfer top section
     chamferFeatures: adsk.fusion.ChamferFeatures = features.chamferFeatures
     chamferInput = chamferFeatures.createInput2()
     chamfer_edges = adsk.core.ObjectCollection.create()
     # use one edge for chamfer, the rest will be automatically detected with tangent chain condition
-    chamfer_edges.add(topExtrudeFeature.endFaces.item(0).edges.item(0))
+    chamfer_edges.add(topSectionExtrudeFeature.endFaces.item(0).edges.item(0))
     chamferInput.chamferEdgeSets.addEqualDistanceChamferEdgeSet(chamfer_edges,
-        topExtrudeDepth,
+        topSectionExtrudeDepth,
         True)
     chamferFeatures.add(chamferInput)
 
-    # extrude again
-    topExtrudeDepth = adsk.core.ValueInput.createByReal(0.27)
+    # extrude mid/bottom section
+    topSectionExtrudeDepth = adsk.core.ValueInput.createByReal(const.BIN_BASE_MID_SECTION_HEIGH + const.BIN_BASE_BOTTOM_SECTION_HEIGH)
     baseBottomExtrude = extrudeFeatures.addSimple(
-        faces.item(8),
-        topExtrudeDepth,
+        topSectionExtrudeFeature.endFaces.item(0),
+        topSectionExtrudeDepth,
         adsk.fusion.FeatureOperations.JoinFeatureOperation)
 
-    # chamfer again
+    # chamfer bottom section
     chamferFeatures: adsk.fusion.ChamferFeatures = features.chamferFeatures
     chamferInput = chamferFeatures.createInput2()
     chamfer_edges = adsk.core.ObjectCollection.create()
     # use one edge for chamfer, the rest will be automatically detected with tangent chain condition
     chamfer_edges.add(baseBottomExtrude.endFaces.item(0).edges.item(0))
     chamferInput.chamferEdgeSets.addEqualDistanceChamferEdgeSet(chamfer_edges,
-        adsk.core.ValueInput.createByReal(0.08),
+        adsk.core.ValueInput.createByReal(const.BIN_BASE_BOTTOM_SECTION_HEIGH),
         True)
     chamferFeatures.add(chamferInput)
     
@@ -124,7 +121,7 @@ def createGridfinityBase(
     screwHoleOffset = getScrewHoleOffset(input.baseWidth)
     holeFeatures = features.holeFeatures
     if input.hasScrewHoles:
-        baseTopPlane = topExtrudeFeature.startFaces.item(0)
+        baseTopPlane = topSectionExtrudeFeature.startFaces.item(0)
         screwHoleFeatureInput = holeFeatures.createSimpleInput(adsk.core.ValueInput.createByReal(input.screwHolesDiameter))
         screwHoleFeatureInput.setPositionByPlaneAndOffsets(
             baseTopPlane,
@@ -154,7 +151,7 @@ def createGridfinityBase(
         )
         patternInputBodies.add(magnetCutoutExtrude)
         
-        if input.hasScrewHoles and input.magnetCutoutsDepth < const.BASE_TOTAL_HEIGHT:
+        if input.hasScrewHoles and input.magnetCutoutsDepth < const.BIN_BASE_HEIGHT:
             printHelperGrooveSketch: adsk.fusion.Sketch = sketches.add(magnetCutoutExtrude.endFaces.item(0))
             constraints: adsk.fusion.GeometricConstraints = printHelperGrooveSketch.geometricConstraints
             for curve in printHelperGrooveSketch.sketchCurves:

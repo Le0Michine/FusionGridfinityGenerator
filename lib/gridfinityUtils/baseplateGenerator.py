@@ -131,7 +131,6 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
             )
             extraCutoutBodies = extraCutoutBodies + list(connectionHoleTool.bodies) + list(connectionHolePattern.bodies)
 
-
     holeCuttingBodies: list[adsk.fusion.BRepBody] = []
     
     if input.hasMagnetCutouts:
@@ -191,7 +190,6 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
             targetComponent,
         )
     
-
     # replicate base in rectangular pattern
     rectangularPatternFeatures: adsk.fusion.RectangularPatternFeatures = features.rectangularPatternFeatures
     patternInputBodies = adsk.core.ObjectCollection.create()
@@ -211,7 +209,7 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
     binInterfaceExtrude = createBox(
         input.baseplateWidth * input.baseWidth,
         input.baseplateLength * input.baseWidth,
-        -const.BASE_TOTAL_HEIGHT,
+        -const.BIN_BASE_HEIGHT,
         targetComponent,
         targetComponent.xYConstructionPlane,
         )
@@ -231,7 +229,7 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
     filletUtils.filletEdgesByLength(
         binInterfaceExtrude.faces,
         const.BIN_CORNER_FILLET_RADIUS,
-        const.BASE_TOTAL_HEIGHT,
+        const.BIN_BASE_HEIGHT,
         targetComponent,
         )
     
@@ -262,5 +260,15 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
         toolBodies,
         targetComponent,
     )
+
+    # align with bin location
+    moveInput = features.moveFeatures.createInput2(commonUtils.objectCollectionFromList([binInterfaceBody]))
+    moveInput.defineAsTranslateXYZ(
+        adsk.core.ValueInput.createByReal(-const.BIN_XY_TOLERANCE),
+        adsk.core.ValueInput.createByReal(-const.BIN_XY_TOLERANCE),
+        adsk.core.ValueInput.createByReal(0),
+        True
+    )
+    features.moveFeatures.add(moveInput)
 
     return binInterfaceBody

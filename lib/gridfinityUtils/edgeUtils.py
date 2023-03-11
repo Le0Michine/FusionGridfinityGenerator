@@ -1,5 +1,6 @@
 import adsk.core, adsk.fusion, traceback
 import os
+import math
 
 from . import const
 
@@ -17,6 +18,6 @@ def selectEdgesByLength(
     filteredEdges = adsk.core.ObjectCollection.create()
     for face in faces:
         for edge in face.edges:
-            if abs(edge.length - filterEdgeLength) < filterEdgeTolerance:
+            if math.isclose(edge.length, filterEdgeLength, abs_tol=filterEdgeTolerance):
                 filteredEdges.add(edge)
     return filteredEdges
