@@ -68,7 +68,7 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
         centerCutoutExtrudeFeature = extrudeUtils.simpleDistanceExtrude(
             centerCutoutSketch.profiles.item(0),
             adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
-            input.bottomExtensionHeight,
+            input.bottomExtensionHeight+1,
             adsk.fusion.ExtentDirections.PositiveExtentDirection,
             [],
             targetComponent,
