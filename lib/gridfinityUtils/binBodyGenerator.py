@@ -119,9 +119,19 @@ def createGridfinityBinBody(
             adsk.core.ValueInput.createByReal(BIN_LIP_CHAMFER),
             True)
         chamferFeatures.add(topLipChamferInput)
-
-        bottomCutoutFace = lipCutout.endFaces.item(0)
-        currentDepth += BIN_CONNECTION_RECESS_DEPTH
+        
+    
+    if input.isSolid:
+        #top lip bottom chamfer
+        bottomTopLipChamferInput = chamferFeatures.createInput2()
+        bottomTopLipChamferEdges = adsk.core.ObjectCollection.create()
+        bottomTopLipChamferEdges.add(faceUtils.getBottomHorizontalEdge(lipCutout.faces.item(0)))
+        bottomTopLipChamferInput.chamferEdgeSets.addEqualDistanceChamferEdgeSet(bottomTopLipChamferEdges,
+            adsk.core.ValueInput.createByReal(.07),
+            True)
+        chamferFeatures.add(bottomTopLipChamferInput)
+    bottomCutoutFace = lipCutout.endFaces.item(0)
+    currentDepth += BIN_CONNECTION_RECESS_DEPTH
 
     if not input.isSolid:
         offset = (BIN_LIP_WALL_THICKNESS - input.wallThickness) if input.hasLip else -input.wallThickness
