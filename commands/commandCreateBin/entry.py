@@ -49,6 +49,7 @@ local_handlers = []
 # Constants
 BIN_BASE_WIDTH_UNIT_INPUT_ID = 'base_width_unit'
 BIN_HEIGHT_UNIT_INPUT_ID = 'height_unit'
+BIN_XY_TOLERANCE_INPUT_ID = 'bin_xy_tolerance'
 BIN_WIDTH_INPUT_ID = 'bin_width'
 BIN_LENGTH_INPUT_ID = 'bin_length'
 BIN_HEIGHT_INPUT_ID = 'bin_height'
@@ -98,10 +99,6 @@ def start():
 
     # Specify if the command is promoted to the main toolbar.
     control.isPromoted = addinConfig['UI'].getboolean('is_promoted')
-    # control.isPromoted = IS_PROMOTED
-    
-
-
 
 # Executed when add-in is stopped.
 def stop():
@@ -139,8 +136,9 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     # Create a value input field and set the default using 1 unit of the default length unit.
     defaultLengthUnits = app.activeProduct.unitsManager.defaultLengthUnits
     basicSizesGroup = inputs.addGroupCommandInput('basic_sizes', 'Basic sizes')
-    basicSizesGroup.children.addValueInput(BIN_BASE_WIDTH_UNIT_INPUT_ID, 'Base width unit', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.DIMENSION_DEFAULT_WIDTH_UNIT))
-    basicSizesGroup.children.addValueInput(BIN_HEIGHT_UNIT_INPUT_ID, 'Bin height unit', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.DIMENSION_DEFAULT_HEIGHT_UNIT))
+    basicSizesGroup.children.addValueInput(BIN_BASE_WIDTH_UNIT_INPUT_ID, 'Base width unit (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.DIMENSION_DEFAULT_WIDTH_UNIT))
+    basicSizesGroup.children.addValueInput(BIN_HEIGHT_UNIT_INPUT_ID, 'Bin height unit (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.DIMENSION_DEFAULT_HEIGHT_UNIT))
+    basicSizesGroup.children.addValueInput(BIN_XY_TOLERANCE_INPUT_ID, 'Bin xy tolerance (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.BIN_XY_TOLERANCE))
 
     binDimensionsGroup = inputs.addGroupCommandInput('bin_dimensions', 'Main dimensions')
     binDimensionsGroup.tooltipDescription = 'Set in base units'
@@ -307,6 +305,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
     inputs = args.command.commandInputs
     base_width_unit: adsk.core.ValueCommandInput = inputs.itemById(BIN_BASE_WIDTH_UNIT_INPUT_ID)
     height_unit: adsk.core.ValueCommandInput = inputs.itemById(BIN_HEIGHT_UNIT_INPUT_ID)
+    xy_tolerance: adsk.core.ValueCommandInput = inputs.itemById(BIN_XY_TOLERANCE_INPUT_ID)
     bin_width: adsk.core.ValueCommandInput = inputs.itemById(BIN_WIDTH_INPUT_ID)
     bin_length: adsk.core.ValueCommandInput = inputs.itemById(BIN_LENGTH_INPUT_ID)
     bin_height: adsk.core.ValueCommandInput = inputs.itemById(BIN_HEIGHT_INPUT_ID)
@@ -334,7 +333,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
     try:
         des = adsk.fusion.Design.cast(app.activeProduct)
         root = adsk.fusion.Component.cast(des.rootComponent)
-        tolerance = const.BIN_XY_TOLERANCE
+        tolerance = xy_tolerance.value
         binName = 'Gridfinity bin {}x{}x{}'.format(int(bin_length.value), int(bin_width.value), int(bin_height.value))
 
         # create new component

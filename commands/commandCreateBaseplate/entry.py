@@ -41,6 +41,7 @@ local_handlers = []
 
 # Input ids
 BASEPLATE_BASE_UNIT_WIDTH_INPUT = 'base_width_unit'
+BIN_XY_TOLERANCE_INPUT_ID = 'bin_xy_tolerance'
 BASEPLATE_WIDTH_INPUT = 'plate_width'
 BASEPLATE_LENGTH_INPUT = 'plate_length'
 BASEPLATE_TYPE_DROPDOWN = 'plate_type_dropdown'
@@ -124,7 +125,8 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     # Create a value input field and set the default using 1 unit of the default length unit.
     defaultLengthUnits = app.activeProduct.unitsManager.defaultLengthUnits
     basicSizesGroup = inputs.addGroupCommandInput('basic_sizes', 'Basic size')
-    basicSizesGroup.children.addValueInput(BASEPLATE_BASE_UNIT_WIDTH_INPUT, 'Base width unit', defaultLengthUnits, adsk.core.ValueInput.createByReal(DIMENSION_DEFAULT_WIDTH_UNIT))
+    basicSizesGroup.children.addValueInput(BASEPLATE_BASE_UNIT_WIDTH_INPUT, 'Base width unit (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(DIMENSION_DEFAULT_WIDTH_UNIT))
+    basicSizesGroup.children.addValueInput(BIN_XY_TOLERANCE_INPUT_ID, 'Bin xy tolerance (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.BIN_XY_TOLERANCE))
 
     mainDimensionsGroup = inputs.addGroupCommandInput('xy_dimensions', 'Main dimensions')
     mainDimensionsGroup.children.addValueInput(BASEPLATE_WIDTH_INPUT, 'Plate width (u)', '', adsk.core.ValueInput.createByString('2'))
@@ -223,6 +225,7 @@ def generateBaseplate(args: adsk.core.CommandEventArgs):
      # Get a reference to command's inputs.
     inputs = args.command.commandInputs
     base_width_unit: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_BASE_UNIT_WIDTH_INPUT)
+    xy_tolerance: adsk.core.ValueCommandInput = inputs.itemById(BIN_XY_TOLERANCE_INPUT_ID)
     plate_width: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_WIDTH_INPUT)
     plate_length: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_LENGTH_INPUT)
 
@@ -269,7 +272,7 @@ def generateBaseplate(args: adsk.core.CommandEventArgs):
         baseplateGeneratorInput.bottomExtensionHeight = extraThickness.value
         baseplateGeneratorInput.hasConnectionHoles = hasConnectionHoles.value
         baseplateGeneratorInput.connectionScrewHolesDiameter = connectionHoleDiameter.value
-        baseplateGeneratorInput.xyTolerance = const.BIN_XY_TOLERANCE
+        baseplateGeneratorInput.xyTolerance = xy_tolerance.value
 
         baseplateBody = createGridfinityBaseplate(baseplateGeneratorInput, gridfinityBaseplateComponent)
         baseplateBody.name = baseplateName
