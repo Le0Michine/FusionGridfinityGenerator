@@ -1,20 +1,20 @@
 import adsk.core, adsk.fusion, traceback
 
-from .const import BASEPLATE_BIN_Z_CLEARANCE, BASEPLATE_EXTRA_HEIGHT, DIMENSION_MAGNET_CUTOUT_DEPTH, DIMENSION_MAGNET_CUTOUT_DIAMETER, DIMENSION_PLATE_CONNECTION_SCREW_HOLE_DIAMETER, DIMENSION_SCREW_HEAD_CUTOUT_DIAMETER, DIMENSION_SCREW_HOLE_DIAMETER
+from . import const
 
 class BaseplateGeneratorInput():
     def __init__(self):
         self.hasMagnetCutouts = False
         self.hasScrewHoles = False
-        self.screwHolesDiameter = DIMENSION_SCREW_HOLE_DIAMETER
-        self.screwHeadCutoutDiameter = DIMENSION_SCREW_HEAD_CUTOUT_DIAMETER
-        self.magnetCutoutsDiameter = DIMENSION_MAGNET_CUTOUT_DIAMETER
-        self.magnetCutoutsDepth = DIMENSION_MAGNET_CUTOUT_DEPTH
+        self.screwHolesDiameter = const.DIMENSION_SCREW_HOLE_DIAMETER
+        self.screwHeadCutoutDiameter = const.DIMENSION_SCREW_HEAD_CUTOUT_DIAMETER
+        self.magnetCutoutsDiameter = const.DIMENSION_MAGNET_CUTOUT_DIAMETER
+        self.magnetCutoutsDepth = const.DIMENSION_MAGNET_CUTOUT_DEPTH
         self.hasSkeletonizedBottom = True
         self.bottomExtensionHeight = BASEPLATE_EXTRA_HEIGHT
-        self.xyTolerance = 0
-        self.binZClearance = BASEPLATE_BIN_Z_CLEARANCE
-        self.connectionScrewHolesDiameter = DIMENSION_PLATE_CONNECTION_SCREW_HOLE_DIAMETER
+        self.xyTolerance = const.BIN_XY_TOLERANCE
+        self.binZClearance = const.BASEPLATE_BIN_Z_CLEARANCE
+        self.connectionScrewHolesDiameter = const.DIMENSION_PLATE_CONNECTION_SCREW_HOLE_DIAMETER
 
     @property
     def baseWidth(self) -> float:
