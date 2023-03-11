@@ -346,6 +346,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
         # create base interface
         baseGeneratorInput = BaseGeneratorInput()
         baseGeneratorInput.baseWidth = base_width_unit.value
+        baseGeneratorInput.baseLength = base_width_unit.value
         baseGeneratorInput.xyTolerance = tolerance
         baseGeneratorInput.hasScrewHoles = bin_screw_holes.value and not isShelled
         baseGeneratorInput.hasMagnetCutouts = bin_magnet_cutouts.value and not isShelled
@@ -379,6 +380,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
         binBodyInput.binLength = bin_length.value
         binBodyInput.binHeight = bin_height.value
         binBodyInput.baseWidth = base_width_unit.value
+        binBodyInput.baseLength = base_width_unit.value
         binBodyInput.heightUnit = height_unit.value
         binBodyInput.xyTolerance = tolerance
         binBodyInput.isSolid = isSolid or isShelled

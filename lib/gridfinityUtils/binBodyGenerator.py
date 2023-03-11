@@ -8,33 +8,12 @@ from .const import BIN_BODY_BOTTOM_THICKNESS, BIN_BODY_CUTOUT_BOTTOM_FILLET_RADI
 from ...lib.gridfinityUtils import geometryUtils
 from ...lib import fusion360utils as futil
 from ...lib.gridfinityUtils import filletUtils
-from . import const, combineUtils, faceUtils, commonUtils, sketchUtils
-from ...lib.gridfinityUtils.extrudeUtils import simpleDistanceExtrude
+from . import const, combineUtils, faceUtils, commonUtils, sketchUtils, extrudeUtils
 from ...lib.gridfinityUtils.binBodyGeneratorInput import BinBodyGeneratorInput
 from ... import config
 
 app = adsk.core.Application.get()
 ui = app.userInterface
-
-
-def createBox(
-    width: float,
-    length: float,
-    height: float,
-    targetComponent: adsk.fusion.Component,
-    targetPlane: adsk.core.Base,
-    ):
-    features: adsk.fusion.Features = targetComponent.features
-    extrudeFeatures: adsk.fusion.ExtrudeFeatures = features.extrudeFeatures
-    sketches: adsk.fusion.Sketches = targetComponent.sketches
-    recSketch: adsk.fusion.Sketch = sketches.add(targetPlane)
-    sketchUtils.createRectangle(width, length, recSketch.originPoint.geometry, recSketch)
-        
-    # extrude
-    extrude = extrudeFeatures.addSimple(recSketch.profiles.item(0),
-        adsk.core.ValueInput.createByReal(height),
-        adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
-    return extrude
 
 def getVerticalEdges(
     faces: adsk.fusion.BRepFaces,
@@ -70,7 +49,7 @@ def createGridfinityBinBody(
     filletFeatures: adsk.fusion.FilletFeatures = features.filletFeatures
     extrudeFeatures: adsk.fusion.ExtrudeFeatures = features.extrudeFeatures
     # create rectangle for the body
-    binBodyExtrude = createBox(
+    binBodyExtrude = extrudeUtils.createBox(
         actualBodyWidth,
         actualBodyLength,
         binBodyTotalHeight,
@@ -101,7 +80,7 @@ def createGridfinityBinBody(
             targetComponent,
         )
         # extrude inside
-        lipCutout = simpleDistanceExtrude(
+        lipCutout = extrudeUtils.simpleDistanceExtrude(
             binBodyOpeningSketch.profiles.item(0),
             adsk.fusion.FeatureOperations.CutFeatureOperation,
             BIN_CONNECTION_RECESS_DEPTH,
@@ -134,7 +113,7 @@ def createGridfinityBinBody(
             innerCutoutSketch,
         )
 
-        innerCutout = simpleDistanceExtrude(
+        innerCutout = extrudeUtils.simpleDistanceExtrude(
             innerCutoutSketch.profiles.item(0),
             adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
             binBodyTotalHeight - BIN_BODY_BOTTOM_THICKNESS - currentDepth,
@@ -194,7 +173,7 @@ def createGridfinityBinBody(
         )
 
         if input.hasLip and offset > 0:
-            simpleDistanceExtrude(
+            extrudeUtils.simpleDistanceExtrude(
                 faceUtils.getTopFace(innerCutoutBody),
                 adsk.fusion.FeatureOperations.JoinFeatureOperation,
                 innerCutoutFilletRadius - offset,
@@ -288,7 +267,7 @@ def createGridfinityBinBody(
                 True,
                 )
 
-            tabExtrudeFeature = simpleDistanceExtrude(
+            tabExtrudeFeature = extrudeUtils.simpleDistanceExtrude(
                 tabSketch.profiles.item(0),
                 adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
                 actualTabLength,

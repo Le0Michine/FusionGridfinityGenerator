@@ -1,6 +1,8 @@
 import adsk.core, adsk.fusion, traceback
 import os
 
+from . import sketchUtils
+
 def simpleDistanceExtrude(
     profile: adsk.core.Base,
     operation: adsk.fusion.FeatureOperations,
@@ -21,3 +23,22 @@ def simpleDistanceExtrude(
     )
     extrudeFeature = extrudeFeatures.add(extrudeInput)
     return extrudeFeature
+
+def createBox(
+    width: float,
+    length: float,
+    height: float,
+    targetComponent: adsk.fusion.Component,
+    targetPlane: adsk.core.Base,
+    ):
+    features: adsk.fusion.Features = targetComponent.features
+    extrudeFeatures: adsk.fusion.ExtrudeFeatures = features.extrudeFeatures
+    sketches: adsk.fusion.Sketches = targetComponent.sketches
+    recSketch: adsk.fusion.Sketch = sketches.add(targetPlane)
+    sketchUtils.createRectangle(width, length, recSketch.originPoint.geometry, recSketch)
+        
+    # extrude
+    extrude = extrudeFeatures.addSimple(recSketch.profiles.item(0),
+        adsk.core.ValueInput.createByReal(height),
+        adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+    return extrude

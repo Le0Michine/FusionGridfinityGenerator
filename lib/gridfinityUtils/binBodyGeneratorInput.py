@@ -22,6 +22,14 @@ class BinBodyGeneratorInput():
         self._baseWidth = value
 
     @property
+    def baseLength(self) -> float:
+        return self._baseLength
+
+    @baseLength.setter
+    def baseLength(self, value: float):
+        self._baseLength = value
+
+    @property
     def heightUnit(self) -> float:
         return self._heightUnit
 

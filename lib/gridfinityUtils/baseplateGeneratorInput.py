@@ -25,6 +25,14 @@ class BaseplateGeneratorInput():
         self._baseWidth = value
 
     @property
+    def baseLength(self) -> float:
+        return self._baseLength
+
+    @baseLength.setter
+    def baseLength(self, value: float):
+        self._baseLength = value
+
+    @property
     def baseplateWidth(self) -> float:
         return self._baseplateWidth
 

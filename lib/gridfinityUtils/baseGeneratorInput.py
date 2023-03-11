@@ -19,6 +19,14 @@ class BaseGeneratorInput():
         self._baseWidth = value
 
     @property
+    def baseLength(self) -> float:
+        return self._baseLength
+
+    @baseLength.setter
+    def baseLength(self, value: float):
+        self._baseLength = value
+
+    @property
     def xyTolerance(self) -> float:
         return self._xyTolerance
 

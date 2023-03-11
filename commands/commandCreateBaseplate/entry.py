@@ -258,6 +258,7 @@ def generateBaseplate(args: adsk.core.CommandEventArgs):
         baseplateGeneratorInput = BaseplateGeneratorInput()
 
         baseplateGeneratorInput.baseWidth = base_width_unit.value
+        baseplateGeneratorInput.baseLength = base_width_unit.value
         baseplateGeneratorInput.baseplateWidth = plate_width.value
         baseplateGeneratorInput.baseplateLength = plate_length.value
         baseplateGeneratorInput.hasExtendedBottom = not plateTypeDropdown.selectedItem.name == BASEPLATE_TYPE_LIGHT

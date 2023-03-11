@@ -5,8 +5,7 @@ import os
 from .const import BIN_CORNER_FILLET_RADIUS, DEFAULT_FILTER_TOLERANCE, DIMENSION_PRINT_HELPER_GROOVE_DEPTH, DIMENSION_SCREW_HOLES_DISTANCE
 from .sketchUtils import createRectangle, filterCirclesByRadius
 from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
-from ...lib.gridfinityUtils.extrudeUtils import simpleDistanceExtrude
-from . import sketchUtils, const, edgeUtils
+from . import sketchUtils, const, edgeUtils, commonUtils, combineUtils, faceUtils, extrudeUtils
 from ...lib import fusion360utils as futil
 from ... import config
 
@@ -141,7 +140,7 @@ def createGridfinityBase(
         baseBottomPlane = baseBottomExtrude.endFaces.item(0)
         magnetCutoutSketch = createMagnetCutoutSketch(baseBottomPlane, input.magnetCutoutsDiameter / 2, input.baseWidth, targetComponent)
 
-        magnetCutoutExtrude = simpleDistanceExtrude(
+        magnetCutoutExtrude = extrudeUtils.simpleDistanceExtrude(
             magnetCutoutSketch.profiles.item(0),
             adsk.fusion.FeatureOperations.CutFeatureOperation,
             input.magnetCutoutsDepth,
@@ -218,4 +217,66 @@ def createGridfinityBase(
         patternInput.distanceTwo = adsk.core.ValueInput.createByReal(DIMENSION_SCREW_HOLES_DISTANCE)
         rectangularPatternFeatures.add(patternInput)
 
+    return baseBody
+
+def createBaseWithClearance(input: BaseGeneratorInput, targetComponent: adsk.fusion.Component):
+    features = targetComponent.features
+    # create base
+    baseGeneratorInput = BaseGeneratorInput()
+    baseGeneratorInput.baseWidth = input.baseWidth
+    baseGeneratorInput.xyTolerance = input.xyTolerance
+    baseBody = createGridfinityBase(baseGeneratorInput, targetComponent)
+
+    # move body to allow for clearance
+    moveInput = features.moveFeatures.createInput2(commonUtils.objectCollectionFromList([baseBody]))
+    moveInput.defineAsTranslateXYZ(
+        adsk.core.ValueInput.createByReal(input.xyTolerance),
+        adsk.core.ValueInput.createByReal(input.xyTolerance),
+        adsk.core.ValueInput.createByReal(0),
+        True
+    )
+    clearanceAlignment = features.moveFeatures.add(moveInput)
+    clearanceAlignment.name = "align for xy clearance"
+
+    # offset side faces
+    offsetFacesInput = features.offsetFeatures.createInput(
+        commonUtils.objectCollectionFromList([face for face in list(baseBody.faces) if not faceUtils.isZNormal(face)]),
+        adsk.core.ValueInput.createByReal(0),
+        adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
+        False
+    )
+    offsetFacesFeature = features.offsetFeatures.add(offsetFacesInput)
+    offsetFacesFeature.name = "bin base side faces"
+    offsetFacesFeature.bodies.item(0).name = "bin base side faces"
+
+    # thicken faces to add clearance
+    thickenFeatureInput = features.thickenFeatures.createInput(
+        commonUtils.objectCollectionFromList(offsetFacesFeature.faces),
+        adsk.core.ValueInput.createByReal(input.xyTolerance),
+        False,
+        adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
+        False,
+    )
+    thickenFeaure = features.thickenFeatures.add(thickenFeatureInput)
+    thickenFeaure.name = "clearance"
+    thickenFeaure.bodies.item(0).name = "bin base clearance layer"
+    features.removeFeatures.add(offsetFacesFeature.bodies.item(0))
+
+    # thickened body would go beyond the bottom face, use bounding box to make bottom flat
+    clearanceBoundingBox = extrudeUtils.createBox(
+        input.baseWidth,
+        input.baseWidth,
+        -const.BIN_BASE_HEIGHT,
+        targetComponent,
+        targetComponent.xYConstructionPlane,
+        )
+    clearanceBoundingBox.name = "clearance bounding box"
+    clearanceBoundingBox.bodies.item(0).name = "clearance bounding box"
+    combineFeatureInput = features.combineFeatures.createInput(
+        thickenFeaure.bodies.item(0),
+        commonUtils.objectCollectionFromList(clearanceBoundingBox.bodies)
+    )
+    combineFeatureInput.operation = adsk.fusion.FeatureOperations.IntersectFeatureOperation
+    features.combineFeatures.add(combineFeatureInput)
+    combineUtils.joinBodies(baseBody, commonUtils.objectCollectionFromList(thickenFeaure.bodies), targetComponent)
     return baseBody
