@@ -4,11 +4,11 @@ import math
 
 
 
-from .const import BIN_BODY_BOTTOM_THICKNESS, BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS, BIN_CONNECTION_RECESS_DEPTH, BIN_CORNER_FILLET_RADIUS, BIN_LIP_CHAMFER, BIN_LIP_WALL_THICKNESS, BIN_SCOOP_MAX_RADIUS, BIN_TAB_EDGE_FILLET_RADIUS, BIN_TAB_WIDTH, DEFAULT_FILTER_TOLERANCE
+from .const import BIN_BODY_BOTTOM_THICKNESS, BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS, BIN_CONNECTION_RECESS_DEPTH, BIN_CORNER_FILLET_RADIUS, BIN_LIP_WALL_THICKNESS, BIN_SCOOP_MAX_RADIUS, BIN_TAB_EDGE_FILLET_RADIUS, BIN_TAB_WIDTH, DEFAULT_FILTER_TOLERANCE
 from ...lib.gridfinityUtils import geometryUtils
 from ...lib import fusion360utils as futil
 from ...lib.gridfinityUtils import filletUtils
-from . import combineUtils, faceUtils, commonUtils, sketchUtils
+from . import const, combineUtils, faceUtils, commonUtils, sketchUtils
 from ...lib.gridfinityUtils.extrudeUtils import simpleDistanceExtrude
 from ...lib.gridfinityUtils.binBodyGeneratorInput import BinBodyGeneratorInput
 from ... import config
@@ -65,7 +65,7 @@ def createGridfinityBinBody(
 
     actualBodyWidth = (input.baseWidth * input.binWidth) - input.xyTolerance * 2.0
     actualBodyLength = (input.baseWidth * input.binLength) - input.xyTolerance * 2.0
-    binBodyTotalHeight = input.binHeight * input.heightUnit
+    binBodyTotalHeight = input.binHeight * input.heightUnit + max(0, input.heightUnit - const.BIN_BASE_HEIGHT) + (const.BIN_LIP_EXTRA_HEIGHT if input.hasLip else 0)
     features: adsk.fusion.Features = targetComponent.features
     filletFeatures: adsk.fusion.FilletFeatures = features.filletFeatures
     extrudeFeatures: adsk.fusion.ExtrudeFeatures = features.extrudeFeatures
@@ -116,7 +116,7 @@ def createGridfinityBinBody(
         # use one edge for chamfer, the rest will be automatically detected with tangent chain condition
         topLipChamferEdges.add(faceUtils.getTopHorizontalEdge(lipCutout.faces.item(0)))
         topLipChamferInput.chamferEdgeSets.addEqualDistanceChamferEdgeSet(topLipChamferEdges,
-            adsk.core.ValueInput.createByReal(BIN_LIP_CHAMFER),
+            adsk.core.ValueInput.createByReal(BIN_LIP_WALL_THICKNESS),
             True)
         chamferFeatures.add(topLipChamferInput)
 
