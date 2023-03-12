@@ -68,6 +68,7 @@ BIN_TAB_LENGTH_INPUT_ID = 'bin_tab_length'
 BIN_TAB_POSITION_INPUT_ID = 'bin_tab_position'
 BIN_TAB_ANGLE_INPUT_ID = 'bin_tab_angle'
 BIN_WITH_LIP_INPUT_ID = 'with_lip'
+BIN_WITH_LIP_NOTCHES_INPUT_ID = 'with_lip_notches'
 BIN_TYPE_DROPDOWN_ID = 'bin_type'
 BIN_TYPE_HOLLOW = 'Hollow'
 BIN_TYPE_SHELLED = 'Shelled'
@@ -155,6 +156,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
 
     binFeaturesGroup.children.addValueInput(BIN_WALL_THICKNESS_INPUT_ID, 'Bin wall thickness', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.BIN_WALL_THICKNESS))
     binFeaturesGroup.children.addBoolValueInput(BIN_WITH_LIP_INPUT_ID, 'Generate lip for stackability', True, '', True)
+    binFeaturesGroup.children.addBoolValueInput(BIN_WITH_LIP_NOTCHES_INPUT_ID, 'Generate lip notches', True, '', False)
     binFeaturesGroup.children.addBoolValueInput(BIN_HAS_SCOOP_INPUT_ID, 'Add scoop', True, '', False)
 
     binTabFeaturesGroup = binFeaturesGroup.children.addGroupCommandInput(BIN_TAB_FEATURES_GROUP_ID, 'Label tab')
@@ -219,6 +221,7 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
     magnetCutoutDepthInput = inputs.itemById(BIN_MAGNET_HEIGHT_INPUT)
     screwHoleDiameterInput = inputs.itemById(BIN_SCREW_DIAMETER_INPUT)
     withLipInput = inputs.itemById(BIN_WITH_LIP_INPUT_ID)
+    withLipNotchesInput = inputs.itemById(BIN_WITH_LIP_NOTCHES_INPUT_ID)
     hasScoopInput = inputs.itemById(BIN_HAS_SCOOP_INPUT_ID)
     hasTabInput: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_TAB_INPUT_ID)
     tabLengthInput = inputs.itemById(BIN_TAB_LENGTH_INPUT_ID)
@@ -318,6 +321,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
     bin_magnet_cutout_diameter: adsk.core.ValueCommandInput = inputs.itemById(BIN_MAGNET_DIAMETER_INPUT)
     bin_magnet_cutout_depth: adsk.core.ValueCommandInput = inputs.itemById(BIN_MAGNET_HEIGHT_INPUT)
     with_lip: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_WITH_LIP_INPUT_ID)
+    with_lip_notches: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_WITH_LIP_NOTCHES_INPUT_ID)
     has_scoop: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_SCOOP_INPUT_ID)
     hasTabInput: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_TAB_INPUT_ID)
     binTabLength: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_LENGTH_INPUT_ID)
@@ -376,6 +380,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
         # create bin body
         binBodyInput = BinBodyGeneratorInput()
         binBodyInput.hasLip = with_lip.value
+        binBodyInput.hasLipNotches = with_lip_notches.value
         binBodyInput.binWidth = bin_width.value
         binBodyInput.binLength = bin_length.value
         binBodyInput.binHeight = bin_height.value

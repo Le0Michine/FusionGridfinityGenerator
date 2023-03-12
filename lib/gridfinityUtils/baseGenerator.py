@@ -57,12 +57,13 @@ def createGridfinityBase(
     targetComponent: adsk.fusion.Component,
 ):
     actual_base_width = input.baseWidth - input.xyTolerance * 2.0
+    actual_base_length = input.baseLength - input.xyTolerance * 2.0
     features: adsk.fusion.Features = targetComponent.features
     extrudeFeatures: adsk.fusion.ExtrudeFeatures = features.extrudeFeatures
     # create rectangle for the base
     sketches: adsk.fusion.Sketches = targetComponent.sketches
     base_plate_sketch: adsk.fusion.Sketch = sketches.add(targetComponent.xYConstructionPlane)
-    createRectangle(actual_base_width, actual_base_width, base_plate_sketch.originPoint.geometry, base_plate_sketch)
+    createRectangle(actual_base_width, actual_base_length, base_plate_sketch.originPoint.geometry, base_plate_sketch)
         
     # extrude top section
     topSectionExtrudeDepth = adsk.core.ValueInput.createByReal(const.BIN_BASE_TOP_SECTION_HEIGH)
@@ -96,22 +97,24 @@ def createGridfinityBase(
     chamferFeatures.add(chamferInput)
 
     # extrude mid/bottom section
-    topSectionExtrudeDepth = adsk.core.ValueInput.createByReal(const.BIN_BASE_MID_SECTION_HEIGH + const.BIN_BASE_BOTTOM_SECTION_HEIGH)
-    baseBottomExtrude = extrudeFeatures.addSimple(
+    baseBottomExtrude = extrudeUtils.simpleDistanceExtrude(
         topSectionExtrudeFeature.endFaces.item(0),
-        topSectionExtrudeDepth,
-        adsk.fusion.FeatureOperations.JoinFeatureOperation)
+        adsk.fusion.FeatureOperations.JoinFeatureOperation,
+        const.BIN_BASE_MID_SECTION_HEIGH + const.BIN_BASE_BOTTOM_SECTION_HEIGH,
+        adsk.fusion.ExtentDirections.PositiveExtentDirection,
+        [baseBody],
+        targetComponent
+    )
 
-    # chamfer bottom section
-    chamferFeatures: adsk.fusion.ChamferFeatures = features.chamferFeatures
-    chamferInput = chamferFeatures.createInput2()
-    chamfer_edges = adsk.core.ObjectCollection.create()
-    # use one edge for chamfer, the rest will be automatically detected with tangent chain condition
-    chamfer_edges.add(baseBottomExtrude.endFaces.item(0).edges.item(0))
-    chamferInput.chamferEdgeSets.addEqualDistanceChamferEdgeSet(chamfer_edges,
-        adsk.core.ValueInput.createByReal(const.BIN_BASE_BOTTOM_SECTION_HEIGH),
-        True)
-    chamferFeatures.add(chamferInput)
+    if input.hasBottomChamfer:
+        # chamfer bottom section
+        chamferFeatures: adsk.fusion.ChamferFeatures = features.chamferFeatures
+        chamferInput = chamferFeatures.createInput2()
+        chamfer_edges = commonUtils.objectCollectionFromList(faceUtils.getBottomFace(baseBottomExtrude.bodies.item(0)).edges)
+        chamferInput.chamferEdgeSets.addEqualDistanceChamferEdgeSet(chamfer_edges,
+            adsk.core.ValueInput.createByReal(const.BIN_BASE_BOTTOM_SECTION_HEIGH),
+            True)
+        chamferFeatures.add(chamferInput)
     
     # screw holes
     rectangularPatternFeatures: adsk.fusion.RectangularPatternFeatures = features.rectangularPatternFeatures
@@ -222,21 +225,7 @@ def createGridfinityBase(
 def createBaseWithClearance(input: BaseGeneratorInput, targetComponent: adsk.fusion.Component):
     features = targetComponent.features
     # create base
-    baseGeneratorInput = BaseGeneratorInput()
-    baseGeneratorInput.baseWidth = input.baseWidth
-    baseGeneratorInput.xyTolerance = input.xyTolerance
-    baseBody = createGridfinityBase(baseGeneratorInput, targetComponent)
-
-    # move body to allow for clearance
-    moveInput = features.moveFeatures.createInput2(commonUtils.objectCollectionFromList([baseBody]))
-    moveInput.defineAsTranslateXYZ(
-        adsk.core.ValueInput.createByReal(input.xyTolerance),
-        adsk.core.ValueInput.createByReal(input.xyTolerance),
-        adsk.core.ValueInput.createByReal(0),
-        True
-    )
-    clearanceAlignment = features.moveFeatures.add(moveInput)
-    clearanceAlignment.name = "align for xy clearance"
+    baseBody = createGridfinityBase(input, targetComponent)
 
     # offset side faces
     offsetFacesInput = features.offsetFeatures.createInput(
@@ -248,6 +237,15 @@ def createBaseWithClearance(input: BaseGeneratorInput, targetComponent: adsk.fus
     offsetFacesFeature = features.offsetFeatures.add(offsetFacesInput)
     offsetFacesFeature.name = "bin base side faces"
     offsetFacesFeature.bodies.item(0).name = "bin base side faces"
+
+    extentEdge = faceUtils.getTopHorizontalEdge(offsetFacesFeature.bodies.item(0).edges)
+    extendClearanceSurfaceFeatureInput = features.extendFeatures.createInput(
+        commonUtils.objectCollectionFromList([extentEdge]),
+        adsk.core.ValueInput.createByReal(input.xyTolerance * 2),
+        adsk.fusion.SurfaceExtendTypes.NaturalSurfaceExtendType,
+        True
+    )
+    features.extendFeatures.add(extendClearanceSurfaceFeatureInput)
 
     # thicken faces to add clearance
     thickenFeatureInput = features.thickenFeatures.createInput(
@@ -265,13 +263,23 @@ def createBaseWithClearance(input: BaseGeneratorInput, targetComponent: adsk.fus
     # thickened body would go beyond the bottom face, use bounding box to make bottom flat
     clearanceBoundingBox = extrudeUtils.createBox(
         input.baseWidth,
-        input.baseWidth,
+        input.baseLength,
         -const.BIN_BASE_HEIGHT,
         targetComponent,
         targetComponent.xYConstructionPlane,
         )
     clearanceBoundingBox.name = "clearance bounding box"
     clearanceBoundingBox.bodies.item(0).name = "clearance bounding box"
+    # move body to allow for clearance
+    moveInput = features.moveFeatures.createInput2(commonUtils.objectCollectionFromList([clearanceBoundingBox.bodies.item(0)]))
+    moveInput.defineAsTranslateXYZ(
+        adsk.core.ValueInput.createByReal(-input.xyTolerance),
+        adsk.core.ValueInput.createByReal(-input.xyTolerance),
+        adsk.core.ValueInput.createByReal(0),
+        True
+    )
+    clearanceAlignment = features.moveFeatures.add(moveInput)
+    clearanceAlignment.name = "align for xy clearance"
     combineFeatureInput = features.combineFeatures.createInput(
         thickenFeaure.bodies.item(0),
         commonUtils.objectCollectionFromList(clearanceBoundingBox.bodies)

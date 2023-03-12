@@ -6,6 +6,7 @@ class BaseGeneratorInput():
     def __init__(self):
         self.hasMagnetCutouts = False
         self.hasScrewHoles = False
+        self.hasBottomChamfer = True
         self.screwHolesDiameter = DIMENSION_SCREW_HOLE_DIAMETER
         self.magnetCutoutsDiameter = DIMENSION_MAGNET_CUTOUT_DIAMETER
         self.magnetCutoutsDepth = DIMENSION_MAGNET_CUTOUT_DEPTH
@@ -33,6 +34,14 @@ class BaseGeneratorInput():
     @xyTolerance.setter
     def xyTolerance(self, value: float):
         self._xyTolerance = value
+
+    @property
+    def hasBottomChamfer(self) -> bool:
+        return self._hasBottomChamfer
+
+    @hasBottomChamfer.setter
+    def hasBottomChamfer(self, value: bool):
+        self._hasBottomChamfer = value
 
     @property
     def hasScrewHoles(self) -> bool:

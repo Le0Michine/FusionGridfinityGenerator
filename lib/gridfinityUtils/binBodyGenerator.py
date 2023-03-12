@@ -8,7 +8,8 @@ from .const import BIN_BODY_BOTTOM_THICKNESS, BIN_BODY_CUTOUT_BOTTOM_FILLET_RADI
 from ...lib.gridfinityUtils import geometryUtils
 from ...lib import fusion360utils as futil
 from ...lib.gridfinityUtils import filletUtils
-from . import const, combineUtils, faceUtils, commonUtils, sketchUtils, extrudeUtils
+from . import const, combineUtils, faceUtils, commonUtils, sketchUtils, extrudeUtils, baseGenerator, edgeUtils
+from .baseGeneratorInput import BaseGeneratorInput
 from ...lib.gridfinityUtils.binBodyGeneratorInput import BinBodyGeneratorInput
 from ... import config
 
@@ -46,7 +47,6 @@ def createGridfinityBinBody(
     actualBodyLength = (input.baseWidth * input.binLength) - input.xyTolerance * 2.0
     binBodyTotalHeight = input.binHeight * input.heightUnit + max(0, input.heightUnit - const.BIN_BASE_HEIGHT) + (const.BIN_LIP_EXTRA_HEIGHT if input.hasLip else 0)
     features: adsk.fusion.Features = targetComponent.features
-    filletFeatures: adsk.fusion.FilletFeatures = features.filletFeatures
     extrudeFeatures: adsk.fusion.ExtrudeFeatures = features.extrudeFeatures
     # create rectangle for the body
     binBodyExtrude = extrudeUtils.createBox(
@@ -70,53 +70,121 @@ def createGridfinityBinBody(
         targetComponent,
     )
 
-    bottomCutoutFace: adsk.fusion.BRepFace = binBodyExtrude.endFaces.item(0);
-    currentDepth = 0.0
     if input.hasLip:
-        # sketch on top
-        binBodyOpeningSketch = sketchUtils.createOffsetProfileSketch(
-            bottomCutoutFace,
-            -const.BIN_LIP_WALL_THICKNESS,
-            targetComponent,
+        lipCutoutBodies: list[adsk.fusion.BRepBody] = []
+        lipCutoutPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
+        lipCutoutPlaneInput.setByOffset(
+            binBodyExtrude.endFaces.item(0),
+            adsk.core.ValueInput.createByReal(0)
         )
-        # extrude inside
-        lipCutout = extrudeUtils.simpleDistanceExtrude(
-            binBodyOpeningSketch.profiles.item(0),
-            adsk.fusion.FeatureOperations.CutFeatureOperation,
-            BIN_CONNECTION_RECESS_DEPTH,
-            adsk.fusion.ExtentDirections.NegativeExtentDirection,
-            [binBody],
-            targetComponent,
-        )
-        # top chamfer
-        chamferFeatures: adsk.fusion.ChamferFeatures = features.chamferFeatures
-        topLipChamferInput = chamferFeatures.createInput2()
-        topLipChamferEdges = adsk.core.ObjectCollection.create()
-        # use one edge for chamfer, the rest will be automatically detected with tangent chain condition
-        topLipChamferEdges.add(faceUtils.getTopHorizontalEdge(lipCutout.faces.item(0)))
-        topLipChamferInput.chamferEdgeSets.addEqualDistanceChamferEdgeSet(topLipChamferEdges,
-            adsk.core.ValueInput.createByReal(const.BIN_LIP_WALL_THICKNESS),
-            True)
-        chamferFeatures.add(topLipChamferInput)
+        lipCutoutConstructionPlane = targetComponent.constructionPlanes.add(lipCutoutPlaneInput)
 
-        bottomCutoutFace = lipCutout.endFaces.item(0)
-        currentDepth += BIN_CONNECTION_RECESS_DEPTH
+        if input.hasLipNotches:
+            lipCutoutInput = BaseGeneratorInput()
+            lipCutoutInput.baseWidth = input.baseWidth
+            lipCutoutInput.baseLength = input.baseWidth
+            lipCutoutInput.xyTolerance = input.xyTolerance
+            lipCutoutInput.hasBottomChamfer = False
+            lipCutout = baseGenerator.createBaseWithClearance(lipCutoutInput, targetComponent)
+            lipCutout.name = "lip cutout"
+            lipCutoutBodies.append(lipCutout)
+
+            patternInputBodies = adsk.core.ObjectCollection.create()
+            patternInputBodies.add(lipCutout)
+            patternInput = features.rectangularPatternFeatures.createInput(patternInputBodies,
+                targetComponent.xConstructionAxis,
+                adsk.core.ValueInput.createByReal(input.binWidth),
+                adsk.core.ValueInput.createByReal(input.baseWidth),
+                adsk.fusion.PatternDistanceType.SpacingPatternDistanceType)
+            patternInput.directionTwoEntity = targetComponent.yConstructionAxis
+            patternInput.quantityTwo = adsk.core.ValueInput.createByReal(input.binLength)
+            patternInput.distanceTwo = adsk.core.ValueInput.createByReal(input.baseLength)
+            rectangularPattern = features.rectangularPatternFeatures.add(patternInput)
+            lipCutoutBodies = lipCutoutBodies + list(rectangularPattern.bodies)
+
+            lipMidCutoutSketch: adsk.fusion.Sketch = targetComponent.sketches.add(lipCutoutConstructionPlane)
+            sketchUtils.createRectangle(
+                input.baseWidth * input.binWidth - const.BIN_BASE_TOP_SECTION_HEIGH * 2,
+                input.baseLength * input.binLength - const.BIN_BASE_TOP_SECTION_HEIGH * 2,
+                adsk.core.Point3D.create(-input.baseWidth * input.binWidth / 2 + const.BIN_BASE_TOP_SECTION_HEIGH, -input.baseWidth * input.binLength / 2 + const.BIN_BASE_TOP_SECTION_HEIGH, 0),
+                lipMidCutoutSketch,
+            )
+            lipMidCutout = extrudeUtils.simpleDistanceExtrude(
+                lipMidCutoutSketch.profiles.item(0),
+                adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
+                const.BIN_BASE_HEIGHT,
+                adsk.fusion.ExtentDirections.NegativeExtentDirection,
+                [],
+                targetComponent,
+            )
+            # fillet on corners
+            filletFeatures: adsk.fusion.FilletFeatures = features.filletFeatures
+            filletInput = filletFeatures.createInput()
+            filletInput.isRollingBallCorner = True
+            fillet_edges = edgeUtils.selectEdgesByLength(lipMidCutout.bodies.item(0).faces, const.BIN_BASE_HEIGHT, const.DEFAULT_FILTER_TOLERANCE)
+            filletInput.edgeSetInputs.addConstantRadiusEdgeSet(fillet_edges, adsk.core.ValueInput.createByReal(const.BIN_CORNER_FILLET_RADIUS - const.BIN_BASE_TOP_SECTION_HEIGH + const.BIN_XY_TOLERANCE), True)
+            filletFeatures.add(filletInput)
+            bodiesToSubtract.append(lipMidCutout.bodies.item(0))
+
+        else:
+            lipCutoutInput = BaseGeneratorInput()
+            lipCutoutInput.baseWidth = input.baseWidth * input.binWidth
+            lipCutoutInput.baseLength = input.baseLength * input.binLength
+            lipCutoutInput.xyTolerance = input.xyTolerance
+            lipCutoutInput.hasBottomChamfer = False
+            lipCutout = baseGenerator.createBaseWithClearance(lipCutoutInput, targetComponent)
+            lipCutout.name = "lip cutout"
+            lipCutoutBodies.append(lipCutout)
+
+        topChamferSketch: adsk.fusion.Sketch = targetComponent.sketches.add(lipCutoutConstructionPlane)
+        sketchUtils.createRectangle(
+            actualBodyWidth,
+            actualBodyLength,
+            adsk.core.Point3D.create(-actualBodyWidth / 2, -actualBodyLength / 2, 0),
+            topChamferSketch,
+        )
+        topChamferNegativeVolume = extrudeUtils.simpleDistanceExtrude(
+            topChamferSketch.profiles.item(0),
+            adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
+            const.BIN_LIP_TOP_RECESS_HEIGHT,
+            adsk.fusion.ExtentDirections.NegativeExtentDirection,
+            [],
+            targetComponent,
+        )
+        bodiesToSubtract.append(topChamferNegativeVolume.bodies.item(0))
+        
+        # move up
+        moveInput = features.moveFeatures.createInput2(commonUtils.objectCollectionFromList(lipCutoutBodies))
+        moveInput.defineAsTranslateXYZ(
+            adsk.core.ValueInput.createByReal(0),
+            adsk.core.ValueInput.createByReal(0),
+            adsk.core.ValueInput.createByReal((input.binHeight + 1) * input.heightUnit),
+            True
+        )
+        lipCutoutHeightAlignment = features.moveFeatures.add(moveInput)
+        lipCutoutHeightAlignment.name = "move to the top"
+        bodiesToSubtract = bodiesToSubtract + lipCutoutBodies
 
     if not input.isSolid:
+        cutoutPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
+        cutoutPlaneInput.setByOffset(
+            binBodyExtrude.endFaces.item(0),
+            adsk.core.ValueInput.createByReal(-BIN_CONNECTION_RECESS_DEPTH if input.hasLip else 0)
+        )
+        cutoutConstructionPlane = targetComponent.constructionPlanes.add(cutoutPlaneInput)
         offset = (const.BIN_LIP_WALL_THICKNESS - input.wallThickness) if input.hasLip else -input.wallThickness
-        innerCutoutSketch: adsk.fusion.Sketch = targetComponent.sketches.add(bottomCutoutFace)
-        sketchUtils.convertToConstruction(innerCutoutSketch.sketchCurves)
+        innerCutoutSketch: adsk.fusion.Sketch = targetComponent.sketches.add(cutoutConstructionPlane)
         sketchUtils.createRectangle(
-            actualBodyWidth - input.wallThickness,
-            actualBodyLength - input.wallThickness,
-            adsk.core.Point3D.create(input.wallThickness, input.wallThickness, 0),
+            actualBodyWidth - input.wallThickness * 2,
+            actualBodyLength - input.wallThickness * 2,
+            adsk.core.Point3D.create(-actualBodyWidth / 2 + input.wallThickness, -actualBodyLength / 2 + input.wallThickness, 0),
             innerCutoutSketch,
         )
 
         innerCutout = extrudeUtils.simpleDistanceExtrude(
             innerCutoutSketch.profiles.item(0),
             adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
-            binBodyTotalHeight - BIN_BODY_BOTTOM_THICKNESS - currentDepth,
+            binBodyTotalHeight - BIN_BODY_BOTTOM_THICKNESS - (BIN_CONNECTION_RECESS_DEPTH if input.hasLip else 0),
             adsk.fusion.ExtentDirections.NegativeExtentDirection,
             [],
             targetComponent,
@@ -144,7 +212,7 @@ def createGridfinityBinBody(
                 extrudeInput.participantBodies = [innerCutoutBody]
                 extrudeFeatures.add(extrudeInput)
             [innerCutoutScoopFace, innerCutoputScoopOppositeFace] = getInnerCutoutScoopFace(innerCutoutBody)
-            scoopEdge = faceUtils.getBottomHorizontalEdge(innerCutoutScoopFace)
+            scoopEdge = faceUtils.getBottomHorizontalEdge(innerCutoutScoopFace.edges)
             scoopRadius = min(BIN_SCOOP_MAX_RADIUS, binBodyTotalHeight)
             filletUtils.createFillet(
                 [scoopEdge],
@@ -163,7 +231,7 @@ def createGridfinityBinBody(
         )
         # recalculate faces after fillet
         [innerCutoutScoopFace, innerCutoputScoopOppositeFace] = getInnerCutoutScoopFace(innerCutoutBody)
-        scoopOppositeEdge = faceUtils.getBottomHorizontalEdge(innerCutoputScoopOppositeFace)
+        scoopOppositeEdge = faceUtils.getBottomHorizontalEdge(innerCutoputScoopOppositeFace.edges)
 
         filletUtils.createFillet(
             [scoopOppositeEdge],
@@ -182,7 +250,7 @@ def createGridfinityBinBody(
                 targetComponent,
             )
             [innerCutoutScoopFace, innerCutoputScoopOppositeFace] = getInnerCutoutScoopFace(innerCutoutBody)
-            topEdge = faceUtils.getTopHorizontalEdge(innerCutoutScoopFace)
+            topEdge = faceUtils.getTopHorizontalEdge(innerCutoutScoopFace.edges)
             topEdgesWithConnectedFilletEdges = [topEdge.tangentiallyConnectedEdges[1], topEdge.tangentiallyConnectedEdges[-1], topEdge]
             edgesToChamfer = excludeEdges(list(faceUtils.getTopFace(innerCutoutBody).edges), topEdgesWithConnectedFilletEdges)
             if not input.hasScoop:
@@ -296,17 +364,17 @@ def createGridfinityBinBody(
                 targetComponent
             )
 
-        if len(bodiesToSubtract) > 0:
-            combineUtils.cutBody(
-                binBody,
-                commonUtils.objectCollectionFromList(bodiesToSubtract),
-                targetComponent
-            )
-        if len(bodiesToMerge) > 0:
-            combineUtils.joinBodies(
-                binBody,
-                commonUtils.objectCollectionFromList(bodiesToMerge),
-                targetComponent
-            )
+    if len(bodiesToSubtract) > 0:
+        combineUtils.cutBody(
+            binBody,
+            commonUtils.objectCollectionFromList(bodiesToSubtract),
+            targetComponent
+        )
+    if len(bodiesToMerge) > 0:
+        combineUtils.joinBodies(
+            binBody,
+            commonUtils.objectCollectionFromList(bodiesToMerge),
+            targetComponent
+        )
 
     return binBody

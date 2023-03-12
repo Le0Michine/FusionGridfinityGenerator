@@ -7,6 +7,7 @@ class BinBodyGeneratorInput():
         self.wallThickness = BIN_WALL_THICKNESS
         self.isSolid = False
         self.hasLip = False
+        self.hasLipNotches = False
         self.isStackable = True
         self.hasScoop = False
         self.tabOverhangAngle = BIN_TAB_OVERHANG_ANGLE
@@ -92,6 +93,14 @@ class BinBodyGeneratorInput():
     @isSolid.setter
     def isSolid(self, value: bool):
         self._isSolid = value
+
+    @property
+    def hasLipNotches(self) -> bool:
+        return self._hasLipNotches
+
+    @hasLipNotches.setter
+    def hasLipNotches(self, value: bool):
+        self._hasLipNotches = value
 
     @property
     def hasLip(self) -> bool:

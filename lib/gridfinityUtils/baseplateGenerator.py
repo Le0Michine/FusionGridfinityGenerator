@@ -3,11 +3,26 @@ import adsk.core, adsk.fusion, traceback
 import os
 
 from . import const, commonUtils, filletUtils, combineUtils, faceUtils, extrudeUtils, sketchUtils, baseGenerator, patternUtils, geometryUtils
+from .baseGeneratorInput import BaseGeneratorInput
 from .baseplateGeneratorInput import BaseplateGeneratorInput
 
 def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: adsk.fusion.Component):
     features = targetComponent.features
-    baseBody = baseGenerator.createBaseWithClearance(input, targetComponent)
+    cutoutInput = BaseGeneratorInput()
+    cutoutInput.baseWidth = input.baseWidth
+    cutoutInput.baseLength = input.baseLength
+    cutoutInput.xyTolerance = input.xyTolerance
+    baseBody = baseGenerator.createBaseWithClearance(cutoutInput, targetComponent)
+    # move body to adjust for clearance
+    moveInput = features.moveFeatures.createInput2(commonUtils.objectCollectionFromList([baseBody]))
+    moveInput.defineAsTranslateXYZ(
+        adsk.core.ValueInput.createByReal(input.xyTolerance),
+        adsk.core.ValueInput.createByReal(input.xyTolerance),
+        adsk.core.ValueInput.createByReal(0),
+        True
+    )
+    clearanceAlignment = features.moveFeatures.add(moveInput)
+    clearanceAlignment.name = "align for xy clearance"
 
     cuttingTools: list[adsk.fusion.BRepBody] = [baseBody]
     extraCutoutBodies: list[adsk.fusion.BRepBody] = []
@@ -129,7 +144,7 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
 
     holeCuttingBodies: list[adsk.fusion.BRepBody] = []
     
-    if input.hasMagnetCutouts:
+    if input.hasExtendedBottom and input.hasMagnetCutouts:
         magnetCutoutSketch = baseGenerator.createMagnetCutoutSketch(faceUtils.getBottomFace(baseBody), input.magnetCutoutsDiameter / 2, input.baseWidth, targetComponent)
         magnetCutoutSketch.name = "magnet cutout"
         magnetCutout = extrudeUtils.simpleDistanceExtrude(
@@ -142,7 +157,7 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
         )
         holeCuttingBodies.append(magnetCutout.bodies.item(0))
     
-    if input.hasScrewHoles:
+    if input.hasExtendedBottom and input.hasScrewHoles:
         screwHoleSketch = baseGenerator.createMagnetCutoutSketch(faceUtils.getBottomFace(baseBody), input.screwHolesDiameter / 2, input.baseWidth, targetComponent)
         screwHoleSketch.name = "screw hole"
         screwHoleFeature = extrudeUtils.simpleDistanceExtrude(

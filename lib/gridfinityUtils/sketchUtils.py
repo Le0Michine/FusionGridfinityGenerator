@@ -21,7 +21,7 @@ def createRectangle(
     lines: adsk.fusion.SketchLines = sketch.sketchCurves.sketchLines
     rectangleLines = lines.addTwoPointRectangle(
         startPoint,
-        adsk.core.Point3D.create(width, length, 0)
+        adsk.core.Point3D.create(startPoint.x + width, startPoint.y + length, 0)
     )
     constraints.addHorizontal(rectangleLines.item(0))
     constraints.addVertical(rectangleLines.item(1))
