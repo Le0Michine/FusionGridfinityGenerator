@@ -48,6 +48,7 @@ local_handlers = []
 
 # Constants
 BIN_BASE_WIDTH_UNIT_INPUT_ID = 'base_width_unit'
+BIN_BASE_LENGTH_UNIT_INPUT_ID = 'base_length_unit'
 BIN_HEIGHT_UNIT_INPUT_ID = 'height_unit'
 BIN_XY_TOLERANCE_INPUT_ID = 'bin_xy_tolerance'
 BIN_WIDTH_INPUT_ID = 'bin_width'
@@ -138,6 +139,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     defaultLengthUnits = app.activeProduct.unitsManager.defaultLengthUnits
     basicSizesGroup = inputs.addGroupCommandInput('basic_sizes', 'Basic sizes')
     basicSizesGroup.children.addValueInput(BIN_BASE_WIDTH_UNIT_INPUT_ID, 'Base width unit (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.DIMENSION_DEFAULT_WIDTH_UNIT))
+    basicSizesGroup.children.addValueInput(BIN_BASE_LENGTH_UNIT_INPUT_ID, 'Base length unit (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.DIMENSION_DEFAULT_WIDTH_UNIT))
     basicSizesGroup.children.addValueInput(BIN_HEIGHT_UNIT_INPUT_ID, 'Bin height unit (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.DIMENSION_DEFAULT_HEIGHT_UNIT))
     basicSizesGroup.children.addValueInput(BIN_XY_TOLERANCE_INPUT_ID, 'Bin xy tolerance (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.BIN_XY_TOLERANCE))
 
@@ -157,10 +159,10 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     binFeaturesGroup.children.addValueInput(BIN_WALL_THICKNESS_INPUT_ID, 'Bin wall thickness', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.BIN_WALL_THICKNESS))
     binFeaturesGroup.children.addBoolValueInput(BIN_WITH_LIP_INPUT_ID, 'Generate lip for stackability', True, '', True)
     binFeaturesGroup.children.addBoolValueInput(BIN_WITH_LIP_NOTCHES_INPUT_ID, 'Generate lip notches', True, '', False)
-    binFeaturesGroup.children.addBoolValueInput(BIN_HAS_SCOOP_INPUT_ID, 'Add scoop', True, '', False)
+    binFeaturesGroup.children.addBoolValueInput(BIN_HAS_SCOOP_INPUT_ID, 'Add scoop (along bin width)', True, '', False)
 
     binTabFeaturesGroup = binFeaturesGroup.children.addGroupCommandInput(BIN_TAB_FEATURES_GROUP_ID, 'Label tab')
-    binTabFeaturesGroup.children.addBoolValueInput(BIN_HAS_TAB_INPUT_ID, 'Add label tab', True, '', False)
+    binTabFeaturesGroup.children.addBoolValueInput(BIN_HAS_TAB_INPUT_ID, 'Add label tab (along bin width)', True, '', False)
     binTabFeaturesGroup.children.addValueInput(BIN_TAB_LENGTH_INPUT_ID, 'Tab length (u)', '', adsk.core.ValueInput.createByString('1'))
     binTabFeaturesGroup.children.addValueInput(BIN_TAB_POSITION_INPUT_ID, 'Tab offset (u)', '', adsk.core.ValueInput.createByString('0'))
     binTabFeaturesGroup.children.addValueInput(BIN_TAB_ANGLE_INPUT_ID, 'Tab overhang angle', 'deg', adsk.core.ValueInput.createByString('45'))
@@ -307,6 +309,7 @@ def command_destroy(args: adsk.core.CommandEventArgs):
 def generateBin(args: adsk.core.CommandEventArgs):
     inputs = args.command.commandInputs
     base_width_unit: adsk.core.ValueCommandInput = inputs.itemById(BIN_BASE_WIDTH_UNIT_INPUT_ID)
+    base_length_unit: adsk.core.ValueCommandInput = inputs.itemById(BIN_BASE_LENGTH_UNIT_INPUT_ID)
     height_unit: adsk.core.ValueCommandInput = inputs.itemById(BIN_HEIGHT_UNIT_INPUT_ID)
     xy_tolerance: adsk.core.ValueCommandInput = inputs.itemById(BIN_XY_TOLERANCE_INPUT_ID)
     bin_width: adsk.core.ValueCommandInput = inputs.itemById(BIN_WIDTH_INPUT_ID)
@@ -350,7 +353,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
         # create base interface
         baseGeneratorInput = BaseGeneratorInput()
         baseGeneratorInput.baseWidth = base_width_unit.value
-        baseGeneratorInput.baseLength = base_width_unit.value
+        baseGeneratorInput.baseLength = base_length_unit.value
         baseGeneratorInput.xyTolerance = tolerance
         baseGeneratorInput.hasScrewHoles = bin_screw_holes.value and not isShelled
         baseGeneratorInput.hasMagnetCutouts = bin_magnet_cutouts.value and not isShelled
@@ -373,7 +376,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
                 adsk.fusion.PatternDistanceType.SpacingPatternDistanceType)
             patternInput.directionTwoEntity = gridfinityBinComponent.yConstructionAxis
             patternInput.quantityTwo = adsk.core.ValueInput.createByReal(bin_length.value)
-            patternInput.distanceTwo = adsk.core.ValueInput.createByReal(base_width_unit.value)
+            patternInput.distanceTwo = adsk.core.ValueInput.createByReal(base_length_unit.value)
             rectangularPattern = rectangularPatternFeatures.add(patternInput)
 
 
@@ -385,7 +388,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
         binBodyInput.binLength = bin_length.value
         binBodyInput.binHeight = bin_height.value
         binBodyInput.baseWidth = base_width_unit.value
-        binBodyInput.baseLength = base_width_unit.value
+        binBodyInput.baseLength = base_length_unit.value
         binBodyInput.heightUnit = height_unit.value
         binBodyInput.xyTolerance = tolerance
         binBodyInput.isSolid = isSolid or isShelled

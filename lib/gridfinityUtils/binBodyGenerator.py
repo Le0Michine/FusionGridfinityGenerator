@@ -44,7 +44,7 @@ def createGridfinityBinBody(
     ):
 
     actualBodyWidth = (input.baseWidth * input.binWidth) - input.xyTolerance * 2.0
-    actualBodyLength = (input.baseWidth * input.binLength) - input.xyTolerance * 2.0
+    actualBodyLength = (input.baseLength * input.binLength) - input.xyTolerance * 2.0
     binBodyTotalHeight = input.binHeight * input.heightUnit + max(0, input.heightUnit - const.BIN_BASE_HEIGHT) + (const.BIN_LIP_EXTRA_HEIGHT if input.hasLip else 0)
     features: adsk.fusion.Features = targetComponent.features
     extrudeFeatures: adsk.fusion.ExtrudeFeatures = features.extrudeFeatures
@@ -82,7 +82,7 @@ def createGridfinityBinBody(
         if input.hasLipNotches:
             lipCutoutInput = BaseGeneratorInput()
             lipCutoutInput.baseWidth = input.baseWidth
-            lipCutoutInput.baseLength = input.baseWidth
+            lipCutoutInput.baseLength = input.baseLength
             lipCutoutInput.xyTolerance = input.xyTolerance
             lipCutoutInput.hasBottomChamfer = False
             lipCutout = baseGenerator.createBaseWithClearance(lipCutoutInput, targetComponent)
@@ -94,7 +94,7 @@ def createGridfinityBinBody(
             patternInput = features.rectangularPatternFeatures.createInput(patternInputBodies,
                 targetComponent.xConstructionAxis,
                 adsk.core.ValueInput.createByReal(input.binWidth),
-                adsk.core.ValueInput.createByReal(input.baseWidth),
+                adsk.core.ValueInput.createByReal(input.baseLength),
                 adsk.fusion.PatternDistanceType.SpacingPatternDistanceType)
             patternInput.directionTwoEntity = targetComponent.yConstructionAxis
             patternInput.quantityTwo = adsk.core.ValueInput.createByReal(input.binLength)
@@ -106,7 +106,7 @@ def createGridfinityBinBody(
             sketchUtils.createRectangle(
                 input.baseWidth * input.binWidth - const.BIN_BASE_TOP_SECTION_HEIGH * 2,
                 input.baseLength * input.binLength - const.BIN_BASE_TOP_SECTION_HEIGH * 2,
-                adsk.core.Point3D.create(-input.baseWidth * input.binWidth / 2 + const.BIN_BASE_TOP_SECTION_HEIGH, -input.baseWidth * input.binLength / 2 + const.BIN_BASE_TOP_SECTION_HEIGH, 0),
+                adsk.core.Point3D.create(-input.baseWidth * input.binWidth / 2 + const.BIN_BASE_TOP_SECTION_HEIGH, -input.baseLength * input.binLength / 2 + const.BIN_BASE_TOP_SECTION_HEIGH, 0),
                 lipMidCutoutSketch,
             )
             lipMidCutout = extrudeUtils.simpleDistanceExtrude(
