@@ -1,18 +1,19 @@
 import adsk.core, adsk.fusion, traceback
 
-from .const import BIN_TAB_OVERHANG_ANGLE, BIN_WALL_THICKNESS, DIMENSION_MAGNET_CUTOUT_DEPTH, DIMENSION_MAGNET_CUTOUT_DIAMETER, DIMENSION_SCREW_HOLE_DIAMETER
+from . import const
 
 class BinBodyGeneratorInput():
     def __init__(self):
-        self.wallThickness = BIN_WALL_THICKNESS
+        self.wallThickness = const.BIN_WALL_THICKNESS
         self.isSolid = False
         self.hasLip = False
         self.hasLipNotches = False
         self.isStackable = True
         self.hasScoop = False
-        self.tabOverhangAngle = BIN_TAB_OVERHANG_ANGLE
+        self.tabOverhangAngle = const.BIN_TAB_OVERHANG_ANGLE
         self.tabPosition = 0
         self.tabLength = 1
+        self.tabWidth = const.BIN_TAB_WIDTH
 
     @property
     def baseWidth(self) -> float:
@@ -125,6 +126,14 @@ class BinBodyGeneratorInput():
     @hasTab.setter
     def hasTab(self, value: bool):
         self._hasTab = value
+
+    @property
+    def tabWidth(self) -> float:
+        return self._tabWidth
+
+    @tabWidth.setter
+    def tabWidth(self, value: float):
+        self._tabWidth = value
 
     @property
     def tabLength(self) -> float:

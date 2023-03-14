@@ -66,6 +66,7 @@ BIN_MAGNET_HEIGHT_INPUT = 'magnet_height'
 BIN_HAS_SCOOP_INPUT_ID = 'bin_has_scoop'
 BIN_HAS_TAB_INPUT_ID = 'bin_has_tab'
 BIN_TAB_LENGTH_INPUT_ID = 'bin_tab_length'
+BIN_TAB_WIDTH_INPUT_ID = 'bin_tab_width'
 BIN_TAB_POSITION_INPUT_ID = 'bin_tab_position'
 BIN_TAB_ANGLE_INPUT_ID = 'bin_tab_angle'
 BIN_WITH_LIP_INPUT_ID = 'with_lip'
@@ -164,6 +165,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     binTabFeaturesGroup = binFeaturesGroup.children.addGroupCommandInput(BIN_TAB_FEATURES_GROUP_ID, 'Label tab')
     binTabFeaturesGroup.children.addBoolValueInput(BIN_HAS_TAB_INPUT_ID, 'Add label tab (along bin width)', True, '', False)
     binTabFeaturesGroup.children.addValueInput(BIN_TAB_LENGTH_INPUT_ID, 'Tab length (u)', '', adsk.core.ValueInput.createByString('1'))
+    binTabFeaturesGroup.children.addValueInput(BIN_TAB_WIDTH_INPUT_ID, 'Tab width (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.BIN_TAB_WIDTH))
     binTabFeaturesGroup.children.addValueInput(BIN_TAB_POSITION_INPUT_ID, 'Tab offset (u)', '', adsk.core.ValueInput.createByString('0'))
     binTabFeaturesGroup.children.addValueInput(BIN_TAB_ANGLE_INPUT_ID, 'Tab overhang angle', 'deg', adsk.core.ValueInput.createByString('45'))
     for input in binTabFeaturesGroup.children:
@@ -227,6 +229,7 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
     hasScoopInput = inputs.itemById(BIN_HAS_SCOOP_INPUT_ID)
     hasTabInput: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_TAB_INPUT_ID)
     tabLengthInput = inputs.itemById(BIN_TAB_LENGTH_INPUT_ID)
+    tabWidthInput = inputs.itemById(BIN_TAB_WIDTH_INPUT_ID)
     tabPositionInput = inputs.itemById(BIN_TAB_ANGLE_INPUT_ID)
     tabAngleInput = inputs.itemById(BIN_TAB_POSITION_INPUT_ID)
     binTabFeaturesGroup: adsk.core.GroupCommandInput = inputs.itemById(BIN_TAB_FEATURES_GROUP_ID)
@@ -278,6 +281,7 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
                 input.isEnabled = hasBody.value and hasTabInput.value
     elif changed_input.id == BIN_HAS_TAB_INPUT_ID:
         tabLengthInput.isEnabled = hasTabInput.value
+        tabWidthInput.isEnabled = hasTabInput.value
         tabPositionInput.isEnabled = hasTabInput.value
         tabAngleInput.isEnabled = hasTabInput.value
 
@@ -328,6 +332,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
     has_scoop: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_SCOOP_INPUT_ID)
     hasTabInput: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_TAB_INPUT_ID)
     binTabLength: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_LENGTH_INPUT_ID)
+    binTabWidth: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_WIDTH_INPUT_ID)
     binTabPosition: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_POSITION_INPUT_ID)
     binTabAngle: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_ANGLE_INPUT_ID)
     dropdownInput: adsk.core.DropDownCommandInput = inputs.itemById(BIN_TYPE_DROPDOWN_ID)
@@ -396,6 +401,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
         binBodyInput.hasScoop = has_scoop.value and isHollow
         binBodyInput.hasTab = hasTabInput.value and isHollow
         binBodyInput.tabLength = binTabLength.value
+        binBodyInput.tabWidth = binTabWidth.value
         binBodyInput.tabPosition = binTabPosition.value
         binBodyInput.tabOverhangAngle = binTabAngle.value
 

@@ -4,7 +4,7 @@ import math
 
 
 
-from .const import BIN_BODY_BOTTOM_THICKNESS, BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS, BIN_CONNECTION_RECESS_DEPTH, BIN_CORNER_FILLET_RADIUS, BIN_SCOOP_MAX_RADIUS, BIN_TAB_EDGE_FILLET_RADIUS, BIN_TAB_WIDTH, DEFAULT_FILTER_TOLERANCE
+from .const import BIN_BODY_BOTTOM_THICKNESS, BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS, BIN_CONNECTION_RECESS_DEPTH, BIN_CORNER_FILLET_RADIUS, BIN_SCOOP_MAX_RADIUS, BIN_TAB_EDGE_FILLET_RADIUS
 from ...lib.gridfinityUtils import geometryUtils
 from ...lib import fusion360utils as futil
 from ...lib.gridfinityUtils import filletUtils
@@ -279,7 +279,7 @@ def createGridfinityBinBody(
             tabSketchLine = tabSketch.sketchCurves.sketchLines
             tabTopEdgeHeight = binBodyTotalHeight - BIN_CONNECTION_RECESS_DEPTH if input.hasLip else binBodyTotalHeight
             tabYOffset = input.wallThickness + const.BIN_LIP_WALL_THICKNESS if input.hasLip else 0
-            actualTabWidth = tabYOffset + BIN_TAB_WIDTH
+            actualTabWidth = tabYOffset + input.tabWidth
             actualTabHeight = actualTabWidth / math.tan(input.tabOverhangAngle)
             line1 = tabSketchLine.addByTwoPoints(
                 tabSketch.modelToSketchSpace(adsk.core.Point3D.create(actualTabPosition, actualBodyLength, tabTopEdgeHeight)),
