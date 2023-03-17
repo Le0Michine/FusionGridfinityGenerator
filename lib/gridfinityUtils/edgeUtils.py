@@ -21,3 +21,7 @@ def selectEdgesByLength(
             if math.isclose(edge.length, filterEdgeLength, abs_tol=filterEdgeTolerance):
                 filteredEdges.add(edge)
     return filteredEdges
+
+def excludeEdges(edges: list[adsk.fusion.BRepEdge], toExclude: list[adsk.fusion.BRepEdge]):
+    toExcludeIds = [edge.tempId for edge in toExclude]
+    return [edge for edge in edges if not edge.tempId in toExcludeIds]

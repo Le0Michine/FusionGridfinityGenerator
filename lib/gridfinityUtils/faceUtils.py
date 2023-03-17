@@ -46,3 +46,13 @@ def getTopHorizontalEdge(edges: adsk.fusion.BRepEdges):
 def getBottomHorizontalEdge(edges: adsk.fusion.BRepEdges):
     horizontalEdges = [edge for edge in edges if geometryUtils.isHorizontal(edge)]
     return min(horizontalEdges, key=lambda x: x.startVertex.geometry.z)
+
+def getVerticalEdges(
+    faces: adsk.fusion.BRepFaces,
+    ):
+    filteredEdges: list[adsk.fusion.BRepEdge] = []
+    for face in faces:
+        for edge in face.edges:
+            if geometryUtils.isCollinearToZ(edge):
+                filteredEdges.append(edge)
+    return filteredEdges

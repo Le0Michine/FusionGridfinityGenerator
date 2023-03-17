@@ -42,3 +42,28 @@ def createBox(
         adsk.core.ValueInput.createByReal(height),
         adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
     return extrude
+
+def createBoxAtPoint(
+    width: float,
+    length: float,
+    height: float,
+    targetComponent: adsk.fusion.Component,
+    originPoint: adsk.core.Point3D,
+    ):
+    features: adsk.fusion.Features = targetComponent.features
+    extrudeFeatures: adsk.fusion.ExtrudeFeatures = features.extrudeFeatures
+    boxPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
+    boxPlaneInput.setByOffset(
+        targetComponent.xYConstructionPlane,
+        adsk.core.ValueInput.createByReal(originPoint.z)
+    )
+    boxConstructionPlane = targetComponent.constructionPlanes.add(boxPlaneInput)
+    sketches: adsk.fusion.Sketches = targetComponent.sketches
+    recSketch: adsk.fusion.Sketch = sketches.add(boxConstructionPlane)
+    sketchUtils.createRectangle(width, length, recSketch.modelToSketchSpace(originPoint), recSketch)
+        
+    # extrude
+    extrude = extrudeFeatures.addSimple(recSketch.profiles.item(0),
+        adsk.core.ValueInput.createByReal(height),
+        adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+    return extrude

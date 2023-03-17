@@ -8,7 +8,6 @@ class BinBodyGeneratorInput():
         self.isSolid = False
         self.hasLip = False
         self.hasLipNotches = False
-        self.isStackable = True
         self.hasScoop = False
         self.tabOverhangAngle = const.BIN_TAB_OVERHANG_ANGLE
         self.tabPosition = 0
@@ -78,14 +77,6 @@ class BinBodyGeneratorInput():
     @wallThickness.setter
     def wallThickness(self, value: float):
         self._wallThickness = value
-
-    @property
-    def isStackable(self) -> bool:
-        return self._isStackable
-
-    @isStackable.setter
-    def isStackable(self, value: bool):
-        self._isStackable = value
 
     @property
     def isSolid(self) -> bool:
