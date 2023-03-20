@@ -34,9 +34,7 @@ Light | Skeleton with connection holes | Full
 - bin can be shelled with constant wall thickness to save printing time
 - label tab can be generated (length, offset and overhang angle are adjustable)
 - can generate only base or bin body part
-
-Not supported at the moment
-- no compartment walls configuiration available
+- compartments are configurable and can follow uniform grid or setup manually
 
 #### Bin bottom options
 Solid bottom | With screw holes | With magnet cutouts | Combined
@@ -47,6 +45,12 @@ Solid bottom | With screw holes | With magnet cutouts | Combined
 Hollow bin | Shelled bin | Solid bin
 :-------------------------:|:-------------------------:|:-------------------------:
 ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/hollow-bin.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/shelled-bin.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/solid-bin.png)
+
+#### Bin compartments options
+Uniform compartments | Custom compartments A | Custom compartments B
+:-------------------------:|:-------------------------:|:-------------------------:
+![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-uniform-compartments-options.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-custom-compartments-variant-a-options.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-custom-compartments-variant-b-options.png)
+![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-uniform-compartments.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-custom-compartments-variant-a.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-custom-compartments-variant-b.png)
 
 #### Bin label tab configuration
 Full length | Single slot | With offset
