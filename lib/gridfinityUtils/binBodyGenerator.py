@@ -9,7 +9,7 @@ from . import const, combineUtils, faceUtils, commonUtils, sketchUtils, extrudeU
 from .binBodyCutoutGenerator import createGridfinityBinBodyCutout
 from .binBodyCutoutGeneratorInput import BinBodyCutoutGeneratorInput
 from .baseGeneratorInput import BaseGeneratorInput
-from .binBodyGeneratorInput import BinBodyGeneratorInput
+from .binBodyGeneratorInput import BinBodyGeneratorInput, BinBodyCompartmentDefinition
 from .binBodyTabGeneratorInput import BinBodyTabGeneratorInput
 from .binBodyTabGenerator import createGridfinityBinBodyTab
 from .binBodyLipGeneratorInput import BinBodyLipGeneratorInput
@@ -18,6 +18,13 @@ from ... import config
 
 app = adsk.core.Application.get()
 ui = app.userInterface
+
+def uniformCompartments(countX, countY):
+    compartments: list[BinBodyCompartmentDefinition] = []
+    for i in range(countX):
+        for j in range(countY):
+            compartments.append(BinBodyCompartmentDefinition(i, j, 1, 1))
+    return compartments
 
 def createGridfinityBinBody(
     input: BinBodyGeneratorInput,
@@ -109,36 +116,32 @@ def createGridfinityBinBody(
 
         totalCompartmentsWidth = compartmentsMaxX - compartmentsMinX
         totalCompartmentsLength = compartmentsMaxY - compartmentsMinY
+        
+        compartmentWidthUnit = (totalCompartmentsWidth - (input.compartmentsByX - 1) * input.wallThickness) / input.compartmentsByX
+        compartmentLengthUnit = (totalCompartmentsLength - (input.compartmentsByY - 1) * input.wallThickness) / input.compartmentsByY
 
-        compartmentsByX = 1
-        compartmentsByY = 1
-
-        compartmentWidth = (totalCompartmentsWidth - (compartmentsByX - 1) * input.wallThickness) / compartmentsByX
-        compartmentLength = (totalCompartmentsLength - (compartmentsByY - 1) * input.wallThickness) / compartmentsByY
-
-        for i in range(compartmentsByX):
-            for j in range(compartmentsByY):
-                compartmentX = compartmentsMinX + i * (compartmentWidth + input.wallThickness)
-                compartmentY = compartmentsMinY + j * (compartmentLength + input.wallThickness)
-                [compartmentMerges, compartmentCuts] = createCompartment(
-                    input.wallThickness,
-                    adsk.core.Point3D.create(
-                        compartmentX,
-                        compartmentY,
-                        binBodyTotalHeight
-                    ),
-                    compartmentWidth,
-                    compartmentLength,
-                    input.hasScoop,
-                    input.hasTab,
-                    max(0, min(input.tabLength, input.binWidth)) * input.baseWidth,
-                    input.tabWidth,
-                    max(0, min(input.tabPosition, input.binWidth - input.tabLength)) * input.baseWidth,
-                    input.tabOverhangAngle,
-                    targetComponent,
-                )
-                bodiesToSubtract = bodiesToSubtract + compartmentCuts
-                bodiesToMerge = bodiesToMerge + compartmentMerges
+        for compartment in input.compartments:
+            compartmentX = compartmentsMinX + compartment.positionX * (compartmentWidthUnit + input.wallThickness)
+            compartmentY = compartmentsMinY + compartment.positionY * (compartmentLengthUnit + input.wallThickness)
+            [compartmentMerges, compartmentCuts] = createCompartment(
+                input.wallThickness,
+                adsk.core.Point3D.create(
+                    compartmentX,
+                    compartmentY,
+                    binBodyTotalHeight
+                ),
+                compartmentWidthUnit * compartment.width + (compartment.width - 1) * input.wallThickness,
+                compartmentLengthUnit * compartment.length + (compartment.length - 1) * input.wallThickness,
+                input.hasScoop,
+                input.hasTab,
+                max(0, min(input.tabLength, input.binWidth)) * input.baseWidth,
+                input.tabWidth,
+                max(0, min(input.tabPosition, input.binWidth - input.tabLength)) * input.baseWidth,
+                input.tabOverhangAngle,
+                targetComponent,
+            )
+            bodiesToSubtract = bodiesToSubtract + compartmentCuts
+            bodiesToMerge = bodiesToMerge + compartmentMerges
 
     if len(bodiesToSubtract) > 0:
         combineUtils.cutBody(

@@ -2,6 +2,45 @@ import adsk.core, adsk.fusion, traceback
 
 from . import const
 
+class BinBodyCompartmentDefinition():
+    def __init__(self, positionX=0, positionY=0, width=1, length=1):
+        self.positionX = positionX
+        self.positionY = positionY
+        self.width = width
+        self.length = length
+
+    @property
+    def positionX(self) -> float:
+        return self._positionX
+
+    @positionX.setter
+    def positionX(self, value: float):
+        self._positionX = value
+
+    @property
+    def positionY(self) -> float:
+        return self._positionY
+
+    @positionY.setter
+    def positionY(self, value: float):
+        self._positionY = value
+
+    @property
+    def width(self) -> float:
+        return self._width
+
+    @width.setter
+    def width(self, value: float):
+        self._width = value
+
+    @property
+    def length(self) -> float:
+        return self._length
+
+    @length.setter
+    def length(self, value: float):
+        self._length = value
+
 class BinBodyGeneratorInput():
     def __init__(self):
         self.wallThickness = const.BIN_WALL_THICKNESS
@@ -13,6 +52,9 @@ class BinBodyGeneratorInput():
         self.tabPosition = 0
         self.tabLength = 1
         self.tabWidth = const.BIN_TAB_WIDTH
+        self.compartments = [BinBodyCompartmentDefinition()]
+        self.compartmentsByX = 1
+        self.compartmentsByY = 1
 
     @property
     def baseWidth(self) -> float:
@@ -150,4 +192,26 @@ class BinBodyGeneratorInput():
     def tabOverhangAngle(self, value: float):
         self._tabOverhangAngle = value
 
-    
+    @property
+    def compartmentsByX(self) -> float:
+        return self._compartmentsByX
+
+    @compartmentsByX.setter
+    def compartmentsByX(self, value: float):
+        self._compartmentsByX = value
+
+    @property
+    def compartmentsByY(self) -> float:
+        return self._compartmentsByY
+
+    @compartmentsByY.setter
+    def compartmentsByY(self, value: float):
+        self._compartmentsByY = value
+
+    @property
+    def compartments(self) -> list[BinBodyCompartmentDefinition]:
+        return self._compartments
+
+    @compartments.setter
+    def compartments(self, value: list[BinBodyCompartmentDefinition]):
+        self._compartments = value
