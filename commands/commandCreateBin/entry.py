@@ -85,6 +85,7 @@ BIN_COMPARTMENTS_GRID_BASE_LENGTH_ID = 'compartments_grid_l'
 BIN_COMPARTMENTS_TABLE_ID = 'compartments_table'
 BIN_COMPARTMENTS_TABLE_ADD_ID = 'compartments_table_add'
 BIN_COMPARTMENTS_TABLE_REMOVE_ID = 'compartments_table_remove'
+BIN_COMPARTMENTS_TABLE_UNIFORM_ID = 'compartments_table_uniform'
 BIN_TYPE_DROPDOWN_ID = 'bin_type'
 BIN_TYPE_HOLLOW = 'Hollow'
 BIN_TYPE_SHELLED = 'Shelled'
@@ -246,8 +247,10 @@ def render_compartments_table(inputs: adsk.core.CommandInputs, initiallyVisible:
     binCompartmentsTable = compartmentsGroup.children.addTableCommandInput(BIN_COMPARTMENTS_TABLE_ID, "Compartments", 5, "1:1:1:1:1")
     addButton = compartmentsGroup.commandInputs.addBoolValueInput(BIN_COMPARTMENTS_TABLE_ADD_ID, "Add", False, "", False)
     removeButton = compartmentsGroup.commandInputs.addBoolValueInput(BIN_COMPARTMENTS_TABLE_REMOVE_ID, "Remove", False, "", False)
+    populateUniform = compartmentsGroup.commandInputs.addBoolValueInput(BIN_COMPARTMENTS_TABLE_UNIFORM_ID, "Reset to uniform", False, "", False)
     binCompartmentsTable.addToolbarCommandInput(addButton)
     binCompartmentsTable.addToolbarCommandInput(removeButton)
+    binCompartmentsTable.addToolbarCommandInput(populateUniform)
     binCompartmentsTable.hasGrid = False
     binCompartmentsTable.tablePresentationStyle = adsk.core.TablePresentationStyles.nameValueTablePresentationStyle
     x_input_label = binCompartmentsTable.commandInputs.addStringValueInput("x_input_0_label", "", "X position")
@@ -272,19 +275,20 @@ def render_compartments_table(inputs: adsk.core.CommandInputs, initiallyVisible:
     binCompartmentsTable.addCommandInput(d_input_label, 0, 4)
     binCompartmentsTable.maximumVisibleRows = 20
     binCompartmentsTable.isVisible = initiallyVisible
-    addButton.isVisible = False
-    removeButton.isVisible = False
+    addButton.isVisible = initiallyVisible
+    removeButton.isVisible = initiallyVisible
+    populateUniform.isVisible = initiallyVisible
 
-def append_compartment_table_row(inputs: adsk.core.CommandInputs, defaultDepth: float):
+def append_compartment_table_row(inputs: adsk.core.CommandInputs, x: int, y: int, w: int, l: int, defaultDepth: float):
     binCompartmentsTable: adsk.core.TableCommandInput = inputs.itemById(BIN_COMPARTMENTS_TABLE_ID)
     newRow = binCompartmentsTable.rowCount
-    x_input = binCompartmentsTable.commandInputs.addIntegerSpinnerCommandInput("x_input_{}".format(newRow), "X (u)", 0, 100, 1, 0)
+    x_input = binCompartmentsTable.commandInputs.addIntegerSpinnerCommandInput("x_input_{}".format(newRow), "X (u)", 0, 100, 1, x)
     x_input.isFullWidth = True
-    y_input = binCompartmentsTable.commandInputs.addIntegerSpinnerCommandInput("y_input_{}".format(newRow), "Y (u)", 0, 100, 1, 0)
+    y_input = binCompartmentsTable.commandInputs.addIntegerSpinnerCommandInput("y_input_{}".format(newRow), "Y (u)", 0, 100, 1, y)
     y_input.isFullWidth = True
-    w_input = binCompartmentsTable.commandInputs.addIntegerSpinnerCommandInput("w_input_{}".format(newRow), "W (u)", 1, 100, 1, 1)
+    w_input = binCompartmentsTable.commandInputs.addIntegerSpinnerCommandInput("w_input_{}".format(newRow), "W (u)", 1, 100, 1, w)
     w_input.isFullWidth = True
-    l_input = binCompartmentsTable.commandInputs.addIntegerSpinnerCommandInput("l_input_{}".format(newRow), "L (u)", 1, 100, 1, 1)
+    l_input = binCompartmentsTable.commandInputs.addIntegerSpinnerCommandInput("l_input_{}".format(newRow), "L (u)", 1, 100, 1, l)
     l_input.isFullWidth = True
     d_input = binCompartmentsTable.commandInputs.addValueInput("d_input_{}".format(newRow), "Depth (mm)", app.activeProduct.unitsManager.defaultLengthUnits, adsk.core.ValueInput.createByReal(defaultDepth))
     d_input.isFullWidth = True
@@ -644,12 +648,18 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
             tabPositionInput.isEnabled = hasTabInput.value
             tabAngleInput.isEnabled = hasTabInput.value
         elif changed_input.id == BIN_COMPARTMENTS_TABLE_ADD_ID:
-            append_compartment_table_row(inputs, (uiState.binHeight + 1) * uiState.heightUnit - const.BIN_BASE_HEIGHT)
+            append_compartment_table_row(inputs, 0, 0, 1, 1, (uiState.binHeight + 1) * uiState.heightUnit - const.BIN_BASE_HEIGHT)
         elif changed_input.id == BIN_COMPARTMENTS_TABLE_REMOVE_ID:
             if binCompartmentsTable.selectedRow > 0:
                 binCompartmentsTable.deleteRow(binCompartmentsTable.selectedRow)
             elif binCompartmentsTable.rowCount > 1:
                 binCompartmentsTable.deleteRow(binCompartmentsTable.rowCount - 1)
+        elif changed_input.id == BIN_COMPARTMENTS_TABLE_UNIFORM_ID:
+            for i in range(binCompartmentsTable.rowCount - 1, 0, -1):
+                binCompartmentsTable.deleteRow(i)
+            for i in range(uiState.compartmentsGridWidth):
+                for j in range(uiState.compartmentsGridLength):
+                    append_compartment_table_row(inputs, i, j, 1, 1, (uiState.binHeight + 1) * uiState.heightUnit - const.BIN_BASE_HEIGHT)
         elif changed_input.id == BIN_COMPARTMENTS_GRID_TYPE_ID:
             showTable = binCompartmentsGridType.selectedItem.name == BIN_COMPARTMENTS_GRID_TYPE_CUSTOM
             binCompartmentsTable.isVisible = showTable
@@ -676,7 +686,7 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
 # This event handler is called when the command terminates.
 def command_destroy(args: adsk.core.CommandEventArgs):
     # General logging for debug.
-    futil.log(f'{CMD_NAME} Command Destroy Event')
+    futil.log(f'{CMD_NAME} Command Destroy Event "{args.terminationReason}"')
     global local_handlers
     local_handlers = []
     global uiState
