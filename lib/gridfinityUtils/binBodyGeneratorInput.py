@@ -3,11 +3,13 @@ import adsk.core, adsk.fusion, traceback
 from . import const
 
 class BinBodyCompartmentDefinition():
-    def __init__(self, positionX=0, positionY=0, width=1, length=1):
+    def __init__(self, positionX=0, positionY=0, width=1, length=1, depth=9999999999999):
         self.positionX = positionX
         self.positionY = positionY
         self.width = width
         self.length = length
+        # set to something big so it would get limited by bin height
+        self.depth = depth
 
     @property
     def positionX(self) -> float:
@@ -40,6 +42,14 @@ class BinBodyCompartmentDefinition():
     @length.setter
     def length(self, value: float):
         self._length = value
+
+    @property
+    def depth(self) -> float:
+        return self._depth
+
+    @depth.setter
+    def depth(self, value: float):
+        self._depth = value
 
 class BinBodyGeneratorInput():
     def __init__(self):

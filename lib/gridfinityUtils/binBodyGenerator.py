@@ -3,7 +3,7 @@ import os
 import math
 import copy
 
-from .const import BIN_BODY_BOTTOM_THICKNESS, BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS, BIN_CONNECTION_RECESS_DEPTH, BIN_CORNER_FILLET_RADIUS, BIN_TAB_EDGE_FILLET_RADIUS
+from .const import BIN_COMPARTMENT_BOTTOM_THICKNESS, BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS, BIN_CONNECTION_RECESS_DEPTH, BIN_CORNER_FILLET_RADIUS, BIN_TAB_EDGE_FILLET_RADIUS
 from ...lib import fusion360utils as futil
 from . import const, combineUtils, faceUtils, commonUtils, sketchUtils, extrudeUtils, baseGenerator, edgeUtils, filletUtils, geometryUtils
 from .binBodyCutoutGenerator import createGridfinityBinBodyCutout
@@ -132,6 +132,7 @@ def createGridfinityBinBody(
                 ),
                 compartmentWidthUnit * compartment.width + (compartment.width - 1) * input.wallThickness,
                 compartmentLengthUnit * compartment.length + (compartment.length - 1) * input.wallThickness,
+                min(binBodyTotalHeight - const.BIN_COMPARTMENT_BOTTOM_THICKNESS, compartment.depth),
                 input.hasScoop,
                 input.hasTab,
                 max(0, min(input.tabLength, input.binWidth)) * input.baseWidth,
@@ -164,6 +165,7 @@ def createCompartment(
         originPoint: adsk.core.Point3D,
         width: float,
         length: float,
+        depth: float,
         hasScoop: bool,
         hasTab: bool,
         tabLength: float,
@@ -180,7 +182,7 @@ def createCompartment(
     innerCutoutInput.origin = originPoint
     innerCutoutInput.width = width
     innerCutoutInput.length = length
-    innerCutoutInput.height = originPoint.z - const.BIN_BODY_BOTTOM_THICKNESS
+    innerCutoutInput.height = depth
     innerCutoutInput.hasScoop = hasScoop
     innerCutoutInput.hasTab = hasTab
     innerCutoutInput.tabLength = tabLength
