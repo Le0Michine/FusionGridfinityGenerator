@@ -15,7 +15,7 @@ from ...lib.gridfinityUtils.baseGenerator import createGridfinityBase
 from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
 from ...lib.gridfinityUtils.binBodyGenerator import createGridfinityBinBody, uniformCompartments
 from ...lib.gridfinityUtils.binBodyGeneratorInput import BinBodyGeneratorInput, BinBodyCompartmentDefinition
-from .inputState import InputState
+from .inputState import InputState, CompartmentTableRow
 from .staticInputCache import StaticInputCache
 
 app = adsk.core.Application.get()
@@ -130,6 +130,7 @@ def defaultUiState():
         baseMagnetSocketSize=const.DIMENSION_MAGNET_CUTOUT_DIAMETER,
         baseMagnetSocketDepth=const.DIMENSION_MAGNET_CUTOUT_DEPTH,
         preserveChanges=False,
+        customCompartments=[],
     )
 
 uiState = defaultUiState()
@@ -278,6 +279,9 @@ def render_compartments_table(inputs: adsk.core.CommandInputs, initiallyVisible:
     addButton.isVisible = initiallyVisible
     removeButton.isVisible = initiallyVisible
     populateUniform.isVisible = initiallyVisible
+
+    for row in uiState.customCompartments:
+        append_compartment_table_row(inputs, row.x, row.y, row.width, row.length, row.depth)
 
 def append_compartment_table_row(inputs: adsk.core.CommandInputs, x: int, y: int, w: int, l: int, defaultDepth: float):
     binCompartmentsTable: adsk.core.TableCommandInput = inputs.itemById(BIN_COMPARTMENTS_TABLE_ID)
@@ -546,6 +550,18 @@ def record_input_change(changed_input: adsk.core.CommandInput):
     elif changed_input.id == PRESERVE_CHAGES_RADIO_GROUP:
         uiState.preserveChanges = changed_input.selectedItem.name == PRESERVE_CHAGES_RADIO_GROUP_PRESERVE
 
+def cache_compartments_table_state(inputs: adsk.core.CommandInputs):
+    binCompartmentsTable: adsk.core.TableCommandInput = inputs.itemById(BIN_COMPARTMENTS_TABLE_ID)
+    uiState.customCompartments = []
+    for i in range(1, binCompartmentsTable.rowCount):
+        uiState.customCompartments.append(CompartmentTableRow(
+            binCompartmentsTable.getInputAtPosition(i, 0).value,
+            binCompartmentsTable.getInputAtPosition(i, 1).value,
+            binCompartmentsTable.getInputAtPosition(i, 2).value,
+            binCompartmentsTable.getInputAtPosition(i, 3).value,
+            binCompartmentsTable.getInputAtPosition(i, 4).value,
+        ))
+
 def command_input_changed(args: adsk.core.InputChangedEventArgs):
     changed_input = args.input
     record_input_change(changed_input)
@@ -665,6 +681,10 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
             binCompartmentsTable.isVisible = showTable
         elif changed_input.id == SHOW_PREVIEW_INPUT:
             showPreviewManual.isVisible = not showPreview.value
+
+
+        if changed_input.parentCommandInput.id == BIN_COMPARTMENTS_TABLE_ID:
+            cache_compartments_table_state(inputs)
     except:
         if ui:
             ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))

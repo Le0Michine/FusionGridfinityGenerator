@@ -1,6 +1,14 @@
 from dataclasses import dataclass
 
 @dataclass
+class CompartmentTableRow:
+    x: int
+    y: int
+    width: int
+    length: int
+    depth: float
+
+@dataclass
 class InputState:
     baseWidth: float
     baseLength: float
@@ -30,3 +38,4 @@ class InputState:
     baseMagnetSocketSize: float
     baseMagnetSocketDepth: float
     preserveChanges: bool
+    customCompartments: list[CompartmentTableRow]
