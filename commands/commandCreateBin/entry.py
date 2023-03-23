@@ -138,6 +138,11 @@ staticInputCache = StaticInputCache()
 
 # json.dumps(asdict(uiState))
 
+def showError():
+    stackTrace = traceback.format_exc();
+    if ui:
+        ui.messageBox(f"An unknonwn error occurred, please validate your inpouts and try again:\n{stackTrace}", f"{CMD_NAME} Error")
+
 # Executed when add-in is run.
 def start():
     addinConfig = configUtils.readConfig(CONFIG_FOLDER_PATH)
@@ -201,10 +206,8 @@ def render_actual_bin_dimensions_table(inputs: adsk.core.CommandInputs):
 
 def render_actual_compartment_dimension_units_table(inputs: adsk.core.CommandInputs):
     actualDimensionsTable = inputs.addTableCommandInput(BIN_REAL_DIMENSIONS_TABLE, "Actual dimensions (mm)", 2, "1:1")
-    totalWidth = actualDimensionsTable.commandInputs.addStringValueInput("compartment_width_u", "", "Grid cell width")
-    totalWidth.isReadOnly = True
-    totalLength = actualDimensionsTable.commandInputs.addStringValueInput("compartment_length_u", "", "Grid cell length")
-    totalLength.isReadOnly = True
+    totalWidth = actualDimensionsTable.commandInputs.addTextBoxCommandInput("compartment_width_u", "", "Grid cell width", 1, True)
+    totalLength = actualDimensionsTable.commandInputs.addTextBoxCommandInput("compartment_length_u", "", "Grid cell length", 1, True)
     actualDimensionsTable.addCommandInput(totalWidth, 0, 0)
     actualDimensionsTable.addCommandInput(totalLength, 0, 1)
     actualDimensionsTable.tablePresentationStyle = adsk.core.TablePresentationStyles.transparentBackgroundTablePresentationStyle
@@ -212,6 +215,11 @@ def render_actual_compartment_dimension_units_table(inputs: adsk.core.CommandInp
     actualDimensionsTable.minimumVisibleRows = 1
     actualDimensionsTable.maximumVisibleRows = 1
     return actualDimensionsTable
+
+def formatString(text: str, color: str=""):
+    if len(color) > 0:
+        return f"<p style='color:{color}'>{text}</p>"
+    return text
 
 def update_actual_compartment_unit_dimensions(
         actualDimensionsTable: adsk.core.TableCommandInput,
@@ -225,12 +233,15 @@ def update_actual_compartment_unit_dimensions(
         xyTolerance: float,
     ):
     try:
-        gridCellWidthInput: adsk.core.StringValueCommandInput = actualDimensionsTable.getInputAtPosition(0, 0)
-        gridCellWidthInput.value = "Grid cell width: {}mm".format(round((baseWidth * binWidth - wallThickness * 2 - xyTolerance * 2 - wallThickness * (gridWidth - 1)) / gridWidth * 10, 2))
-        gridCellLengthInput: adsk.core.StringValueCommandInput = actualDimensionsTable.getInputAtPosition(0, 1)
-        gridCellLengthInput.value = "Grid cell length: {}mm".format(round((baseLength * binLength - wallThickness * 2 - xyTolerance * 2 - wallThickness * (gridLength - 1)) / gridLength * 10, 2))
+        minCompartmentDimensionLimit = (const.BIN_CORNER_FILLET_RADIUS - wallThickness) * 2 * 10
+        gridCellWidthInput: adsk.core.TextBoxCommandInput = actualDimensionsTable.getInputAtPosition(0, 0)
+        cellWidth = round((baseWidth * binWidth - wallThickness * 2 - xyTolerance * 2 - wallThickness * (gridWidth - 1)) / gridWidth * 10, 2)
+        gridCellWidthInput.formattedText = formatString("Grid cell width: {}mm".format(cellWidth), "" if cellWidth >= minCompartmentDimensionLimit else "red")
+        gridCellLengthInput: adsk.core.TextBoxCommandInput = actualDimensionsTable.getInputAtPosition(0, 1)
+        cellLength = round((baseLength * binLength - wallThickness * 2 - xyTolerance * 2 - wallThickness * (gridLength - 1)) / gridLength * 10, 2)
+        gridCellLengthInput.formattedText = formatString("Grid cell length: {}mm".format(cellLength), "" if cellLength >= minCompartmentDimensionLimit else "red")
     except:
-        ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
+        showError()
 
 def update_actual_bin_dimensions(actualBinDimensionsTable: adsk.core.TableCommandInput, width: adsk.core.ValueInput, length: adsk.core.ValueInput, heigh: adsk.core.ValueInput):
     try:
@@ -241,7 +252,7 @@ def update_actual_bin_dimensions(actualBinDimensionsTable: adsk.core.TableComman
         totalHeight: adsk.core.StringValueCommandInput = actualBinDimensionsTable.getInputAtPosition(0, 2)
         totalHeight.value = "Total height: {}mm".format(round(heigh.realValue * 10, 2))
     except:
-        ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
+        showError()
 
 def render_compartments_table(inputs: adsk.core.CommandInputs, initiallyVisible: bool):
     compartmentsGroup: adsk.core.GroupCommandInput = inputs.itemById(BIN_COMPARTMENTS_GROUP_ID)
@@ -686,8 +697,7 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
         if changed_input.parentCommandInput.id == BIN_COMPARTMENTS_TABLE_ID:
             cache_compartments_table_state(inputs)
     except:
-        if ui:
-            ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
+        showError()
 
 
 
@@ -885,7 +895,6 @@ def generateBin(args: adsk.core.CommandEventArgs):
                     True)
                 chamferFeatures.add(chamferInput)
     except:
-        if ui:
-            ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
-            return False
+        showError()
+        return False
     return True
