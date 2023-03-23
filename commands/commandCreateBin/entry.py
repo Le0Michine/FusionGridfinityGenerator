@@ -422,7 +422,8 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
 
     binFeaturesGroup.children.addValueInput(BIN_WALL_THICKNESS_INPUT_ID, 'Bin wall thickness', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.binWallThickness))
     binFeaturesGroup.children.addBoolValueInput(BIN_WITH_LIP_INPUT_ID, 'Generate lip for stackability', True, '', uiState.hasLip)
-    binFeaturesGroup.children.addBoolValueInput(BIN_WITH_LIP_NOTCHES_INPUT_ID, 'Generate lip notches', True, '', uiState.hasLipNotches)
+    hasLipNotches = binFeaturesGroup.children.addBoolValueInput(BIN_WITH_LIP_NOTCHES_INPUT_ID, 'Generate lip notches', True, '', uiState.hasLipNotches)
+    hasLipNotches.isEnabled = uiState.hasLip
 
     compartmentsGroup: adsk.core.GroupCommandInput = inputs.addGroupCommandInput(BIN_COMPARTMENTS_GROUP_ID, 'Bin compartments')
     compartmentsGroup.children.addIntegerSpinnerCommandInput(BIN_COMPARTMENTS_GRID_BASE_WIDTH_ID, "Grid width (n per bin width)", 1, 100, 1, uiState.compartmentsGridWidth)
@@ -456,7 +457,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     binTabFeaturesGroup.children.addValueInput(BIN_TAB_ANGLE_INPUT_ID, 'Tab overhang angle', 'deg', adsk.core.ValueInput.createByString(str(uiState.tabAngle)))
     for input in binTabFeaturesGroup.children:
         if not input.id == BIN_HAS_TAB_INPUT_ID:
-            input.isEnabled = False
+            input.isEnabled = uiState.hasTab
 
     baseFeaturesGroup = inputs.addGroupCommandInput('base_features', 'Base interface features')
     baseFeaturesGroup.children.addBoolValueInput(BIN_GENERATE_BASE_INPUT_ID, 'Generate base', True, '', uiState.hasBase)
@@ -629,7 +630,15 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
                 adsk.core.ValueInput.createByReal(actualHeight),
                 )
             
-        elif changed_input.id in [
+        if changed_input.id in [
+            BIN_BASE_WIDTH_UNIT_INPUT_ID,
+            BIN_BASE_LENGTH_UNIT_INPUT_ID,
+            BIN_HEIGHT_UNIT_INPUT_ID,
+            BIN_XY_TOLERANCE_INPUT_ID,
+            BIN_WIDTH_INPUT_ID,
+            BIN_LENGTH_INPUT_ID,
+            BIN_HEIGHT_INPUT_ID,
+            BIN_WITH_LIP_INPUT_ID,
             BIN_COMPARTMENTS_GRID_BASE_LENGTH_ID,
             BIN_COMPARTMENTS_GRID_BASE_WIDTH_ID,
         ]:
@@ -645,7 +654,7 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
                 uiState.xyTolerance,
                 )
             
-        elif changed_input.id == BIN_TYPE_DROPDOWN_ID:
+        if changed_input.id == BIN_TYPE_DROPDOWN_ID:
             selectedItem = binTypeDropdownInput.selectedItem.name
             if selectedItem == BIN_TYPE_HOLLOW:
                 wallThicknessInput.isEnabled = True
