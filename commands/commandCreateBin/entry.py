@@ -138,10 +138,13 @@ staticInputCache = StaticInputCache()
 
 # json.dumps(asdict(uiState))
 
-def showError():
+def getErrorMessage():
     stackTrace = traceback.format_exc();
+    return f"An unknonwn error occurred, please validate your inputs and try again:\n{stackTrace}"
+
+def showErrorInMessageBox():
     if ui:
-        ui.messageBox(f"An unknonwn error occurred, please validate your inpouts and try again:\n{stackTrace}", f"{CMD_NAME} Error")
+        ui.messageBox(getErrorMessage(), f"{CMD_NAME} Error")
 
 # Executed when add-in is run.
 def start():
@@ -241,7 +244,7 @@ def update_actual_compartment_unit_dimensions(
         cellLength = round((baseLength * binLength - wallThickness * 2 - xyTolerance * 2 - wallThickness * (gridLength - 1)) / gridLength * 10, 2)
         gridCellLengthInput.formattedText = formatString("Grid cell length: {}mm".format(cellLength), "" if cellLength >= minCompartmentDimensionLimit else "red")
     except:
-        showError()
+        showErrorInMessageBox()
 
 def update_actual_bin_dimensions(actualBinDimensionsTable: adsk.core.TableCommandInput, width: adsk.core.ValueInput, length: adsk.core.ValueInput, heigh: adsk.core.ValueInput):
     try:
@@ -252,7 +255,7 @@ def update_actual_bin_dimensions(actualBinDimensionsTable: adsk.core.TableComman
         totalHeight: adsk.core.StringValueCommandInput = actualBinDimensionsTable.getInputAtPosition(0, 2)
         totalHeight.value = "Total height: {}mm".format(round(heigh.realValue * 10, 2))
     except:
-        showError()
+        showErrorInMessageBox()
 
 def render_compartments_table(inputs: adsk.core.CommandInputs, initiallyVisible: bool):
     compartmentsGroup: adsk.core.GroupCommandInput = inputs.itemById(BIN_COMPARTMENTS_GROUP_ID)
@@ -697,7 +700,7 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
         if changed_input.parentCommandInput.id == BIN_COMPARTMENTS_TABLE_ID:
             cache_compartments_table_state(inputs)
     except:
-        showError()
+        showErrorInMessageBox()
 
 
 
@@ -895,6 +898,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
                     True)
                 chamferFeatures.add(chamferInput)
     except:
-        showError()
+        args.executeFailed = True
+        args.executeFailedMessage = getErrorMessage()
         return False
     return True
