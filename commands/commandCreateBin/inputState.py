@@ -1,3 +1,4 @@
+from typing import Dict
 from dataclasses import dataclass
 
 @dataclass
@@ -10,6 +11,7 @@ class CompartmentTableRow:
 
 @dataclass
 class InputState:
+    groups: Dict[str, bool]
     baseWidth: float
     baseLength: float
     heightUnit: float
@@ -39,3 +41,9 @@ class InputState:
     baseMagnetSocketDepth: float
     preserveChanges: bool
     customCompartments: list[CompartmentTableRow]
+
+    def getGroupExpandedState(self, id: str):
+      if id in self.groups:
+        return self.groups[id]
+      else:
+        return True
