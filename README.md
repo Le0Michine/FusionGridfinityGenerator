@@ -12,9 +12,9 @@ Bin options | Baseplate options
 ### Baseplates
 - accepts amount of bases X and Y directions
 - base measurement can be changed, default is 42mm
-- there are options to generate thick plate with magnet or/and screw cutouts
-- thick plate can be skeletonized to reduce weight and allow for connection holes support
-- size of magnet cutouts and screw holes can be adjusted
+- there are options to generate thick plate with magnet or/and screw holes
+- thick plate can be skeletonized to reduce weight, it also allows room for connection holes which can be customized to fit certain screw size or glue in pin
+- size of magnet sockets and screw holes can be adjusted
 
 #### Baseplate types
 Light | Skeleton with connection holes | Full
@@ -26,20 +26,29 @@ Light | Skeleton with connection holes | Full
 ### Bins
 - accepts amount of bases X and Y directions
 - base measurement can be changed, default is 42mm for base width and 7mm for the unit of height
-- height is specified in base units and measured from the top of the base to the top of the bin body
+- height is specified in base units, 1 unit will be added to the input to accomodate bin bottom
 - generated bins can have a lip for better stackability or a straight wall
+- lip can have notches preventing bins from sliding when stacked
 - wall thickness can be adjusted
-- there are options available for magnet or screw holes
+- magnet sockets can be customized to allow snug fit of the magnets, or a different size
+- scre holes diameter can be adjuisted
 - when magnet and screw holes are enabled together a groove will be generated to help with printability
-- bin can be shelled with constant wall thickness to save printing time
+- bin can be shelled with constant wall thickness to save printing time and filament
 - label tab can be generated (length, offset and overhang angle are adjustable)
-- can generate only base or bin body part
-- compartments are configurable and can follow uniform grid or setup manually
+- allows generation of base or body separately, could be useful if need combine it with existing model
+- compartments can be configured to use uniform scale
+- custom compartmens layout is based on the uniform grid and allows merging multiple cells together, specifying custom depth and postion
 
 #### Bin bottom options
 Solid bottom | With screw holes | With magnet cutouts | Combined
 :-------------------------:|:-------------------------:|:-------------------------:|:-------------------------:
 ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-solid-bottom.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-screw-holes.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-magnet-cutouts.png)  | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-magnet-cutouts-and-screw-holes-with-groove.png)
+
+#### Bin half base size
+
+Half base (21x21mm) |
+:---:
+![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-half-size-base.png)
 
 #### Bin type options
 Hollow bin | Shelled bin | Solid bin
@@ -81,10 +90,11 @@ Bin for random round things
 ```
 git clone https://github.com/Le0Michine/FusionGridfinityGenerator.git
 ```
+Alternatively can use `Download ZIP` option and unpack it into the target location
 
 - In Fusion open `Scripts and Addins` window by pressing `shift + s`. It is also can be found in the UI `Design -> Utilities -> ADD-INS`
 - Select addins tab and press `+` icon to add new add in
-- Select path to the repository downloaded on the first step, `GridfinityGenerator` should appear in the list of add ins
+- Select path to the repository downloaded on the first step, selected folder should be the one containing `GridfinityGenerator.py` file, `GridfinityGenerator` should appear in the list of add ins
 - Select `GridfinityGenerator` and click run to launch the add in
 - `Gridfinity bin` and `Gridfinity baseplate` options should apperar in `Create` menu in the Solid body worspace environment
 
