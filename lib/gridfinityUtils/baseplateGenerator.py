@@ -28,7 +28,7 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
     extraCutoutBodies: list[adsk.fusion.BRepBody] = []
 
     if input.hasSkeletonizedBottom:
-        centerCutoutSketch = baseGenerator.createMagnetCutoutSketch(faceUtils.getBottomFace(baseBody), input.magnetCutoutsDiameter / 2, input.baseWidth, targetComponent)
+        centerCutoutSketch = baseGenerator.createMagnetCutoutSketch(faceUtils.getBottomFace(baseBody), input.magnetCutoutsDiameter / 2, input.baseWidth, 0, targetComponent)
         centerCutoutSketch.name = "center bottom cutout"
         sketchUtils.convertToConstruction(centerCutoutSketch.sketchCurves)
         sketchCurves = centerCutoutSketch.sketchCurves
@@ -145,7 +145,7 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
     holeCuttingBodies: list[adsk.fusion.BRepBody] = []
     
     if input.hasExtendedBottom and input.hasMagnetCutouts:
-        magnetCutoutSketch = baseGenerator.createMagnetCutoutSketch(faceUtils.getBottomFace(baseBody), input.magnetCutoutsDiameter / 2, input.baseWidth, targetComponent)
+        magnetCutoutSketch = baseGenerator.createMagnetCutoutSketch(faceUtils.getBottomFace(baseBody), input.magnetCutoutsDiameter / 2, input.baseWidth, 0, targetComponent)
         magnetCutoutSketch.name = "magnet cutout"
         magnetCutout = extrudeUtils.simpleDistanceExtrude(
             magnetCutoutSketch.profiles.item(0),
@@ -158,7 +158,7 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
         holeCuttingBodies.append(magnetCutout.bodies.item(0))
     
     if input.hasExtendedBottom and input.hasScrewHoles:
-        screwHoleSketch = baseGenerator.createMagnetCutoutSketch(faceUtils.getBottomFace(baseBody), input.screwHolesDiameter / 2, input.baseWidth, targetComponent)
+        screwHoleSketch = baseGenerator.createMagnetCutoutSketch(faceUtils.getBottomFace(baseBody), input.screwHolesDiameter / 2, input.baseWidth, 0, targetComponent)
         screwHoleSketch.name = "screw hole"
         screwHoleFeature = extrudeUtils.simpleDistanceExtrude(
             screwHoleSketch.profiles.item(0),
@@ -170,7 +170,7 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
         )
         holeCuttingBodies.append(screwHoleFeature.bodies.item(0))
 
-        screwHeadSketch = baseGenerator.createMagnetCutoutSketch(screwHoleFeature.endFaces.item(0), input.screwHeadCutoutDiameter / 2, input.baseWidth, targetComponent)
+        screwHeadSketch = baseGenerator.createMagnetCutoutSketch(screwHoleFeature.endFaces.item(0), input.screwHeadCutoutDiameter / 2, input.baseWidth, 0, targetComponent)
         screwHeadSketch.name = "screw head"
         screwHeadCutoutFeature = extrudeUtils.simpleDistanceExtrude(
             screwHeadSketch.profiles.item(0),

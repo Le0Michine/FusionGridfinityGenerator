@@ -12,19 +12,20 @@ from ... import config
 app = adsk.core.Application.get()
 ui = app.userInterface
 
-def getScrewHoleOffset(baseWidth: float):
-    return (baseWidth - DIMENSION_SCREW_HOLES_DISTANCE) / 2
+def getScrewHoleOffset(baseWidth: float, xyTolerance: float):
+    return (baseWidth - DIMENSION_SCREW_HOLES_DISTANCE) / 2 - xyTolerance
 
 def createMagnetCutoutSketch(
     plane: adsk.core.Base,
     radius: float,
     baseWidth: float,
+    xyTolerance: float,
     targetComponent: adsk.fusion.Component,
     ):
     sketches: adsk.fusion.Sketches = targetComponent.sketches
     magnetCutoutSketch: adsk.fusion.Sketch = sketches.add(plane)
     dimensions: adsk.fusion.SketchDimensions = magnetCutoutSketch.sketchDimensions
-    screwHoleOffset = getScrewHoleOffset(baseWidth)
+    screwHoleOffset = getScrewHoleOffset(baseWidth, xyTolerance)
     sketchUtils.convertToConstruction(magnetCutoutSketch.sketchCurves)
     circle = magnetCutoutSketch.sketchCurves.sketchCircles.addByCenterRadius(
         adsk.core.Point3D.create(-screwHoleOffset, screwHoleOffset, 0),
@@ -120,7 +121,7 @@ def createGridfinityBase(
     rectangularPatternFeatures: adsk.fusion.RectangularPatternFeatures = features.rectangularPatternFeatures
     patternInputBodies = adsk.core.ObjectCollection.create()
 
-    screwHoleOffset = getScrewHoleOffset(input.baseWidth)
+    screwHoleOffset = getScrewHoleOffset(input.baseWidth, input.xyTolerance)
     holeFeatures = features.holeFeatures
     if input.hasScrewHoles:
         baseTopPlane = topSectionExtrudeFeature.startFaces.item(0)
@@ -141,7 +142,7 @@ def createGridfinityBase(
     # magnet cutouts
     if input.hasMagnetCutouts:
         baseBottomPlane = baseBottomExtrude.endFaces.item(0)
-        magnetCutoutSketch = createMagnetCutoutSketch(baseBottomPlane, input.magnetCutoutsDiameter / 2, input.baseWidth, targetComponent)
+        magnetCutoutSketch = createMagnetCutoutSketch(baseBottomPlane, input.magnetCutoutsDiameter / 2, input.baseWidth, input.xyTolerance, targetComponent)
 
         magnetCutoutExtrude = extrudeUtils.simpleDistanceExtrude(
             magnetCutoutSketch.profiles.item(0),
