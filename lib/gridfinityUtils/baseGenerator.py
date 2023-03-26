@@ -171,7 +171,16 @@ def createGridfinityBase(
                 adsk.core.Point3D.create(-screwHoleOffset + magnetRadius, screwHoleOffset + screwRadius, 0),
                 adsk.core.Point3D.create(-screwHoleOffset - magnetRadius, screwHoleOffset + screwRadius, 0),
             )
+            leftTangentLine = sketchLines.addByTwoPoints(
+                adsk.core.Point3D.create(-screwHoleOffset - screwRadius, screwHoleOffset - screwRadius, 0),
+                adsk.core.Point3D.create(-screwHoleOffset - screwRadius, screwHoleOffset + screwRadius, 0),
+            )
+            rightTangentLine = sketchLines.addByTwoPoints(
+                adsk.core.Point3D.create(-screwHoleOffset + screwRadius, screwHoleOffset - screwRadius, 0),
+                adsk.core.Point3D.create(-screwHoleOffset + screwRadius, screwHoleOffset + screwRadius, 0),
+            )
             screwHoleCircle: adsk.fusion.SketchCircle = filterCirclesByRadius(screwRadius, DEFAULT_FILTER_TOLERANCE, printHelperGrooveSketch.sketchCurves.sketchCircles)[0]
+            screwHoleCircle.isConstruction = False
             magnetCutoutCircle: adsk.fusion.SketchCircle = filterCirclesByRadius(magnetRadius, DEFAULT_FILTER_TOLERANCE, printHelperGrooveSketch.sketchCurves.sketchCircles)[0]
             startArc = sketchArcs.addByCenterStartSweep(
                 magnetCutoutCircle.centerSketchPoint,
@@ -193,22 +202,61 @@ def createGridfinityBase(
             constraints.addCoincident(topTangentLine.endSketchPoint, magnetCutoutCircle)
             constraints.addHorizontal(bottomTangentLine)
             constraints.addHorizontal(topTangentLine)
+            constraints.addCoincident(leftTangentLine.startSketchPoint, bottomTangentLine)
+            constraints.addCoincident(rightTangentLine.startSketchPoint, bottomTangentLine)
+            constraints.addCoincident(leftTangentLine.endSketchPoint, topTangentLine)
+            constraints.addCoincident(rightTangentLine.endSketchPoint, topTangentLine)
 
-            printHelperGrooveCutInput = extrudeFeatures.createInput(
-                printHelperGrooveSketch.profiles.item(0),
+            innerGrooveProfiles = []
+            outerGrooveProfiles = []
+
+            for profile in printHelperGrooveSketch.profiles:
+                loop = profile.profileLoops[0]
+                hadScrewHoleCircle = False
+
+                for curve in loop.profileCurves:
+                    if curve.sketchEntity == screwHoleCircle:
+                        hadScrewHoleCircle = True
+                    if curve.sketchEntity == startArc or curve.sketchEntity == endArc:
+                        outerGrooveProfiles.append(profile)
+                        hadScrewHoleCircle = False
+                        break
+                
+                if hadScrewHoleCircle:
+                    innerGrooveProfiles.append(profile)
+
+            app.log("Inner Groove Profiles: " + str(len(innerGrooveProfiles)))
+            app.log("Outer Groove Profiles: " + str(len(outerGrooveProfiles)))
+
+            printHelperOuterGrooveCutInput = extrudeFeatures.createInput(
+                commonUtils.objectCollectionFromList(outerGrooveProfiles),
                 adsk.fusion.FeatureOperations.CutFeatureOperation,
                 )
-            printHelperGrooveCutExtent = adsk.fusion.DistanceExtentDefinition.create(adsk.core.ValueInput.createByReal(DIMENSION_PRINT_HELPER_GROOVE_DEPTH))
-            printHelperGrooveCutInput.setOneSideExtent(
-                printHelperGrooveCutExtent,
+            printHelperOuterGrooveCutExtent = adsk.fusion.DistanceExtentDefinition.create(adsk.core.ValueInput.createByReal(DIMENSION_PRINT_HELPER_GROOVE_DEPTH))
+            printHelperOuterGrooveCutInput.setOneSideExtent(
+                printHelperOuterGrooveCutExtent,
                 adsk.fusion.ExtentDirections.NegativeExtentDirection,
                 adsk.core.ValueInput.createByReal(0),
             )
-            printHelperGrooveCutInput.participantBodies = [baseBottomExtrude.bodies.item(0)]
-            printHelperGrooveCut = extrudeFeatures.add(printHelperGrooveCutInput)
+            printHelperOuterGrooveCutInput.participantBodies = [baseBottomExtrude.bodies.item(0)]
+            printHelperOuterGrooveCut = extrudeFeatures.add(printHelperOuterGrooveCutInput)
 
-            patternInputBodies.add(printHelperGrooveCut)
+            patternInputBodies.add(printHelperOuterGrooveCut)
 
+            printHelperInnerGrooveCutInput = extrudeFeatures.createInput(
+                commonUtils.objectCollectionFromList(innerGrooveProfiles),
+                adsk.fusion.FeatureOperations.CutFeatureOperation,
+                )
+            printHelperInnerGrooveCutExtent = adsk.fusion.DistanceExtentDefinition.create(adsk.core.ValueInput.createByReal(DIMENSION_PRINT_HELPER_GROOVE_DEPTH * 2))
+            printHelperInnerGrooveCutInput.setOneSideExtent(
+                printHelperInnerGrooveCutExtent,
+                adsk.fusion.ExtentDirections.NegativeExtentDirection,
+                adsk.core.ValueInput.createByReal(0),
+            )
+            printHelperInnerGrooveCutInput.participantBodies = [baseBottomExtrude.bodies.item(0)]
+            printHelperInnerGrooveCut = extrudeFeatures.add(printHelperInnerGrooveCutInput)
+
+            patternInputBodies.add(printHelperInnerGrooveCut)
 
     if input.hasScrewHoles or input.hasMagnetCutouts:
         patternInput = rectangularPatternFeatures.createInput(patternInputBodies,
