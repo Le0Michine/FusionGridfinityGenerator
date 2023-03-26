@@ -12,6 +12,14 @@ class BaseGeneratorInput():
         self.magnetCutoutsDepth = DIMENSION_MAGNET_CUTOUT_DEPTH
 
     @property
+    def originPoint(self) -> adsk.core.Point3D:
+        return self._originPoint
+
+    @originPoint.setter
+    def originPoint(self, value: adsk.core.Point3D):
+        self._originPoint = value
+
+    @property
     def baseWidth(self) -> float:
         return self._baseWidth
 

@@ -2,33 +2,31 @@ import math
 import adsk.core, adsk.fusion, traceback
 import os
 
-from . import const, commonUtils, filletUtils, combineUtils, faceUtils, extrudeUtils, sketchUtils, baseGenerator, patternUtils, geometryUtils
+from . import const, commonUtils, filletUtils, combineUtils, faceUtils, extrudeUtils, sketchUtils, baseGenerator, patternUtils, shapeUtils
 from .baseGeneratorInput import BaseGeneratorInput
 from .baseplateGeneratorInput import BaseplateGeneratorInput
 
 def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: adsk.fusion.Component):
     features = targetComponent.features
     cutoutInput = BaseGeneratorInput()
+    cutoutInput.originPoint = targetComponent.originConstructionPoint.geometry
     cutoutInput.baseWidth = input.baseWidth
     cutoutInput.baseLength = input.baseLength
     cutoutInput.xyTolerance = input.xyTolerance
     baseBody = baseGenerator.createBaseWithClearance(cutoutInput, targetComponent)
-    # move body to adjust for clearance
-    moveInput = features.moveFeatures.createInput2(commonUtils.objectCollectionFromList([baseBody]))
-    moveInput.defineAsTranslateXYZ(
-        adsk.core.ValueInput.createByReal(input.xyTolerance),
-        adsk.core.ValueInput.createByReal(input.xyTolerance),
-        adsk.core.ValueInput.createByReal(0),
-        True
-    )
-    clearanceAlignment = features.moveFeatures.add(moveInput)
-    clearanceAlignment.name = "align for xy clearance"
 
     cuttingTools: list[adsk.fusion.BRepBody] = [baseBody]
     extraCutoutBodies: list[adsk.fusion.BRepBody] = []
 
+    holeCenterPoint = adsk.core.Point3D.create(input.baseWidth / 2 - input.xyTolerance - const.DIMENSION_SCREW_HOLES_DISTANCE / 2, input.baseLength / 2 - input.xyTolerance - const.DIMENSION_SCREW_HOLES_DISTANCE / 2, 0)
+
     if input.hasSkeletonizedBottom:
-        centerCutoutSketch = baseGenerator.createMagnetCutoutSketch(faceUtils.getBottomFace(baseBody), input.magnetCutoutsDiameter / 2, input.baseWidth, 0, targetComponent)
+        centerCutoutSketch = baseGenerator.createCircleAtPointSketch(
+            faceUtils.getBottomFace(baseBody),
+            input.magnetCutoutsDiameter / 2,
+            holeCenterPoint,
+            targetComponent
+        )
         centerCutoutSketch.name = "center bottom cutout"
         sketchUtils.convertToConstruction(centerCutoutSketch.sketchCurves)
         sketchCurves = centerCutoutSketch.sketchCurves
@@ -145,47 +143,42 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
     holeCuttingBodies: list[adsk.fusion.BRepBody] = []
     
     if input.hasExtendedBottom and input.hasMagnetCutouts:
-        magnetCutoutSketch = baseGenerator.createMagnetCutoutSketch(faceUtils.getBottomFace(baseBody), input.magnetCutoutsDiameter / 2, input.baseWidth, 0, targetComponent)
-        magnetCutoutSketch.name = "magnet cutout"
-        magnetCutout = extrudeUtils.simpleDistanceExtrude(
-            magnetCutoutSketch.profiles.item(0),
-            adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
+        magnetSocketBody = shapeUtils.simpleCylinder(
+            faceUtils.getBottomFace(baseBody),
+            0,
             input.magnetCutoutsDepth,
-            adsk.fusion.ExtentDirections.PositiveExtentDirection,
-            [],
+            input.magnetCutoutsDiameter / 2,
+            holeCenterPoint,
             targetComponent,
         )
-        holeCuttingBodies.append(magnetCutout.bodies.item(0))
+        holeCuttingBodies.append(magnetSocketBody)
     
     if input.hasExtendedBottom and input.hasScrewHoles:
-        screwHoleSketch = baseGenerator.createMagnetCutoutSketch(faceUtils.getBottomFace(baseBody), input.screwHolesDiameter / 2, input.baseWidth, 0, targetComponent)
-        screwHoleSketch.name = "screw hole"
-        screwHoleFeature = extrudeUtils.simpleDistanceExtrude(
-            screwHoleSketch.profiles.item(0),
-            adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
+        screwHoleBody = shapeUtils.simpleCylinder(
+            faceUtils.getBottomFace(baseBody),
+            0,
             input.bottomExtensionHeight,
-            adsk.fusion.ExtentDirections.PositiveExtentDirection,
-            [],
+            input.screwHolesDiameter / 2,
+            holeCenterPoint,
             targetComponent,
         )
-        holeCuttingBodies.append(screwHoleFeature.bodies.item(0))
+        holeCuttingBodies.append(screwHoleBody)
 
-        screwHeadSketch = baseGenerator.createMagnetCutoutSketch(screwHoleFeature.endFaces.item(0), input.screwHeadCutoutDiameter / 2, input.baseWidth, 0, targetComponent)
-        screwHeadSketch.name = "screw head"
-        screwHeadCutoutFeature = extrudeUtils.simpleDistanceExtrude(
-            screwHeadSketch.profiles.item(0),
-            adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
-            const.DIMENSION_SCREW_HEAD_CUTOUT_OFFSET_HEIGHT + (input.screwHeadCutoutDiameter - input.screwHolesDiameter) / 2,
-            adsk.fusion.ExtentDirections.NegativeExtentDirection,
-            [],
+        screwHeadHeight = const.DIMENSION_SCREW_HEAD_CUTOUT_OFFSET_HEIGHT + (input.screwHeadCutoutDiameter - input.screwHolesDiameter) / 2
+        screwHeadBody = shapeUtils.simpleCylinder(
+            faceUtils.getBottomFace(screwHoleBody),
+            -screwHeadHeight,
+            screwHeadHeight,
+            input.screwHeadCutoutDiameter / 2,
+            holeCenterPoint,
             targetComponent,
         )
         filletUtils.createChamfer(
-            commonUtils.objectCollectionFromList(screwHeadCutoutFeature.endFaces.item(0).edges),
+            commonUtils.objectCollectionFromList(faceUtils.getTopFace(screwHeadBody).edges),
             (input.screwHeadCutoutDiameter - input.screwHolesDiameter) / 2,
             targetComponent,
         )
-        holeCuttingBodies.append(screwHeadCutoutFeature.bodies.item(0))
+        holeCuttingBodies.append(screwHeadBody)
 
     if len(holeCuttingBodies) > 0:
         magnetScrewCutoutsPattern = patternUtils.recPattern(
@@ -220,18 +213,19 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
     cuttingTools = cuttingTools + list(rectangularPattern.bodies)
 
     # create baseplate body
-    binInterfaceExtrude = extrudeUtils.createBox(
+    binInterfaceBody = shapeUtils.simpleBox(
+        targetComponent.xYConstructionPlane,
+        0,
         input.baseplateWidth * input.baseWidth,
         input.baseplateLength * input.baseWidth,
         -const.BIN_BASE_HEIGHT,
+        adsk.core.Point3D.create(-input.xyTolerance, -input.xyTolerance, 0),
         targetComponent,
-        targetComponent.xYConstructionPlane,
-        )
-    binInterfaceBody = binInterfaceExtrude.bodies.item(0)
+    )
 
     if input.binZClearance > 0:
         binZClearance = extrudeUtils.simpleDistanceExtrude(
-            binInterfaceExtrude.startFaces.item(0),
+            faceUtils.getTopFace(binInterfaceBody),
             adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
             input.binZClearance,
             adsk.fusion.ExtentDirections.NegativeExtentDirection,
@@ -243,7 +237,7 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
         cuttingTools.append(binZClearance.bodies.item(0))
 
     cornerFillet = filletUtils.filletEdgesByLength(
-        binInterfaceExtrude.faces,
+        binInterfaceBody.faces,
         const.BIN_CORNER_FILLET_RADIUS,
         const.BIN_BASE_HEIGHT,
         targetComponent,
@@ -279,16 +273,5 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
         targetComponent,
     )
     finalCut.name = "final baseplate cut"
-
-    # align with bin location
-    moveInput = features.moveFeatures.createInput2(commonUtils.objectCollectionFromList([binInterfaceBody]))
-    moveInput.defineAsTranslateXYZ(
-        adsk.core.ValueInput.createByReal(-input.xyTolerance),
-        adsk.core.ValueInput.createByReal(-input.xyTolerance),
-        adsk.core.ValueInput.createByReal(0),
-        True
-    )
-    alignWithBin = features.moveFeatures.add(moveInput)
-    alignWithBin.name = "align with bin base"
 
     return binInterfaceBody

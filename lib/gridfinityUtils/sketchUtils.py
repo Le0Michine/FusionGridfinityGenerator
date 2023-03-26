@@ -15,7 +15,7 @@ def createRectangle(
     length: float,
     startPoint: adsk.core.Point3D,
     sketch: adsk.fusion.Sketch,
-    ):
+):
     constraints: adsk.fusion.GeometricConstraints = sketch.geometricConstraints
     dimensions: adsk.fusion.SketchDimensions = sketch.sketchDimensions
     lines: adsk.fusion.SketchLines = sketch.sketchCurves.sketchLines
@@ -58,7 +58,7 @@ def filterCirclesByRadius(
     radius: float,
     tolerance: float,
     sketchCircles: adsk.fusion.SketchCircles,
-    ):
+):
     filteredCircles = []
     for circle in sketchCircles:
         if abs (circle.radius - radius) < tolerance:
@@ -70,7 +70,7 @@ def createOffsetProfileSketch(
     planarEntity: adsk.core.Base,
     offsetValue: float,
     targetComponent: adsk.fusion.Component,
-    ):
+):
     sketches: adsk.fusion.Sketches = targetComponent.sketches
     sketch: adsk.fusion.Sketch = sketches.add(planarEntity)
     constraints: adsk.fusion.GeometricConstraints = sketch.geometricConstraints

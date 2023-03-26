@@ -804,6 +804,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
 
         # create base interface
         baseGeneratorInput = BaseGeneratorInput()
+        baseGeneratorInput.originPoint = gridfinityBinComponent.originConstructionPoint.geometry
         baseGeneratorInput.baseWidth = base_width_unit.value
         baseGeneratorInput.baseLength = base_length_unit.value
         baseGeneratorInput.xyTolerance = tolerance
