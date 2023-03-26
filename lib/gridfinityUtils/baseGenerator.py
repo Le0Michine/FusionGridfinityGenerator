@@ -224,10 +224,7 @@ def createGridfinityBase(
                 
                 if hadScrewHoleCircle:
                     innerGrooveProfiles.append(profile)
-
-            app.log("Inner Groove Profiles: " + str(len(innerGrooveProfiles)))
-            app.log("Outer Groove Profiles: " + str(len(outerGrooveProfiles)))
-
+                    
             printHelperOuterGrooveCutInput = extrudeFeatures.createInput(
                 commonUtils.objectCollectionFromList(outerGrooveProfiles),
                 adsk.fusion.FeatureOperations.CutFeatureOperation,
