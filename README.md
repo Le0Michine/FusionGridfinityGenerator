@@ -94,7 +94,7 @@ Download code into a location on your hard drive.
 git clone https://github.com/Le0Michine/FusionGridfinityGenerator.git
 ```
 - Option 2: Download ZIP file
-Use `Code / Download ZIP` option (or [click here to download the zip](https://github.com/Le0Michine/FusionGridfinityGenerator/archive/refs/heads/master.zip)) and unpack it into the target location
+  - Use `Code / Download ZIP` option (or use this [direct link to the zip](https://github.com/Le0Michine/FusionGridfinityGenerator/archive/refs/heads/master.zip)) and unpack it into the target location
 
 ### Step 2: Install as Add-In to Fusion 360
 - In Fusion open `Scripts and Add-Ins` window by pressing `Shift + S`.
