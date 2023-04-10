@@ -98,7 +98,7 @@ Use `Code / Download ZIP` option (or [click here to download the zip](https://gi
 
 ### Step 2: Install as Add-In to Fusion 360
 - In Fusion open `Scripts and Add-Ins` window by pressing `Shift + S`.
-  - It is also can be found in the UI `Design -> Utilities -> ADD-INS`
+  - It can also be found in the UI `Design -> Utilities -> ADD-INS`
 - Select `Add-Ins` tab and press `+` icon to add new add in
 - Select path to the repository downloaded in Step 1. Choose the folder containing `GridfinityGenerator.py`.
 - `GridfinityGenerator` should appear in the list of add ins
@@ -107,7 +107,7 @@ Use `Code / Download ZIP` option (or [click here to download the zip](https://gi
 
 ## Update
 
-To update the script download latest sources into the same location and relaunch fusion.
+To update the script download latest sources into the same location and relaunch Fusion.
 
 ## Credits
 
