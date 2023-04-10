@@ -1,7 +1,7 @@
 [![CC BY-NC-SA 4.0][cc-by-nc-sa-shield]][cc-by-nc-sa]
 
 ## Description
-Addin for Fusion 360 allowing quick generation of simple [gridfinity](https://www.youtube.com/watch?v=ra_9zU-mnl8) bins and baseplates. The created bodies are parametric and can be easily edited if needed before exporting. Bins have an option to be generated solid providing a kick start for specialized tool bins creation.
+Add-In for Fusion 360 allowing quick generation of simple [gridfinity](https://www.youtube.com/watch?v=ra_9zU-mnl8) bins and baseplates. The created bodies are parametric and can be easily edited if needed before exporting. Bins have an option to be generated solid providing a kick start for specialized tool bins creation.
 
 ## Features
 
@@ -31,13 +31,13 @@ Light | Skeleton with connection holes | Full
 - lip can have notches preventing bins from sliding when stacked
 - wall thickness can be adjusted
 - magnet sockets can be customized to allow snug fit of the magnets, or a different size
-- scre holes diameter can be adjuisted
-- when magnet and screw holes are enabled together a groove will be generated to help with printability
+- screw holes diameter can be adjusted
+- when magnet and screw holes are enabled together, a groove will be generated to help with printability
 - bin can be shelled with constant wall thickness to save printing time and filament
 - label tab can be generated (length, offset and overhang angle are adjustable)
 - allows generation of base or body separately, could be useful if need combine it with existing model
 - compartments can be configured to use uniform scale
-- custom compartmens layout is based on the uniform grid and allows merging multiple cells together, specifying custom depth and postion
+- custom compartmens layout is based on the uniform grid and allows merging multiple cells together, specifying custom depth and position
 
 #### Bin bottom options
 Solid bottom | With screw holes | With magnet cutouts | Combined
@@ -85,18 +85,25 @@ Bin for random round things
 
 ## Installation
 
-- Download code into a location on your hard drive.
+### Step 1: Download
+
+Download code into a location on your hard drive.
+- Option 1: Clone git repository
 
 ```
 git clone https://github.com/Le0Michine/FusionGridfinityGenerator.git
 ```
-Alternatively can use `Download ZIP` option and unpack it into the target location
+- Option 2: Download ZIP file
+Use `Code / Download ZIP` option (or [click here to download the zip](https://github.com/Le0Michine/FusionGridfinityGenerator/archive/refs/heads/master.zip)) and unpack it into the target location
 
-- In Fusion open `Scripts and Addins` window by pressing `shift + s`. It is also can be found in the UI `Design -> Utilities -> ADD-INS`
-- Select addins tab and press `+` icon to add new add in
-- Select path to the repository downloaded on the first step, selected folder should be the one containing `GridfinityGenerator.py` file, `GridfinityGenerator` should appear in the list of add ins
-- Select `GridfinityGenerator` and click run to launch the add in
-- `Gridfinity bin` and `Gridfinity baseplate` options should apperar in `Create` menu in the Solid body worspace environment
+### Step 2: Install as Add-In to Fusion 360
+- In Fusion open `Scripts and Add-Ins` window by pressing `Shift + S`.
+  - It is also can be found in the UI `Design -> Utilities -> ADD-INS`
+- Select `Add-Ins` tab and press `+` icon to add new add in
+- Select path to the repository downloaded in Step 1. Choose the folder containing `GridfinityGenerator.py`.
+- `GridfinityGenerator` should appear in the list of add ins
+- Select `GridfinityGenerator` and click `Run` to launch the add in
+- `Gridfinity bin` and `Gridfinity baseplate` options should appear in `Create` menu in the Solid body workspace environment
 
 ## Update
 
@@ -106,7 +113,7 @@ To update the script download latest sources into the same location and relaunch
 
 [Gridfinity](https://www.youtube.com/watch?v=ra_9zU-mnl8) by [Zack Freedman](https://www.youtube.com/c/ZackFreedman/about)
 
-This work is licensed under the same license as Gridfinity, being a 
+This work is licensed under the same license as Gridfinity, being a
 [Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License][cc-by-nc-sa].
 
 [![CC BY-NC-SA 4.0][cc-by-nc-sa-image]][cc-by-nc-sa]
