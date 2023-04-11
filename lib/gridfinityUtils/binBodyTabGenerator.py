@@ -39,18 +39,19 @@ def createGridfinityBinBodyTab(
     tabSketch.name = "tab sketch"
     tabSketchLine = tabSketch.sketchCurves.sketchLines
     tabTopEdgeHeight = input.origin.z
-    actualTabHeight = input.width / math.tan(input.overhangAngle)
+    actualTabWidth = input.width + BIN_TAB_EDGE_FILLET_RADIUS / math.tan((math.radians(90) - input.overhangAngle) / 2)
+    actualTabHeight = actualTabWidth / math.tan(input.overhangAngle)
     line1 = tabSketchLine.addByTwoPoints(
         tabSketch.modelToSketchSpace(adsk.core.Point3D.create(input.origin.x, input.origin.y, tabTopEdgeHeight)),
         tabSketch.modelToSketchSpace(adsk.core.Point3D.create(input.origin.x, input.origin.y, tabTopEdgeHeight - actualTabHeight)),
     )
     line2 = tabSketchLine.addByTwoPoints(
         tabSketch.modelToSketchSpace(adsk.core.Point3D.create(input.origin.x, input.origin.y, tabTopEdgeHeight)),
-        tabSketch.modelToSketchSpace(adsk.core.Point3D.create(input.origin.x, input.origin.y - input.width, tabTopEdgeHeight)),
+        tabSketch.modelToSketchSpace(adsk.core.Point3D.create(input.origin.x, input.origin.y - actualTabWidth, tabTopEdgeHeight)),
     )
     line3 = tabSketchLine.addByTwoPoints(
         tabSketch.modelToSketchSpace(adsk.core.Point3D.create(input.origin.x, input.origin.y, tabTopEdgeHeight - actualTabHeight)),
-        tabSketch.modelToSketchSpace(adsk.core.Point3D.create(input.origin.x, input.origin.y - input.width, tabTopEdgeHeight)),
+        tabSketch.modelToSketchSpace(adsk.core.Point3D.create(input.origin.x, input.origin.y - actualTabWidth, tabTopEdgeHeight)),
     )
 
     constraints: adsk.fusion.GeometricConstraints = tabSketch.geometricConstraints
