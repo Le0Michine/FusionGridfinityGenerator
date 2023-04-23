@@ -25,11 +25,11 @@ class BinBodyTabGeneratorInput():
 
     @property
     def origin(self) -> adsk.core.Point3D:
-        return self._originUnit
+        return self._origin
 
     @origin.setter
     def origin(self, value: adsk.core.Point3D):
-        self._originUnit = value
+        self._origin = value
 
     @property
     def overhangAngle(self) -> float:
