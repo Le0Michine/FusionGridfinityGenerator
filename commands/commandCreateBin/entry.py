@@ -542,7 +542,7 @@ def record_input_change(changed_input: adsk.core.CommandInput):
     elif changed_input.id == BIN_TYPE_DROPDOWN_ID:
         uiState.binBodyType = changed_input.selectedItem.name
     elif changed_input.id == BIN_WALL_THICKNESS_INPUT_ID:
-        uiState.binBodyType = changed_input.value
+        uiState.binWallThickness = changed_input.value
     elif changed_input.id == BIN_WITH_LIP_INPUT_ID:
         uiState.hasLip = changed_input.value
     elif changed_input.id == BIN_WITH_LIP_NOTCHES_INPUT_ID:
@@ -659,6 +659,7 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
             BIN_WITH_LIP_INPUT_ID,
             BIN_COMPARTMENTS_GRID_BASE_LENGTH_ID,
             BIN_COMPARTMENTS_GRID_BASE_WIDTH_ID,
+            BIN_WALL_THICKNESS_INPUT_ID,
         ]:
             update_actual_compartment_unit_dimensions(
                 staticInputCache.actualCompartmentDimensionUnitsTable,
