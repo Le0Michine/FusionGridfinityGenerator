@@ -419,7 +419,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
         actualDimensionsTable,
         adsk.core.ValueInput.createByReal(const.DIMENSION_DEFAULT_WIDTH_UNIT * 2 - const.BIN_XY_TOLERANCE * 2),
         adsk.core.ValueInput.createByReal(const.DIMENSION_DEFAULT_WIDTH_UNIT * 3 - const.BIN_XY_TOLERANCE * 2),
-        adsk.core.ValueInput.createByReal(const.DIMENSION_DEFAULT_HEIGHT_UNIT * 6 + const.BIN_LIP_EXTRA_HEIGHT - const.BIN_LIP_TOP_RECESS_HEIGHT))
+        adsk.core.ValueInput.createByReal(const.DIMENSION_DEFAULT_HEIGHT_UNIT * 5 + const.BIN_LIP_EXTRA_HEIGHT - const.BIN_LIP_TOP_RECESS_HEIGHT))
     staticInputCache.actualBinDimensionsTable = actualDimensionsTable
 
     binFeaturesGroup = inputs.addGroupCommandInput(BIN_FEATURES_GROUP, 'Bin features')
@@ -640,7 +640,7 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
         ]:
             actualWidth = uiState.baseWidth * uiState.binWidth - uiState.xyTolerance * 2
             actualLength = uiState.baseLength * uiState.binLength - uiState.xyTolerance * 2
-            actualHeight = uiState.heightUnit * (uiState.binHeight + 1) + ((const.BIN_LIP_EXTRA_HEIGHT - const.BIN_LIP_TOP_RECESS_HEIGHT) if uiState.hasLip else 0)
+            actualHeight = uiState.heightUnit * uiState.binHeight + ((const.BIN_LIP_EXTRA_HEIGHT - const.BIN_LIP_TOP_RECESS_HEIGHT) if uiState.hasLip else 0)
             update_actual_bin_dimensions(
                 staticInputCache.actualBinDimensionsTable,
                 adsk.core.ValueInput.createByReal(actualWidth),

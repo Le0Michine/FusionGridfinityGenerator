@@ -33,7 +33,8 @@ def createGridfinityBinBody(
 
     actualBodyWidth = (input.baseWidth * input.binWidth) - input.xyTolerance * 2.0
     actualBodyLength = (input.baseLength * input.binLength) - input.xyTolerance * 2.0
-    binBodyTotalHeight = input.binHeight * input.heightUnit + max(0, input.heightUnit - const.BIN_BASE_HEIGHT)
+    binHeightWithoutBase = input.binHeight - 1
+    binBodyTotalHeight = binHeightWithoutBase * input.heightUnit + max(0, input.heightUnit - const.BIN_BASE_HEIGHT)
     features: adsk.fusion.Features = targetComponent.features
     # create rectangle for the body
     binBodyExtrude = extrudeUtils.createBox(
@@ -61,7 +62,7 @@ def createGridfinityBinBody(
         lipOriginPoint = adsk.core.Point3D.create(
             0,
             0,
-            input.binHeight * input.heightUnit + max(0, input.heightUnit - const.BIN_BASE_HEIGHT)
+            binHeightWithoutBase * input.heightUnit + max(0, input.heightUnit - const.BIN_BASE_HEIGHT)
         )
         lipInput = BinBodyLipGeneratorInput()
         lipInput.baseLength = input.baseLength
