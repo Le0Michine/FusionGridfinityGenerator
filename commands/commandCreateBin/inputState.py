@@ -28,6 +28,7 @@ class InputState:
     compartmentsGridLength: int
     compartmentsGridType: str
     hasScoop: bool
+    scoopMaxRadius: float
     hasTab: bool
     tabLength: float
     tabWidth: float

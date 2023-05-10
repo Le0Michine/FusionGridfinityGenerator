@@ -52,6 +52,7 @@ BIN_BASIC_SIZES_GROUP = "bin_basic_sizes_group"
 BIN_DIMENSIONS_GROUP = "bin_dimensions_group"
 BIN_FEATURES_GROUP = "bin_features_group"
 BIN_COMPARTMENTS_GROUP_ID = 'compartments_group'
+BIN_SCOOP_GROUP_ID = 'bin_scoop_group'
 BIN_TAB_FEATURES_GROUP_ID = 'bin_tab_features_group'
 BIN_BASE_FEATURES_GROUP_ID = 'bin_base_features_group'
 USER_CHANGES_GROUP_ID = 'user_changes_group'
@@ -75,6 +76,7 @@ BIN_SCREW_DIAMETER_INPUT = 'screw_diameter'
 BIN_MAGNET_DIAMETER_INPUT = 'magnet_diameter'
 BIN_MAGNET_HEIGHT_INPUT = 'magnet_height'
 BIN_HAS_SCOOP_INPUT_ID = 'bin_has_scoop'
+BIN_SCOOP_MAX_RADIUS_INPUT_ID = 'bin_scoop_max_radius'
 BIN_HAS_TAB_INPUT_ID = 'bin_has_tab'
 BIN_TAB_LENGTH_INPUT_ID = 'bin_tab_length'
 BIN_TAB_WIDTH_INPUT_ID = 'bin_tab_width'
@@ -125,6 +127,7 @@ def defaultUiState():
         compartmentsGridLength=1,
         compartmentsGridType=BIN_COMPARTMENTS_GRID_TYPE_UNIFORM,
         hasScoop=False,
+        scoopMaxRadius=const.BIN_SCOOP_MAX_RADIUS,
         hasTab=False,
         tabLength=1,
         tabWidth=const.BIN_TAB_WIDTH,
@@ -344,6 +347,7 @@ def is_all_input_valid(inputs: adsk.core.CommandInputs):
     with_lip: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_WITH_LIP_INPUT_ID)
     with_lip_notches: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_WITH_LIP_NOTCHES_INPUT_ID)
     has_scoop: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_SCOOP_INPUT_ID)
+    binScoopMaxRadius: adsk.core.ValueCommandInput = inputs.itemById(BIN_SCOOP_MAX_RADIUS_INPUT_ID)
     hasTabInput: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_TAB_INPUT_ID)
     binTabLength: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_LENGTH_INPUT_ID)
     binTabWidth: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_WIDTH_INPUT_ID)
@@ -368,6 +372,8 @@ def is_all_input_valid(inputs: adsk.core.CommandInputs):
         result = result and bin_magnet_cutout_depth.value > 0
 
     if bin_generate_body.value and binTypeDropdownInput.selectedItem.name == BIN_TYPE_HOLLOW:
+        if has_scoop.value:
+            result = result and binScoopMaxRadius.value > 0
         if hasTabInput.value:
             result = result and binTabLength.value > 0
             result = result and binTabWidth.value > 0
@@ -459,7 +465,14 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     # textBox = compartmentsGroup.children.addTextBoxCommandInput(BIN_COMPARTMENTS_GRID_TYPE_INFO, "", BIN_COMPARTMENTS_GRID_TYPE_INFO_UNIFORM, 2, True)
     render_compartments_table(inputs, uiState.compartmentsGridType == BIN_COMPARTMENTS_GRID_TYPE_CUSTOM)
 
-    compartmentsGroup.children.addBoolValueInput(BIN_HAS_SCOOP_INPUT_ID, 'Add scoop (along bin width)', True, '', uiState.hasScoop)
+    binScoopGroup = compartmentsGroup.children.addGroupCommandInput(BIN_SCOOP_GROUP_ID, 'Scoop')
+    binScoopGroup.isExpanded = uiState.getGroupExpandedState(BIN_SCOOP_GROUP_ID)
+    binScoopGroup.children.addBoolValueInput(BIN_HAS_SCOOP_INPUT_ID, 'Add scoop (along bin width)', True, '', uiState.hasScoop)
+    binScoopGroup.children.addValueInput(BIN_SCOOP_MAX_RADIUS_INPUT_ID, 'Scoop max radius (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.scoopMaxRadius))
+    for input in binScoopGroup.children:
+        if not input.id == BIN_HAS_SCOOP_INPUT_ID:
+            input.isEnabled = uiState.hasScoop
+
     binTabFeaturesGroup = compartmentsGroup.children.addGroupCommandInput(BIN_TAB_FEATURES_GROUP_ID, 'Label tab')
     binTabFeaturesGroup.isExpanded = uiState.getGroupExpandedState(BIN_TAB_FEATURES_GROUP_ID)
     binTabFeaturesGroup.children.addBoolValueInput(BIN_HAS_TAB_INPUT_ID, 'Add label tab (along bin width)', True, '', uiState.hasTab)
@@ -555,6 +568,8 @@ def record_input_change(changed_input: adsk.core.CommandInput):
         uiState.compartmentsGridType = changed_input.selectedItem.name
     elif changed_input.id == BIN_HAS_SCOOP_INPUT_ID:
         uiState.hasScoop = changed_input.value
+    elif changed_input.id == BIN_SCOOP_MAX_RADIUS_INPUT_ID:
+        uiState.scoopMaxRadius = changed_input.value
     elif changed_input.id == BIN_HAS_TAB_INPUT_ID:
         uiState.hasTab = changed_input.value
     elif changed_input.id == BIN_TAB_LENGTH_INPUT_ID:
@@ -614,6 +629,7 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
     withLipInput: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_WITH_LIP_INPUT_ID)
     withLipNotchesInput: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_WITH_LIP_NOTCHES_INPUT_ID)
     hasScoopInput: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_SCOOP_INPUT_ID)
+    scoopMaxRadiusInput: adsk.core.ValueCommandInput = inputs.itemById(BIN_SCOOP_MAX_RADIUS_INPUT_ID)
     hasTabInput: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_TAB_INPUT_ID)
     tabLengthInput: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_LENGTH_INPUT_ID)
     tabWidthInput: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_WIDTH_INPUT_ID)
@@ -700,6 +716,8 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
                         input.isEnabled = hasBody.value and hasTabInput.value
         elif changed_input.id == BIN_WITH_LIP_INPUT_ID:
             withLipNotchesInput.isEnabled = withLipInput.value
+        elif changed_input.id == BIN_HAS_SCOOP_INPUT_ID:
+            scoopMaxRadiusInput.isEnabled = hasScoopInput.value
         elif changed_input.id == BIN_HAS_TAB_INPUT_ID:
             tabLengthInput.isEnabled = hasTabInput.value
             tabWidthInput.isEnabled = hasTabInput.value
@@ -774,6 +792,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
     with_lip: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_WITH_LIP_INPUT_ID)
     with_lip_notches: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_WITH_LIP_NOTCHES_INPUT_ID)
     has_scoop: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_SCOOP_INPUT_ID)
+    binScoopMaxRadius: adsk.core.ValueCommandInput = inputs.itemById(BIN_SCOOP_MAX_RADIUS_INPUT_ID)
     hasTabInput: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_TAB_INPUT_ID)
     binTabLength: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_LENGTH_INPUT_ID)
     binTabWidth: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_WIDTH_INPUT_ID)
@@ -848,6 +867,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
         binBodyInput.isSolid = isSolid or isShelled
         binBodyInput.wallThickness = bin_wall_thickness.value
         binBodyInput.hasScoop = has_scoop.value and isHollow
+        binBodyInput.scoopMaxRadius = binScoopMaxRadius.value
         binBodyInput.hasTab = hasTabInput.value and isHollow
         binBodyInput.tabLength = binTabLength.value
         binBodyInput.tabWidth = binTabWidth.value
