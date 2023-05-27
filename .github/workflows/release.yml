@@ -1,6 +1,7 @@
 on:
-  release:
-    types: [created]
+  push:
+    tags:
+      - '*'
 name: Handle Release
 jobs:
   generate:
@@ -16,9 +17,10 @@ jobs:
       - name: Build
         run: wix build GridfinityGenerator.wxs
       - name: Upload the artifacts
-        uses: skx/github-action-publish-binaries@release-1.3
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: svenstaro/upload-release-action@v2
         with:
-          releaseId: ${{ needs.create_release.outputs.id }}
-          args: 'GridfinityGenerator.msi'
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: 'GridfinityGenerator.msi'
+          tag: ${{ github.ref }}
+          asset_name: GridfinityGenerator-$tag.msi
+          body: test
