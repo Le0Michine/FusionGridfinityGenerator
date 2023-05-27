@@ -5,8 +5,16 @@ name: Handle Release
 jobs:
   generate:
     name: Create release-artifacts
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '7.0.x'
+      - name: Install wix
+      - run: dotnet tool install --global wix --version 4.0.0
+      - name: Build
+      - run: wix build GridfinityGenerator.wxs
       - name: Upload the artifacts
         uses: skx/github-action-publish-binaries@release-1.3
         env:
