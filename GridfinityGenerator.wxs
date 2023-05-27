@@ -1,0 +1,136 @@
+﻿<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+    <Package
+        Language="1033"
+        Manufacturer="Lev Mishin"
+        Name="GridfinityGenerator"
+        Version="1.0.0.0"
+        ProductCode="4f219648-a165-4f94-aa1a-e098f7fe2868"
+        UpgradeCode="{78245b85-bb5e-4e8f-ad9b-5977d70b5a64}"
+    >
+        <MediaTemplate EmbedCab="yes" />
+        <Upgrade Id="{78245b85-bb5e-4e8f-ad9b-5977d70b5a64}">
+            <UpgradeVersion OnlyDetect="no" Property="PREVIOUSFOUND"
+                            Minimum="1.0.0.0" IncludeMinimum="yes"
+                            Maximum="1.0.0.0" IncludeMaximum="no" />
+        </Upgrade>
+        <SummaryInformation Description="GridfinityGenerator for Fusion360 Addin" Keywords="GridfinityGenerator for Fusion360 Addin" />
+        <CustomAction Id="CA_INSTALLDIR" Execute="firstSequence" Property="INSTALLDIR" Value="[AppDataFolder]Autodesk/ApplicationPlugins/" />
+        <CustomAction Id="PreventDowngrading" Error="Newer version already installed." />
+        <AdminExecuteSequence>
+            <Custom Action="CA_INSTALLDIR" Condition="INSTALLDIR=&quot;&quot;" Before="CostInitialize" />
+        </AdminExecuteSequence>
+        <InstallExecuteSequence>
+            <Custom Action="PreventDowngrading" Condition="NEWERPRODUCTFOUND" After="FindRelatedProducts" />
+            <Custom Action="CA_INSTALLDIR" Condition="INSTALLDIR=&quot;&quot;" Before="CostInitialize" />
+            <RemoveExistingProducts Before="InstallInitialize" />
+        </InstallExecuteSequence>
+        <Feature Id="GridfinityGeneratorFeature">
+            <ComponentRef Id="commands" />
+            <ComponentRef Id="commands_commandCreateBaseplate_resources" />
+            <ComponentRef Id="commands_commandCreateBaseplate" />
+            <ComponentRef Id="commands_commandCreateBin_resources" />
+            <ComponentRef Id="commands_commandCreateBin" />
+            <ComponentRef Id="documentation_privacy_policy" />
+            <ComponentRef Id="lib_configUtils" />
+            <ComponentRef Id="lib_fusion360utils" />
+            <ComponentRef Id="lib_gridfinityUtils" />
+            <ComponentRef Id="root_files" />
+        </Feature>
+        <StandardDirectory Id="AppDataFolder">
+            <Directory Id="Autodesk" Name="Autodesk">
+                <Directory Id="ApplicationPlugins" ShortName="vkw8sbem" Name="ApplicationPlugins">
+                    <Directory Id="GridfinityGenerator" Name="GridfinityGenerator">
+                        <Directory Id="commands" Name="commands">
+                            <Directory Id="commandCreateBaseplate" Name="commandCreateBaseplate">
+                                <Directory Id="commandCreateBaseplate_commandConfig" Name="commandConfig">
+                                </Directory>
+                                <Directory Id="commandCreateBaseplate_resources" Name="resources">
+                                    <Component Id="commands_commandCreateBaseplate_resources" Guid="95ca6685-d930-46ff-b1bf-7fdc050f10eb">
+                                        <File Id="commandCreateBaseplate_resources_16x16.png" Source="commands\commandCreateBaseplate\resources\16x16.png" Name="16x16.png"/>
+                                        <File Id="commandCreateBaseplate_resources_32x32.png" Source="commands\commandCreateBaseplate\resources\32x32.png" Name="32x32.png"/>
+                                        <File Id="commandCreateBaseplate_resources_64x64.png" Source="commands\commandCreateBaseplate\resources\64x64.png" Name="64x64.png"/>
+                                    </Component>
+                                </Directory>
+                                <Component Id="commands_commandCreateBaseplate" Guid="2384cdb2-11f9-4df4-8c88-07ec46781160">
+                                    <File Id="commands_commandCreateBaseplate___init__.py" Source="commands\commandCreateBaseplate\__init__.py" Name="__init__.py"/>
+                                    <File Id="commands_commandCreateBaseplate_entry.py" Source="commands\commandCreateBaseplate\entry.py" Name="entry.py"/>
+                                </Component>
+                            </Directory>
+                            <Directory Id="commandCreateBin" Name="commandCreateBin">
+                                <Directory Id="commandCreateBin_commandConfig" Name="commandConfig">
+                                </Directory>
+                                <Directory Id="commandCreateBin_resources" Name="resources">
+                                    <Component Id="commands_commandCreateBin_resources" Guid="ebbbcb2a-0aac-4256-a414-a605de06050b">
+                                        <File Id="commandCreateBin_resources_16x16.png" Source="commands\commandCreateBin\resources\16x16.png" Name="16x16.png"/>
+                                        <File Id="commandCreateBin_resources_32x32.png" Source="commands\commandCreateBin\resources\32x32.png" Name="32x32.png"/>
+                                        <File Id="commandCreateBin_resources_64x64.png" Source="commands\commandCreateBin\resources\64x64.png" Name="64x64.png"/>
+                                    </Component>
+                                </Directory>
+                                <Component Id="commands_commandCreateBin" Guid="02ec2508-d05d-4232-9f5d-a8376d46292c">
+                                    <File Id="commands_commandCreateBin___init__.py" Source="commands\commandCreateBin\__init__.py" Name="__init__.py"/>
+                                    <File Id="commands_commandCreateBin_entry.py" Source="commands\commandCreateBin\entry.py" Name="entry.py"/>
+                                    <File Id="commands_commandCreateBin_inputState.py" Source="commands\commandCreateBin\inputState.py" Name="inputState.py"/>
+                                    <File Id="commands_commandCreateBin_staticInputCache.py" Source="commands\commandCreateBin\staticInputCache.py" Name="staticInputCache.py"/>
+                                </Component>
+                            </Directory>
+                            <Component Id="commands" Guid="c6d0942a-e863-4fb9-a085-3d36bdd3ad14">
+                                <File Id="commands___init__.py" Source="commands\__init__.py" Name="__init__.py"/>
+                            </Component>
+                        </Directory>
+                        <Directory Id="documentation" Name="documentation">
+                            <Component Id="documentation_privacy_policy" Guid="03c7097c-cc05-459d-b7c7-5bc868e383b9">
+                                <File Id="PRIVACY_POLICY.md" Source="documentation\PRIVACY_POLICY.md" Name="PRIVACY_POLICY.md"/>
+                            </Component>
+                        </Directory>
+                        <Directory Id="lib" Name="lib">
+                            <Directory Id="fusion360utils" Name="fusion360utils">
+                                <Component Id="lib_fusion360utils" Guid="16a38d53-27d3-4d4e-b9f9-f8280f2e0026">
+                                    <File Id="lib_fusion360utils___init__.py" Source="lib\fusion360utils\__init__.py" Name="__init__.py"/>
+                                    <File Id="event_utils.py" Source="lib\fusion360utils\event_utils.py" Name="event_utils.py"/>
+                                    <File Id="general_utils.py" Source="lib\fusion360utils\general_utils.py" Name="general_utils.py"/>
+                                </Component>
+                            </Directory>
+                            <Directory Id="gridfinityUtils" Name="gridfinityUtils">
+                                <Component Id="lib_gridfinityUtils" Guid="2465bf9a-a25d-4f12-9d81-2c3241b82264">
+                                    <File Id="baseGenerator.py" Source="lib\gridfinityUtils\baseGenerator.py" Name="baseGenerator.py"/>
+                                    <File Id="baseGeneratorInput.py" Source="lib\gridfinityUtils\baseGeneratorInput.py" Name="baseGeneratorInput.py"/>
+                                    <File Id="baseplateGenerator.py" Source="lib\gridfinityUtils\baseplateGenerator.py" Name="baseplateGenerator.py"/>
+                                    <File Id="baseplateGeneratorInput.py" Source="lib\gridfinityUtils\baseplateGeneratorInput.py" Name="baseplateGeneratorInput.py"/>
+                                    <File Id="binBodyCutoutGenerator.py" Source="lib\gridfinityUtils\binBodyCutoutGenerator.py" Name="binBodyCutoutGenerator.py"/>
+                                    <File Id="binBodyCutoutGeneratorInput.py" Source="lib\gridfinityUtils\binBodyCutoutGeneratorInput.py" Name="binBodyCutoutGeneratorInput.py"/>
+                                    <File Id="binBodyGenerator.py" Source="lib\gridfinityUtils\binBodyGenerator.py" Name="binBodyGenerator.py"/>
+                                    <File Id="binBodyGeneratorInput.py" Source="lib\gridfinityUtils\binBodyGeneratorInput.py" Name="binBodyGeneratorInput.py"/>
+                                    <File Id="binBodyLipGenerator.py" Source="lib\gridfinityUtils\binBodyLipGenerator.py" Name="binBodyLipGenerator.py"/>
+                                    <File Id="binBodyLipGeneratorInput.py" Source="lib\gridfinityUtils\binBodyLipGeneratorInput.py" Name="binBodyLipGeneratorInput.py"/>
+                                    <File Id="binBodyTabGenerator.py" Source="lib\gridfinityUtils\binBodyTabGenerator.py" Name="binBodyTabGenerator.py"/>
+                                    <File Id="binBodyTabGeneratorInput.py" Source="lib\gridfinityUtils\binBodyTabGeneratorInput.py" Name="binBodyTabGeneratorInput.py"/>
+                                    <File Id="combineUtils.py" Source="lib\gridfinityUtils\combineUtils.py" Name="combineUtils.py"/>
+                                    <File Id="commonUtils.py" Source="lib\gridfinityUtils\commonUtils.py" Name="commonUtils.py"/>
+                                    <File Id="const.py" Source="lib\gridfinityUtils\const.py" Name="const.py"/>
+                                    <File Id="edgeUtils.py" Source="lib\gridfinityUtils\edgeUtils.py" Name="edgeUtils.py"/>
+                                    <File Id="extrudeUtils.py" Source="lib\gridfinityUtils\extrudeUtils.py" Name="extrudeUtils.py"/>
+                                    <File Id="faceUtils.py" Source="lib\gridfinityUtils\faceUtils.py" Name="faceUtils.py"/>
+                                    <File Id="filletUtils.py" Source="lib\gridfinityUtils\filletUtils.py" Name="filletUtils.py"/>
+                                    <File Id="geometryUtils.py" Source="lib\gridfinityUtils\geometryUtils.py" Name="geometryUtils.py"/>
+                                    <File Id="patternUtils.py" Source="lib\gridfinityUtils\patternUtils.py" Name="patternUtils.py"/>
+                                    <File Id="shapeUtils.py" Source="lib\gridfinityUtils\shapeUtils.py" Name="shapeUtils.py"/>
+                                    <File Id="shellUtils.py" Source="lib\gridfinityUtils\shellUtils.py" Name="shellUtils.py"/>
+                                    <File Id="sketchUtils.py" Source="lib\gridfinityUtils\sketchUtils.py" Name="sketchUtils.py"/>
+                                </Component>
+                            </Directory>
+                            <Component Id="lib_configUtils" Guid="d1bf1f11-fd8a-4626-89c2-f2e4bd309491">
+                                <File Id="configUtils.py" Source="lib\configUtils.py" Name="configUtils.py"/>
+                            </Component>
+                        </Directory>
+                        <Component Id="root_files" Guid="ced44ccf-20a8-4344-90d3-54c16e4bf725">
+                            <File Id="GridfinityGenerator.py" Source="GridfinityGenerator.py" Name="GridfinityGenerator.py"/>
+                            <File Id="GridfinityGenerator.manifest" Source="GridfinityGenerator.manifest" Name="GridfinityGenerator.manifest"/>
+                            <File Id="config.py" Source="config.py" Name="config.py"/>
+                            <File Id="LICENSE.md" Source="LICENSE.md" Name="LICENSE.md"/>
+                        </Component>
+                    </Directory>
+                </Directory>
+            </Directory>
+        </StandardDirectory>
+    </Package>
+</Wix>

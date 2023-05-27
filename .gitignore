@@ -2,3 +2,5 @@ __pycache__
 /.vscode
 .env
 commandConfig
+*.msi
+*.wixpdb
