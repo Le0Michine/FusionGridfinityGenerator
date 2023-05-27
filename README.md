@@ -85,7 +85,16 @@ Bin for random round things
 
 ## Installation
 
-### Step 1: Download
+### For Windows
+
+- Download GridfinityGenerator.msi from latest release https://github.com/Le0Michine/FusionGridfinityGenerator/releases
+- Run GridfinityGenerator.msi and wait for installation to complete, it will automatically close
+- Relaunch Fusion 360
+- `Gridfinity bin` and `Gridfinity baseplate` options should appear in `Create` menu in the Solid body workspace environment
+
+
+### For other OS
+#### Step 1: Download
 
 Download code into a location on your hard drive.
 - Option 1: Clone git repository
@@ -96,7 +105,7 @@ git clone https://github.com/Le0Michine/FusionGridfinityGenerator.git
 - Option 2: Download ZIP file
   - Use `Code / Download ZIP` option (or use this [direct link to the zip](https://github.com/Le0Michine/FusionGridfinityGenerator/archive/refs/heads/master.zip)) and unpack it into the target location
 
-### Step 2: Install as Add-In to Fusion 360
+#### Step 2: Install as Add-In to Fusion 360
 - In Fusion open `Scripts and Add-Ins` window by pressing `Shift + S`.
   - It can also be found in the UI `Design -> Utilities -> ADD-INS`
 - Select `Add-Ins` tab and press `+` icon to add new add in
