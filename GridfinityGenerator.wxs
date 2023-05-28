@@ -54,6 +54,7 @@
                                 <Component Id="commands_commandCreateBaseplate" Guid="2384cdb2-11f9-4df4-8c88-07ec46781160">
                                     <File Id="commands_commandCreateBaseplate___init__.py" Source="commands\commandCreateBaseplate\__init__.py" Name="__init__.py"/>
                                     <File Id="commands_commandCreateBaseplate_entry.py" Source="commands\commandCreateBaseplate\entry.py" Name="entry.py"/>
+                                    <File Id="commands_commandCreateBaseplate_inputState.py" Source="commands\commandCreateBaseplate\inputState.py" Name="inputState.py"/>
                                 </Component>
                             </Directory>
                             <Directory Id="commandCreateBin" Name="commandCreateBin">

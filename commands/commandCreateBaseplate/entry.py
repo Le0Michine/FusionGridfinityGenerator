@@ -9,6 +9,7 @@ from ...lib.gridfinityUtils.const import DIMENSION_DEFAULT_WIDTH_UNIT
 from ...lib.gridfinityUtils.baseplateGenerator import createGridfinityBaseplate
 from ...lib.gridfinityUtils.baseplateGeneratorInput import BaseplateGeneratorInput
 from ...lib.gridfinityUtils import const
+from .inputState import InputState
 
 app = adsk.core.Application.get()
 ui = app.userInterface
@@ -64,6 +65,16 @@ BASEPLATE_HAS_CONNECTION_HOLE_INPUT = 'has_connection_hole'
 BASEPLATE_CONNECTION_HOLE_DIAMETER_INPUT = 'connection_hole_diameter'
 
 SHOW_PREVIEW_INPUT = 'show_preview'
+
+INPUTS_VALID = True
+
+def getErrorMessage():
+    stackTrace = traceback.format_exc();
+    return f"An unknonwn error occurred, please validate your inputs and try again:\n{stackTrace}"
+
+def showErrorInMessageBox():
+    if ui:
+        ui.messageBox(getErrorMessage(), f"{CMD_NAME} Error")
 
 # Executed when add-in is run.
 def start():
@@ -125,12 +136,20 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     # Create a value input field and set the default using 1 unit of the default length unit.
     defaultLengthUnits = app.activeProduct.unitsManager.defaultLengthUnits
     basicSizesGroup = inputs.addGroupCommandInput('basic_sizes', 'Basic size')
-    basicSizesGroup.children.addValueInput(BASEPLATE_BASE_UNIT_WIDTH_INPUT, 'Base width unit (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(DIMENSION_DEFAULT_WIDTH_UNIT))
-    basicSizesGroup.children.addValueInput(BIN_XY_TOLERANCE_INPUT_ID, 'Bin xy tolerance (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.BIN_XY_TOLERANCE))
+    baseWidthUnitInput = basicSizesGroup.children.addValueInput(BASEPLATE_BASE_UNIT_WIDTH_INPUT, 'Base width unit (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(DIMENSION_DEFAULT_WIDTH_UNIT))
+    baseWidthUnitInput.minimumValue = 1
+    baseWidthUnitInput.isMinimumInclusive = True
+
+    xyClearanceInput = basicSizesGroup.children.addValueInput(BIN_XY_TOLERANCE_INPUT_ID, 'Bin xy tolerance (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.BIN_XY_TOLERANCE))
+    xyClearanceInput.minimumValue = 0.01
+    xyClearanceInput.isMinimumInclusive = True
+    xyClearanceInput.maximumValue = 0.05
+    xyClearanceInput.isMaximumInclusive = True
+    xyClearanceInput.tooltip = "Must be within range [0.1, 0.5]mm"
 
     mainDimensionsGroup = inputs.addGroupCommandInput('xy_dimensions', 'Main dimensions')
-    mainDimensionsGroup.children.addValueInput(BASEPLATE_WIDTH_INPUT, 'Plate width (u)', '', adsk.core.ValueInput.createByString('2'))
-    mainDimensionsGroup.children.addValueInput(BASEPLATE_LENGTH_INPUT, 'Plate length (u)', '', adsk.core.ValueInput.createByString('3'))
+    mainDimensionsGroup.children.addIntegerSpinnerCommandInput(BASEPLATE_WIDTH_INPUT, 'Plate width (u)', 1, 100, 1, 2)
+    mainDimensionsGroup.children.addIntegerSpinnerCommandInput(BASEPLATE_LENGTH_INPUT, 'Plate length (u)', 1, 100, 1, 3)
 
     plateFeaturesGroup = inputs.addGroupCommandInput('plate_features', 'Features')
     plateTypeDropdown = plateFeaturesGroup.children.addDropDownCommandInput(BASEPLATE_TYPE_DROPDOWN, 'Baseplate type', adsk.core.DropDownStyles.LabeledIconDropDownStyle)
@@ -145,14 +164,36 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
 
     screwHoleGroup = plateFeaturesGroup.children.addGroupCommandInput('screw_hole_group', 'Screw holes')
     screwHoleGroup.children.addBoolValueInput(BASEPLATE_WITH_SCREWS_INPUT, 'Add screw holes', True, '', True)
-    screwHoleGroup.children.addValueInput(BASEPLATE_SCREW_DIAMETER_INPUT, 'Screw hole diameter', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.DIMENSION_PLATE_SCREW_HOLE_DIAMETER))
-    screwHoleGroup.children.addValueInput(BASEPLATE_SCREW_HEIGHT_INPUT, 'Screw head cutout diameter', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.DIMENSION_SCREW_HEAD_CUTOUT_DIAMETER))
+    screwSizeInput = screwHoleGroup.children.addValueInput(BASEPLATE_SCREW_DIAMETER_INPUT, 'Screw hole diameter', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.DIMENSION_PLATE_SCREW_HOLE_DIAMETER))
+    screwSizeInput.minimumValue = 0.1
+    screwSizeInput.isMinimumInclusive = True
+    screwSizeInput.maximumValue = 1
+    screwSizeInput.isMaximumInclusive = True
+
+    screwHeadSizeInput = screwHoleGroup.children.addValueInput(BASEPLATE_SCREW_HEIGHT_INPUT, 'Screw head cutout diameter', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.DIMENSION_SCREW_HEAD_CUTOUT_DIAMETER))
+    screwHeadSizeInput.minimumValue = 0.2
+    screwHeadSizeInput.isMinimumInclusive = True
+    screwHeadSizeInput.maximumValue = 1.5
+    screwHeadSizeInput.isMaximumInclusive = True
+    screwHeadSizeInput.tooltip = "Must be greater than screw diameter"
 
     advancedPlateSizeGroup = plateFeaturesGroup.children.addGroupCommandInput('advanced_plate_size_group', 'Advanced plate size options')
-    advancedPlateSizeGroup.children.addValueInput(BASEPLATE_EXTRA_THICKNESS_INPUT, 'Extra bottom thickness', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.BASEPLATE_EXTRA_HEIGHT))
-    advancedPlateSizeGroup.children.addValueInput(BASEPLATE_BIN_Z_CLEARANCE_INPUT, 'Clearance between baseplate and bin', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.BASEPLATE_BIN_Z_CLEARANCE))
+    extraBottomThicknessInput = advancedPlateSizeGroup.children.addValueInput(BASEPLATE_EXTRA_THICKNESS_INPUT, 'Extra bottom thickness', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.BASEPLATE_EXTRA_HEIGHT))
+    extraBottomThicknessInput.minimumValue = 0
+    extraBottomThicknessInput.isMinimumInclusive = False
+
+    verticalClearanceInput = advancedPlateSizeGroup.children.addValueInput(BASEPLATE_BIN_Z_CLEARANCE_INPUT, 'Clearance between baseplate and bin', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.BASEPLATE_BIN_Z_CLEARANCE))
+    verticalClearanceInput.minimumValue = 0
+    verticalClearanceInput.isMinimumInclusive = True
+    verticalClearanceInput.maximumValue = 0.3
+    verticalClearanceInput.isMaximumInclusive = True
+    
     advancedPlateSizeGroup.children.addBoolValueInput(BASEPLATE_HAS_CONNECTION_HOLE_INPUT, 'Add connection holes',  True, '', False)
-    advancedPlateSizeGroup.children.addValueInput(BASEPLATE_CONNECTION_HOLE_DIAMETER_INPUT, 'Connection hole diameter', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.DIMENSION_PLATE_CONNECTION_SCREW_HOLE_DIAMETER))
+    connectionHoleSizeInput = advancedPlateSizeGroup.children.addValueInput(BASEPLATE_CONNECTION_HOLE_DIAMETER_INPUT, 'Connection hole diameter', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.DIMENSION_PLATE_CONNECTION_SCREW_HOLE_DIAMETER))
+    connectionHoleSizeInput.minimumValue = 0.1
+    connectionHoleSizeInput.isMinimumInclusive = True
+    connectionHoleSizeInput.maximumValue = 0.5
+    connectionHoleSizeInput.isMaximumInclusive = True
 
     previewGroup = inputs.addGroupCommandInput('preview_group', 'Preview')
     previewGroup.children.addBoolValueInput(SHOW_PREVIEW_INPUT, 'Show preview (slow)', True, '', False)
@@ -181,7 +222,11 @@ def command_preview(args: adsk.core.CommandEventArgs):
     inputs = args.command.commandInputs
     showPreview: adsk.core.BoolValueCommandInput = inputs.itemById(SHOW_PREVIEW_INPUT)
     if showPreview.value:
-        generateBaseplate(args)
+        if INPUTS_VALID:
+            generateBaseplate(args)
+        else:
+            args.executeFailed = True
+            args.executeFailedMessage = "Some inputs are invalid, unable to generate preview"
 
 
 # This event handler is called when the user changes anything in the command dialog
@@ -201,13 +246,21 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
     futil.log(f'{CMD_NAME} Validate Input Event')
 
     inputs = args.inputs
+    inputsState = getInputsState(inputs)
     
     # Verify the validity of the input values. This controls if the OK button is enabled or not.
-    valueInput = inputs.itemById('value_input')
-    if valueInput.value >= 0:
-        args.areInputsValid = True
-    else:
-        args.areInputsValid = False
+    INPUTS_VALID = inputsState.baseWidth >= 1 \
+        and inputsState.xyTolerance >= 0.01 \
+        and inputsState.xyTolerance <= 0.05 \
+        and inputsState.plateWidth > 0 \
+        and inputsState.plateLength > 0 \
+        and (not inputsState.hasMagnetSockets or (inputsState.magnetSocketSize <= 1 and inputsState.magnetSocketSize > 0 and inputsState.magnetSocketDepth > 0)) \
+        and (not inputsState.hasScrewHoles or (inputsState.screwHoleSize > 0 and inputsState.screwHoleSize <= 1 and inputsState.screwHeadSize > inputsState.screwHoleSize and inputsState.screwHeadSize <= 1.5)) \
+        and (not inputsState.hasConnectionHoles or (inputsState.connectionHoleSize > 0 and inputsState.connectionHoleSize <= 0.5)) \
+        and (inputsState.extraBottomThickness > 0)
+
+
+    args.areInputsValid = INPUTS_VALID
         
 
 # This event handler is called when the command terminates.
@@ -224,6 +277,47 @@ def generateBaseplate(args: adsk.core.CommandEventArgs):
     futil.log(f'{CMD_NAME} Generating baseplate')
      # Get a reference to command's inputs.
     inputs = args.command.commandInputs
+    inputsState = getInputsState(inputs)
+
+    try:
+        des = adsk.fusion.Design.cast(app.activeProduct)
+        root = adsk.fusion.Component.cast(des.rootComponent)
+        baseplateName = 'Gridfinity baseplate {}x{}'.format(int(inputsState.plateLength), int(inputsState.plateWidth))
+
+        # create new component
+        newCmpOcc = adsk.fusion.Occurrences.cast(root.occurrences).addNewComponent(adsk.core.Matrix3D.create())
+
+        newCmpOcc.component.name = baseplateName
+        newCmpOcc.activate()
+        gridfinityBaseplateComponent: adsk.fusion.Component = newCmpOcc.component
+        baseplateGeneratorInput = BaseplateGeneratorInput()
+
+        baseplateGeneratorInput.baseWidth = inputsState.baseWidth
+        baseplateGeneratorInput.baseLength = inputsState.baseWidth
+        baseplateGeneratorInput.xyTolerance = inputsState.xyTolerance
+        baseplateGeneratorInput.baseplateWidth = inputsState.plateWidth
+        baseplateGeneratorInput.baseplateLength = inputsState.plateLength
+        baseplateGeneratorInput.hasExtendedBottom = not inputsState.plateType == BASEPLATE_TYPE_LIGHT
+        baseplateGeneratorInput.hasSkeletonizedBottom = inputsState.plateType == BASEPLATE_TYPE_SKELETONIZED
+        baseplateGeneratorInput.hasMagnetCutouts = inputsState.hasMagnetSockets
+        baseplateGeneratorInput.magnetCutoutsDiameter = inputsState.magnetSocketSize
+        baseplateGeneratorInput.magnetCutoutsDepth = inputsState.magnetSocketDepth
+        baseplateGeneratorInput.hasScrewHoles = inputsState.hasScrewHoles
+        baseplateGeneratorInput.screwHolesDiameter = inputsState.screwHoleSize
+        baseplateGeneratorInput.screwHeadCutoutDiameter = inputsState.screwHeadSize
+        baseplateGeneratorInput.bottomExtensionHeight = inputsState.extraBottomThickness
+        baseplateGeneratorInput.binZClearance = inputsState.verticalClearance
+        baseplateGeneratorInput.hasConnectionHoles = inputsState.hasConnectionHoles
+        baseplateGeneratorInput.connectionScrewHolesDiameter = inputsState.connectionHoleSize
+
+        baseplateBody = createGridfinityBaseplate(baseplateGeneratorInput, gridfinityBaseplateComponent)
+        baseplateBody.name = baseplateName
+        
+    except:
+        args.executeFailed = True
+        args.executeFailedMessage = getErrorMessage()
+
+def getInputsState(inputs: adsk.core.CommandInputs):
     base_width_unit: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_BASE_UNIT_WIDTH_INPUT)
     xy_tolerance: adsk.core.ValueCommandInput = inputs.itemById(BIN_XY_TOLERANCE_INPUT_ID)
     plate_width: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_WIDTH_INPUT)
@@ -243,41 +337,20 @@ def generateBaseplate(args: adsk.core.CommandEventArgs):
     hasConnectionHoles: adsk.core.BoolValueCommandInput = inputs.itemById(BASEPLATE_HAS_CONNECTION_HOLE_INPUT)
     connectionHoleDiameter: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_CONNECTION_HOLE_DIAMETER_INPUT)
 
-    # Do something interesting
-    try:
-        des = adsk.fusion.Design.cast(app.activeProduct)
-        root = adsk.fusion.Component.cast(des.rootComponent)
-        baseplateName = 'Gridfinity baseplate {}x{}'.format(int(plate_length.value), int(plate_width.value))
-
-        # create new component
-        newCmpOcc = adsk.fusion.Occurrences.cast(root.occurrences).addNewComponent(adsk.core.Matrix3D.create())
-
-        newCmpOcc.component.name = baseplateName
-        newCmpOcc.activate()
-        gridfinityBaseplateComponent: adsk.fusion.Component = newCmpOcc.component
-        baseplateGeneratorInput = BaseplateGeneratorInput()
-
-        baseplateGeneratorInput.baseWidth = base_width_unit.value
-        baseplateGeneratorInput.baseLength = base_width_unit.value
-        baseplateGeneratorInput.baseplateWidth = plate_width.value
-        baseplateGeneratorInput.baseplateLength = plate_length.value
-        baseplateGeneratorInput.hasExtendedBottom = not plateTypeDropdown.selectedItem.name == BASEPLATE_TYPE_LIGHT
-        baseplateGeneratorInput.hasSkeletonizedBottom = plateTypeDropdown.selectedItem.name == BASEPLATE_TYPE_SKELETONIZED
-        baseplateGeneratorInput.hasMagnetCutouts = withMagnets.value
-        baseplateGeneratorInput.magnetCutoutsDiameter = magnetDiameter.value
-        baseplateGeneratorInput.magnetCutoutsDepth = magnetHeight.value
-        baseplateGeneratorInput.hasScrewHoles = withScrews.value
-        baseplateGeneratorInput.screwHolesDiameter = screwDiameter.value
-        baseplateGeneratorInput.screwHeadCutoutDiameter = screwHeadDiameter.value
-        baseplateGeneratorInput.binZClearance = binZClearance.value
-        baseplateGeneratorInput.bottomExtensionHeight = extraThickness.value
-        baseplateGeneratorInput.hasConnectionHoles = hasConnectionHoles.value
-        baseplateGeneratorInput.connectionScrewHolesDiameter = connectionHoleDiameter.value
-        baseplateGeneratorInput.xyTolerance = xy_tolerance.value
-
-        baseplateBody = createGridfinityBaseplate(baseplateGeneratorInput, gridfinityBaseplateComponent)
-        baseplateBody.name = baseplateName
-        
-    except:
-        if ui:
-            ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
+    return InputState(
+        base_width_unit.value,
+        xy_tolerance.value,
+        plate_width.value,
+        plate_length.value,
+        plateTypeDropdown.selectedItem.name,
+        withMagnets.value,
+        magnetDiameter.value,
+        magnetHeight.value,
+        withScrews.value,
+        screwDiameter.value,
+        screwHeadDiameter.value,
+        extraThickness.value,
+        binZClearance.value,
+        hasConnectionHoles.value,
+        connectionHoleDiameter.value
+    )
