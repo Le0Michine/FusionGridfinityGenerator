@@ -56,10 +56,10 @@ def createGridfinityBinBodyCutout(
     if input.hasScoop:
         [innerCutoutScoopFace, innerCutoputScoopOppositeFace] = getInnerCutoutScoopFace(innerCutoutBody)
         scoopEdge = faceUtils.getBottomHorizontalEdge(innerCutoutScoopFace.edges)
-        scoopRadius = min(const.BIN_SCOOP_MAX_RADIUS, input.height)
+        scoopMaxRadius = min(input.scoopMaxRadius, input.height) if min(input.scoopMaxRadius, input.height) >= input.filletRadius else input.filletRadius
         filletUtils.createFillet(
             [scoopEdge],
-            scoopRadius,
+            scoopMaxRadius,
             False,
             targetComponent
         )

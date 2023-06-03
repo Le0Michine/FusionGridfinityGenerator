@@ -5,6 +5,7 @@ from . import const
 class BinBodyCutoutGeneratorInput():
     def __init__(self):
         self.hasScoop = False
+        self.scoopMaxRadius = const.BIN_SCOOP_MAX_RADIUS
         self.tabOverhangAngle = const.BIN_TAB_OVERHANG_ANGLE
         self.tabPosition = 0
         self.tabLength = 1
@@ -50,6 +51,14 @@ class BinBodyCutoutGeneratorInput():
     @hasScoop.setter
     def hasScoop(self, value: bool):
         self._hasScoop = value
+
+    @property
+    def scoopMaxRadius(self) -> float:
+        return self._scoopMaxRadius
+
+    @scoopMaxRadius.setter
+    def scoopMaxRadius(self, value: float):
+        self._scoopMaxRadius = value
 
     @property
     def filletRadius(self) -> float:

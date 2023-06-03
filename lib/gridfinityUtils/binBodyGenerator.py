@@ -135,6 +135,7 @@ def createGridfinityBinBody(
                 compartmentLengthUnit * compartment.length + (compartment.length - 1) * input.wallThickness,
                 min(binBodyTotalHeight - const.BIN_COMPARTMENT_BOTTOM_THICKNESS, compartment.depth),
                 input.hasScoop,
+                input.scoopMaxRadius,
                 input.hasTab,
                 max(0, min(input.tabLength, input.binWidth)) * input.baseWidth,
                 input.tabWidth,
@@ -168,6 +169,7 @@ def createCompartment(
         length: float,
         depth: float,
         hasScoop: bool,
+        scoopMaxRadius: float,
         hasTab: bool,
         tabLength: float,
         tabWidth: float,
@@ -185,6 +187,7 @@ def createCompartment(
     innerCutoutInput.length = length
     innerCutoutInput.height = depth
     innerCutoutInput.hasScoop = hasScoop
+    innerCutoutInput.scoopMaxRadius = scoopMaxRadius
     innerCutoutInput.hasTab = hasTab
     innerCutoutInput.tabLength = tabLength
     innerCutoutInput.tabWidth = tabWidth
