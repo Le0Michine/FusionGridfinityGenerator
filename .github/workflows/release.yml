@@ -12,16 +12,19 @@ jobs:
       - uses: actions/setup-dotnet@v3
         with:
           dotnet-version: '7.0.x'
+      - name: Get the version
+        id: get_version
+        run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
       - name: Install wix
         run: dotnet tool install --global wix --version 4.0.0
       - name: Build Installer
-        run: wix build GridfinityGenerator.wxs -o dist/GridfinityGenerator-${{ github.ref }}
+        run: wix build GridfinityGenerator.wxs -o dist/GridfinityGenerator-${{ steps.get_version.outputs.VERSION }}
       - name: Create zip
         uses: vimtor/action-zip@v1
         with:
           files: GridfinityGenerator.manifest GridfinityGenerator.py LICENSE.md lib/ commands/ documentation/PRIVACY_POLICY.md
           recursive: true
-          dest: dist/GridfinityGenerator-${{ github.ref }}.zip
+          dest: dist/GridfinityGenerator-${{ steps.get_version.outputs.VERSION }}.zip
       - name: Upload the artifacts
         uses: svenstaro/upload-release-action@v2
         with:
