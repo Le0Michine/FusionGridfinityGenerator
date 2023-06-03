@@ -359,8 +359,8 @@ def is_all_input_valid(inputs: adsk.core.CommandInputs):
     compartmentsX: adsk.core.IntegerSpinnerCommandInput = inputs.itemById(BIN_COMPARTMENTS_GRID_BASE_WIDTH_ID)
     compartmentsY: adsk.core.IntegerSpinnerCommandInput = inputs.itemById(BIN_COMPARTMENTS_GRID_BASE_LENGTH_ID)
 
-    result = result and base_width_unit.value > 0.1
-    result = result and base_length_unit.value > 0.1
+    result = result and base_width_unit.value > 1
+    result = result and base_length_unit.value > 1
     result = result and height_unit.value > 0.5
     result = result and xy_tolerance.value >= 0.01 and xy_tolerance.value <= 0.05
     result = result and bin_width.value > 0
