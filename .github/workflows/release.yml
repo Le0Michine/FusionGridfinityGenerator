@@ -4,7 +4,7 @@ on:
       - '*'
 name: Handle Release
 jobs:
-  generate:
+  generate-installer:
     name: Create release-artifacts
     runs-on: windows-latest
     steps:
@@ -14,13 +14,29 @@ jobs:
           dotnet-version: '7.0.x'
       - name: Install wix
         run: dotnet tool install --global wix --version 4.0.0
-      - name: Build
-        run: wix build GridfinityGenerator.wxs
+      - name: Build Installer
+        run: wix build GridfinityGenerator.wxs -o dist/GridfinityGenerator-${{ github.ref }}
+      - name: Create zip
+        uses: vimtor/action-zip@v1
+        with:
+          files: GridfinityGenerator.manifest GridfinityGenerator.py LICENSE.md lib/ commands/ documentation/PRIVACY_POLICY.md
+          recursive: true
+          dest: dist/GridfinityGenerator-${{ github.ref }}.zip
       - name: Upload the artifacts
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: 'GridfinityGenerator.msi'
+          file: 'dist/GridfinityGenerator*'
           tag: ${{ github.ref }}
-          asset_name: GridfinityGenerator-$tag.msi
-          body: test
+          body: TBD
+  generate-zip:
+    name: Create zip file for manual installation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Create zip
+        uses: vimtor/action-zip@v1
+        with:
+          files: GridfinityGenerator.manifest GridfinityGenerator.py LICENSE.md lib/ commands/ documentation/PRIVACY_POLICY.md
+          recursive: true
+          dest: GridfinityGenerator.zip
