@@ -19,7 +19,7 @@ jobs:
       - name: Create zip
         uses: vimtor/action-zip@v1
         with:
-          files: GridfinityGenerator.manifest GridfinityGenerator.py LICENSE.md lib/ commands/ documentation/PRIVACY_POLICY.md
+          files: GridfinityGenerator.manifest GridfinityGenerator.py config.py LICENSE.md lib/ commands/ documentation/PRIVACY_POLICY.md
           recursive: false
           dest: dist/GridfinityGenerator-${{ github.ref_name }}.zip
       - name: Upload the artifacts
