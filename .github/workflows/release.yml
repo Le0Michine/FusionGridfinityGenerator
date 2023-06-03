@@ -15,7 +15,7 @@ jobs:
       - name: Install wix
         run: dotnet tool install --global wix --version 4.0.0
       - name: Build Installer
-        run: wix build GridfinityGenerator.wxs -o dist/GridfinityGenerator-${{ github.ref_name }}
+        run: wix build GridfinityGenerator.wxs -o dist/GridfinityGenerator-${{ github.ref_name }}.msi
       - name: Create zip
         uses: vimtor/action-zip@v1
         with:
