@@ -93,7 +93,7 @@ Bin for random round things
 - `Gridfinity bin` and `Gridfinity baseplate` options should appear in `Create` menu in the Solid body workspace environment
 
 
-### From sources
+### From source code
 #### Step 1: Download
 
 Download code into a location on your hard drive.
