@@ -85,15 +85,15 @@ Bin for random round things
 
 ## Installation
 
-### For Windows
+### Via Autodesk App Store
 
-- Download GridfinityGenerator.msi from latest release https://github.com/Le0Michine/FusionGridfinityGenerator/releases
-- Run GridfinityGenerator.msi and wait for installation to complete, it will automatically close
+- Download GridfinityGenerator installer from [Autodesk App Store](https://apps.autodesk.com/FUSION/en/Detail/Index?id=7197558650811789)
+- Run installer and wait for installation to complete, it will automatically close
 - Relaunch Fusion 360
 - `Gridfinity bin` and `Gridfinity baseplate` options should appear in `Create` menu in the Solid body workspace environment
 
 
-### For other OS
+### From sources
 #### Step 1: Download
 
 Download code into a location on your hard drive.
