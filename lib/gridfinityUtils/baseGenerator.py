@@ -65,7 +65,7 @@ def createGridfinityBase(
     basePlateSketch: adsk.fusion.Sketch = sketches.add(baseConstructionPlane)
     rectangleOrigin = basePlateSketch.modelToSketchSpace(input.originPoint)
     createRectangle(actual_base_width, actual_base_length,rectangleOrigin, basePlateSketch)
-        
+
     # extrude top section
     topSectionExtrudeDepth = adsk.core.ValueInput.createByReal(const.BIN_BASE_TOP_SECTION_HEIGH)
     topSectionExtrudeInput = extrudeFeatures.createInput(basePlateSketch.profiles.item(0),
@@ -122,8 +122,11 @@ def createGridfinityBase(
     cutoutBodies = adsk.core.ObjectCollection.create()
 
     baseBottomPlane = baseBottomExtrude.endFaces.item(0)
-    baseCenterPoint = adsk.core.Point3D.create(actual_base_width / 2, actual_base_length / 2, baseBottomPlane.boundingBox.minPoint.z)
-    baseHoleCenterPoint = adsk.core.Point3D.create(baseCenterPoint.x - const.DIMENSION_SCREW_HOLES_DISTANCE / 2, baseCenterPoint.y - const.DIMENSION_SCREW_HOLES_DISTANCE / 2, baseCenterPoint.z)
+    baseHoleCenterPoint = adsk.core.Point3D.create(
+        const.DIMENSION_SCREW_HOLES_OFFSET - input.xyTolerance,
+        const.DIMENSION_SCREW_HOLES_OFFSET - input.xyTolerance,
+        baseBottomPlane.boundingBox.minPoint.z
+    )
     if input.hasScrewHoles:
         screwHoleBody = shapeUtils.simpleCylinder(
             baseBottomPlane,
@@ -183,14 +186,16 @@ def createGridfinityBase(
         if cutoutBodies.count > 1:
             joinFeature = combineUtils.joinBodies(cutoutBodies.item(0), commonUtils.objectCollectionFromList(list(cutoutBodies)[1:]), targetComponent)
             cutoutBodies = commonUtils.objectCollectionFromList(joinFeature.bodies)
+        patternSpacingX = input.baseWidth - const.DIMENSION_SCREW_HOLES_OFFSET * 2
+        patternSpacingY = input.baseLength - const.DIMENSION_SCREW_HOLES_OFFSET * 2
         patternInput = rectangularPatternFeatures.createInput(cutoutBodies,
             targetComponent.xConstructionAxis,
             adsk.core.ValueInput.createByReal(2),
-            adsk.core.ValueInput.createByReal(const.DIMENSION_SCREW_HOLES_DISTANCE),
+            adsk.core.ValueInput.createByReal(patternSpacingX),
             adsk.fusion.PatternDistanceType.SpacingPatternDistanceType)
         patternInput.directionTwoEntity = targetComponent.yConstructionAxis
         patternInput.quantityTwo = adsk.core.ValueInput.createByReal(2)
-        patternInput.distanceTwo = adsk.core.ValueInput.createByReal(const.DIMENSION_SCREW_HOLES_DISTANCE)
+        patternInput.distanceTwo = adsk.core.ValueInput.createByReal(patternSpacingY)
         patternFeature = rectangularPatternFeatures.add(patternInput)
         combineUtils.cutBody(baseBody, commonUtils.objectCollectionFromList(list(cutoutBodies) + list(patternFeature.bodies)), targetComponent)
 

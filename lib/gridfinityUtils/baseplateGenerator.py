@@ -18,7 +18,11 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
     cuttingTools: list[adsk.fusion.BRepBody] = [baseBody]
     extraCutoutBodies: list[adsk.fusion.BRepBody] = []
 
-    holeCenterPoint = adsk.core.Point3D.create(input.baseWidth / 2 - input.xyTolerance - const.DIMENSION_SCREW_HOLES_DISTANCE / 2, input.baseLength / 2 - input.xyTolerance - const.DIMENSION_SCREW_HOLES_DISTANCE / 2, 0)
+    holeCenterPoint = adsk.core.Point3D.create(
+        const.DIMENSION_SCREW_HOLES_OFFSET - input.xyTolerance,
+        const.DIMENSION_SCREW_HOLES_OFFSET - input.xyTolerance,
+        0
+    )
 
     if input.hasSkeletonizedBottom:
         centerCutoutSketch = baseGenerator.createCircleAtPointSketch(
@@ -182,10 +186,12 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
         holeCuttingBodies.append(screwHeadBody)
 
     if len(holeCuttingBodies) > 0:
+        patternSpacingX = input.baseWidth - const.DIMENSION_SCREW_HOLES_OFFSET * 2
+        patternSpacingY = input.baseLength - const.DIMENSION_SCREW_HOLES_OFFSET * 2
         magnetScrewCutoutsPattern = patternUtils.recPattern(
             commonUtils.objectCollectionFromList(holeCuttingBodies),
             (targetComponent.xConstructionAxis, targetComponent.yConstructionAxis),
-            (const.DIMENSION_SCREW_HOLES_DISTANCE, const.DIMENSION_SCREW_HOLES_DISTANCE),
+            (patternSpacingX, patternSpacingY),
             (2, 2),
             targetComponent
         )
