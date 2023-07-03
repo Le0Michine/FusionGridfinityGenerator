@@ -9,13 +9,6 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-dotnet@v3
-        with:
-          dotnet-version: '7.0.x'
-      - name: Install wix
-        run: dotnet tool install --global wix --version 4.0.0
-      - name: Build Installer
-        run: wix build GridfinityGenerator.wxs -o dist/GridfinityGenerator-${{ github.ref_name }}.msi
       - name: Create zip file for manual installation
         uses: vimtor/action-zip@v1
         with:
