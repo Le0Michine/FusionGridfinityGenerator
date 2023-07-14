@@ -38,7 +38,7 @@ def createGridfinityBinBodyTab(
     tabSketch: adsk.fusion.Sketch = targetComponent.sketches.add(tabProfilePlane)
     tabSketch.name = "tab sketch"
     tabSketchLine = tabSketch.sketchCurves.sketchLines
-    tabTopEdgeHeight = input.origin.z
+    tabTopEdgeHeight = input.origin.z - input.topClearance
     actualTabWidth = input.width + BIN_TAB_EDGE_FILLET_RADIUS / math.tan((math.radians(90) - input.overhangAngle) / 2)
     actualTabHeight = actualTabWidth / math.tan(input.overhangAngle)
     line1 = tabSketchLine.addByTwoPoints(

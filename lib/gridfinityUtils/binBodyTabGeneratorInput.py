@@ -8,6 +8,14 @@ class BinBodyTabGeneratorInput():
         self.position = 0
 
     @property
+    def topClearance(self) -> float:
+        return self._topClearance
+
+    @topClearance.setter
+    def topClearance(self, value: float):
+        self._topClearance = value
+
+    @property
     def width(self) -> float:
         return self._baseWidth
 

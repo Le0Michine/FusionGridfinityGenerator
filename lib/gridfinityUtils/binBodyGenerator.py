@@ -124,27 +124,59 @@ def createGridfinityBinBody(
         for compartment in input.compartments:
             compartmentX = compartmentsMinX + compartment.positionX * (compartmentWidthUnit + input.wallThickness)
             compartmentY = compartmentsMinY + compartment.positionY * (compartmentLengthUnit + input.wallThickness)
+            compartmentOriginPoint = adsk.core.Point3D.create(
+                compartmentX,
+                compartmentY,
+                binBodyTotalHeight
+            )
+            compartmentWidth = compartmentWidthUnit * compartment.width + (compartment.width - 1) * input.wallThickness
+            compartmentLength = compartmentLengthUnit * compartment.length + (compartment.length - 1) * input.wallThickness
+            compartmentDepth = min(binBodyTotalHeight - const.BIN_COMPARTMENT_BOTTOM_THICKNESS, compartment.depth)
+
+            compartmentTabInput = BinBodyTabGeneratorInput()
+            tabOriginPoint = adsk.core.Point3D.create(
+                compartmentOriginPoint.x + max(0, min(input.tabPosition, input.binWidth - input.tabLength)) * input.baseWidth,
+                compartmentOriginPoint.y + compartmentLength,
+                compartmentOriginPoint.z,
+            )
+            compartmentTabInput.origin = tabOriginPoint
+            compartmentTabInput.length = max(0, min(input.tabLength, input.binWidth)) * input.baseWidth
+            compartmentTabInput.width = input.tabWidth
+            compartmentTabInput.overhangAngle = input.tabOverhangAngle
+            compartmentTabInput.topClearance = const.BIN_TAB_TOP_CLEARANCE
+
             [compartmentMerges, compartmentCuts] = createCompartment(
                 input.wallThickness,
-                adsk.core.Point3D.create(
-                    compartmentX,
-                    compartmentY,
-                    binBodyTotalHeight
-                ),
-                compartmentWidthUnit * compartment.width + (compartment.width - 1) * input.wallThickness,
-                compartmentLengthUnit * compartment.length + (compartment.length - 1) * input.wallThickness,
-                min(binBodyTotalHeight - const.BIN_COMPARTMENT_BOTTOM_THICKNESS, compartment.depth),
+                compartmentOriginPoint,
+                compartmentWidth,
+                compartmentLength,
+                compartmentDepth,
                 input.hasScoop,
                 input.scoopMaxRadius,
                 input.hasTab,
-                max(0, min(input.tabLength, input.binWidth)) * input.baseWidth,
-                input.tabWidth,
-                max(0, min(input.tabPosition, input.binWidth - input.tabLength)) * input.baseWidth,
-                input.tabOverhangAngle,
+                compartmentTabInput,
                 targetComponent,
             )
             bodiesToSubtract = bodiesToSubtract + compartmentCuts
             bodiesToMerge = bodiesToMerge + compartmentMerges
+
+        if len(input.compartments) > 1:
+            compartmentsTopClearance = createCompartmentCutout(
+                input.wallThickness,
+                adsk.core.Point3D.create(
+                    compartmentsMinX,
+                    compartmentsMinY,
+                    binBodyTotalHeight
+                ),
+                actualBodyWidth - input.wallThickness * 2,
+                actualBodyLength - input.wallThickness * 2,
+                const.BIN_TAB_TOP_CLEARANCE,
+                False,
+                0,
+                False,
+                targetComponent,
+            )
+            bodiesToSubtract.append(compartmentsTopClearance)
 
     if len(bodiesToSubtract) > 0:
         combineUtils.cutBody(
@@ -162,6 +194,31 @@ def createGridfinityBinBody(
     return binBody
 
 
+def createCompartmentCutout(
+        wallThickness: float,
+        originPoint: adsk.core.Point3D,
+        width: float,
+        length: float,
+        depth: float,
+        hasScoop: bool,
+        scoopMaxRadius: float,
+        hasBottomFillet: bool,
+        targetComponent: adsk.fusion.Component,
+    ) -> adsk.fusion.BRepBody:
+
+    innerCutoutFilletRadius = max(const.BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS, const.BIN_CORNER_FILLET_RADIUS - wallThickness)
+    innerCutoutInput = BinBodyCutoutGeneratorInput()
+    innerCutoutInput.origin = originPoint
+    innerCutoutInput.width = width
+    innerCutoutInput.length = length
+    innerCutoutInput.height = depth
+    innerCutoutInput.hasScoop = hasScoop
+    innerCutoutInput.scoopMaxRadius = scoopMaxRadius
+    innerCutoutInput.filletRadius = innerCutoutFilletRadius
+    innerCutoutInput.hasBottomFillet = hasBottomFillet
+
+    return createGridfinityBinBodyCutout(innerCutoutInput, targetComponent)
+
 def createCompartment(
         wallThickness: float,
         originPoint: adsk.core.Point3D,
@@ -171,45 +228,28 @@ def createCompartment(
         hasScoop: bool,
         scoopMaxRadius: float,
         hasTab: bool,
-        tabLength: float,
-        tabWidth: float,
-        tabPosition: float,
-        tabOverhangAngle: float,
+        tabInput: BinBodyTabGeneratorInput,
         targetComponent: adsk.fusion.Component,
     ) -> tuple[list[adsk.fusion.BRepBody], list[adsk.fusion.BRepBody]]:
 
     bodiesToMerge: list[adsk.fusion.BRepBody] = []
     bodiesToSubtract: list[adsk.fusion.BRepBody] = []
-    innerCutoutFilletRadius = max(const.BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS, const.BIN_CORNER_FILLET_RADIUS - wallThickness)
-    innerCutoutInput = BinBodyCutoutGeneratorInput()
-    innerCutoutInput.origin = originPoint
-    innerCutoutInput.width = width
-    innerCutoutInput.length = length
-    innerCutoutInput.height = depth
-    innerCutoutInput.hasScoop = hasScoop
-    innerCutoutInput.scoopMaxRadius = scoopMaxRadius
-    innerCutoutInput.hasTab = hasTab
-    innerCutoutInput.tabLength = tabLength
-    innerCutoutInput.tabWidth = tabWidth
-    innerCutoutInput.tabPosition = tabPosition
-    innerCutoutInput.tabOverhangAngle = tabOverhangAngle
-    innerCutoutInput.filletRadius = innerCutoutFilletRadius
 
-    innerCutoutBody = createGridfinityBinBodyCutout(innerCutoutInput, targetComponent)
+    innerCutoutBody = createCompartmentCutout(
+        wallThickness,
+        originPoint,
+        width,
+        length,
+        depth,
+        hasScoop,
+        scoopMaxRadius,
+        True,
+        targetComponent,
+    )
     bodiesToSubtract.append(innerCutoutBody)
         
     # label tab
     if hasTab:
-        tabInput = BinBodyTabGeneratorInput()
-        tabOriginPoint = adsk.core.Point3D.create(
-            originPoint.x + tabPosition,
-            originPoint.y + length,
-            innerCutoutInput.origin.z,
-        )
-        tabInput.origin = tabOriginPoint
-        tabInput.length = tabLength
-        tabInput.width = tabWidth
-        tabInput.overhangAngle = tabOverhangAngle
         tabBody = createGridfinityBinBodyTab(tabInput,targetComponent)
 
         intersectTabInput = targetComponent.features.combineFeatures.createInput(

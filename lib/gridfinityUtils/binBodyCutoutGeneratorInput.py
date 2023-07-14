@@ -10,6 +10,7 @@ class BinBodyCutoutGeneratorInput():
         self.tabPosition = 0
         self.tabLength = 1
         self.tabWidth = const.BIN_TAB_WIDTH
+        self.hasBottomFillet = True
 
 
     @property
@@ -59,6 +60,14 @@ class BinBodyCutoutGeneratorInput():
     @scoopMaxRadius.setter
     def scoopMaxRadius(self, value: float):
         self._scoopMaxRadius = value
+
+    @property
+    def hasBottomFillet(self) -> float:
+        return self._hasBottomFillet
+
+    @hasBottomFillet.setter
+    def hasBottomFillet(self, value: float):
+        self._hasBottomFillet = value
 
     @property
     def filletRadius(self) -> float:

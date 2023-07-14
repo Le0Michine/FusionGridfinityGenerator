@@ -5,13 +5,8 @@ import math
 from .const import BIN_CORNER_FILLET_RADIUS
 from ...lib import fusion360utils as futil
 from . import const, combineUtils, faceUtils, commonUtils, sketchUtils, extrudeUtils, baseGenerator, edgeUtils, filletUtils, geometryUtils
-from .binBodyCutoutGenerator import createGridfinityBinBodyCutout
-from .binBodyCutoutGeneratorInput import BinBodyCutoutGeneratorInput
 from .baseGeneratorInput import BaseGeneratorInput
 from .binBodyLipGeneratorInput import BinBodyLipGeneratorInput
-from .binBodyTabGeneratorInput import BinBodyTabGeneratorInput
-from .binBodyTabGenerator import createGridfinityBinBodyTab
-from ... import config
 
 app = adsk.core.Application.get()
 ui = app.userInterface
