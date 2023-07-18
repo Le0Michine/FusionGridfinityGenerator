@@ -108,7 +108,8 @@ Download code into a location on your hard drive.
 git clone https://github.com/Le0Michine/FusionGridfinityGenerator.git
 ```
 - Option 2: Download ZIP file
-  - Use `Code / Download ZIP` option (or use this [direct link to the zip](https://github.com/Le0Michine/FusionGridfinityGenerator/archive/refs/heads/master.zip)) and unpack it into the target location
+  - Use [latest release page](https://github.com/Le0Michine/FusionGridfinityGenerator/releases) to download ZIP file `GridfinityGenerator-vX.X.X.X.zip`. The release page should contain latest stable version. Alternatively you can choose to use `Code / Download ZIP` option (or use this [direct link to the zip](https://github.com/Le0Michine/FusionGridfinityGenerator/archive/refs/heads/master.zip)) to download most recent changes which aren't released yet.
+  - Unpack content of the ZIP file into your target location
 
 #### Step 2: Install as Add-In to Fusion 360
 - In Fusion open `Scripts and Add-Ins` window by pressing `Shift + S`.
@@ -121,7 +122,7 @@ git clone https://github.com/Le0Michine/FusionGridfinityGenerator.git
 
 ## Update
 
-To update the script download latest sources into the same location and relaunch Fusion.
+To update the script download latest sources into the same location and relaunch Fusion. If you used Autodesk app store to install the addon please follow the same link then download and install the latest version from there.
 
 ## Credits
 
