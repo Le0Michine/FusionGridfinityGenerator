@@ -215,9 +215,12 @@ def createBaseWithClearance(input: BaseGeneratorInput, targetComponent: adsk.fus
     )
     offsetFacesFeature = features.offsetFeatures.add(offsetFacesInput)
     offsetFacesFeature.name = "bin base side faces"
-    offsetFacesFeature.bodies.item(0).name = "bin base side faces"
 
-    extentEdge = faceUtils.getTopHorizontalEdge(offsetFacesFeature.bodies.item(0).edges)
+    # original solid body might be included into feature bodies array, find created surfaces using isSolid flag
+    offsetSurfaceBodies = [body for body in list(offsetFacesFeature.bodies) if not body.isSolid][0]
+    offsetSurfaceBodies.name = "bin base side faces"
+
+    extentEdge = faceUtils.getTopHorizontalEdge(offsetSurfaceBodies.edges)
     extendClearanceSurfaceFeatureInput = features.extendFeatures.createInput(
         commonUtils.objectCollectionFromList([extentEdge]),
         adsk.core.ValueInput.createByReal(input.xyTolerance * 2),
@@ -238,7 +241,7 @@ def createBaseWithClearance(input: BaseGeneratorInput, targetComponent: adsk.fus
     thickenFeaure = features.thickenFeatures.add(thickenFeatureInput)
     thickenFeaure.name = "clearance"
     thickenFeaure.bodies.item(0).name = "bin base clearance layer"
-    features.removeFeatures.add(offsetFacesFeature.bodies.item(0))
+    features.removeFeatures.add(offsetSurfaceBodies)
 
     # thickened body would go beyond the bottom face, use bounding box to make bottom flat
     clearanceBoundingBox = extrudeUtils.createBoxAtPoint(
