@@ -107,7 +107,7 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
         centerCutoutBody = centerCutoutExtrudeFeature.bodies.item(0)
         combineUtils.joinBodies(
             centerCutoutBody,
-            commonUtils.objectCollectionFromList(centerCutoutPattern.bodies),
+            commonUtils.objectCollectionFromList([body for body in list(centerCutoutPattern.bodies) if not body.name == centerCutoutBody.name]),
             targetComponent,
         )
         extraCutoutBodies.append(centerCutoutBody)
