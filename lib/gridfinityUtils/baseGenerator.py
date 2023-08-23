@@ -165,7 +165,7 @@ def createGridfinityBase(
                 input.magnetCutoutsDiameter,
                 input.screwHolesDiameter,
                 -const.BIN_MAGNET_HOLE_GROOVE_DEPTH / 2,
-                adsk.core.Point3D.create(baseHoleCenterPoint.x - input.magnetCutoutsDiameter / 2, baseHoleCenterPoint.y + input.screwHolesDiameter / 2, 0),
+                adsk.core.Point3D.create(baseHoleCenterPoint.x + input.magnetCutoutsDiameter / 2, baseHoleCenterPoint.y - input.screwHolesDiameter / 2, 0),
                 targetComponent,
             )
             grooveLayer2 = shapeUtils.simpleBox(
@@ -174,7 +174,7 @@ def createGridfinityBase(
                 input.screwHolesDiameter,
                 input.screwHolesDiameter,
                 -const.BIN_MAGNET_HOLE_GROOVE_DEPTH / 2,
-                adsk.core.Point3D.create(baseHoleCenterPoint.x - input.screwHolesDiameter / 2, baseHoleCenterPoint.y + input.screwHolesDiameter / 2, 0),
+                adsk.core.Point3D.create(baseHoleCenterPoint.x + input.screwHolesDiameter / 2, baseHoleCenterPoint.y - input.screwHolesDiameter / 2, 0),
                 targetComponent,
             )
             combineUtils.intersectBody(grooveBody, commonUtils.objectCollectionFromList([grooveLayer1, grooveLayer2]), targetComponent)
