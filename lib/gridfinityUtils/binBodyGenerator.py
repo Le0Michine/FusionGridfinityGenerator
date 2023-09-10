@@ -169,7 +169,7 @@ def createGridfinityBinBody(
                     binBodyTotalHeight
                 ),
                 actualBodyWidth - input.wallThickness * 2,
-                actualBodyLength - input.wallThickness * 2,
+                actualBodyLength - input.wallThickness - compartmentsMinY,
                 const.BIN_TAB_TOP_CLEARANCE,
                 False,
                 0,
