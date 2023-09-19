@@ -71,6 +71,8 @@ Full length | Single slot | With offset
 :-------------------------:|:-------------------------:|:-------------------------:
 ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-label-tab-full.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-label-tab-single-slot.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-label-tab-with-offset.png)
 
+Note: Use 12mm labels from label printers such as Brother PTP700 (higher res, PC or Mac only) or PTP300BT (lower res, mobile app only).
+
 #### Bin scoop feature
 Scoop enabled | Scoop disabled
 :-------------------------:|:-------------------------:
