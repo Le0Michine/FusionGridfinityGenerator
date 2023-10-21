@@ -967,18 +967,6 @@ def generateBin(args: adsk.core.CommandEventArgs):
             else:
                 shellUtils.simpleShell([topFace], binBodyInput.wallThickness, gridfinityBinComponent)
 
-            chamferEdge = [edge for edge in binBody.edges if geometryUtils.isHorizontal(edge)
-                and math.isclose(edge.boundingBox.minPoint.z, topFaceMinPoint.z, abs_tol=const.DEFAULT_FILTER_TOLERANCE)
-                and math.isclose(edge.boundingBox.minPoint.x, topFaceMinPoint.x, abs_tol=const.DEFAULT_FILTER_TOLERANCE)][0]
-            if binBodyInput.hasLip and const.BIN_LIP_WALL_THICKNESS - binBodyInput.wallThickness > 0:
-                chamferFeatures: adsk.fusion.ChamferFeatures = features.chamferFeatures
-                chamferInput = chamferFeatures.createInput2()
-                chamfer_edges = adsk.core.ObjectCollection.create()
-                chamfer_edges.add(chamferEdge)
-                chamferInput.chamferEdgeSets.addEqualDistanceChamferEdgeSet(chamfer_edges,
-                    adsk.core.ValueInput.createByReal(const.BIN_LIP_WALL_THICKNESS - binBodyInput.wallThickness),
-                    True)
-                chamferFeatures.add(chamferInput)
     except:
         args.executeFailed = True
         args.executeFailedMessage = getErrorMessage()
