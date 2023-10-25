@@ -575,7 +575,7 @@ def record_input_change(changed_input: adsk.core.CommandInput):
         uiState.baseLength = changed_input.value
     elif changed_input.id == BIN_HEIGHT_UNIT_INPUT_ID:
         uiState.heightUnit = changed_input.value
-    elif changed_input.id == BIN_HEIGHT_UNIT_INPUT_ID:
+    elif changed_input.id == BIN_XY_TOLERANCE_INPUT_ID:
         uiState.xyTolerance = changed_input.value
     elif changed_input.id == BIN_WIDTH_INPUT_ID:
         uiState.binWidth = changed_input.value
