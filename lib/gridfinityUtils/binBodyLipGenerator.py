@@ -55,6 +55,7 @@ def createGridfinityBinBodyLip(
         adsk.core.ValueInput.createByReal(0)
     )
     lipCutoutConstructionPlane = targetComponent.constructionPlanes.add(lipCutoutPlaneInput)
+    lipCutoutConstructionPlane.name = "lip cutout construction plane"
 
     if input.hasLipNotches:
         lipCutoutInput = BaseGeneratorInput()
@@ -112,10 +113,11 @@ def createGridfinityBinBodyLip(
         lipCutoutBodies.append(lipCutout)
 
     topChamferSketch: adsk.fusion.Sketch = targetComponent.sketches.add(lipCutoutConstructionPlane)
+    topChamferSketch.name = "Lip top chamfer"
     sketchUtils.createRectangle(
         actualLipBodyWidth,
         actualLipBodyLength,
-        adsk.core.Point3D.create(-actualLipBodyWidth / 2, -actualLipBodyLength / 2, 0),
+        topChamferSketch.modelToSketchSpace(adsk.core.Point3D.create(0, 0, topChamferSketch.origin.z)),
         topChamferSketch,
     )
     topChamferNegativeVolume = extrudeUtils.simpleDistanceExtrude(
@@ -126,6 +128,7 @@ def createGridfinityBinBodyLip(
         [],
         targetComponent,
     )
+    topChamferNegativeVolume.name = "Lip top chamfer cut"
     bodiesToSubtract.append(topChamferNegativeVolume.bodies.item(0))
     bodiesToSubtract = bodiesToSubtract + lipCutoutBodies
 
