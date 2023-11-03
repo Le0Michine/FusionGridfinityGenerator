@@ -967,6 +967,9 @@ def generateBin(args: adsk.core.CommandEventArgs):
             else:
                 shellUtils.simpleShell([topFace], binBodyInput.wallThickness, gridfinityBinComponent)
 
+        # group features in timeline
+        binGroup = des.timeline.timelineGroups.add(newCmpOcc.timelineObject.index, newCmpOcc.timelineObject.index + gridfinityBinComponent.features.count + gridfinityBinComponent.constructionPlanes.count + gridfinityBinComponent.sketches.count)
+        binGroup.name = binName
     except:
         args.executeFailed = True
         args.executeFailedMessage = getErrorMessage()

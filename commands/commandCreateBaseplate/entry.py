@@ -312,7 +312,10 @@ def generateBaseplate(args: adsk.core.CommandEventArgs):
 
         baseplateBody = createGridfinityBaseplate(baseplateGeneratorInput, gridfinityBaseplateComponent)
         baseplateBody.name = baseplateName
-        
+
+        # group features in timeline
+        plateGroup = des.timeline.timelineGroups.add(newCmpOcc.timelineObject.index, newCmpOcc.timelineObject.index + gridfinityBaseplateComponent.features.count + gridfinityBaseplateComponent.constructionPlanes.count + gridfinityBaseplateComponent.sketches.count)
+        plateGroup.name = baseplateName
     except:
         args.executeFailed = True
         args.executeFailedMessage = getErrorMessage()
