@@ -5,6 +5,7 @@ from . import const
 class BinBodyTabGeneratorInput():
     def __init__(self):
         self.overhangAngle = const.BIN_TAB_OVERHANG_ANGLE
+        self.labelAngle = const.BIN_TAB_LABEL_ANGLE
         self.position = 0
 
     @property
@@ -46,5 +47,13 @@ class BinBodyTabGeneratorInput():
     @overhangAngle.setter
     def overhangAngle(self, value: float):
         self._tabOverhangAngle = value
+
+    @property
+    def labelAngle(self) -> float:
+        return self._tablabelAngle
+
+    @labelAngle.setter
+    def labelAngle(self, value: float):
+        self._tablabelAngle = value
 
     

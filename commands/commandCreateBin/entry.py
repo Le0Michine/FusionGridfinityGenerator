@@ -7,14 +7,18 @@ from dataclasses import asdict
 from ...lib import configUtils
 from ...lib import fusion360utils as futil
 from ... import config
+from ...lib.gridfinityUtils import combineUtils
 from ...lib.gridfinityUtils import geometryUtils
 from ...lib.gridfinityUtils import faceUtils
 from ...lib.gridfinityUtils import shellUtils
+from ...lib.gridfinityUtils import commonUtils
 from ...lib.gridfinityUtils import const
 from ...lib.gridfinityUtils.baseGenerator import createGridfinityBase
 from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
 from ...lib.gridfinityUtils.binBodyGenerator import createGridfinityBinBody, uniformCompartments
 from ...lib.gridfinityUtils.binBodyGeneratorInput import BinBodyGeneratorInput, BinBodyCompartmentDefinition
+from ...lib.gridfinityUtils.binBodyTabGeneratorInput import BinBodyTabGeneratorInput
+from ...lib.gridfinityUtils.binBodyTabGenerator import createGridfinityBinBodyTab
 from .inputState import InputState, CompartmentTableRow
 from .staticInputCache import StaticInputCache
 
@@ -966,6 +970,30 @@ def generateBin(args: adsk.core.CommandEventArgs):
                 binBody = gridfinityBinComponent.bRepBodies.item(0)
             else:
                 shellUtils.simpleShell([topFace], binBodyInput.wallThickness, gridfinityBinComponent)
+            
+            if hasTabInput.value:
+                compartmentTabInput = BinBodyTabGeneratorInput()
+                tabOriginPoint = adsk.core.Point3D.create(
+                    binBodyInput.wallThickness + max(0, min(binBodyInput.tabPosition, binBodyInput.binWidth - binBodyInput.tabLength)) * binBodyInput.baseWidth,
+                    const.BIN_LIP_WALL_THICKNESS if binBodyInput.hasLip and binBodyInput.hasScoop else binBodyInput.wallThickness + binBodyInput.binLength * binBodyInput.baseLength - binBodyInput.wallThickness - binBodyInput.xyTolerance * 2,
+                    (binBodyInput.binHeight - 1) * binBodyInput.heightUnit + max(0, binBodyInput.heightUnit - const.BIN_BASE_HEIGHT),
+                )
+                compartmentTabInput.origin = tabOriginPoint
+                compartmentTabInput.length = max(0, min(binBodyInput.tabLength, binBodyInput.binWidth)) * binBodyInput.baseWidth - binBodyInput.wallThickness * 2 - binBodyInput.xyTolerance * 2
+                compartmentTabInput.width = binBodyInput.tabWidth
+                compartmentTabInput.overhangAngle = binBodyInput.tabOverhangAngle
+                compartmentTabInput.topClearance = const.BIN_TAB_TOP_CLEARANCE
+                tabBody = createGridfinityBinBodyTab(compartmentTabInput, gridfinityBinComponent)
+                combineInput = combineFeatures.createInput(tabBody, commonUtils.objectCollectionFromList([binBody]))
+                combineInput.operation = adsk.fusion.FeatureOperations.CutFeatureOperation
+                combineInput.isKeepToolBodies = True
+                combineFeature = combineFeatures.add(combineInput)
+                tabBodies = [body for body in combineFeature.bodies if body.faces != binBody.faces]
+                tabMainBody = max([body for body in tabBodies], key=lambda x: x.edges.count)
+                bodiesToRemove = [body for body in tabBodies if body is not tabMainBody]
+                for body in bodiesToRemove:
+                    gridfinityBinComponent.features.removeFeatures.add(body)
+                combineUtils.joinBodies(binBody, commonUtils.objectCollectionFromList([tabMainBody]), gridfinityBinComponent)
 
         # group features in timeline
         binGroup = des.timeline.timelineGroups.add(newCmpOcc.timelineObject.index, newCmpOcc.timelineObject.index + gridfinityBinComponent.features.count + gridfinityBinComponent.constructionPlanes.count + gridfinityBinComponent.sketches.count)

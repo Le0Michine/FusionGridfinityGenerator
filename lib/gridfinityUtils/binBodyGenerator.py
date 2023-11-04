@@ -250,7 +250,7 @@ def createCompartment(
         
     # label tab
     if hasTab:
-        tabBody = createGridfinityBinBodyTab(tabInput,targetComponent)
+        tabBody = createGridfinityBinBodyTab(tabInput, targetComponent)
 
         intersectTabInput = targetComponent.features.combineFeatures.createInput(
             tabBody,
