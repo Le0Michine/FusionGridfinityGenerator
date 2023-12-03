@@ -421,7 +421,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     binHeightUnitInput = basicSizesGroup.children.addValueInput(BIN_HEIGHT_UNIT_INPUT_ID, 'Bin height unit (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.heightUnit))
     binHeightUnitInput.minimumValue = 0.5
     binHeightUnitInput.isMinimumInclusive = True
-    xyClearanceInput = basicSizesGroup.children.addValueInput(BIN_XY_TOLERANCE_INPUT_ID, 'Bin xy tolerance (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.xyTolerance))
+    xyClearanceInput = basicSizesGroup.children.addValueInput(BIN_XY_TOLERANCE_INPUT_ID, 'Bin xy clearance (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.xyTolerance))
     xyClearanceInput.minimumValue = 0.01
     xyClearanceInput.isMinimumInclusive = True
     xyClearanceInput.maximumValue = 0.05

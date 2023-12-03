@@ -140,7 +140,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     baseWidthUnitInput.minimumValue = 1
     baseWidthUnitInput.isMinimumInclusive = True
 
-    xyClearanceInput = basicSizesGroup.children.addValueInput(BIN_XY_TOLERANCE_INPUT_ID, 'Bin xy tolerance (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.BIN_XY_TOLERANCE))
+    xyClearanceInput = basicSizesGroup.children.addValueInput(BIN_XY_TOLERANCE_INPUT_ID, 'Bin xy clearance (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.BIN_XY_TOLERANCE))
     xyClearanceInput.minimumValue = 0.01
     xyClearanceInput.isMinimumInclusive = True
     xyClearanceInput.maximumValue = 0.05
