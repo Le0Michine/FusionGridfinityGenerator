@@ -61,6 +61,7 @@ BIN_TAB_FEATURES_GROUP_ID = 'bin_tab_features_group'
 BIN_BASE_FEATURES_GROUP_ID = 'bin_base_features_group'
 USER_CHANGES_GROUP_ID = 'user_changes_group'
 PREVIEW_GROUP_ID = 'preview_group'
+INFO_GROUP_ID = 'info_group'
 
 BIN_BASE_WIDTH_UNIT_INPUT_ID = 'base_width_unit'
 BIN_BASE_LENGTH_UNIT_INPUT_ID = 'base_length_unit'
@@ -111,6 +112,10 @@ PRESERVE_CHAGES_RADIO_GROUP_RESET = 'Reset inputs after creation'
 RESET_CHAGES_INPUT = 'reset_changes'
 SHOW_PREVIEW_INPUT = 'show_preview'
 SHOW_PREVIEW_MANUAL_INPUT = 'show_preview_manual'
+
+INFO_TEXT = ("<b>Help:</b> Info for inputs can be found "
+             "<a href=\"https://github.com/Le0Michine/FusionGridfinityGenerator/wiki/Bin-generator-options\">"
+             "Here on our GitHub</a>.'")
 
 def defaultUiState():
     return InputState(
@@ -311,6 +316,12 @@ def render_compartments_table(inputs: adsk.core.CommandInputs, initiallyVisible:
     for row in uiState.customCompartments:
         append_compartment_table_row(inputs, row.x, row.y, row.width, row.length, row.depth)
 
+
+def render_info(inputs: adsk.core.CommandInputs):
+    infoGroup: adsk.core.GroupCommandInput = inputs.itemById(INFO_GROUP_ID)
+    infoGroup.CommandInputs.addTextBoxCommandInput(INFO_TEXT)
+
+
 def append_compartment_table_row(inputs: adsk.core.CommandInputs, x: int, y: int, w: int, l: int, defaultDepth: float):
     binCompartmentsTable: adsk.core.TableCommandInput = inputs.itemById(BIN_COMPARTMENTS_TABLE_ID)
     newRow = binCompartmentsTable.rowCount
@@ -407,6 +418,8 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
 
     # https://help.autodesk.com/view/fusion360/ENU/?contextId=CommandInputs
     inputs = args.command.commandInputs
+
+    render_info(inputs)
 
     # Create a value input field and set the default using 1 unit of the default length unit.
     defaultLengthUnits = app.activeProduct.unitsManager.defaultLengthUnits
