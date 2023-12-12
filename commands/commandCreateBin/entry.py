@@ -316,8 +316,6 @@ def render_compartments_table(inputs: adsk.core.CommandInputs, initiallyVisible:
     for row in uiState.customCompartments:
         append_compartment_table_row(inputs, row.x, row.y, row.width, row.length, row.depth)
 
-
-
 def append_compartment_table_row(inputs: adsk.core.CommandInputs, x: int, y: int, w: int, l: int, defaultDepth: float):
     binCompartmentsTable: adsk.core.TableCommandInput = inputs.itemById(BIN_COMPARTMENTS_TABLE_ID)
     newRow = binCompartmentsTable.rowCount

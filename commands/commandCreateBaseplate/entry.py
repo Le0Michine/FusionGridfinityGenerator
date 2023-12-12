@@ -68,13 +68,13 @@ BASEPLATE_CONNECTION_HOLE_DIAMETER_INPUT = 'connection_hole_diameter'
 SHOW_PREVIEW_INPUT = 'show_preview'
 
 INFO_TEXT = ("<b>Help:</b> Info for inputs can be found "
-             "<a href=\"https://github.com/Le0Michine/FusionGridfinityGenerator/wiki/Bin-generator-options\">"
+             "<a href=\"https://github.com/Le0Michine/FusionGridfinityGenerator/wiki/Baseplate-generator-options\">"
              "Here on our GitHub</a>.")
 
 INPUTS_VALID = True
 
 def getErrorMessage():
-    stackTrace = traceback.format_exc();
+    stackTrace = traceback.format_exc()
     return f"An unknonwn error occurred, please validate your inputs and try again:\n{stackTrace}"
 
 def showErrorInMessageBox():
