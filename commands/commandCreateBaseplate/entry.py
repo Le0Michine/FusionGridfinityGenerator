@@ -69,7 +69,7 @@ SHOW_PREVIEW_INPUT = 'show_preview'
 
 INFO_TEXT = ("<b>Help:</b> Info for inputs can be found "
              "<a href=\"https://github.com/Le0Michine/FusionGridfinityGenerator/wiki/Bin-generator-options\">"
-             "Here on our GitHub</a>.'")
+             "Here on our GitHub</a>.")
 
 INPUTS_VALID = True
 
@@ -127,12 +127,6 @@ def stop():
         command_definition.deleteMe()
 
 
-def render_info(inputs: adsk.core.CommandInputs):
-    infoGroup: adsk.core.GroupCommandInput = inputs.itemById(INFO_GROUP_ID)
-    infoGroup.CommandInputs.addTextBoxCommandInput(INFO_TEXT)
-
-
-
 # Function that is called when a user clicks the corresponding button in the UI.
 # This defines the contents of the command dialog and connects to the command related events.
 def command_created(args: adsk.core.CommandCreatedEventArgs):
@@ -144,7 +138,8 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     # https://help.autodesk.com/view/fusion360/ENU/?contextId=CommandInputs
     inputs = args.command.commandInputs
 
-    render_info(inputs)
+    infoGroup = inputs.addGroupCommandInput(INFO_GROUP_ID, 'Info')
+    infoGroup.children.addTextBoxCommandInput("info_text", "Info", INFO_TEXT, 3, True)
 
     # Create a value input field and set the default using 1 unit of the default length unit.
     defaultLengthUnits = app.activeProduct.unitsManager.defaultLengthUnits
