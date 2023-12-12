@@ -115,7 +115,7 @@ SHOW_PREVIEW_MANUAL_INPUT = 'show_preview_manual'
 
 INFO_TEXT = ("<b>Help:</b> Info for inputs can be found "
              "<a href=\"https://github.com/Le0Michine/FusionGridfinityGenerator/wiki/Bin-generator-options\">"
-             "Here on our GitHub</a>.'")
+             "Here on our GitHub</a>.")
 
 def defaultUiState():
     return InputState(
@@ -317,10 +317,6 @@ def render_compartments_table(inputs: adsk.core.CommandInputs, initiallyVisible:
         append_compartment_table_row(inputs, row.x, row.y, row.width, row.length, row.depth)
 
 
-def render_info(inputs: adsk.core.CommandInputs):
-    infoGroup: adsk.core.GroupCommandInput = inputs.itemById(INFO_GROUP_ID)
-    infoGroup.CommandInputs.addTextBoxCommandInput(INFO_TEXT)
-
 
 def append_compartment_table_row(inputs: adsk.core.CommandInputs, x: int, y: int, w: int, l: int, defaultDepth: float):
     binCompartmentsTable: adsk.core.TableCommandInput = inputs.itemById(BIN_COMPARTMENTS_TABLE_ID)
@@ -419,7 +415,8 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     # https://help.autodesk.com/view/fusion360/ENU/?contextId=CommandInputs
     inputs = args.command.commandInputs
 
-    render_info(inputs)
+    infoGroup = inputs.addGroupCommandInput(INFO_GROUP_ID, 'Info')
+    infoGroup.children.addTextBoxCommandInput("info_text", "Info", INFO_TEXT, 3, True)
 
     # Create a value input field and set the default using 1 unit of the default length unit.
     defaultLengthUnits = app.activeProduct.unitsManager.defaultLengthUnits
