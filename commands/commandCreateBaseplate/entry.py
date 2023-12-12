@@ -46,6 +46,7 @@ BIN_XY_TOLERANCE_INPUT_ID = 'bin_xy_tolerance'
 BASEPLATE_WIDTH_INPUT = 'plate_width'
 BASEPLATE_LENGTH_INPUT = 'plate_length'
 BASEPLATE_TYPE_DROPDOWN = 'plate_type_dropdown'
+INFO_GROUP_ID = 'info_group'
 
 BASEPLATE_TYPE_LIGHT = 'Light'
 BASEPLATE_TYPE_FULL = 'Full'
@@ -65,6 +66,10 @@ BASEPLATE_HAS_CONNECTION_HOLE_INPUT = 'has_connection_hole'
 BASEPLATE_CONNECTION_HOLE_DIAMETER_INPUT = 'connection_hole_diameter'
 
 SHOW_PREVIEW_INPUT = 'show_preview'
+
+INFO_TEXT = ("<b>Help:</b> Info for inputs can be found "
+             "<a href=\"https://github.com/Le0Michine/FusionGridfinityGenerator/wiki/Bin-generator-options\">"
+             "Here on our GitHub</a>.'")
 
 INPUTS_VALID = True
 
@@ -122,6 +127,12 @@ def stop():
         command_definition.deleteMe()
 
 
+def render_info(inputs: adsk.core.CommandInputs):
+    infoGroup: adsk.core.GroupCommandInput = inputs.itemById(INFO_GROUP_ID)
+    infoGroup.CommandInputs.addTextBoxCommandInput(INFO_TEXT)
+
+
+
 # Function that is called when a user clicks the corresponding button in the UI.
 # This defines the contents of the command dialog and connects to the command related events.
 def command_created(args: adsk.core.CommandCreatedEventArgs):
@@ -132,6 +143,8 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
 
     # https://help.autodesk.com/view/fusion360/ENU/?contextId=CommandInputs
     inputs = args.command.commandInputs
+
+    render_info(inputs)
 
     # Create a value input field and set the default using 1 unit of the default length unit.
     defaultLengthUnits = app.activeProduct.unitsManager.defaultLengthUnits
