@@ -153,7 +153,7 @@ staticInputCache = StaticInputCache()
 # json.dumps(asdict(uiState))
 
 def getErrorMessage():
-    stackTrace = traceback.format_exc();
+    stackTrace = traceback.format_exc()
     return f"An unknonwn error occurred, please validate your inputs and try again:\n{stackTrace}"
 
 def showErrorInMessageBox():
