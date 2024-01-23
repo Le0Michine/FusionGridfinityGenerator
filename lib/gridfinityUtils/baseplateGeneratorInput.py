@@ -12,7 +12,7 @@ class BaseplateGeneratorInput():
         self.magnetCutoutsDepth = const.DIMENSION_MAGNET_CUTOUT_DEPTH
         self.hasSkeletonizedBottom = True
         self.bottomExtensionHeight = const.BASEPLATE_EXTRA_HEIGHT
-        self.xyClearance = const.BIN_XY_TOLERANCE
+        self.xyClearance = const.BIN_XY_CLEARANCE
         self.binZClearance = const.BASEPLATE_BIN_Z_CLEARANCE
         self.connectionScrewHolesDiameter = const.DIMENSION_PLATE_CONNECTION_SCREW_HOLE_DIAMETER
 

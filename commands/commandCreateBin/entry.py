@@ -118,7 +118,7 @@ def defaultUiState():
         baseWidth=const.DIMENSION_DEFAULT_WIDTH_UNIT,
         baseLength=const.DIMENSION_DEFAULT_WIDTH_UNIT,
         heightUnit=const.DIMENSION_DEFAULT_HEIGHT_UNIT,
-        xyTolerance=const.BIN_XY_TOLERANCE,
+        xyTolerance=const.BIN_XY_CLEARANCE,
         binWidth=2,
         binLength=3,
         binHeight=5,
@@ -439,8 +439,8 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     actualDimensionsTable = render_actual_bin_dimensions_table(binDimensionsGroup.children)
     update_actual_bin_dimensions(
         actualDimensionsTable,
-        adsk.core.ValueInput.createByReal(const.DIMENSION_DEFAULT_WIDTH_UNIT * 2 - const.BIN_XY_TOLERANCE * 2),
-        adsk.core.ValueInput.createByReal(const.DIMENSION_DEFAULT_WIDTH_UNIT * 3 - const.BIN_XY_TOLERANCE * 2),
+        adsk.core.ValueInput.createByReal(const.DIMENSION_DEFAULT_WIDTH_UNIT * 2 - const.BIN_XY_CLEARANCE * 2),
+        adsk.core.ValueInput.createByReal(const.DIMENSION_DEFAULT_WIDTH_UNIT * 3 - const.BIN_XY_CLEARANCE * 2),
         adsk.core.ValueInput.createByReal(const.DIMENSION_DEFAULT_HEIGHT_UNIT * 5 + const.BIN_LIP_EXTRA_HEIGHT - const.BIN_LIP_TOP_RECESS_HEIGHT))
     staticInputCache.actualBinDimensionsTable = actualDimensionsTable
 
