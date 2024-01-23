@@ -53,8 +53,8 @@ def createGridfinityBase(
     input: BaseGeneratorInput,
     targetComponent: adsk.fusion.Component,
 ):
-    actual_base_width = input.baseWidth - input.xyTolerance * 2.0
-    actual_base_length = input.baseLength - input.xyTolerance * 2.0
+    actual_base_width = input.baseWidth - input.xyClearance * 2.0
+    actual_base_length = input.baseLength - input.xyClearance * 2.0
     features: adsk.fusion.Features = targetComponent.features
     extrudeFeatures: adsk.fusion.ExtrudeFeatures = features.extrudeFeatures
     baseConstructionPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
@@ -123,8 +123,8 @@ def createGridfinityBase(
 
     baseBottomPlane = baseBottomExtrude.endFaces.item(0)
     baseHoleCenterPoint = adsk.core.Point3D.create(
-        const.DIMENSION_SCREW_HOLES_OFFSET - input.xyTolerance,
-        const.DIMENSION_SCREW_HOLES_OFFSET - input.xyTolerance,
+        const.DIMENSION_SCREW_HOLES_OFFSET - input.xyClearance,
+        const.DIMENSION_SCREW_HOLES_OFFSET - input.xyClearance,
         baseBottomPlane.boundingBox.minPoint.z
     )
     if input.hasScrewHoles:
@@ -223,7 +223,7 @@ def createBaseWithClearance(input: BaseGeneratorInput, targetComponent: adsk.fus
     extentEdge = faceUtils.getTopHorizontalEdge(offsetSurfaceBodies.edges)
     extendClearanceSurfaceFeatureInput = features.extendFeatures.createInput(
         commonUtils.objectCollectionFromList([extentEdge]),
-        adsk.core.ValueInput.createByReal(input.xyTolerance * 2),
+        adsk.core.ValueInput.createByReal(input.xyClearance * 2),
         adsk.fusion.SurfaceExtendTypes.NaturalSurfaceExtendType,
         True
     )
@@ -233,7 +233,7 @@ def createBaseWithClearance(input: BaseGeneratorInput, targetComponent: adsk.fus
     thickenFaces = commonUtils.objectCollectionFromList(offsetFacesFeature.faces, extendFeature.faces);
     thickenFeatureInput = features.thickenFeatures.createInput(
         thickenFaces,
-        adsk.core.ValueInput.createByReal(input.xyTolerance),
+        adsk.core.ValueInput.createByReal(input.xyClearance),
         False,
         adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
         False,
@@ -249,7 +249,7 @@ def createBaseWithClearance(input: BaseGeneratorInput, targetComponent: adsk.fus
         input.baseLength,
         -const.BIN_BASE_HEIGHT,
         targetComponent,
-        adsk.core.Point3D.create(input.originPoint.x - input.xyTolerance, input.originPoint.y - input.xyTolerance, input.originPoint.z),
+        adsk.core.Point3D.create(input.originPoint.x - input.xyClearance, input.originPoint.y - input.xyClearance, input.originPoint.z),
         )
     clearanceBoundingBox.name = "clearance bounding box"
     clearanceBoundingBox.bodies.item(0).name = "clearance bounding box"

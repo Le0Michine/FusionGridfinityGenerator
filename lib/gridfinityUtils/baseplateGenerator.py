@@ -12,15 +12,15 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
     cutoutInput.originPoint = targetComponent.originConstructionPoint.geometry
     cutoutInput.baseWidth = input.baseWidth
     cutoutInput.baseLength = input.baseLength
-    cutoutInput.xyTolerance = input.xyTolerance
+    cutoutInput.xyClearance = input.xyClearance
     baseBody = baseGenerator.createBaseWithClearance(cutoutInput, targetComponent)
 
     cuttingTools: list[adsk.fusion.BRepBody] = [baseBody]
     extraCutoutBodies: list[adsk.fusion.BRepBody] = []
 
     holeCenterPoint = adsk.core.Point3D.create(
-        const.DIMENSION_SCREW_HOLES_OFFSET - input.xyTolerance,
-        const.DIMENSION_SCREW_HOLES_OFFSET - input.xyTolerance,
+        const.DIMENSION_SCREW_HOLES_OFFSET - input.xyClearance,
+        const.DIMENSION_SCREW_HOLES_OFFSET - input.xyClearance,
         0
     )
 
@@ -52,8 +52,8 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
         verticalEdgeLine = min([line for line in sketchLines if sketchUtils.isVertical(line)], key=lambda x: abs(x.startSketchPoint.geometry.x))
         horizontalEdgeLine = min([line for line in sketchLines if sketchUtils.isHorizontal(line)], key=lambda x: abs(x.startSketchPoint.geometry.y))
 
-        baseCenterOffsetX = input.baseWidth / 2 - input.xyTolerance
-        baseCenterOffsetY = input.baseLength / 2 - input.xyTolerance
+        baseCenterOffsetX = input.baseWidth / 2 - input.xyClearance
+        baseCenterOffsetY = input.baseLength / 2 - input.xyClearance
         line1 = sketchLines.addByTwoPoints(arc.startSketchPoint, adsk.core.Point3D.create(verticalEdgeLine.startSketchPoint.geometry.x, arc.startSketchPoint.geometry.y, 0))
         line2 = sketchLines.addByTwoPoints(line1.endSketchPoint, adsk.core.Point3D.create(line1.endSketchPoint.geometry.x, baseCenterOffsetY, 0))
         line3 = sketchLines.addByTwoPoints(line2.endSketchPoint, adsk.core.Point3D.create(-baseCenterOffsetX, baseCenterOffsetY, 0))
@@ -187,7 +187,7 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
         adsk.fusion.PatternDistanceType.SpacingPatternDistanceType)
     patternInput.directionTwoEntity = targetComponent.yConstructionAxis
     patternInput.quantityTwo = adsk.core.ValueInput.createByReal(input.baseplateLength)
-    patternInput.distanceTwo = adsk.core.ValueInput.createByReal(input.baseWidth)
+    patternInput.distanceTwo = adsk.core.ValueInput.createByReal(input.baseLength)
     rectangularPattern = rectangularPatternFeatures.add(patternInput)
     cuttingTools = cuttingTools + list(rectangularPattern.bodies)
 
@@ -196,9 +196,9 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
         targetComponent.xYConstructionPlane,
         0,
         input.baseplateWidth * input.baseWidth,
-        input.baseplateLength * input.baseWidth,
+        input.baseplateLength * input.baseLength,
         -const.BIN_BASE_HEIGHT,
-        adsk.core.Point3D.create(-input.xyTolerance, -input.xyTolerance, 0),
+        adsk.core.Point3D.create(-input.xyClearance, -input.xyClearance, 0),
         targetComponent,
     )
 
@@ -238,7 +238,7 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
     bottomChamfer = filletUtils.chamferEdgesByLength(
         [faceUtils.getBottomFace(binInterfaceBody)],
         0.05,
-        input.baseplateLength * input.baseWidth,
+        input.baseplateLength * input.baseLength,
         const.BIN_CORNER_FILLET_RADIUS * 3,
         targetComponent,
     )
@@ -257,19 +257,19 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
         holeToolsYFeature = patternUtils.recPattern(
             commonUtils.objectCollectionFromList(connectionHoleYTool.bodies),
             (targetComponent.xConstructionAxis, targetComponent.yConstructionAxis),
-            (input.baseWidth, input.baseLength),
+            (input.baseLength, input.baseLength),
             (input.baseplateWidth, 1),
             targetComponent
         )
         connectionHoleYToolList = list(connectionHoleYTool.bodies) + list(holeToolsYFeature.bodies)
 
         constructionPlaneXZInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
-        constructionPlaneXZInput.setByOffset(targetComponent.xZConstructionPlane, adsk.core.ValueInput.createByReal(input.baseplateLength * input.baseLength / 2 - input.xyTolerance))
+        constructionPlaneXZInput.setByOffset(targetComponent.xZConstructionPlane, adsk.core.ValueInput.createByReal(input.baseplateLength * input.baseLength / 2 - input.xyClearance))
         constructionPlaneXZ = targetComponent.constructionPlanes.add(constructionPlaneXZInput)
         constructionPlaneXZ.isLightBulbOn = False
 
         constructionPlaneYZInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
-        constructionPlaneYZInput.setByOffset(targetComponent.yZConstructionPlane, adsk.core.ValueInput.createByReal(input.baseplateWidth * input.baseWidth / 2 - input.xyTolerance))
+        constructionPlaneYZInput.setByOffset(targetComponent.yZConstructionPlane, adsk.core.ValueInput.createByReal(input.baseplateWidth * input.baseWidth / 2 - input.xyClearance))
         constructionPlaneYZ = targetComponent.constructionPlanes.add(constructionPlaneYZInput)
         constructionPlaneYZ.isLightBulbOn = False
 

@@ -814,7 +814,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
     base_width_unit: adsk.core.ValueCommandInput = inputs.itemById(BIN_BASE_WIDTH_UNIT_INPUT_ID)
     base_length_unit: adsk.core.ValueCommandInput = inputs.itemById(BIN_BASE_LENGTH_UNIT_INPUT_ID)
     height_unit: adsk.core.ValueCommandInput = inputs.itemById(BIN_HEIGHT_UNIT_INPUT_ID)
-    xy_tolerance: adsk.core.ValueCommandInput = inputs.itemById(BIN_XY_TOLERANCE_INPUT_ID)
+    xy_clearance: adsk.core.ValueCommandInput = inputs.itemById(BIN_XY_TOLERANCE_INPUT_ID)
     bin_width: adsk.core.ValueCommandInput = inputs.itemById(BIN_WIDTH_INPUT_ID)
     bin_length: adsk.core.ValueCommandInput = inputs.itemById(BIN_LENGTH_INPUT_ID)
     bin_height: adsk.core.ValueCommandInput = inputs.itemById(BIN_HEIGHT_INPUT_ID)
@@ -849,7 +849,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
     try:
         des = adsk.fusion.Design.cast(app.activeProduct)
         root = adsk.fusion.Component.cast(des.rootComponent)
-        tolerance = xy_tolerance.value
+        xyClearance = xy_clearance.value
         binName = 'Gridfinity bin {}x{}x{}'.format(int(bin_length.value), int(bin_width.value), int(bin_height.value))
 
         # create new component
@@ -864,7 +864,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
         baseGeneratorInput.originPoint = gridfinityBinComponent.originConstructionPoint.geometry
         baseGeneratorInput.baseWidth = base_width_unit.value
         baseGeneratorInput.baseLength = base_length_unit.value
-        baseGeneratorInput.xyTolerance = tolerance
+        baseGeneratorInput.xyClearance = xyClearance
         baseGeneratorInput.hasScrewHoles = bin_screw_holes.value and not isShelled
         baseGeneratorInput.hasMagnetCutouts = bin_magnet_cutouts.value and not isShelled
         baseGeneratorInput.screwHolesDiameter = bin_screw_hole_diameter.value
@@ -900,7 +900,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
         binBodyInput.baseWidth = base_width_unit.value
         binBodyInput.baseLength = base_length_unit.value
         binBodyInput.heightUnit = height_unit.value
-        binBodyInput.xyTolerance = tolerance
+        binBodyInput.xyTolerance = xyClearance
         binBodyInput.isSolid = isSolid or isShelled
         binBodyInput.wallThickness = bin_wall_thickness.value
         binBodyInput.hasScoop = has_scoop.value and isHollow

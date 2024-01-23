@@ -4,7 +4,7 @@ from dataclasses import dataclass
 @dataclass
 class InputState:
     baseWidth: float
-    xyTolerance: float
+    xyClearance: float
     plateWidth: float
     plateLength: float
 

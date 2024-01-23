@@ -36,11 +36,11 @@ class BaseGeneratorInput():
         self._baseLength = value
 
     @property
-    def xyTolerance(self) -> float:
+    def xyClearance(self) -> float:
         return self._xyTolerance
 
-    @xyTolerance.setter
-    def xyTolerance(self, value: float):
+    @xyClearance.setter
+    def xyClearance(self, value: float):
         self._xyTolerance = value
 
     @property

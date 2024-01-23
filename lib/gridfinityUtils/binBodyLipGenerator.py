@@ -62,7 +62,7 @@ def createGridfinityBinBodyLip(
         lipCutoutInput.originPoint = adsk.core.Point3D.create(input.origin.x, input.origin.y, input.origin.z + const.BIN_BASE_HEIGHT)
         lipCutoutInput.baseWidth = input.baseWidth
         lipCutoutInput.baseLength = input.baseLength
-        lipCutoutInput.xyTolerance = input.xyTolerance
+        lipCutoutInput.xyClearance = input.xyTolerance
         lipCutoutInput.hasBottomChamfer = False
         lipCutout = baseGenerator.createBaseWithClearance(lipCutoutInput, targetComponent)
         lipCutout.name = "lip cutout"
@@ -106,7 +106,7 @@ def createGridfinityBinBodyLip(
         lipCutoutInput.originPoint = adsk.core.Point3D.create(input.origin.x, input.origin.y, input.origin.z + const.BIN_BASE_HEIGHT)
         lipCutoutInput.baseWidth = input.baseWidth * input.binWidth
         lipCutoutInput.baseLength = input.baseLength * input.binLength
-        lipCutoutInput.xyTolerance = input.xyTolerance
+        lipCutoutInput.xyClearance = input.xyTolerance
         lipCutoutInput.hasBottomChamfer = False
         lipCutout = baseGenerator.createBaseWithClearance(lipCutoutInput, targetComponent)
         lipCutout.name = "lip cutout"

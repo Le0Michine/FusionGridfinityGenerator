@@ -42,7 +42,7 @@ local_handlers = []
 
 # Input ids
 BASEPLATE_BASE_UNIT_WIDTH_INPUT = 'base_width_unit'
-BIN_XY_TOLERANCE_INPUT_ID = 'bin_xy_tolerance'
+BIN_XY_CLEARANCE_INPUT_ID = 'bin_xy_clearance'
 BASEPLATE_WIDTH_INPUT = 'plate_width'
 BASEPLATE_LENGTH_INPUT = 'plate_length'
 BASEPLATE_TYPE_DROPDOWN = 'plate_type_dropdown'
@@ -140,7 +140,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     baseWidthUnitInput.minimumValue = 1
     baseWidthUnitInput.isMinimumInclusive = True
 
-    xyClearanceInput = basicSizesGroup.children.addValueInput(BIN_XY_TOLERANCE_INPUT_ID, 'Bin xy clearance (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.BIN_XY_TOLERANCE))
+    xyClearanceInput = basicSizesGroup.children.addValueInput(BIN_XY_CLEARANCE_INPUT_ID, 'Bin xy clearance (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.BIN_XY_TOLERANCE))
     xyClearanceInput.minimumValue = 0.01
     xyClearanceInput.isMinimumInclusive = True
     xyClearanceInput.maximumValue = 0.05
@@ -250,8 +250,8 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
     
     # Verify the validity of the input values. This controls if the OK button is enabled or not.
     INPUTS_VALID = inputsState.baseWidth >= 1 \
-        and inputsState.xyTolerance >= 0.01 \
-        and inputsState.xyTolerance <= 0.05 \
+        and inputsState.xyClearance >= 0.01 \
+        and inputsState.xyClearance <= 0.05 \
         and inputsState.plateWidth > 0 \
         and inputsState.plateLength > 0 \
         and (not inputsState.hasMagnetSockets or (inputsState.magnetSocketSize <= 1 and inputsState.magnetSocketSize > 0 and inputsState.magnetSocketDepth > 0)) \
@@ -294,7 +294,7 @@ def generateBaseplate(args: adsk.core.CommandEventArgs):
 
         baseplateGeneratorInput.baseWidth = inputsState.baseWidth
         baseplateGeneratorInput.baseLength = inputsState.baseWidth
-        baseplateGeneratorInput.xyTolerance = inputsState.xyTolerance
+        baseplateGeneratorInput.xyClearance = inputsState.xyClearance
         baseplateGeneratorInput.baseplateWidth = inputsState.plateWidth
         baseplateGeneratorInput.baseplateLength = inputsState.plateLength
         baseplateGeneratorInput.hasExtendedBottom = not inputsState.plateType == BASEPLATE_TYPE_LIGHT
@@ -322,7 +322,7 @@ def generateBaseplate(args: adsk.core.CommandEventArgs):
 
 def getInputsState(inputs: adsk.core.CommandInputs):
     base_width_unit: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_BASE_UNIT_WIDTH_INPUT)
-    xy_tolerance: adsk.core.ValueCommandInput = inputs.itemById(BIN_XY_TOLERANCE_INPUT_ID)
+    xy_clearance: adsk.core.ValueCommandInput = inputs.itemById(BIN_XY_CLEARANCE_INPUT_ID)
     plate_width: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_WIDTH_INPUT)
     plate_length: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_LENGTH_INPUT)
 
@@ -342,7 +342,7 @@ def getInputsState(inputs: adsk.core.CommandInputs):
 
     return InputState(
         base_width_unit.value,
-        xy_tolerance.value,
+        xy_clearance.value,
         plate_width.value,
         plate_length.value,
         plateTypeDropdown.selectedItem.name,
