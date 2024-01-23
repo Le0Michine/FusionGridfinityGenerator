@@ -49,13 +49,14 @@ def createGridfinityBinBodyLip(
     )
 
     lipCutoutBodies: list[adsk.fusion.BRepBody] = []
-    lipCutoutPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
-    lipCutoutPlaneInput.setByOffset(
-        lipBodyExtrude.endFaces.item(0),
-        adsk.core.ValueInput.createByReal(0)
-    )
-    lipCutoutConstructionPlane = targetComponent.constructionPlanes.add(lipCutoutPlaneInput)
-    lipCutoutConstructionPlane.name = "lip cutout construction plane"
+    if (const.BIN_LIP_TOP_RECESS_HEIGHT > 0):
+        lipCutoutPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
+        lipCutoutPlaneInput.setByOffset(
+            lipBodyExtrude.endFaces.item(0),
+            adsk.core.ValueInput.createByReal(0)
+        )
+        lipCutoutConstructionPlane = targetComponent.constructionPlanes.add(lipCutoutPlaneInput)
+        lipCutoutConstructionPlane.name = "lip cutout construction plane"
 
     if input.hasLipNotches:
         lipCutoutInput = BaseGeneratorInput()
@@ -112,15 +113,15 @@ def createGridfinityBinBodyLip(
         lipCutout.name = "lip cutout"
         lipCutoutBodies.append(lipCutout)
 
-    topChamferSketch: adsk.fusion.Sketch = targetComponent.sketches.add(lipCutoutConstructionPlane)
-    topChamferSketch.name = "Lip top chamfer"
-    sketchUtils.createRectangle(
-        actualLipBodyWidth,
-        actualLipBodyLength,
-        topChamferSketch.modelToSketchSpace(adsk.core.Point3D.create(0, 0, topChamferSketch.origin.z)),
-        topChamferSketch,
-    )
     if (const.BIN_LIP_TOP_RECESS_HEIGHT > 0):
+        topChamferSketch: adsk.fusion.Sketch = targetComponent.sketches.add(lipCutoutConstructionPlane)
+        topChamferSketch.name = "Lip top chamfer"
+        sketchUtils.createRectangle(
+            actualLipBodyWidth,
+            actualLipBodyLength,
+            topChamferSketch.modelToSketchSpace(adsk.core.Point3D.create(0, 0, topChamferSketch.origin.z)),
+            topChamferSketch,
+        )
         topChamferNegativeVolume = extrudeUtils.simpleDistanceExtrude(
             topChamferSketch.profiles.item(0),
             adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
