@@ -42,6 +42,7 @@ local_handlers = []
 
 # Input ids
 BASEPLATE_BASE_UNIT_WIDTH_INPUT = 'base_width_unit'
+BASEPLATE_BASE_UNIT_LENGTH_INPUT = 'base_length_unit'
 BIN_XY_CLEARANCE_INPUT_ID = 'bin_xy_clearance'
 BASEPLATE_WIDTH_INPUT = 'plate_width'
 BASEPLATE_LENGTH_INPUT = 'plate_length'
@@ -136,7 +137,8 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     # Create a value input field and set the default using 1 unit of the default length unit.
     defaultLengthUnits = app.activeProduct.unitsManager.defaultLengthUnits
     basicSizesGroup = inputs.addGroupCommandInput('basic_sizes', 'Basic size')
-    baseWidthUnitInput = basicSizesGroup.children.addValueInput(BASEPLATE_BASE_UNIT_WIDTH_INPUT, 'Base width unit (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(DIMENSION_DEFAULT_WIDTH_UNIT))
+    baseWidthUnitInput = basicSizesGroup.children.addValueInput(BASEPLATE_BASE_UNIT_WIDTH_INPUT, 'Base width unit, X (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(DIMENSION_DEFAULT_WIDTH_UNIT))
+    baseWidthUnitInput = basicSizesGroup.children.addValueInput(BASEPLATE_BASE_UNIT_LENGTH_INPUT, 'Base length unit, Y (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(DIMENSION_DEFAULT_WIDTH_UNIT))
     baseWidthUnitInput.minimumValue = 1
     baseWidthUnitInput.isMinimumInclusive = True
 
@@ -148,8 +150,8 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     xyClearanceInput.tooltip = "Must be within range [0.1, 0.5]mm"
 
     mainDimensionsGroup = inputs.addGroupCommandInput('xy_dimensions', 'Main dimensions')
-    mainDimensionsGroup.children.addIntegerSpinnerCommandInput(BASEPLATE_WIDTH_INPUT, 'Plate width (u)', 1, 100, 1, 2)
-    mainDimensionsGroup.children.addIntegerSpinnerCommandInput(BASEPLATE_LENGTH_INPUT, 'Plate length (u)', 1, 100, 1, 3)
+    mainDimensionsGroup.children.addIntegerSpinnerCommandInput(BASEPLATE_WIDTH_INPUT, 'Plate width, X (u)', 1, 100, 1, 2)
+    mainDimensionsGroup.children.addIntegerSpinnerCommandInput(BASEPLATE_LENGTH_INPUT, 'Plate length, Y (u)', 1, 100, 1, 3)
 
     plateFeaturesGroup = inputs.addGroupCommandInput('plate_features', 'Features')
     plateTypeDropdown = plateFeaturesGroup.children.addDropDownCommandInput(BASEPLATE_TYPE_DROPDOWN, 'Baseplate type', adsk.core.DropDownStyles.LabeledIconDropDownStyle)
@@ -250,6 +252,7 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
     
     # Verify the validity of the input values. This controls if the OK button is enabled or not.
     INPUTS_VALID = inputsState.baseWidth >= 1 \
+        and inputsState.baseLength >= 1 \
         and inputsState.xyClearance >= 0.01 \
         and inputsState.xyClearance <= 0.05 \
         and inputsState.plateWidth > 0 \
@@ -293,7 +296,7 @@ def generateBaseplate(args: adsk.core.CommandEventArgs):
         baseplateGeneratorInput = BaseplateGeneratorInput()
 
         baseplateGeneratorInput.baseWidth = inputsState.baseWidth
-        baseplateGeneratorInput.baseLength = inputsState.baseWidth
+        baseplateGeneratorInput.baseLength = inputsState.baseLength
         baseplateGeneratorInput.xyClearance = inputsState.xyClearance
         baseplateGeneratorInput.baseplateWidth = inputsState.plateWidth
         baseplateGeneratorInput.baseplateLength = inputsState.plateLength
@@ -322,6 +325,7 @@ def generateBaseplate(args: adsk.core.CommandEventArgs):
 
 def getInputsState(inputs: adsk.core.CommandInputs):
     base_width_unit: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_BASE_UNIT_WIDTH_INPUT)
+    base_length_unit: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_BASE_UNIT_LENGTH_INPUT)
     xy_clearance: adsk.core.ValueCommandInput = inputs.itemById(BIN_XY_CLEARANCE_INPUT_ID)
     plate_width: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_WIDTH_INPUT)
     plate_length: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_LENGTH_INPUT)
@@ -342,6 +346,7 @@ def getInputsState(inputs: adsk.core.CommandInputs):
 
     return InputState(
         base_width_unit.value,
+        base_length_unit.value,
         xy_clearance.value,
         plate_width.value,
         plate_length.value,
