@@ -4,6 +4,7 @@ import math
 import json
 from dataclasses import asdict
 
+
 from ...lib import configUtils
 from ...lib import fusion360utils as futil
 from ... import config
@@ -21,6 +22,8 @@ from ...lib.gridfinityUtils.binBodyTabGeneratorInput import BinBodyTabGeneratorI
 from ...lib.gridfinityUtils.binBodyTabGenerator import createGridfinityBinBodyTab
 from .inputState import InputState, CompartmentTableRow
 from .staticInputCache import StaticInputCache
+from ...lib.ui.commandUiState import CommandUiState
+from ...lib.ui.unsupportedDesignTypeException import UnsupportedDesignTypeException
 
 app = adsk.core.Application.get()
 ui = app.userInterface
@@ -46,6 +49,7 @@ COMMAND_BESIDE_ID = 'ScriptsManagerCommand'
 ICON_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources', '')
 
 CONFIG_FOLDER_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'commandConfig')
+UI_INPUT_DEFAULTS_CONFIG_PATH = os.path.join(CONFIG_FOLDER_PATH, "ui_input_defaults.json")
 
 # Local list of event handlers used to maintain a reference so
 # they are not released and garbage collected.
@@ -856,6 +860,8 @@ def generateBin(args: adsk.core.CommandEventArgs):
     # Do something interesting
     try:
         des = adsk.fusion.Design.cast(app.activeProduct)
+        if des.designType == 0:
+            raise UnsupportedDesignTypeException('Timeline must be enabled for the generator to work, projects with disabled design history currently are not supported')
         root = adsk.fusion.Component.cast(des.rootComponent)
         xyClearance = xy_clearance.value
         binName = 'Gridfinity bin {}x{}x{}'.format(int(bin_length.value), int(bin_width.value), int(bin_height.value))
@@ -1006,8 +1012,13 @@ def generateBin(args: adsk.core.CommandEventArgs):
         # group features in timeline
         binGroup = des.timeline.timelineGroups.add(newCmpOcc.timelineObject.index, newCmpOcc.timelineObject.index + gridfinityBinComponent.features.count + gridfinityBinComponent.constructionPlanes.count + gridfinityBinComponent.sketches.count)
         binGroup.name = binName
-    except:
+    except UnsupportedDesignTypeException as err:
+        args.executeFailed = True
+        args.executeFailedMessage = 'Design type is unsupported. Projects with disabled design history are unsupported, please enable timeline feature to proceed.'
+        return False
+    except Exception as err:
         args.executeFailed = True
         args.executeFailedMessage = getErrorMessage()
+        futil.log(f'{CMD_NAME} Error occurred, {err}, {getErrorMessage()}')
         return False
     return True

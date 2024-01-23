@@ -12,6 +12,7 @@ from ...lib.gridfinityUtils.baseplateGeneratorInput import BaseplateGeneratorInp
 from ...lib.gridfinityUtils import const
 from .inputState import InputState
 from ...lib.ui.commandUiState import CommandUiState
+from ...lib.ui.unsupportedDesignTypeException import UnsupportedDesignTypeException
 
 app = adsk.core.Application.get()
 ui = app.userInterface
@@ -366,6 +367,8 @@ def generateBaseplate(args: adsk.core.CommandEventArgs):
 
     try:
         des = adsk.fusion.Design.cast(app.activeProduct)
+        if des.designType == 0:
+            raise UnsupportedDesignTypeException('Timeline must be enabled for the generator to work, projects with disabled design history currently are not supported')
         root = adsk.fusion.Component.cast(des.rootComponent)
         baseplateName = 'Gridfinity baseplate {}x{}'.format(int(inputsState.plateLength), int(inputsState.plateWidth))
 
@@ -398,12 +401,19 @@ def generateBaseplate(args: adsk.core.CommandEventArgs):
         baseplateBody = createGridfinityBaseplate(baseplateGeneratorInput, gridfinityBaseplateComponent)
         baseplateBody.name = baseplateName
 
-        # group features in timeline
-        plateGroup = des.timeline.timelineGroups.add(newCmpOcc.timelineObject.index, newCmpOcc.timelineObject.index + gridfinityBaseplateComponent.features.count + gridfinityBaseplateComponent.constructionPlanes.count + gridfinityBaseplateComponent.sketches.count)
-        plateGroup.name = baseplateName
-    except:
+        if des.designType == 1:
+            # group features in timeline
+            plateGroup = des.timeline.timelineGroups.add(newCmpOcc.timelineObject.index, newCmpOcc.timelineObject.index + gridfinityBaseplateComponent.features.count + gridfinityBaseplateComponent.constructionPlanes.count + gridfinityBaseplateComponent.sketches.count)
+            plateGroup.name = baseplateName
+    except UnsupportedDesignTypeException as err:
+        args.executeFailed = True
+        args.executeFailedMessage = 'Design type is unsupported. Projects with disabled design history are unsupported, please enable timeline feature to proceed.'
+        return False
+    except Exception as err:
         args.executeFailed = True
         args.executeFailedMessage = getErrorMessage()
+        futil.log(f'{CMD_NAME} Error occurred, {err}, {getErrorMessage()}')
+        return False
 
 def initUiState():
     global uiState
