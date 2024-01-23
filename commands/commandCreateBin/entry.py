@@ -61,6 +61,7 @@ BIN_TAB_FEATURES_GROUP_ID = 'bin_tab_features_group'
 BIN_BASE_FEATURES_GROUP_ID = 'bin_base_features_group'
 USER_CHANGES_GROUP_ID = 'user_changes_group'
 PREVIEW_GROUP_ID = 'preview_group'
+INFO_GROUP_ID = 'info_group'
 
 BIN_BASE_WIDTH_UNIT_INPUT_ID = 'base_width_unit'
 BIN_BASE_LENGTH_UNIT_INPUT_ID = 'base_length_unit'
@@ -112,6 +113,10 @@ RESET_CHAGES_INPUT = 'reset_changes'
 SHOW_PREVIEW_INPUT = 'show_preview'
 SHOW_PREVIEW_MANUAL_INPUT = 'show_preview_manual'
 
+INFO_TEXT = ("<b>Help:</b> Info for inputs can be found "
+             "<a href=\"https://github.com/Le0Michine/FusionGridfinityGenerator/wiki/Bin-generator-options\">"
+             "Here on our GitHub</a>.")
+
 def defaultUiState():
     return InputState(
         groups={},
@@ -153,7 +158,7 @@ staticInputCache = StaticInputCache()
 # json.dumps(asdict(uiState))
 
 def getErrorMessage():
-    stackTrace = traceback.format_exc();
+    stackTrace = traceback.format_exc()
     return f"An unknonwn error occurred, please validate your inputs and try again:\n{stackTrace}"
 
 def showErrorInMessageBox():
@@ -407,6 +412,9 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
 
     # https://help.autodesk.com/view/fusion360/ENU/?contextId=CommandInputs
     inputs = args.command.commandInputs
+
+    infoGroup = inputs.addGroupCommandInput(INFO_GROUP_ID, 'Info')
+    infoGroup.children.addTextBoxCommandInput("info_text", "Info", INFO_TEXT, 3, True)
 
     # Create a value input field and set the default using 1 unit of the default length unit.
     defaultLengthUnits = app.activeProduct.unitsManager.defaultLengthUnits

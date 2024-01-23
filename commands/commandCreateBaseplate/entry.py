@@ -60,6 +60,7 @@ BIN_XY_CLEARANCE_INPUT_ID = 'bin_xy_clearance'
 BASEPLATE_WIDTH_INPUT = 'plate_width'
 BASEPLATE_LENGTH_INPUT = 'plate_length'
 BASEPLATE_TYPE_DROPDOWN = 'plate_type_dropdown'
+INFO_GROUP_ID = 'info_group'
 
 BASEPLATE_TYPE_LIGHT = 'Light'
 BASEPLATE_TYPE_FULL = 'Full'
@@ -84,10 +85,14 @@ INPUT_CHANGES_RESET_TO_FACTORY = 'input_changes_button_factory_reset'
 
 SHOW_PREVIEW_INPUT = 'show_preview'
 
+INFO_TEXT = ("<b>Help:</b> Info for inputs can be found "
+             "<a href=\"https://github.com/Le0Michine/FusionGridfinityGenerator/wiki/Baseplate-generator-options\">"
+             "Here on our GitHub</a>.")
+
 INPUTS_VALID = True
 
 def getErrorMessage():
-    stackTrace = traceback.format_exc();
+    stackTrace = traceback.format_exc()
     return f"An unknonwn error occurred, please validate your inputs and try again:\n{stackTrace}"
 
 def showErrorInMessageBox():
@@ -155,6 +160,9 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
 
     # https://help.autodesk.com/view/fusion360/ENU/?contextId=CommandInputs
     inputs = args.command.commandInputs
+
+    infoGroup = inputs.addGroupCommandInput(INFO_GROUP_ID, 'Info')
+    infoGroup.children.addTextBoxCommandInput("info_text", "Info", INFO_TEXT, 3, True)
 
     # Create a value input field and set the default using 1 unit of the default length unit.
     defaultLengthUnits = app.activeProduct.unitsManager.defaultLengthUnits
