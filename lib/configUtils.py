@@ -1,5 +1,8 @@
+import adsk.core, adsk.fusion, traceback
+from . import fusion360utils as futil
 import configparser
 import os
+import json
 
 CONFIG_FILE_NAME = 'config.ini'
 
@@ -30,3 +33,36 @@ def writeConfig(config: configparser.ConfigParser, path: str):
     except:
         return False
 
+def deleteConfigFile(path: str):
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+            return True
+    except:
+        futil.log(f'Couldn\'t delete config file from {path}')
+        return None
+
+
+def readJsonConfig(path: str):
+    try:
+        if os.path.exists(path):
+            with open(path) as configFile:
+                return json.load(configFile)
+    except:
+        futil.log(f'Couldn\'t load config file from {path}')
+        return None
+    
+def dumpJsonConfig(path: str, config: any):
+    try:
+        futil.log(f'Writing config to path {os.path.dirname(path)}')
+        if os.path.exists(os.path.dirname(path)):
+            with open(path, 'w+') as configFile:
+                json.dump(config, configFile, indent=True)
+                return True
+        else:
+            futil.log(f'Config folder doesn\'t exist {os.path.dirname(path)}')
+            return False
+        
+    except Exception as err:
+        futil.log(f'Couldn\'t write config file to {path}, error: {err}')
+        return None

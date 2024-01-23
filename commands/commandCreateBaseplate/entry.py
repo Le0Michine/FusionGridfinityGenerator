@@ -2,6 +2,7 @@ import adsk.core, adsk.fusion, traceback
 import os
 
 
+
 from ...lib import configUtils
 from ...lib import fusion360utils as futil
 from ... import config
@@ -10,16 +11,18 @@ from ...lib.gridfinityUtils.baseplateGenerator import createGridfinityBaseplate
 from ...lib.gridfinityUtils.baseplateGeneratorInput import BaseplateGeneratorInput
 from ...lib.gridfinityUtils import const
 from .inputState import InputState
+from ...lib.ui.commandUiState import CommandUiState
 
 app = adsk.core.Application.get()
 ui = app.userInterface
 
 
-# TODO *** Specify the command identity information. ***
+# The command identity information. ***
 CMD_ID = f'{config.COMPANY_NAME}_{config.ADDIN_NAME}_cmdBaseplate'
 CMD_NAME = 'Gridfinity baseplate'
 CMD_Description = 'Create gridfinity baseplate'
 
+uiState = CommandUiState(CMD_NAME)
 # Specify that the command will be promoted to the panel.
 IS_PROMOTED = True
 
@@ -35,11 +38,21 @@ COMMAND_BESIDE_ID = 'ScriptsManagerCommand'
 ICON_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources', '')
 
 CONFIG_FOLDER_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'commandConfig')
+UI_INPUT_DEFAULTS_CONFIG_PATH = os.path.join(CONFIG_FOLDER_PATH, "ui_input_defaults.json")
 
 # Local list of event handlers used to maintain a reference so
 # they are not released and garbage collected.
 local_handlers = []
 
+# Input groups
+BASIC_SIZES_GROUP = 'basic_sizes'
+XY_DIMENSIONS_GROUP = 'xy_dimensions'
+PLATE_FEATURES_GROUP = 'plate_features'
+MAGNET_SOCKET_GROUP = 'magnet_cutout_group'
+SCREW_HOLE_GROUP = 'screw_hole_group'
+ADVANCED_PLATE_SIZE_GROUP = 'advanced_plate_size_group'
+INPUT_CHANGES_GROUP = 'input_changes_group'
+PREVIEW_GROUP = 'preview_group'
 # Input ids
 BASEPLATE_BASE_UNIT_WIDTH_INPUT = 'base_width_unit'
 BASEPLATE_BASE_UNIT_LENGTH_INPUT = 'base_length_unit'
@@ -65,6 +78,10 @@ BASEPLATE_BIN_Z_CLEARANCE_INPUT = 'bin_z_clearance'
 BASEPLATE_HAS_CONNECTION_HOLE_INPUT = 'has_connection_hole'
 BASEPLATE_CONNECTION_HOLE_DIAMETER_INPUT = 'connection_hole_diameter'
 
+INPUT_CHANGES_SAVE_DEFAULTS = 'input_changes_buttons_save_new_defaults'
+INPUT_CHANGES_RESET_TO_DEFAULTS = 'input_changes_button_reset_to_defaults'
+INPUT_CHANGES_RESET_TO_FACTORY = 'input_changes_button_factory_reset'
+
 SHOW_PREVIEW_INPUT = 'show_preview'
 
 INPUTS_VALID = True
@@ -79,6 +96,7 @@ def showErrorInMessageBox():
 
 # Executed when add-in is run.
 def start():
+    futil.log(f'{CMD_NAME} Command Start Event')
     addinConfig = configUtils.readConfig(CONFIG_FOLDER_PATH)
 
     # Create a command Definition.
@@ -101,9 +119,12 @@ def start():
     control.isPromoted = addinConfig['UI'].getboolean('is_promoted')
     # control.isPromoted = IS_PROMOTED
 
+    initUiState()
+
 
 # Executed when add-in is stopped.
 def stop():
+    futil.log(f'{CMD_NAME} Command Stop Event')
     # Get the various UI elements for this command
     workspace = ui.workspaces.itemById(WORKSPACE_ID)
     panel = workspace.toolbarPanels.itemById(PANEL_ID)
@@ -128,6 +149,7 @@ def stop():
 def command_created(args: adsk.core.CommandCreatedEventArgs):
     # General logging for debug.
     futil.log(f'{CMD_NAME} Command Created Event')
+    global uiState
 
     args.command.setDialogInitialSize(400, 500)
 
@@ -136,11 +158,17 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
 
     # Create a value input field and set the default using 1 unit of the default length unit.
     defaultLengthUnits = app.activeProduct.unitsManager.defaultLengthUnits
-    basicSizesGroup = inputs.addGroupCommandInput('basic_sizes', 'Basic size')
-    baseWidthUnitInput = basicSizesGroup.children.addValueInput(BASEPLATE_BASE_UNIT_WIDTH_INPUT, 'Base width unit, X (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(DIMENSION_DEFAULT_WIDTH_UNIT))
-    baseWidthUnitInput = basicSizesGroup.children.addValueInput(BASEPLATE_BASE_UNIT_LENGTH_INPUT, 'Base length unit, Y (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(DIMENSION_DEFAULT_WIDTH_UNIT))
+    basicSizesGroup = inputs.addGroupCommandInput(BASIC_SIZES_GROUP, 'Basic size')
+    basicSizesGroup.isExpanded = uiState.getState(BASIC_SIZES_GROUP)
+    uiState.registerCommandInput(basicSizesGroup)
+    baseWidthUnitInput = basicSizesGroup.children.addValueInput(BASEPLATE_BASE_UNIT_WIDTH_INPUT, 'Base width unit, X (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BASEPLATE_BASE_UNIT_WIDTH_INPUT)))
     baseWidthUnitInput.minimumValue = 1
     baseWidthUnitInput.isMinimumInclusive = True
+    uiState.registerCommandInput(baseWidthUnitInput)
+    baseLengthUnitInput = basicSizesGroup.children.addValueInput(BASEPLATE_BASE_UNIT_LENGTH_INPUT, 'Base length unit, Y (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BASEPLATE_BASE_UNIT_LENGTH_INPUT)))
+    baseLengthUnitInput.minimumValue = 1
+    baseLengthUnitInput.isMinimumInclusive = True
+    uiState.registerCommandInput(baseLengthUnitInput)
 
     xyClearanceInput = basicSizesGroup.children.addValueInput(BIN_XY_CLEARANCE_INPUT_ID, 'Bin xy clearance (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BIN_XY_CLEARANCE_INPUT_ID)))
     xyClearanceInput.minimumValue = 0.01
@@ -148,59 +176,96 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     xyClearanceInput.maximumValue = 0.05
     xyClearanceInput.isMaximumInclusive = True
     xyClearanceInput.tooltip = "Must be within range [0.1, 0.5]mm"
+    uiState.registerCommandInput(xyClearanceInput)
 
-    mainDimensionsGroup = inputs.addGroupCommandInput('xy_dimensions', 'Main dimensions')
-    mainDimensionsGroup.children.addIntegerSpinnerCommandInput(BASEPLATE_WIDTH_INPUT, 'Plate width, X (u)', 1, 100, 1, 2)
-    mainDimensionsGroup.children.addIntegerSpinnerCommandInput(BASEPLATE_LENGTH_INPUT, 'Plate length, Y (u)', 1, 100, 1, 3)
+    mainDimensionsGroup = inputs.addGroupCommandInput(XY_DIMENSIONS_GROUP, 'Main dimensions')
+    mainDimensionsGroup.isExpanded = uiState.getState(XY_DIMENSIONS_GROUP)
+    uiState.registerCommandInput(mainDimensionsGroup)
+    baseplateWidthInput = mainDimensionsGroup.children.addIntegerSpinnerCommandInput(BASEPLATE_WIDTH_INPUT, 'Plate width, X (u)', 1, 100, 1, uiState.getState(BASEPLATE_WIDTH_INPUT))
+    uiState.registerCommandInput(baseplateWidthInput)
+    baseplateLengthInput = mainDimensionsGroup.children.addIntegerSpinnerCommandInput(BASEPLATE_LENGTH_INPUT, 'Plate length, Y (u)', 1, 100, 1, uiState.getState(BASEPLATE_LENGTH_INPUT))
+    uiState.registerCommandInput(baseplateLengthInput)
 
-    plateFeaturesGroup = inputs.addGroupCommandInput('plate_features', 'Features')
+    plateFeaturesGroup = inputs.addGroupCommandInput(PLATE_FEATURES_GROUP, 'Features')
+    plateFeaturesGroup.isExpanded = uiState.getState(PLATE_FEATURES_GROUP)
+    uiState.registerCommandInput(plateFeaturesGroup)
     plateTypeDropdown = plateFeaturesGroup.children.addDropDownCommandInput(BASEPLATE_TYPE_DROPDOWN, 'Baseplate type', adsk.core.DropDownStyles.LabeledIconDropDownStyle)
-    plateTypeDropdown.listItems.add(BASEPLATE_TYPE_LIGHT, True)
-    plateTypeDropdown.listItems.add(BASEPLATE_TYPE_SKELETONIZED, False)
-    plateTypeDropdown.listItems.add(BASEPLATE_TYPE_FULL, False)
+    plateTypeDropdownInitialState = uiState.getState(BASEPLATE_TYPE_DROPDOWN)
+    plateTypeDropdown.listItems.add(BASEPLATE_TYPE_LIGHT, plateTypeDropdownInitialState == BASEPLATE_TYPE_LIGHT)
+    plateTypeDropdown.listItems.add(BASEPLATE_TYPE_SKELETONIZED, plateTypeDropdownInitialState == BASEPLATE_TYPE_SKELETONIZED)
+    plateTypeDropdown.listItems.add(BASEPLATE_TYPE_FULL, plateTypeDropdownInitialState == BASEPLATE_TYPE_FULL)
+    uiState.registerCommandInput(plateTypeDropdown)
 
-    magnetCutoutGroup = plateFeaturesGroup.children.addGroupCommandInput('magnet_cutout_group', 'Magnet cutouts')
-    magnetCutoutGroup.children.addBoolValueInput(BASEPLATE_WITH_MAGNETS_INPUT, 'Add magnet cutouts', True, '', True)
-    magnetCutoutGroup.children.addValueInput(BASEPLATE_MAGNET_DIAMETER_INPUT, 'Magnet cutout diameter', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.DIMENSION_MAGNET_CUTOUT_DIAMETER))
-    magnetCutoutGroup.children.addValueInput(BASEPLATE_MAGNET_HEIGHT_INPUT, 'Magnet cutout depth', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.DIMENSION_MAGNET_CUTOUT_DEPTH))
+    magnetCutoutGroup = plateFeaturesGroup.children.addGroupCommandInput(MAGNET_SOCKET_GROUP, 'Magnet cutouts')
+    magnetCutoutGroup.isExpanded = uiState.getState(MAGNET_SOCKET_GROUP)
+    uiState.registerCommandInput(magnetCutoutGroup)
+    generateMagnetSocketInput = magnetCutoutGroup.children.addBoolValueInput(BASEPLATE_WITH_MAGNETS_INPUT, 'Add magnet cutouts', True, '', uiState.getState(BASEPLATE_WITH_MAGNETS_INPUT))
+    uiState.registerCommandInput(generateMagnetSocketInput)
+    magnetSocketDiameterInput = magnetCutoutGroup.children.addValueInput(BASEPLATE_MAGNET_DIAMETER_INPUT, 'Magnet cutout diameter', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BASEPLATE_MAGNET_DIAMETER_INPUT)))
+    uiState.registerCommandInput(magnetSocketDiameterInput)
+    magnetSocketDepthInput = magnetCutoutGroup.children.addValueInput(BASEPLATE_MAGNET_HEIGHT_INPUT, 'Magnet cutout depth', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BASEPLATE_MAGNET_HEIGHT_INPUT)))
+    uiState.registerCommandInput(magnetSocketDepthInput)
 
-    screwHoleGroup = plateFeaturesGroup.children.addGroupCommandInput('screw_hole_group', 'Screw holes')
-    screwHoleGroup.children.addBoolValueInput(BASEPLATE_WITH_SCREWS_INPUT, 'Add screw holes', True, '', True)
-    screwSizeInput = screwHoleGroup.children.addValueInput(BASEPLATE_SCREW_DIAMETER_INPUT, 'Screw hole diameter', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.DIMENSION_PLATE_SCREW_HOLE_DIAMETER))
+    screwHoleGroup = plateFeaturesGroup.children.addGroupCommandInput(SCREW_HOLE_GROUP, 'Screw holes')
+    screwHoleGroup.isExpanded = uiState.getState(SCREW_HOLE_GROUP)
+    uiState.registerCommandInput(screwHoleGroup)
+    generateScrewHolesInput = screwHoleGroup.children.addBoolValueInput(BASEPLATE_WITH_SCREWS_INPUT, 'Add screw holes', True, '', uiState.getState(BASEPLATE_WITH_SCREWS_INPUT))
+    uiState.registerCommandInput(generateScrewHolesInput)
+    screwSizeInput = screwHoleGroup.children.addValueInput(BASEPLATE_SCREW_DIAMETER_INPUT, 'Screw hole diameter', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BASEPLATE_SCREW_DIAMETER_INPUT)))
     screwSizeInput.minimumValue = 0.1
     screwSizeInput.isMinimumInclusive = True
     screwSizeInput.maximumValue = 1
     screwSizeInput.isMaximumInclusive = True
+    uiState.registerCommandInput(screwSizeInput)
 
-    screwHeadSizeInput = screwHoleGroup.children.addValueInput(BASEPLATE_SCREW_HEIGHT_INPUT, 'Screw head cutout diameter', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.DIMENSION_SCREW_HEAD_CUTOUT_DIAMETER))
+    screwHeadSizeInput = screwHoleGroup.children.addValueInput(BASEPLATE_SCREW_HEIGHT_INPUT, 'Screw head cutout diameter', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BASEPLATE_SCREW_HEIGHT_INPUT)))
     screwHeadSizeInput.minimumValue = 0.2
     screwHeadSizeInput.isMinimumInclusive = True
     screwHeadSizeInput.maximumValue = 1.5
     screwHeadSizeInput.isMaximumInclusive = True
     screwHeadSizeInput.tooltip = "Must be greater than screw diameter"
+    uiState.registerCommandInput(screwHeadSizeInput)
 
-    advancedPlateSizeGroup = plateFeaturesGroup.children.addGroupCommandInput('advanced_plate_size_group', 'Advanced plate size options')
-    extraBottomThicknessInput = advancedPlateSizeGroup.children.addValueInput(BASEPLATE_EXTRA_THICKNESS_INPUT, 'Extra bottom thickness', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.BASEPLATE_EXTRA_HEIGHT))
+    advancedPlateSizeGroup = plateFeaturesGroup.children.addGroupCommandInput(ADVANCED_PLATE_SIZE_GROUP, 'Advanced plate size options')
+    advancedPlateSizeGroup.isExpanded = uiState.getState(ADVANCED_PLATE_SIZE_GROUP)
+    uiState.registerCommandInput(advancedPlateSizeGroup)
+    extraBottomThicknessInput = advancedPlateSizeGroup.children.addValueInput(BASEPLATE_EXTRA_THICKNESS_INPUT, 'Extra bottom thickness', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BASEPLATE_EXTRA_THICKNESS_INPUT)))
     extraBottomThicknessInput.minimumValue = 0
     extraBottomThicknessInput.isMinimumInclusive = False
+    uiState.registerCommandInput(extraBottomThicknessInput)
 
-    verticalClearanceInput = advancedPlateSizeGroup.children.addValueInput(BASEPLATE_BIN_Z_CLEARANCE_INPUT, 'Clearance between baseplate and bin', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.BASEPLATE_BIN_Z_CLEARANCE))
+    verticalClearanceInput = advancedPlateSizeGroup.children.addValueInput(BASEPLATE_BIN_Z_CLEARANCE_INPUT, 'Clearance between baseplate and bin', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BASEPLATE_BIN_Z_CLEARANCE_INPUT)))
     verticalClearanceInput.minimumValue = 0
     verticalClearanceInput.isMinimumInclusive = True
     verticalClearanceInput.maximumValue = 0.3
     verticalClearanceInput.isMaximumInclusive = True
+    uiState.registerCommandInput(verticalClearanceInput)
     
-    advancedPlateSizeGroup.children.addBoolValueInput(BASEPLATE_HAS_CONNECTION_HOLE_INPUT, 'Add connection holes',  True, '', False)
-    connectionHoleSizeInput = advancedPlateSizeGroup.children.addValueInput(BASEPLATE_CONNECTION_HOLE_DIAMETER_INPUT, 'Connection hole diameter', defaultLengthUnits, adsk.core.ValueInput.createByReal(const.DIMENSION_PLATE_CONNECTION_SCREW_HOLE_DIAMETER))
+    generateBaseplateConnectionPinHoleInput = advancedPlateSizeGroup.children.addBoolValueInput(BASEPLATE_HAS_CONNECTION_HOLE_INPUT, 'Add connection holes',  True, '', uiState.getState(BASEPLATE_HAS_CONNECTION_HOLE_INPUT))
+    uiState.registerCommandInput(generateBaseplateConnectionPinHoleInput)
+    connectionHoleSizeInput = advancedPlateSizeGroup.children.addValueInput(BASEPLATE_CONNECTION_HOLE_DIAMETER_INPUT, 'Connection hole diameter', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BASEPLATE_CONNECTION_HOLE_DIAMETER_INPUT)))
     connectionHoleSizeInput.minimumValue = 0.1
     connectionHoleSizeInput.isMinimumInclusive = True
     connectionHoleSizeInput.maximumValue = 0.5
     connectionHoleSizeInput.isMaximumInclusive = True
+    uiState.registerCommandInput(connectionHoleSizeInput)
+    
+    inputChangesGroup = inputs.addGroupCommandInput(INPUT_CHANGES_GROUP, 'Inputs')
+    inputChangesGroup.isExpanded = uiState.getState(INPUT_CHANGES_GROUP)
+    uiState.registerCommandInput(inputChangesGroup)
+    saveAsDefaultsButtonInput = inputChangesGroup.children.addBoolValueInput(INPUT_CHANGES_SAVE_DEFAULTS, 'Save as new defaults', False, '', False)
+    saveAsDefaultsButtonInput.text = 'Save'
+    resetToDefaultsButtonInput = inputChangesGroup.children.addBoolValueInput(INPUT_CHANGES_RESET_TO_DEFAULTS, 'Reset to defaults', False, '', False)
+    resetToDefaultsButtonInput.text = 'Reset'
+    factoryResetButtonInput = inputChangesGroup.children.addBoolValueInput(INPUT_CHANGES_RESET_TO_FACTORY, 'Wipe saved settings', False, '', False)
+    factoryResetButtonInput.text = 'Factory reset'
 
-    previewGroup = inputs.addGroupCommandInput('preview_group', 'Preview')
-    previewGroup.children.addBoolValueInput(SHOW_PREVIEW_INPUT, 'Show preview (slow)', True, '', False)
+    previewGroup = inputs.addGroupCommandInput(PREVIEW_GROUP, 'Preview')
+    uiState.registerCommandInput(previewGroup)
+    previewGroup.isExpanded = uiState.getState(PREVIEW_GROUP)
+    showLivePreview = previewGroup.children.addBoolValueInput(SHOW_PREVIEW_INPUT, 'Show preview (slow)', True, '', uiState.getState(SHOW_PREVIEW_INPUT))
+    uiState.registerCommandInput(showLivePreview)
 
-    # TODO Connect to the events that are needed by this command.
     futil.add_handler(args.command.execute, command_execute, local_handlers=local_handlers)
     futil.add_handler(args.command.inputChanged, command_input_changed, local_handlers=local_handlers)
     futil.add_handler(args.command.executePreview, command_preview, local_handlers=local_handlers)
@@ -235,6 +300,18 @@ def command_preview(args: adsk.core.CommandEventArgs):
 # allowing you to modify values of other inputs based on that change.
 def command_input_changed(args: adsk.core.InputChangedEventArgs):
     changed_input = args.input
+    global uiState
+    if changed_input.id == INPUT_CHANGES_SAVE_DEFAULTS:
+        saveUIInputsAsDefaults()
+    elif changed_input.id == INPUT_CHANGES_RESET_TO_DEFAULTS:
+        initUiState()
+        uiState.forceUIRefresh()
+    elif changed_input.id == INPUT_CHANGES_RESET_TO_FACTORY:
+        configUtils.deleteConfigFile(UI_INPUT_DEFAULTS_CONFIG_PATH)
+        initUiState()
+        uiState.forceUIRefresh()
+    else:
+        uiState.onInputUpdate(changed_input)
     inputs = args.inputs
 
     # General logging for debug.
@@ -247,8 +324,7 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
     # General logging for debug.
     futil.log(f'{CMD_NAME} Validate Input Event')
 
-    inputs = args.inputs
-    inputsState = getInputsState(inputs)
+    inputsState = getInputsState()
     
     # Verify the validity of the input values. This controls if the OK button is enabled or not.
     INPUTS_VALID = inputsState.baseWidth >= 1 \
@@ -268,19 +344,15 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
 
 # This event handler is called when the command terminates.
 def command_destroy(args: adsk.core.CommandEventArgs):
-    # General logging for debug.
     futil.log(f'{CMD_NAME} Command Destroy Event')
-
     global local_handlers
     local_handlers = []
+    global uiState
 
 
 def generateBaseplate(args: adsk.core.CommandEventArgs):
-    # General logging for debug.
     futil.log(f'{CMD_NAME} Generating baseplate')
-     # Get a reference to command's inputs.
-    inputs = args.command.commandInputs
-    inputsState = getInputsState(inputs)
+    inputsState = getInputsState()
 
     try:
         des = adsk.fusion.Design.cast(app.activeProduct)
@@ -323,42 +395,78 @@ def generateBaseplate(args: adsk.core.CommandEventArgs):
         args.executeFailed = True
         args.executeFailedMessage = getErrorMessage()
 
-def getInputsState(inputs: adsk.core.CommandInputs):
-    base_width_unit: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_BASE_UNIT_WIDTH_INPUT)
-    base_length_unit: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_BASE_UNIT_LENGTH_INPUT)
-    xy_clearance: adsk.core.ValueCommandInput = inputs.itemById(BIN_XY_CLEARANCE_INPUT_ID)
-    plate_width: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_WIDTH_INPUT)
-    plate_length: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_LENGTH_INPUT)
+def initUiState():
+    global uiState
+    uiState.initValue(BASIC_SIZES_GROUP, True, adsk.core.GroupCommandInput.classType())
+    uiState.initValue(XY_DIMENSIONS_GROUP, True, adsk.core.GroupCommandInput.classType())
+    uiState.initValue(PLATE_FEATURES_GROUP, True, adsk.core.GroupCommandInput.classType())
+    uiState.initValue(MAGNET_SOCKET_GROUP, True, adsk.core.GroupCommandInput.classType())
+    uiState.initValue(SCREW_HOLE_GROUP, True, adsk.core.GroupCommandInput.classType())
+    uiState.initValue(ADVANCED_PLATE_SIZE_GROUP, True, adsk.core.GroupCommandInput.classType())
+    uiState.initValue(INPUT_CHANGES_GROUP, True, adsk.core.GroupCommandInput.classType())
+    uiState.initValue(PREVIEW_GROUP, True, adsk.core.GroupCommandInput.classType())
 
-    plateTypeDropdown: adsk.core.DropDownCommandInput = inputs.itemById(BASEPLATE_TYPE_DROPDOWN)
-    withMagnets: adsk.core.BoolValueCommandInput = inputs.itemById(BASEPLATE_WITH_MAGNETS_INPUT)
-    magnetDiameter: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_MAGNET_DIAMETER_INPUT)
-    magnetHeight: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_MAGNET_HEIGHT_INPUT)
+    uiState.initValue(BASEPLATE_BASE_UNIT_WIDTH_INPUT, DIMENSION_DEFAULT_WIDTH_UNIT, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_BASE_UNIT_LENGTH_INPUT, DIMENSION_DEFAULT_WIDTH_UNIT, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(BIN_XY_CLEARANCE_INPUT_ID, const.BIN_XY_CLEARANCE, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_WIDTH_INPUT, 2, adsk.core.IntegerSpinnerCommandInput.classType())
+    uiState.initValue(BASEPLATE_LENGTH_INPUT, 3, adsk.core.IntegerSpinnerCommandInput.classType())
+    uiState.initValue(BASEPLATE_TYPE_DROPDOWN, BASEPLATE_TYPE_LIGHT, adsk.core.DropDownCommandInput.classType())
 
-    withScrews: adsk.core.BoolValueCommandInput = inputs.itemById(BASEPLATE_WITH_SCREWS_INPUT)
-    screwDiameter: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_SCREW_DIAMETER_INPUT)
-    screwHeadDiameter: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_SCREW_HEIGHT_INPUT)
+    uiState.initValue(BASEPLATE_WITH_MAGNETS_INPUT, True, adsk.core.BoolValueCommandInput.classType())
 
-    extraThickness: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_EXTRA_THICKNESS_INPUT)
-    binZClearance: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_BIN_Z_CLEARANCE_INPUT)
-    hasConnectionHoles: adsk.core.BoolValueCommandInput = inputs.itemById(BASEPLATE_HAS_CONNECTION_HOLE_INPUT)
-    connectionHoleDiameter: adsk.core.ValueCommandInput = inputs.itemById(BASEPLATE_CONNECTION_HOLE_DIAMETER_INPUT)
+    uiState.initValue(BASEPLATE_MAGNET_DIAMETER_INPUT, const.DIMENSION_MAGNET_CUTOUT_DIAMETER, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_MAGNET_HEIGHT_INPUT, const.DIMENSION_MAGNET_CUTOUT_DEPTH, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_WITH_SCREWS_INPUT, True, adsk.core.BoolValueCommandInput.classType())
 
+    uiState.initValue(BASEPLATE_SCREW_DIAMETER_INPUT, const.DIMENSION_PLATE_SCREW_HOLE_DIAMETER, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_SCREW_HEIGHT_INPUT, const.DIMENSION_SCREW_HEAD_CUTOUT_DIAMETER, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_EXTRA_THICKNESS_INPUT, const.BASEPLATE_EXTRA_HEIGHT, adsk.core.ValueCommandInput.classType())
+
+    uiState.initValue(BASEPLATE_BIN_Z_CLEARANCE_INPUT, const.BASEPLATE_BIN_Z_CLEARANCE, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_HAS_CONNECTION_HOLE_INPUT, False, adsk.core.BoolValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_CONNECTION_HOLE_DIAMETER_INPUT, const.DIMENSION_PLATE_CONNECTION_SCREW_HOLE_DIAMETER, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(SHOW_PREVIEW_INPUT, False, adsk.core.BoolValueCommandInput.classType())
+
+    recordedDefaults = configUtils.readJsonConfig(UI_INPUT_DEFAULTS_CONFIG_PATH)
+    if recordedDefaults:
+        futil.log(f'{CMD_NAME} Found previously saving default values, restoring {recordedDefaults}')
+
+        try:
+            uiState.initValues(recordedDefaults)
+            futil.log(f'{CMD_NAME} Successfully restored default values')
+        except Exception as err:
+            futil.log(f'{CMD_NAME} Failed to restore default values, err: {err}')
+
+
+    else:
+        futil.log(f'{CMD_NAME} No previously saved default values')
+
+def saveUIInputsAsDefaults():
+    futil.log(f'{CMD_NAME} Saving UI state to file')
+    result = configUtils.dumpJsonConfig(UI_INPUT_DEFAULTS_CONFIG_PATH, uiState.toDict())
+    if result:
+        futil.log(f'{CMD_NAME} Saved successfully')
+    else:
+        futil.log(f'{CMD_NAME} UI state failed to save')
+
+def getInputsState():
+    global uiState
     return InputState(
-        base_width_unit.value,
-        base_length_unit.value,
-        xy_clearance.value,
-        plate_width.value,
-        plate_length.value,
-        plateTypeDropdown.selectedItem.name,
-        withMagnets.value,
-        magnetDiameter.value,
-        magnetHeight.value,
-        withScrews.value,
-        screwDiameter.value,
-        screwHeadDiameter.value,
-        extraThickness.value,
-        binZClearance.value,
-        hasConnectionHoles.value,
-        connectionHoleDiameter.value
+        uiState.getState(BASEPLATE_BASE_UNIT_WIDTH_INPUT),
+        uiState.getState(BASEPLATE_BASE_UNIT_LENGTH_INPUT),
+        uiState.getState(BIN_XY_CLEARANCE_INPUT_ID),
+        uiState.getState(BASEPLATE_WIDTH_INPUT),
+        uiState.getState(BASEPLATE_LENGTH_INPUT),
+        uiState.getState(BASEPLATE_TYPE_DROPDOWN),
+        uiState.getState(BASEPLATE_WITH_MAGNETS_INPUT),
+        uiState.getState(BASEPLATE_MAGNET_DIAMETER_INPUT),
+        uiState.getState(BASEPLATE_MAGNET_HEIGHT_INPUT),
+        uiState.getState(BASEPLATE_WITH_SCREWS_INPUT),
+        uiState.getState(BASEPLATE_SCREW_DIAMETER_INPUT),
+        uiState.getState(BASEPLATE_SCREW_HEIGHT_INPUT),
+        uiState.getState(BASEPLATE_EXTRA_THICKNESS_INPUT),
+        uiState.getState(BASEPLATE_BIN_Z_CLEARANCE_INPUT),
+        uiState.getState(BASEPLATE_HAS_CONNECTION_HOLE_INPUT),
+        uiState.getState(BASEPLATE_CONNECTION_HOLE_DIAMETER_INPUT),
     )
