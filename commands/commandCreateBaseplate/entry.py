@@ -45,6 +45,7 @@ UI_INPUT_DEFAULTS_CONFIG_PATH = os.path.join(CONFIG_FOLDER_PATH, "ui_input_defau
 local_handlers = []
 
 # Input groups
+INFO_GROUP = 'info_group'
 BASIC_SIZES_GROUP = 'basic_sizes'
 XY_DIMENSIONS_GROUP = 'xy_dimensions'
 PLATE_FEATURES_GROUP = 'plate_features'
@@ -60,7 +61,6 @@ BIN_XY_CLEARANCE_INPUT_ID = 'bin_xy_clearance'
 BASEPLATE_WIDTH_INPUT = 'plate_width'
 BASEPLATE_LENGTH_INPUT = 'plate_length'
 BASEPLATE_TYPE_DROPDOWN = 'plate_type_dropdown'
-INFO_GROUP_ID = 'info_group'
 
 BASEPLATE_TYPE_LIGHT = 'Light'
 BASEPLATE_TYPE_FULL = 'Full'
@@ -160,12 +160,13 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
 
     # https://help.autodesk.com/view/fusion360/ENU/?contextId=CommandInputs
     inputs = args.command.commandInputs
-
-    infoGroup = inputs.addGroupCommandInput(INFO_GROUP_ID, 'Info')
-    infoGroup.children.addTextBoxCommandInput("info_text", "Info", INFO_TEXT, 3, True)
-
     # Create a value input field and set the default using 1 unit of the default length unit.
     defaultLengthUnits = app.activeProduct.unitsManager.defaultLengthUnits
+
+    infoGroup = inputs.addGroupCommandInput(INFO_GROUP, 'Info')
+    infoGroup.children.addTextBoxCommandInput("info_text", "Info", INFO_TEXT, 3, True)
+    uiState.registerCommandInput(infoGroup)
+
     basicSizesGroup = inputs.addGroupCommandInput(BASIC_SIZES_GROUP, 'Basic size')
     basicSizesGroup.isExpanded = uiState.getState(BASIC_SIZES_GROUP)
     uiState.registerCommandInput(basicSizesGroup)
@@ -405,6 +406,7 @@ def generateBaseplate(args: adsk.core.CommandEventArgs):
 
 def initUiState():
     global uiState
+    uiState.initValue(INFO_GROUP, True, adsk.core.GroupCommandInput.classType())
     uiState.initValue(BASIC_SIZES_GROUP, True, adsk.core.GroupCommandInput.classType())
     uiState.initValue(XY_DIMENSIONS_GROUP, True, adsk.core.GroupCommandInput.classType())
     uiState.initValue(PLATE_FEATURES_GROUP, True, adsk.core.GroupCommandInput.classType())

@@ -61,7 +61,7 @@ BIN_TAB_FEATURES_GROUP_ID = 'bin_tab_features_group'
 BIN_BASE_FEATURES_GROUP_ID = 'bin_base_features_group'
 USER_CHANGES_GROUP_ID = 'user_changes_group'
 PREVIEW_GROUP_ID = 'preview_group'
-INFO_GROUP_ID = 'info_group'
+INFO_GROUP = 'info_group'
 
 BIN_BASE_WIDTH_UNIT_INPUT_ID = 'base_width_unit'
 BIN_BASE_LENGTH_UNIT_INPUT_ID = 'base_length_unit'
@@ -413,7 +413,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     # https://help.autodesk.com/view/fusion360/ENU/?contextId=CommandInputs
     inputs = args.command.commandInputs
 
-    infoGroup = inputs.addGroupCommandInput(INFO_GROUP_ID, 'Info')
+    infoGroup = inputs.addGroupCommandInput(INFO_GROUP, 'Info')
     infoGroup.children.addTextBoxCommandInput("info_text", "Info", INFO_TEXT, 3, True)
 
     # Create a value input field and set the default using 1 unit of the default length unit.
