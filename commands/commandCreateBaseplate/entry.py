@@ -323,6 +323,12 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
         uiState.forceUIRefresh()
     else:
         uiState.onInputUpdate(changed_input)
+
+    if isinstance(changed_input, adsk.core.GroupCommandInput) and changed_input.isExpanded == True:
+        for input in changed_input.children:
+            uiState.registerCommandInput(input)
+        uiState.forceUIRefresh()
+
     inputs = args.inputs
 
     # General logging for debug.

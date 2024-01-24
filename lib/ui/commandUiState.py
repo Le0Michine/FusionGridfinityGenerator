@@ -20,6 +20,12 @@ class CommandUiState:
         self.commandInputs: dict[str, adsk.core.CommandInput] = {}
         self.commandName = commandName
 
+    def removeValue(self, inputId: str):
+        if inputId in self.inputState:
+            del self.inputState[inputId]
+        if inputId in self.commandInputs:
+            del self.commandInputs[inputId]
+
     def initValue(self, inputId: str, inputValue: any, inputType: str):
         self.inputState[inputId] = SingleInputState(inputId, inputValue, inputType)
 
@@ -37,7 +43,10 @@ class CommandUiState:
         if isinstance(input, adsk.core.IntegerSpinnerCommandInput):
             self.inputState[inputId] = SingleInputState(inputId, input.value, input.objectType)
         elif isinstance(input, adsk.core.ValueCommandInput):
-            self.inputState[inputId] = SingleInputState(inputId, input.value, input.objectType)
+            if input.unitType == 'deg':
+                self.inputState[inputId] = SingleInputState(inputId, input.expression, input.objectType)
+            else:
+                self.inputState[inputId] = SingleInputState(inputId, input.value, input.objectType)
         elif isinstance(input, adsk.core.DropDownCommandInput):
             self.inputState[inputId] = SingleInputState(inputId, input.selectedItem.name, input.objectType)
         elif isinstance(input, adsk.core.GroupCommandInput):
@@ -53,7 +62,11 @@ class CommandUiState:
             if input.id in self.commandInputs:
                 commandInput = self.commandInputs[input.id]
                 futil.log(f'{self.commandName} Input {input.id}, {commandInput}')
-                self.updateInputFromState(commandInput)
+                try:
+                    self.updateInputFromState(commandInput)
+                except Exception as err:
+                    futil.log(f'{self.commandName} Skipping {input.id} due to error: {err}')
+
             else:
                 futil.log(f'{self.commandName} Skipping {input.id} as it wasn\'t registered')
 
@@ -64,7 +77,10 @@ class CommandUiState:
         if isinstance(input, adsk.core.IntegerSpinnerCommandInput):
             input.value = value
         elif isinstance(input, adsk.core.ValueCommandInput):
-            input.value = value
+            if isinstance(value, str):
+                input.expression = value
+            else:
+                input.value = value
         elif isinstance(input, adsk.core.DropDownCommandInput):
             for i in range(0, input.listItems.count):
                 input.listItems.item(i).isSelected = input.listItems.item(i).name == value
