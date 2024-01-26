@@ -54,8 +54,6 @@ def createGridfinityBinBodyLip(
         lipBodyExtrude.endFaces.item(0),
         adsk.core.ValueInput.createByReal(0)
     )
-    lipCutoutConstructionPlane = targetComponent.constructionPlanes.add(lipCutoutPlaneInput)
-    lipCutoutConstructionPlane.name = "lip cutout construction plane"
 
     if input.hasLipNotches:
         lipCutoutInput = BaseGeneratorInput()
@@ -112,24 +110,27 @@ def createGridfinityBinBodyLip(
         lipCutout.name = "lip cutout"
         lipCutoutBodies.append(lipCutout)
 
-    topChamferSketch: adsk.fusion.Sketch = targetComponent.sketches.add(lipCutoutConstructionPlane)
-    topChamferSketch.name = "Lip top chamfer"
-    sketchUtils.createRectangle(
-        actualLipBodyWidth,
-        actualLipBodyLength,
-        topChamferSketch.modelToSketchSpace(adsk.core.Point3D.create(0, 0, topChamferSketch.origin.z)),
-        topChamferSketch,
-    )
-    topChamferNegativeVolume = extrudeUtils.simpleDistanceExtrude(
-        topChamferSketch.profiles.item(0),
-        adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
-        const.BIN_LIP_TOP_RECESS_HEIGHT,
-        adsk.fusion.ExtentDirections.NegativeExtentDirection,
-        [],
-        targetComponent,
-    )
-    topChamferNegativeVolume.name = "Lip top chamfer cut"
-    bodiesToSubtract.append(topChamferNegativeVolume.bodies.item(0))
+    if const.BIN_LIP_TOP_RECESS_HEIGHT > const.DEFAULT_FILTER_TOLERANCE:
+        lipCutoutConstructionPlane = targetComponent.constructionPlanes.add(lipCutoutPlaneInput)
+        lipCutoutConstructionPlane.name = "top lip edge plane"
+        topChamferSketch: adsk.fusion.Sketch = targetComponent.sketches.add(lipCutoutConstructionPlane)
+        topChamferSketch.name = "Lip top chamfer"
+        sketchUtils.createRectangle(
+            actualLipBodyWidth,
+            actualLipBodyLength,
+            topChamferSketch.modelToSketchSpace(adsk.core.Point3D.create(0, 0, topChamferSketch.origin.z)),
+            topChamferSketch,
+        )
+        topChamferNegativeVolume = extrudeUtils.simpleDistanceExtrude(
+            topChamferSketch.profiles.item(0),
+            adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
+            const.BIN_LIP_TOP_RECESS_HEIGHT,
+            adsk.fusion.ExtentDirections.NegativeExtentDirection,
+            [],
+            targetComponent,
+        )
+        topChamferNegativeVolume.name = "Lip top chamfer cut"
+        bodiesToSubtract.append(topChamferNegativeVolume.bodies.item(0))
     bodiesToSubtract = bodiesToSubtract + lipCutoutBodies
 
     combineUtils.cutBody(
