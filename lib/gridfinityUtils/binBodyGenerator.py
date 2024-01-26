@@ -259,5 +259,5 @@ def createCompartment(
         intersectTabInput.operation = adsk.fusion.FeatureOperations.IntersectFeatureOperation
         intersectTabInput.isKeepToolBodies = True
         intersectTabFeature = targetComponent.features.combineFeatures.add(intersectTabInput)
-        bodiesToMerge = bodiesToMerge + list(intersectTabFeature.bodies)
+        bodiesToMerge = bodiesToMerge + [body for body in list(intersectTabFeature.bodies) if not body.revisionId == innerCutoutBody.revisionId]
     return (bodiesToMerge, bodiesToSubtract)
