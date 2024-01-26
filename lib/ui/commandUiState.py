@@ -29,6 +29,12 @@ class CommandUiState:
     def initValue(self, inputId: str, inputValue: any, inputType: str):
         self.inputState[inputId] = SingleInputState(inputId, inputValue, inputType)
 
+    def updateValue(self, inputId: str, inputValue: any):
+        if inputId in self.inputState:
+            self.inputState[inputId].value = inputValue
+        if inputId in self.commandInputs:
+            self.updateInputFromState(self.commandInputs[inputId])
+
     def initValues(self, inputValues: dict[str, any]):
         for v in inputValues.values():
             self.inputState[v['id']] = SingleInputState(v['id'], v['value'], v['type'])
@@ -52,6 +58,10 @@ class CommandUiState:
         elif isinstance(input, adsk.core.GroupCommandInput):
             self.inputState[inputId] = SingleInputState(inputId, input.isExpanded, input.objectType)
         elif isinstance(input, adsk.core.BoolValueCommandInput):
+            self.inputState[inputId] = SingleInputState(inputId, input.value, input.objectType)
+        elif isinstance(input, adsk.core.TextBoxCommandInput):
+            self.inputState[inputId] = SingleInputState(inputId, input.formattedText, input.objectType)
+        elif isinstance(input, adsk.core.StringValueCommandInput):
             self.inputState[inputId] = SingleInputState(inputId, input.value, input.objectType)
         else:
             futil.log(f'{self.commandName} Unknonwn input type: {input.id} [{input.objectType}]')
@@ -88,14 +98,22 @@ class CommandUiState:
             input.isExpanded = value
         elif isinstance(input, adsk.core.BoolValueCommandInput):
             input.value = value
+        elif isinstance(input, adsk.core.TextBoxCommandInput):
+            input.formattedText = value
+        elif isinstance(input, adsk.core.StringValueCommandInput):
+            input.value = value
         else:
             futil.log(f'{self.commandName} Unknonwn input type: {input.id} [{input.objectType}]')
 
     def getState(self, inputId: str):
         return self.inputState[inputId].value
+
+    def getInput(self, inputId: str):
+        return self.commandInputs[inputId]
     
-    def toDict(self):
+    def toDict(self, ignoreKeys: [str] = []):
         result = {}
         for key in self.inputState.keys():
-            result[key] = self.inputState[key].toDict()
+            if key not in ignoreKeys:
+                result[key] = self.inputState[key].toDict()
         return result
