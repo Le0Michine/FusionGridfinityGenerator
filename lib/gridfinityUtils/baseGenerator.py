@@ -150,6 +150,20 @@ def createGridfinityBase(
         )
         cutoutBodies.add(magnetSocketBody)
         
+        if input.hasMagnetCutoutsTabs:
+            tab_offset = input.magnetCutoutsDiameter / 4
+            tab_offset = 0
+            tabBody = shapeUtils.simpleBox(
+                baseBottomPlane,
+                0,
+                input.magnetCutoutsDiameter / 2,
+                input.magnetCutoutsDiameter / 2,
+                -input.magnetCutoutsDepth,
+                adsk.core.Point3D.create(baseHoleCenterPoint.x - tab_offset, baseHoleCenterPoint.y + tab_offset, 0),
+                targetComponent,
+            )
+            cutoutBodies.add(tabBody)
+
         if input.hasScrewHoles and (const.BIN_BASE_HEIGHT - input.magnetCutoutsDepth) > const.BIN_MAGNET_HOLE_GROOVE_DEPTH:
             grooveBody = shapeUtils.simpleCylinder(
                 baseBottomPlane,
@@ -183,6 +197,7 @@ def createGridfinityBase(
 
 
     if input.hasScrewHoles or input.hasMagnetCutouts:
+        # FIXME: Possibly insert the magnetcutouttabs here instead for directionality
         if cutoutBodies.count > 1:
             joinFeature = combineUtils.joinBodies(cutoutBodies.item(0), commonUtils.objectCollectionFromList(list(cutoutBodies)[1:]), targetComponent)
             cutoutBodies = commonUtils.objectCollectionFromList(joinFeature.bodies)
