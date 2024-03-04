@@ -1,4 +1,4 @@
-import adsk.core, adsk.fusion, traceback
+import adsk.core, adsk.fusion, traceback, math
 import os
 
 
@@ -149,6 +149,32 @@ def createGridfinityBase(
             targetComponent,
         )
         cutoutBodies.add(magnetSocketBody)
+
+        # magnet tab cutouts
+        if input.hasMagnetCutoutsTabs:
+            patternTabCutoutBodies = adsk.core.ObjectCollection.create()
+            tabRadius = input.magnetCutoutsDiameter / 4
+            tabOffset = math.sqrt(2) * tabRadius
+            magnetTabCutoutSketch = createCircleAtPointSketch(
+                baseBottomPlane,
+                tabRadius,
+                adsk.core.Point3D.create(
+                    baseHoleCenterPoint.x + tabOffset,
+                    baseHoleCenterPoint.y + tabOffset,
+                    0
+                ),
+                targetComponent
+            )
+
+            magnetTabCutoutExtrude = extrudeUtils.simpleDistanceExtrude(
+                magnetTabCutoutSketch.profiles.item(0),
+                adsk.fusion.FeatureOperations.CutFeatureOperation,
+                input.magnetCutoutsDepth,
+                adsk.fusion.ExtentDirections.NegativeExtentDirection,
+                [baseBottomExtrude.bodies.item(0)],
+                targetComponent,
+            )
+            patternTabCutoutBodies.add(magnetTabCutoutExtrude)
         
         if input.hasScrewHoles and (const.BIN_BASE_HEIGHT - input.magnetCutoutsDepth) > const.BIN_MAGNET_HOLE_GROOVE_DEPTH:
             grooveBody = shapeUtils.simpleCylinder(
@@ -183,11 +209,12 @@ def createGridfinityBase(
 
 
     if input.hasScrewHoles or input.hasMagnetCutouts:
+        patternSpacingX = input.baseWidth - const.DIMENSION_SCREW_HOLES_OFFSET * 2
+        patternSpacingY = input.baseLength - const.DIMENSION_SCREW_HOLES_OFFSET * 2
+        
         if cutoutBodies.count > 1:
             joinFeature = combineUtils.joinBodies(cutoutBodies.item(0), commonUtils.objectCollectionFromList(list(cutoutBodies)[1:]), targetComponent)
             cutoutBodies = commonUtils.objectCollectionFromList(joinFeature.bodies)
-        patternSpacingX = input.baseWidth - const.DIMENSION_SCREW_HOLES_OFFSET * 2
-        patternSpacingY = input.baseLength - const.DIMENSION_SCREW_HOLES_OFFSET * 2
         patternInput = rectangularPatternFeatures.createInput(cutoutBodies,
             targetComponent.xConstructionAxis,
             adsk.core.ValueInput.createByReal(2),
@@ -198,6 +225,17 @@ def createGridfinityBase(
         patternInput.distanceTwo = adsk.core.ValueInput.createByReal(patternSpacingY)
         patternFeature = rectangularPatternFeatures.add(patternInput)
         combineUtils.cutBody(baseBody, commonUtils.objectCollectionFromList(list(cutoutBodies) + list(patternFeature.bodies)), targetComponent)
+
+        if input.hasMagnetCutoutsTabs:
+            patternTabInput = rectangularPatternFeatures.createInput(patternTabCutoutBodies,
+                targetComponent.xConstructionAxis,
+                adsk.core.ValueInput.createByReal(2),
+                adsk.core.ValueInput.createByReal(patternSpacingX - input.magnetCutoutsDiameter + tabOffset),
+                adsk.fusion.PatternDistanceType.SpacingPatternDistanceType)
+            patternTabInput.directionTwoEntity = targetComponent.yConstructionAxis
+            patternTabInput.quantityTwo = adsk.core.ValueInput.createByReal(2)
+            patternTabInput.distanceTwo = adsk.core.ValueInput.createByReal(patternSpacingY  - input.magnetCutoutsDiameter + tabOffset)
+            rectangularPatternFeatures.add(patternTabInput)
 
     return baseBody
 
