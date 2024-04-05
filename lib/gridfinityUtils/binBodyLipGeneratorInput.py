@@ -7,6 +7,7 @@ class BinBodyLipGeneratorInput():
         self.wallThickness = const.BIN_LIP_WALL_THICKNESS
         self.hasLip = False
         self.hasLipNotches = False
+        self.binCornerFilletRadius = const.BIN_CORNER_FILLET_RADIUS
 
     @property
     def baseWidth(self) -> float:
@@ -41,8 +42,13 @@ class BinBodyLipGeneratorInput():
         self._binLength = value
 
     @property
-    def xyTolerance(self) -> float:
-        return self._xyTolerance
+    def binCornerFilletRadius(self) -> float:
+        return self._binCornerFilletRadius
+
+    @binCornerFilletRadius.setter
+    def binCornerFilletRadius(self, value: float):
+        self._binCornerFilletRadius = value
+
 
     @xyTolerance.setter
     def xyTolerance(self, value: float):

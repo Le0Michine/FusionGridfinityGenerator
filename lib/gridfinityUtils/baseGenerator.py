@@ -60,10 +60,11 @@ def createGridfinityBase(
     baseConstructionPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
     baseConstructionPlaneInput.setByOffset(targetComponent.xYConstructionPlane, adsk.core.ValueInput.createByReal(input.originPoint.z))
     baseConstructionPlane = targetComponent.constructionPlanes.add(baseConstructionPlaneInput)
+    baseConstructionPlane.name = 'Base plate construction plane'
     # create rectangle for the base
     sketches: adsk.fusion.Sketches = targetComponent.sketches
     basePlateSketch: adsk.fusion.Sketch = sketches.add(baseConstructionPlane)
-    rectangleOrigin = basePlateSketch.modelToSketchSpace(input.originPoint)
+    basePlateSketch.name = 'Base plate sketch'
     createRectangle(actual_base_width, actual_base_length,rectangleOrigin, basePlateSketch)
 
     # extrude top section
@@ -75,16 +76,17 @@ def createGridfinityBase(
         adsk.fusion.ExtentDirections.NegativeExtentDirection,
         adsk.core.ValueInput.createByReal(0))
     topSectionExtrudeFeature = extrudeFeatures.add(topSectionExtrudeInput)
+    topSectionExtrudeFeature.name = 'Base top section extrude'
     baseBody = topSectionExtrudeFeature.bodies.item(0)
-    baseBody.name = 'base'
+    baseBody.name = 'Base'
 
     # fillet on corners
     filletFeatures: adsk.fusion.FilletFeatures = features.filletFeatures
     filletInput = filletFeatures.createInput()
     filletInput.isRollingBallCorner = True
     fillet_edges = edgeUtils.selectEdgesByLength(baseBody.faces, const.BIN_BASE_TOP_SECTION_HEIGH, const.DEFAULT_FILTER_TOLERANCE)
-    filletInput.edgeSetInputs.addConstantRadiusEdgeSet(fillet_edges, adsk.core.ValueInput.createByReal(BIN_CORNER_FILLET_RADIUS), True)
-    filletFeatures.add(filletInput)
+    filletInput.edgeSetInputs.addConstantRadiusEdgeSet(fillet_edges, adsk.core.ValueInput.createByReal(input.cornerFilletRadius), True)
+    filletFeatures.add(filletInput).name = 'Base corner fillet'
 
     # chamfer top section
     chamferFeatures: adsk.fusion.ChamferFeatures = features.chamferFeatures

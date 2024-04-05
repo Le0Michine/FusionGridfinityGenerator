@@ -29,7 +29,7 @@ def uniformCompartments(countX, countY):
 def createGridfinityBinBody(
     input: BinBodyGeneratorInput,
     targetComponent: adsk.fusion.Component,
-    ) -> tuple[adsk.fusion.BRepBody, adsk.fusion.BRepBody]:
+) -> tuple[adsk.fusion.BRepBody, adsk.fusion.BRepBody]:
 
     actualBodyWidth = (input.baseWidth * input.binWidth) - input.xyTolerance * 2.0
     actualBodyLength = (input.baseLength * input.binLength) - input.xyTolerance * 2.0
@@ -45,7 +45,7 @@ def createGridfinityBinBody(
         targetComponent.xYConstructionPlane
     )
     binBody = binBodyExtrude.bodies.item(0)
-    binBody.name = 'bin body'
+    binBody.name = 'Bin body'
 
     bodiesToMerge: list[adsk.fusion.BRepBody] = []
     bodiesToSubtract: list[adsk.fusion.BRepBody] = []
@@ -53,10 +53,10 @@ def createGridfinityBinBody(
     # round corners
     filletUtils.filletEdgesByLength(
         binBodyExtrude.faces,
-        BIN_CORNER_FILLET_RADIUS,
+        input.binCornerFilletRadius,
         binBodyTotalHeight,
         targetComponent,
-    )
+    ).name = 'Bin body corner fillets'
 
     if input.hasLip:
         lipOriginPoint = adsk.core.Point3D.create(
@@ -87,6 +87,7 @@ def createGridfinityBinBody(
                     lipOriginPoint.z,
                 )
             )
+            lipBottomChamferExtrude.name = 'Lip bottom chamfer extrude'
             filletUtils.filletEdgesByLength(
                 lipBottomChamferExtrude.faces,
                 lipBottomChamferSize,
@@ -151,6 +152,7 @@ def createGridfinityBinBody(
                 compartmentWidth,
                 compartmentLength,
                 compartmentDepth,
+                input.binCornerFilletRadius - input.wallThickness,
                 input.hasScoop,
                 input.scoopMaxRadius,
                 input.hasTab,
@@ -171,6 +173,7 @@ def createGridfinityBinBody(
                 actualBodyWidth - input.wallThickness * 2,
                 actualBodyLength - input.wallThickness - compartmentsMinY,
                 const.BIN_TAB_TOP_CLEARANCE,
+                input.binCornerFilletRadius - input.wallThickness,
                 False,
                 0,
                 False,
@@ -200,13 +203,14 @@ def createCompartmentCutout(
         width: float,
         length: float,
         depth: float,
+        cornerFilletRadius: float,
         hasScoop: bool,
         scoopMaxRadius: float,
         hasBottomFillet: bool,
         targetComponent: adsk.fusion.Component,
     ) -> adsk.fusion.BRepBody:
 
-    innerCutoutFilletRadius = max(const.BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS, const.BIN_CORNER_FILLET_RADIUS - wallThickness)
+    innerCutoutFilletRadius = max(const.BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS, cornerFilletRadius)
     innerCutoutInput = BinBodyCutoutGeneratorInput()
     innerCutoutInput.origin = originPoint
     innerCutoutInput.width = width
@@ -225,6 +229,7 @@ def createCompartment(
         width: float,
         length: float,
         depth: float,
+        cornerFilletRadius: float,
         hasScoop: bool,
         scoopMaxRadius: float,
         hasTab: bool,
@@ -241,13 +246,14 @@ def createCompartment(
         width,
         length,
         depth,
+        cornerFilletRadius,
         hasScoop,
         scoopMaxRadius,
         True,
         targetComponent,
     )
     bodiesToSubtract.append(innerCutoutBody)
-        
+
     # label tab
     if hasTab:
         tabBody = createGridfinityBinBodyTab(tabInput, targetComponent)

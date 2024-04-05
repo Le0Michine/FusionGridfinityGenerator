@@ -66,6 +66,7 @@ class BinBodyGeneratorInput():
         self.compartments = [BinBodyCompartmentDefinition()]
         self.compartmentsByX = 1
         self.compartmentsByY = 1
+        self.binCornerFilletRadius = const.BIN_CORNER_FILLET_RADIUS
 
     @property
     def baseWidth(self) -> float:
@@ -92,12 +93,12 @@ class BinBodyGeneratorInput():
         self._heightUnit = value
 
     @property
-    def xyTolerance(self) -> float:
-        return self._xyTolerance
+    def xyClearance(self) -> float:
+        return self._xyClearance
 
-    @xyTolerance.setter
-    def xyTolerance(self, value: float):
-        self._xyTolerance = value
+    @xyClearance.setter
+    def xyClearance(self, value: float):
+        self._xyClearance = value
 
     @property
     def binWidth(self) -> float:
@@ -122,6 +123,14 @@ class BinBodyGeneratorInput():
     @binHeight.setter
     def binHeight(self, value: float):
         self._binHeight = value
+
+    @property
+    def binCornerFilletRadius(self) -> float:
+        return self._binCornerFilletRadius
+
+    @binCornerFilletRadius.setter
+    def binCornerFilletRadius(self, value: float):
+        self._binCornerFilletRadius = value
 
     @property
     def wallThickness(self) -> float:

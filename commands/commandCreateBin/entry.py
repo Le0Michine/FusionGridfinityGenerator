@@ -930,7 +930,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
         binBodyInput.baseWidth = base_width_unit.value
         binBodyInput.baseLength = base_length_unit.value
         binBodyInput.heightUnit = height_unit.value
-        binBodyInput.xyTolerance = xyClearance
+        binBodyInput.binCornerFilletRadius = const.BIN_CORNER_FILLET_RADIUS - xyClearance
         binBodyInput.isSolid = isSolid or isShelled
         binBodyInput.wallThickness = bin_wall_thickness.value
         binBodyInput.hasScoop = has_scoop.value and isHollow

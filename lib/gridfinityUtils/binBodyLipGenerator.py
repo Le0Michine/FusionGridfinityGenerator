@@ -2,7 +2,6 @@ import adsk.core, adsk.fusion, traceback
 import os
 import math
 
-from .const import BIN_CORNER_FILLET_RADIUS
 from ...lib import fusion360utils as futil
 from . import const, combineUtils, faceUtils, commonUtils, sketchUtils, extrudeUtils, baseGenerator, edgeUtils, filletUtils, geometryUtils
 from .baseGeneratorInput import BaseGeneratorInput
@@ -36,7 +35,7 @@ def createGridfinityBinBodyLip(
         input.origin
     )
     lipBody = lipBodyExtrude.bodies.item(0)
-    lipBody.name = 'lip body'
+    lipBody.name = 'Lip body'
 
     bodiesToSubtract: list[adsk.fusion.BRepBody] = []
 
@@ -62,8 +61,7 @@ def createGridfinityBinBodyLip(
         lipCutoutInput.baseLength = input.baseLength
         lipCutoutInput.xyClearance = input.xyTolerance
         lipCutoutInput.hasBottomChamfer = False
-        lipCutout = baseGenerator.createBaseWithClearance(lipCutoutInput, targetComponent)
-        lipCutout.name = "lip cutout"
+        lipCutout.name = "Lip cutout"
         lipCutoutBodies.append(lipCutout)
 
         patternInputBodies = adsk.core.ObjectCollection.create()
@@ -91,9 +89,10 @@ def createGridfinityBinBodyLip(
             targetComponent,
             lipMiddleCutoutOrigin,
         )
+        lipMidCutout.name = 'Lip middle cutout'
         filletUtils.filletEdgesByLength(
             lipMidCutout.faces,
-            const.BIN_CORNER_FILLET_RADIUS - input.wallThickness,
+            input.binCornerFilletRadius - input.wallThickness + input.xyClearance,
             lipBodyHeight,
             targetComponent,
         )
@@ -106,8 +105,7 @@ def createGridfinityBinBodyLip(
         lipCutoutInput.baseLength = input.baseLength * input.binLength
         lipCutoutInput.xyClearance = input.xyTolerance
         lipCutoutInput.hasBottomChamfer = False
-        lipCutout = baseGenerator.createBaseWithClearance(lipCutoutInput, targetComponent)
-        lipCutout.name = "lip cutout"
+        lipCutout.name = 'Lip cutout'
         lipCutoutBodies.append(lipCutout)
 
     if const.BIN_LIP_TOP_RECESS_HEIGHT > const.DEFAULT_FILTER_TOLERANCE:

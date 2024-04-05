@@ -1,6 +1,6 @@
 import adsk.core, adsk.fusion, traceback
 
-from .const import DIMENSION_MAGNET_CUTOUT_DEPTH, DIMENSION_MAGNET_CUTOUT_DIAMETER, DIMENSION_SCREW_HOLE_DIAMETER
+from .const import DIMENSION_MAGNET_CUTOUT_DEPTH, DIMENSION_MAGNET_CUTOUT_DIAMETER, DIMENSION_SCREW_HOLE_DIAMETER, BIN_CORNER_FILLET_RADIUS
 
 class BaseGeneratorInput():
     def __init__(self):
@@ -10,6 +10,7 @@ class BaseGeneratorInput():
         self.screwHolesDiameter = DIMENSION_SCREW_HOLE_DIAMETER
         self.magnetCutoutsDiameter = DIMENSION_MAGNET_CUTOUT_DIAMETER
         self.magnetCutoutsDepth = DIMENSION_MAGNET_CUTOUT_DEPTH
+        self.cornerFilletRadius = BIN_CORNER_FILLET_RADIUS
 
     @property
     def originPoint(self) -> adsk.core.Point3D:
@@ -34,6 +35,14 @@ class BaseGeneratorInput():
     @baseLength.setter
     def baseLength(self, value: float):
         self._baseLength = value
+
+    @property
+    def cornerFilletRadius(self) -> float:
+        return self._cornerFilletRadius
+
+    @cornerFilletRadius.setter
+    def cornerFilletRadius(self, value: float):
+        self._cornerFilletRadius = value
 
     @property
     def xyClearance(self) -> float:

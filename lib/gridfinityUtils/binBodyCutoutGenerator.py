@@ -33,7 +33,7 @@ def createGridfinityBinBodyCutout(
     )
     cutoutConstructionPlane = targetComponent.constructionPlanes.add(cutoutPlaneInput)
     innerCutoutSketch: adsk.fusion.Sketch = targetComponent.sketches.add(cutoutConstructionPlane)
-    innerCutoutSketch.name = "inner cutout sketch"
+    innerCutoutSketch.name = 'Inner cutout sketch'
     sketchUtils.createRectangle(
         input.width,
         input.length,
@@ -49,8 +49,9 @@ def createGridfinityBinBodyCutout(
         [],
         targetComponent,
     )
+    innerCutout.name = 'Inner cutout extrude'
     innerCutoutBody = innerCutout.bodies.item(0)
-    innerCutoutBody.name = 'inner cutout'
+    innerCutoutBody.name = 'Inner cutout'
 
     # scoop
     if input.hasScoop:
