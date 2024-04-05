@@ -35,12 +35,14 @@ def createBox(
     extrudeFeatures: adsk.fusion.ExtrudeFeatures = features.extrudeFeatures
     sketches: adsk.fusion.Sketches = targetComponent.sketches
     recSketch: adsk.fusion.Sketch = sketches.add(targetPlane)
+    recSketch.name = 'Simple box sketch'
     sketchUtils.createRectangle(width, length, recSketch.originPoint.geometry, recSketch)
-        
+
     # extrude
     extrude = extrudeFeatures.addSimple(recSketch.profiles.item(0),
         adsk.core.ValueInput.createByReal(height),
         adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+    extrude.name = 'Simple box extrude'
     return extrude
 
 def createBoxAtPoint(
@@ -58,12 +60,15 @@ def createBoxAtPoint(
         adsk.core.ValueInput.createByReal(originPoint.z)
     )
     boxConstructionPlane = targetComponent.constructionPlanes.add(boxPlaneInput)
+    boxConstructionPlane.name = 'Simple box at point construction plane'
     sketches: adsk.fusion.Sketches = targetComponent.sketches
     recSketch: adsk.fusion.Sketch = sketches.add(boxConstructionPlane)
+    recSketch.name = 'Simple box at point sketch'
     sketchUtils.createRectangle(width, length, recSketch.modelToSketchSpace(originPoint), recSketch)
         
     # extrude
     extrude = extrudeFeatures.addSimple(recSketch.profiles.item(0),
         adsk.core.ValueInput.createByReal(height),
         adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+    extrude.name = 'Simple box at point extrude'
     return extrude

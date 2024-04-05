@@ -37,14 +37,14 @@ def createRectangle(
             adsk.fusion.DimensionOrientations.VerticalDimensionOrientation,
             rectangleLines.item(0).startSketchPoint.geometry,
             True,
-            )    
+        )
         dimensions.addDistanceDimension(
             sketch.originPoint,
             rectangleLines.item(3).startSketchPoint,
             adsk.fusion.DimensionOrientations.HorizontalDimensionOrientation,
             rectangleLines.item(3).startSketchPoint.geometry,
             True,
-            )    
+        )
     dimensions.addDistanceDimension(rectangleLines.item(0).startSketchPoint,
         rectangleLines.item(0).endSketchPoint,
         adsk.fusion.DimensionOrientations.HorizontalDimensionOrientation,
@@ -53,6 +53,7 @@ def createRectangle(
         rectangleLines.item(1).endSketchPoint,
         adsk.fusion.DimensionOrientations.VerticalDimensionOrientation,
         rectangleLines.item(1).endSketchPoint.geometry)
+    return rectangleLines
 
 def filterCirclesByRadius(
     radius: float,
@@ -63,7 +64,7 @@ def filterCirclesByRadius(
     for circle in sketchCircles:
         if abs (circle.radius - radius) < tolerance:
             filteredCircles.append(circle)
-        
+
     return filteredCircles
 
 def createOffsetProfileSketch(

@@ -21,3 +21,10 @@ def boundingBoxVolume(box: adsk.core.BoundingBox3D):
     dimensions.subtract(box.minPoint.asVector())
     [x, y, z] = dimensions.asArray()
     return abs(x * y * z);
+
+def createOffsetPoint(originalPoint: adsk.core.Point3D, byX = 0, byY = 0, byZ = 0):
+    return adsk.core.Point3D.create(
+        originalPoint.x + byX,
+        originalPoint.y + byY,
+        originalPoint.z + byZ,
+    )
