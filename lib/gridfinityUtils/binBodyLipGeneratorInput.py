@@ -49,10 +49,13 @@ class BinBodyLipGeneratorInput():
     def binCornerFilletRadius(self, value: float):
         self._binCornerFilletRadius = value
 
+    @property
+    def xyClearance(self) -> float:
+        return self._xyClearance
 
-    @xyTolerance.setter
-    def xyTolerance(self, value: float):
-        self._xyTolerance = value
+    @xyClearance.setter
+    def xyClearance(self, value: float):
+        self._xyClearance = value
 
     @property
     def wallThickness(self) -> float:

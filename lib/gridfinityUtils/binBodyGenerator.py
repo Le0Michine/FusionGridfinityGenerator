@@ -3,7 +3,6 @@ import os
 import math
 import copy
 
-from .const import BIN_COMPARTMENT_BOTTOM_THICKNESS, BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS, BIN_CONNECTION_RECESS_DEPTH, BIN_CORNER_FILLET_RADIUS, BIN_TAB_EDGE_FILLET_RADIUS
 from ...lib import fusion360utils as futil
 from . import const, combineUtils, faceUtils, commonUtils, sketchUtils, extrudeUtils, baseGenerator, edgeUtils, filletUtils, geometryUtils
 from .binBodyCutoutGenerator import createGridfinityBinBodyCutout
@@ -31,12 +30,11 @@ def createGridfinityBinBody(
     targetComponent: adsk.fusion.Component,
 ) -> tuple[adsk.fusion.BRepBody, adsk.fusion.BRepBody]:
 
-    actualBodyWidth = (input.baseWidth * input.binWidth) - input.xyTolerance * 2.0
-    actualBodyLength = (input.baseLength * input.binLength) - input.xyTolerance * 2.0
+    actualBodyWidth = (input.baseWidth * input.binWidth) - input.xyClearance * 2.0
+    actualBodyLength = (input.baseLength * input.binLength) - input.xyClearance * 2.0
     binHeightWithoutBase = input.binHeight - 1
     binBodyTotalHeight = binHeightWithoutBase * input.heightUnit + max(0, input.heightUnit - const.BIN_BASE_HEIGHT)
     features: adsk.fusion.Features = targetComponent.features
-    # create rectangle for the body
     binBodyExtrude = extrudeUtils.createBox(
         actualBodyWidth,
         actualBodyLength,
@@ -70,20 +68,21 @@ def createGridfinityBinBody(
         lipInput.binLength = input.binLength
         lipInput.binWidth = input.binWidth
         lipInput.hasLipNotches = input.hasLipNotches
-        lipInput.xyTolerance = input.xyTolerance
+        lipInput.xyClearance = input.xyClearance
+        lipInput.binCornerFilletRadius = input.binCornerFilletRadius
         lipInput.origin = lipOriginPoint
         lipBody = createGridfinityBinBodyLip(lipInput, targetComponent)
 
         if input.wallThickness < const.BIN_LIP_WALL_THICKNESS:
-            lipBottomChamferSize = max(const.BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS, const.BIN_CORNER_FILLET_RADIUS - input.wallThickness)
+            lipBottomChamferSize = max(const.BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS, input.binCornerFilletRadius - input.wallThickness)
             lipBottomChamferExtrude = extrudeUtils.createBoxAtPoint(
                 actualBodyWidth - input.wallThickness * 2,
-                (actualBodyLength - input.wallThickness - const.BIN_LIP_WALL_THICKNESS) if input.hasScoop else (actualBodyLength - input.wallThickness * 2),
+                (actualBodyLength - input.wallThickness - const.BIN_LIP_WALL_THICKNESS + input.xyClearance) if input.hasScoop else (actualBodyLength - input.wallThickness * 2),
                 lipBottomChamferSize,
                 targetComponent,
                 adsk.core.Point3D.create(
                     input.wallThickness,
-                    const.BIN_LIP_WALL_THICKNESS if input.hasScoop else input.wallThickness,
+                    (const.BIN_LIP_WALL_THICKNESS - input.xyClearance) if input.hasScoop else input.wallThickness,
                     lipOriginPoint.z,
                 )
             )
@@ -113,7 +112,7 @@ def createGridfinityBinBody(
     if not input.isSolid:
         compartmentsMinX = input.wallThickness
         compartmentsMaxX = actualBodyWidth - input.wallThickness
-        compartmentsMinY = const.BIN_LIP_WALL_THICKNESS if input.hasLip and input.hasScoop else input.wallThickness
+        compartmentsMinY = (const.BIN_LIP_WALL_THICKNESS - input.xyClearance) if input.hasLip and input.hasScoop else input.wallThickness
         compartmentsMaxY = actualBodyLength - input.wallThickness
 
         totalCompartmentsWidth = compartmentsMaxX - compartmentsMinX

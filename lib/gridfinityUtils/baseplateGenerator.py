@@ -13,7 +13,7 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
     cutoutInput.baseWidth = input.baseWidth
     cutoutInput.baseLength = input.baseLength
     cutoutInput.xyClearance = input.xyClearance
-    baseBody = baseGenerator.createBaseWithClearance(cutoutInput, targetComponent)
+    baseBody = baseGenerator.createSingleBaseBodyWithClearance(cutoutInput, targetComponent)
 
     cuttingTools: list[adsk.fusion.BRepBody] = [baseBody]
     extraCutoutBodies: list[adsk.fusion.BRepBody] = []

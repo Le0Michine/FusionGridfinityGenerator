@@ -1,8 +1,6 @@
 import adsk.core, adsk.fusion, traceback
 import os
 
-
-from .const import BIN_CORNER_FILLET_RADIUS, DEFAULT_FILTER_TOLERANCE, DIMENSION_PRINT_HELPER_GROOVE_DEPTH
 from .sketchUtils import createRectangle, filterCirclesByRadius
 from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
 from . import sketchUtils, const, edgeUtils, commonUtils, combineUtils, faceUtils, extrudeUtils, shapeUtils
@@ -49,12 +47,12 @@ def createCircleAtPointSketch(
 
     return circleSketch
 
-def createGridfinityBase(
+def createSingleGridfinityBaseBody(
     input: BaseGeneratorInput,
     targetComponent: adsk.fusion.Component,
 ):
-    actual_base_width = input.baseWidth - input.xyClearance * 2.0
-    actual_base_length = input.baseLength - input.xyClearance * 2.0
+    actual_base_width = input.baseWidth
+    actual_base_length = input.baseLength
     features: adsk.fusion.Features = targetComponent.features
     extrudeFeatures: adsk.fusion.ExtrudeFeatures = features.extrudeFeatures
     baseConstructionPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
@@ -65,7 +63,7 @@ def createGridfinityBase(
     sketches: adsk.fusion.Sketches = targetComponent.sketches
     basePlateSketch: adsk.fusion.Sketch = sketches.add(baseConstructionPlane)
     basePlateSketch.name = 'Base plate sketch'
-    createRectangle(actual_base_width, actual_base_length,rectangleOrigin, basePlateSketch)
+    createRectangle(actual_base_width, actual_base_length, basePlateSketch.modelToSketchSpace(input.originPoint), basePlateSketch)
 
     # extrude top section
     topSectionExtrudeDepth = adsk.core.ValueInput.createByReal(const.BIN_BASE_TOP_SECTION_HEIGH)
@@ -203,10 +201,10 @@ def createGridfinityBase(
 
     return baseBody
 
-def createBaseWithClearance(input: BaseGeneratorInput, targetComponent: adsk.fusion.Component):
+def createSingleBaseBodyWithClearance(input: BaseGeneratorInput, targetComponent: adsk.fusion.Component):
     features = targetComponent.features
     # create base
-    baseBody = createGridfinityBase(input, targetComponent)
+    baseBody = createSingleGridfinityBaseBody(input, targetComponent)
 
     # offset side faces
     offsetFacesInput = features.offsetFeatures.createInput(
@@ -263,3 +261,82 @@ def createBaseWithClearance(input: BaseGeneratorInput, targetComponent: adsk.fus
     features.combineFeatures.add(combineFeatureInput)
     combineUtils.joinBodies(baseBody, commonUtils.objectCollectionFromList(thickenFeaure.bodies), targetComponent)
     return baseBody
+
+def createBaseBodyPattern(
+    baseConfiguration: BaseGeneratorInput,
+    basesXCount,
+    basesYCount,
+    targetComponent: adsk.fusion.Component,
+):
+    baseBody = createSingleGridfinityBaseBody(baseConfiguration, targetComponent)
+    features = targetComponent.features
+    # replicate base in a rectangular pattern
+    rectangularPatternFeatures: adsk.fusion.RectangularPatternFeatures = features.rectangularPatternFeatures
+    patternInputBodies = adsk.core.ObjectCollection.create()
+    patternInputBodies.add(baseBody)
+    patternInput = rectangularPatternFeatures.createInput(patternInputBodies,
+        targetComponent.xConstructionAxis,
+        adsk.core.ValueInput.createByReal(basesXCount),
+        adsk.core.ValueInput.createByReal(baseConfiguration.baseWidth),
+        adsk.fusion.PatternDistanceType.SpacingPatternDistanceType)
+    patternInput.directionTwoEntity = targetComponent.yConstructionAxis
+    patternInput.quantityTwo = adsk.core.ValueInput.createByReal(basesYCount)
+    patternInput.distanceTwo = adsk.core.ValueInput.createByReal(baseConfiguration.baseLength)
+    rectangularPattern = rectangularPatternFeatures.add(patternInput)
+    return list(rectangularPattern.bodies) + [baseBody]
+
+def cutBaseClearance(
+    baseConfiguration: BaseGeneratorInput,
+    basesXCount,
+    basesYCount,
+    targetComponent: adsk.fusion.Component,
+):
+    actual_base_width = baseConfiguration.baseWidth * basesXCount - baseConfiguration.xyClearance * 2
+    actual_base_length = baseConfiguration.baseLength * basesYCount - baseConfiguration.xyClearance * 2
+    features = targetComponent.features
+    baseConstructionPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
+    baseConstructionPlaneInput.setByOffset(targetComponent.xYConstructionPlane, adsk.core.ValueInput.createByReal(baseConfiguration.originPoint.z))
+    baseConstructionPlane = targetComponent.constructionPlanes.add(baseConstructionPlaneInput)
+    sketches: adsk.fusion.Sketches = targetComponent.sketches
+    baseClearanceCutSketch: adsk.fusion.Sketch = sketches.add(baseConstructionPlane)
+    baseClearanceCutSketch.name = "Base clearance cut sketch"
+    innerRectangle = createRectangle(
+        actual_base_width,
+        actual_base_length,
+        adsk.core.Point3D.create(
+            baseConfiguration.originPoint.x + baseConfiguration.xyClearance,
+            baseConfiguration.originPoint.y + baseConfiguration.xyClearance,
+            baseConfiguration.originPoint.z,
+        ),
+        baseClearanceCutSketch
+    )
+    sketchArcs = baseClearanceCutSketch.sketchCurves.sketchArcs
+    geometricConstraints = baseClearanceCutSketch.geometricConstraints
+    sketchDimensions = baseClearanceCutSketch.sketchDimensions
+
+    [side1, side2, side3, side4] = list(innerRectangle)
+    filletRadius = baseConfiguration.cornerFilletRadius - baseConfiguration.xyClearance
+    fillet1 = sketchArcs.addFillet(side1, side1.endSketchPoint.geometry, side2, side2.startSketchPoint.geometry, filletRadius)
+    fillet2 = sketchArcs.addFillet(side2, side2.endSketchPoint.geometry, side3, side3.startSketchPoint.geometry, filletRadius)
+    fillet3 = sketchArcs.addFillet(side3, side3.endSketchPoint.geometry, side4, side4.startSketchPoint.geometry, filletRadius)
+    fillet4 = sketchArcs.addFillet(side4, side4.endSketchPoint.geometry, side1, side1.startSketchPoint.geometry, filletRadius)
+
+    geometricConstraints.addEqual(fillet1, fillet2)
+    geometricConstraints.addEqual(fillet2, fillet3)
+    geometricConstraints.addEqual(fillet3, fillet4)
+    sketchDimensions.addRadialDimension(fillet1, fillet1.startSketchPoint.geometry)
+
+    baseClearanceCutSketch.offset(commonUtils.objectCollectionFromList([fillet1, fillet2, fillet3, fillet4, side1, side2, side3, side4]), baseConfiguration.originPoint, 1)
+
+    cuttingProfile = min(list(baseClearanceCutSketch.profiles), key=lambda x: x.boundingBox.minPoint.x)
+    clearanceCutExtrudeInput = features.extrudeFeatures.createInput(
+        cuttingProfile,
+        adsk.fusion.FeatureOperations.CutFeatureOperation,
+    )
+    clearanceCutExtrudeInput.setTwoSidesExtent(
+        adsk.fusion.DistanceExtentDefinition.create(adsk.core.ValueInput.createByReal(100)),
+        adsk.fusion.DistanceExtentDefinition.create(adsk.core.ValueInput.createByReal(100)),
+    )
+    clearanceCutExtrudeInput.participantBodies = list(targetComponent.bRepBodies)
+    clearanceCutExtrude = features.extrudeFeatures.add(clearanceCutExtrudeInput)
+    clearanceCutExtrude.name = "Base side clearance cut"

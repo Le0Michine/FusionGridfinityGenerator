@@ -12,7 +12,7 @@ from ...lib.gridfinityUtils import faceUtils
 from ...lib.gridfinityUtils import shellUtils
 from ...lib.gridfinityUtils import commonUtils
 from ...lib.gridfinityUtils import const
-from ...lib.gridfinityUtils.baseGenerator import createGridfinityBase
+from ...lib.gridfinityUtils.baseGenerator import createSingleGridfinityBaseBody, createBaseBodyPattern, cutBaseClearance
 from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
 from ...lib.gridfinityUtils.binBodyGenerator import createGridfinityBinBody, uniformCompartments
 from ...lib.gridfinityUtils.binBodyGeneratorInput import BinBodyGeneratorInput, BinBodyCompartmentDefinition
@@ -891,7 +891,11 @@ def generateBin(args: adsk.core.CommandEventArgs):
 
         # create base interface
         baseGeneratorInput = BaseGeneratorInput()
-        baseGeneratorInput.originPoint = gridfinityBinComponent.originConstructionPoint.geometry
+        baseGeneratorInput.originPoint = geometryUtils.createOffsetPoint(
+            gridfinityBinComponent.originConstructionPoint.geometry,
+            byX=-xyClearance,
+            byY=-xyClearance,
+        )
         baseGeneratorInput.baseWidth = base_width_unit.value
         baseGeneratorInput.baseLength = base_length_unit.value
         baseGeneratorInput.xyClearance = xyClearance
@@ -901,24 +905,14 @@ def generateBin(args: adsk.core.CommandEventArgs):
         baseGeneratorInput.magnetCutoutsDiameter = bin_magnet_cutout_diameter.value
         baseGeneratorInput.magnetCutoutsDepth = bin_magnet_cutout_depth.value
 
-        baseBody: adsk.fusion.BRepBody
-        
+        baseBodies: list[adsk.fusion.BRepBody]
         if bin_generate_base.value:
-            baseBody = createGridfinityBase(baseGeneratorInput, gridfinityBinComponent)
-            # replicate base in rectangular pattern
-            rectangularPatternFeatures: adsk.fusion.RectangularPatternFeatures = features.rectangularPatternFeatures
-            patternInputBodies = adsk.core.ObjectCollection.create()
-            patternInputBodies.add(baseBody)
-            patternInput = rectangularPatternFeatures.createInput(patternInputBodies,
-                gridfinityBinComponent.xConstructionAxis,
-                adsk.core.ValueInput.createByReal(bin_width.value),
-                adsk.core.ValueInput.createByReal(base_width_unit.value),
-                adsk.fusion.PatternDistanceType.SpacingPatternDistanceType)
-            patternInput.directionTwoEntity = gridfinityBinComponent.yConstructionAxis
-            patternInput.quantityTwo = adsk.core.ValueInput.createByReal(bin_length.value)
-            patternInput.distanceTwo = adsk.core.ValueInput.createByReal(base_length_unit.value)
-            rectangularPattern = rectangularPatternFeatures.add(patternInput)
-
+            baseBodies = createBaseBodyPattern(
+                baseGeneratorInput,
+                bin_width.value,
+                bin_length.value,
+                gridfinityBinComponent,
+            )
 
         # create bin body
         binBodyInput = BinBodyGeneratorInput()
@@ -930,6 +924,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
         binBodyInput.baseWidth = base_width_unit.value
         binBodyInput.baseLength = base_length_unit.value
         binBodyInput.heightUnit = height_unit.value
+        binBodyInput.xyClearance = xyClearance
         binBodyInput.binCornerFilletRadius = const.BIN_CORNER_FILLET_RADIUS - xyClearance
         binBodyInput.isSolid = isSolid or isShelled
         binBodyInput.wallThickness = bin_wall_thickness.value
@@ -961,14 +956,18 @@ def generateBin(args: adsk.core.CommandEventArgs):
             binBody = createGridfinityBinBody(
                 binBodyInput,
                 gridfinityBinComponent,
-                )
+            )
+        if bin_generate_body.value or bin_generate_base.value:
+            cutBaseClearance(
+                baseGeneratorInput,
+                bin_width.value,
+                bin_length.value,
+                gridfinityBinComponent,
+            )
 
         # merge everything
         if bin_generate_body.value and bin_generate_base.value:
-            toolBodies = adsk.core.ObjectCollection.create()
-            toolBodies.add(baseBody)
-            for body in rectangularPattern.bodies:
-                toolBodies.add(body)
+            toolBodies = commonUtils.objectCollectionFromList(baseBodies)
             combineFeatures = gridfinityBinComponent.features.combineFeatures
             combineFeatureInput = combineFeatures.createInput(binBody, toolBodies)
             combineFeatures.add(combineFeatureInput)
@@ -992,24 +991,24 @@ def generateBin(args: adsk.core.CommandEventArgs):
                 topBody = max(splitBodies.bodies, key=lambda x: x.boundingBox.minPoint.z)
                 horizontalFaces = [face for face in bottomBody.faces if geometryUtils.isHorizontal(face)]
                 topFace = faceUtils.maxByArea(horizontalFaces)
-                shellUtils.simpleShell([topFace], binBodyInput.wallThickness, gridfinityBinComponent)
+                shellUtils.simpleShell([topFace], binBodyInput.wallThickness - xyClearance, gridfinityBinComponent)
                 toolBodies = adsk.core.ObjectCollection.create()
                 toolBodies.add(topBody)
                 combineAfterShellFeatureInput = combineFeatures.createInput(bottomBody, toolBodies)
                 combineFeatures.add(combineAfterShellFeatureInput)
                 binBody = gridfinityBinComponent.bRepBodies.item(0)
             else:
-                shellUtils.simpleShell([topFace], binBodyInput.wallThickness, gridfinityBinComponent)
+                shellUtils.simpleShell([topFace], binBodyInput.wallThickness - xyClearance, gridfinityBinComponent)
             
             if hasTabInput.value:
                 compartmentTabInput = BinBodyTabGeneratorInput()
                 tabOriginPoint = adsk.core.Point3D.create(
                     binBodyInput.wallThickness + max(0, min(binBodyInput.tabPosition, binBodyInput.binWidth - binBodyInput.tabLength)) * binBodyInput.baseWidth,
-                    const.BIN_LIP_WALL_THICKNESS if binBodyInput.hasLip and binBodyInput.hasScoop else binBodyInput.wallThickness + binBodyInput.binLength * binBodyInput.baseLength - binBodyInput.wallThickness - binBodyInput.xyTolerance * 2,
+                    const.BIN_LIP_WALL_THICKNESS if binBodyInput.hasLip and binBodyInput.hasScoop else binBodyInput.wallThickness + binBodyInput.binLength * binBodyInput.baseLength - binBodyInput.wallThickness - binBodyInput.xyClearance * 2,
                     (binBodyInput.binHeight - 1) * binBodyInput.heightUnit + max(0, binBodyInput.heightUnit - const.BIN_BASE_HEIGHT),
                 )
                 compartmentTabInput.origin = tabOriginPoint
-                compartmentTabInput.length = max(0, min(binBodyInput.tabLength, binBodyInput.binWidth)) * binBodyInput.baseWidth - binBodyInput.wallThickness * 2 - binBodyInput.xyTolerance * 2
+                compartmentTabInput.length = max(0, min(binBodyInput.tabLength, binBodyInput.binWidth)) * binBodyInput.baseWidth - binBodyInput.wallThickness * 2 - binBodyInput.xyClearance * 2
                 compartmentTabInput.width = binBodyInput.tabWidth
                 compartmentTabInput.overhangAngle = binBodyInput.tabOverhangAngle
                 compartmentTabInput.topClearance = const.BIN_TAB_TOP_CLEARANCE

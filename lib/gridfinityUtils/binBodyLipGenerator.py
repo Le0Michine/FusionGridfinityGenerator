@@ -22,8 +22,8 @@ def createGridfinityBinBodyLip(
     input: BinBodyLipGeneratorInput,
     targetComponent: adsk.fusion.Component,
 ):
-    actualLipBodyWidth = (input.baseWidth * input.binWidth) - input.xyTolerance * 2.0
-    actualLipBodyLength = (input.baseLength * input.binLength) - input.xyTolerance * 2.0
+    actualLipBodyWidth = (input.baseWidth * input.binWidth) - input.xyClearance * 2.0
+    actualLipBodyLength = (input.baseLength * input.binLength) - input.xyClearance * 2.0
     lipBodyHeight = const.BIN_LIP_EXTRA_HEIGHT
     features: adsk.fusion.Features = targetComponent.features
 
@@ -42,10 +42,10 @@ def createGridfinityBinBodyLip(
     # round corners
     filletUtils.filletEdgesByLength(
         lipBodyExtrude.faces,
-        BIN_CORNER_FILLET_RADIUS,
+        input.binCornerFilletRadius,
         lipBodyHeight,
         targetComponent,
-    )
+    ).name = 'Lip body corner fillets'
 
     lipCutoutBodies: list[adsk.fusion.BRepBody] = []
     lipCutoutPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
@@ -56,11 +56,18 @@ def createGridfinityBinBodyLip(
 
     if input.hasLipNotches:
         lipCutoutInput = BaseGeneratorInput()
-        lipCutoutInput.originPoint = adsk.core.Point3D.create(input.origin.x, input.origin.y, input.origin.z + const.BIN_BASE_HEIGHT)
-        lipCutoutInput.baseWidth = input.baseWidth
-        lipCutoutInput.baseLength = input.baseLength
-        lipCutoutInput.xyClearance = input.xyTolerance
+        lipCutoutInput.originPoint = geometryUtils.createOffsetPoint(
+            input.origin,
+            byX=-input.xyClearance * 2,
+            byY=-input.xyClearance * 2,
+            byZ=const.BIN_BASE_HEIGHT
+        )
+        lipCutoutInput.baseWidth = input.baseWidth + input.xyClearance * 2
+        lipCutoutInput.baseLength = input.baseLength + input.xyClearance * 2
+        lipCutoutInput.xyClearance = input.xyClearance
         lipCutoutInput.hasBottomChamfer = False
+        lipCutoutInput.cornerFilletRadius = input.binCornerFilletRadius + input.xyClearance * 2
+        lipCutout = baseGenerator.createSingleGridfinityBaseBody(lipCutoutInput, targetComponent)
         lipCutout.name = "Lip cutout"
         lipCutoutBodies.append(lipCutout)
 
@@ -77,14 +84,14 @@ def createGridfinityBinBodyLip(
         rectangularPattern = features.rectangularPatternFeatures.add(patternInput)
         lipCutoutBodies = lipCutoutBodies + list(rectangularPattern.bodies)
 
-        lipMiddleCutoutOrigin = adsk.core.Point3D.create(
-            input.origin.x + input.wallThickness,
-            input.origin.y + input.wallThickness,
-            input.origin.z,
+        lipMiddleCutoutOrigin = geometryUtils.createOffsetPoint(
+            input.origin,
+            byX=input.wallThickness - input.xyClearance,
+            byY=input.wallThickness - input.xyClearance,
         )
         lipMidCutout = extrudeUtils.createBoxAtPoint(
-            actualLipBodyWidth - input.wallThickness * 2,
-            actualLipBodyLength - input.wallThickness * 2,
+            actualLipBodyWidth - input.wallThickness * 2 + input.xyClearance * 2,
+            actualLipBodyLength - input.wallThickness * 2 + input.xyClearance * 2,
             lipBodyHeight,
             targetComponent,
             lipMiddleCutoutOrigin,
@@ -100,11 +107,18 @@ def createGridfinityBinBodyLip(
 
     else:
         lipCutoutInput = BaseGeneratorInput()
-        lipCutoutInput.originPoint = adsk.core.Point3D.create(input.origin.x, input.origin.y, input.origin.z + const.BIN_BASE_HEIGHT)
-        lipCutoutInput.baseWidth = input.baseWidth * input.binWidth
-        lipCutoutInput.baseLength = input.baseLength * input.binLength
-        lipCutoutInput.xyClearance = input.xyTolerance
+        lipCutoutInput.originPoint = geometryUtils.createOffsetPoint(
+            input.origin,
+            byX=-input.xyClearance * 2,
+            byY=-input.xyClearance * 2,
+            byZ=const.BIN_BASE_HEIGHT
+        )
+        lipCutoutInput.baseWidth = input.baseWidth * input.binWidth + input.xyClearance * 2
+        lipCutoutInput.baseLength = input.baseLength * input.binLength + input.xyClearance * 2
+        lipCutoutInput.xyClearance = input.xyClearance
         lipCutoutInput.hasBottomChamfer = False
+        lipCutoutInput.cornerFilletRadius = input.binCornerFilletRadius + input.xyClearance * 2
+        lipCutout = baseGenerator.createSingleGridfinityBaseBody(lipCutoutInput, targetComponent)
         lipCutout.name = 'Lip cutout'
         lipCutoutBodies.append(lipCutout)
 
