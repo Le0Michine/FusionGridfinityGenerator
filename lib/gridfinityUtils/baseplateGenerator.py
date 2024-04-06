@@ -2,18 +2,23 @@ import math
 import adsk.core, adsk.fusion, traceback
 import os
 
-from . import const, commonUtils, filletUtils, combineUtils, faceUtils, extrudeUtils, sketchUtils, baseGenerator, patternUtils, shapeUtils
+from . import const, commonUtils, filletUtils, combineUtils, faceUtils, extrudeUtils, sketchUtils, baseGenerator, patternUtils, shapeUtils, geometryUtils
 from .baseGeneratorInput import BaseGeneratorInput
 from .baseplateGeneratorInput import BaseplateGeneratorInput
 
 def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: adsk.fusion.Component):
     features = targetComponent.features
     cutoutInput = BaseGeneratorInput()
-    cutoutInput.originPoint = targetComponent.originConstructionPoint.geometry
-    cutoutInput.baseWidth = input.baseWidth
-    cutoutInput.baseLength = input.baseLength
     cutoutInput.xyClearance = input.xyClearance
-    baseBody = baseGenerator.createSingleBaseBodyWithClearance(cutoutInput, targetComponent)
+    cutoutInput.originPoint = geometryUtils.createOffsetPoint(
+        targetComponent.originConstructionPoint.geometry,
+        byX=-cutoutInput.xyClearance * 2,
+        byY=-cutoutInput.xyClearance * 2,
+    )
+    cutoutInput.baseWidth = input.baseWidth + cutoutInput.xyClearance * 2
+    cutoutInput.baseLength = input.baseLength + cutoutInput.xyClearance * 2
+    cutoutInput.cornerFilletRadius = input.cornerFilletRadius + cutoutInput.xyClearance
+    baseBody = baseGenerator.createSingleGridfinityBaseBody(cutoutInput, targetComponent)
 
     cuttingTools: list[adsk.fusion.BRepBody] = [baseBody]
     extraCutoutBodies: list[adsk.fusion.BRepBody] = []
@@ -195,10 +200,10 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
     binInterfaceBody = shapeUtils.simpleBox(
         targetComponent.xYConstructionPlane,
         0,
-        input.baseplateWidth * input.baseWidth,
-        input.baseplateLength * input.baseLength,
+        input.baseplateWidth * input.baseWidth - input.xyClearance * 2,
+        input.baseplateLength * input.baseLength - input.xyClearance * 2,
         -const.BIN_BASE_HEIGHT,
-        adsk.core.Point3D.create(-input.xyClearance, -input.xyClearance, 0),
+        targetComponent.originConstructionPoint.geometry,
         targetComponent,
     )
 
@@ -217,7 +222,7 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
 
     cornerFillet = filletUtils.filletEdgesByLength(
         binInterfaceBody.faces,
-        const.BIN_CORNER_FILLET_RADIUS,
+        input.cornerFilletRadius - input.xyClearance,
         const.BIN_BASE_HEIGHT,
         targetComponent,
         )

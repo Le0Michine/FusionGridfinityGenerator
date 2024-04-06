@@ -403,6 +403,7 @@ def generateBaseplate(args: adsk.core.CommandEventArgs):
         baseplateGeneratorInput.binZClearance = inputsState.verticalClearance
         baseplateGeneratorInput.hasConnectionHoles = inputsState.hasConnectionHoles
         baseplateGeneratorInput.connectionScrewHolesDiameter = inputsState.connectionHoleSize
+        baseplateGeneratorInput.cornerFilletRadius = const.BIN_CORNER_FILLET_RADIUS
 
         baseplateBody = createGridfinityBaseplate(baseplateGeneratorInput, gridfinityBaseplateComponent)
         baseplateBody.name = baseplateName

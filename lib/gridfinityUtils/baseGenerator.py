@@ -201,7 +201,11 @@ def createSingleGridfinityBaseBody(
 
     return baseBody
 
+
 def createSingleBaseBodyWithClearance(input: BaseGeneratorInput, targetComponent: adsk.fusion.Component):
+    """
+    deprecated:: produced inconsistent results where fillets on the corners would not align properly with outer radius
+    """
     features = targetComponent.features
     # create base
     baseBody = createSingleGridfinityBaseBody(input, targetComponent)

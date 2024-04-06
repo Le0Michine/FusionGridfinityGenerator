@@ -15,6 +15,7 @@ class BaseplateGeneratorInput():
         self.xyClearance = const.BIN_XY_CLEARANCE
         self.binZClearance = const.BASEPLATE_BIN_Z_CLEARANCE
         self.connectionScrewHolesDiameter = const.DIMENSION_PLATE_CONNECTION_SCREW_HOLE_DIAMETER
+        self.cornerFilletRadius = const.BIN_CORNER_FILLET_RADIUS
 
     @property
     def baseWidth(self) -> float:
@@ -47,6 +48,14 @@ class BaseplateGeneratorInput():
     @baseplateLength.setter
     def baseplateLength(self, value: float):
         self._baseplateLength = value
+
+    @property
+    def cornerFilletRadius(self) -> float:
+        return self._cornerFilletRadius
+
+    @cornerFilletRadius.setter
+    def cornerFilletRadius(self, value: float):
+        self._cornerFilletRadius = value
 
     @property
     def xyClearance(self) -> float:
