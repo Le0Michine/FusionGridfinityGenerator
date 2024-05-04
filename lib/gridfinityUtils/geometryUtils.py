@@ -28,3 +28,6 @@ def createOffsetPoint(originalPoint: adsk.core.Point3D, byX = 0, byY = 0, byZ = 
         originalPoint.y + byY,
         originalPoint.z + byZ,
     )
+
+def pointToXY(point: adsk.core.Point3D):
+    return adsk.core.Point3D.create(point.x, point.y, 0)

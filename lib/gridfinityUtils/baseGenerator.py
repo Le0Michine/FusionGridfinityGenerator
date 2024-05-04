@@ -1,9 +1,9 @@
-import adsk.core, adsk.fusion, traceback
+import adsk.core, adsk.fusion, traceback, math
 import os
 
-from .sketchUtils import createRectangle, filterCirclesByRadius
+from .sketchUtils import createRectangle
 from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
-from . import sketchUtils, const, edgeUtils, commonUtils, combineUtils, faceUtils, extrudeUtils, shapeUtils
+from . import sketchUtils, const, edgeUtils, commonUtils, combineUtils, faceUtils, extrudeUtils, shapeUtils, geometryUtils
 from ...lib import fusion360utils as futil
 from ... import config
 
@@ -45,6 +45,7 @@ def createCircleAtPointSketch(
         True
         )
 
+    return (circleSketch, circle)
     return circleSketch
 
 def createSingleGridfinityBaseBody(
@@ -118,7 +119,7 @@ def createSingleGridfinityBaseBody(
         chamferFeatures.add(chamferInput)
     
     # screw holes
-    rectangularPatternFeatures: adsk.fusion.RectangularPatternFeatures = features.rectangularPatternFeatures
+    circularPatternFeatures = features.circularPatternFeatures
     cutoutBodies = adsk.core.ObjectCollection.create()
 
     baseBottomPlane = baseBottomExtrude.endFaces.item(0)
@@ -127,13 +128,14 @@ def createSingleGridfinityBaseBody(
         const.DIMENSION_SCREW_HOLES_OFFSET - input.xyClearance,
         baseBottomPlane.boundingBox.minPoint.z
     )
+    cutoutCenterPoint = adsk.core.Point3D.create(baseHoleCenterPoint.x, baseHoleCenterPoint.y, 0)
     if input.hasScrewHoles:
         screwHoleBody = shapeUtils.simpleCylinder(
             baseBottomPlane,
             0,
             -const.BIN_BASE_HEIGHT,
             input.screwHolesDiameter / 2,
-            adsk.core.Point3D.create(baseHoleCenterPoint.x, baseHoleCenterPoint.y, 0),
+            cutoutCenterPoint,
             targetComponent,
         )
         cutoutBodies.add(screwHoleBody)
@@ -145,7 +147,7 @@ def createSingleGridfinityBaseBody(
             0,
             -input.magnetCutoutsDepth,
             input.magnetCutoutsDiameter / 2,
-            adsk.core.Point3D.create(baseHoleCenterPoint.x, baseHoleCenterPoint.y, 0),
+            cutoutCenterPoint,
             targetComponent,
         )
         cutoutBodies.add(magnetSocketBody)
@@ -156,9 +158,10 @@ def createSingleGridfinityBaseBody(
                 -input.magnetCutoutsDepth,
                 -const.BIN_MAGNET_HOLE_GROOVE_DEPTH,
                 input.magnetCutoutsDiameter / 2,
-                adsk.core.Point3D.create(baseHoleCenterPoint.x, baseHoleCenterPoint.y, 0),
+                cutoutCenterPoint,
                 targetComponent,
             )
+            grooveBody.name = "Groove body"
             grooveLayer1 = shapeUtils.simpleBox(
                 baseBottomPlane,
                 -input.magnetCutoutsDepth,
@@ -168,6 +171,7 @@ def createSingleGridfinityBaseBody(
                 adsk.core.Point3D.create(baseHoleCenterPoint.x + input.magnetCutoutsDiameter / 2, baseHoleCenterPoint.y - input.screwHolesDiameter / 2, 0),
                 targetComponent,
             )
+            grooveLayer1.name = "Groove layer 1 body"
             grooveLayer2 = shapeUtils.simpleBox(
                 baseBottomPlane,
                 -(input.magnetCutoutsDepth + const.BIN_MAGNET_HOLE_GROOVE_DEPTH / 2),
@@ -177,7 +181,16 @@ def createSingleGridfinityBaseBody(
                 adsk.core.Point3D.create(baseHoleCenterPoint.x + input.screwHolesDiameter / 2, baseHoleCenterPoint.y - input.screwHolesDiameter / 2, 0),
                 targetComponent,
             )
+            grooveLayer2.name = "Groove layer 2 body"
             combineUtils.intersectBody(grooveBody, commonUtils.objectCollectionFromList([grooveLayer1, grooveLayer2]), targetComponent)
+
+            rotateGrooveBodyInput = targetComponent.features.moveFeatures.createInput2(commonUtils.objectCollectionFromList([grooveBody]))
+            verticalAxisVector = adsk.core.Vector3D.create(0, 0, 1.0)
+            transformRotate = adsk.core.Matrix3D.create()
+            transformRotate.setToRotation(math.radians(-45), verticalAxisVector, cutoutCenterPoint)
+            rotateGrooveBodyInput.defineAsFreeMove(transformRotate)
+            ratateGrooveBodyFeature = targetComponent.features.moveFeatures.add(rotateGrooveBodyInput)
+            ratateGrooveBodyFeature.name = "Rotate groove by 45 degree"
 
             cutoutBodies.add(grooveBody)
 

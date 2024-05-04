@@ -33,7 +33,7 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
     connectionHoleXTool = None
 
     if input.hasSkeletonizedBottom:
-        centerCutoutSketch = baseGenerator.createCircleAtPointSketch(
+        centerCutoutSketch,centerCutoutSketchCircle = baseGenerator.createCircleAtPointSketch(
             faceUtils.getBottomFace(baseBody),
             input.magnetCutoutsDiameter / 2,
             holeCenterPoint,
