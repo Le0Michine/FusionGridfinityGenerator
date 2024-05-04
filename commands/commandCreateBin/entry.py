@@ -1025,7 +1025,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
                 combineUtils.joinBodies(binBody, commonUtils.objectCollectionFromList([tabMainBody]), gridfinityBinComponent)
 
         # group features in timeline
-        binGroup = des.timeline.timelineGroups.add(newCmpOcc.timelineObject.index, newCmpOcc.timelineObject.index + gridfinityBinComponent.features.count + gridfinityBinComponent.constructionPlanes.count + gridfinityBinComponent.sketches.count)
+        binGroup = des.timeline.timelineGroups.add(newCmpOcc.timelineObject.index, newCmpOcc.timelineObject.index + gridfinityBinComponent.features.count + gridfinityBinComponent.constructionPlanes.count + gridfinityBinComponent.constructionAxes.count + gridfinityBinComponent.sketches.count)
         binGroup.name = binName
     except UnsupportedDesignTypeException as err:
         args.executeFailed = True

@@ -410,7 +410,7 @@ def generateBaseplate(args: adsk.core.CommandEventArgs):
 
         if des.designType == 1:
             # group features in timeline
-            plateGroup = des.timeline.timelineGroups.add(newCmpOcc.timelineObject.index, newCmpOcc.timelineObject.index + gridfinityBaseplateComponent.features.count + gridfinityBaseplateComponent.constructionPlanes.count + gridfinityBaseplateComponent.sketches.count)
+            plateGroup = des.timeline.timelineGroups.add(newCmpOcc.timelineObject.index, newCmpOcc.timelineObject.index + gridfinityBaseplateComponent.features.count + gridfinityBaseplateComponent.constructionAxes.count + gridfinityBaseplateComponent.sketches.count)
             plateGroup.name = baseplateName
     except UnsupportedDesignTypeException as err:
         args.executeFailed = True

@@ -18,6 +18,7 @@ def simpleCylinder(
     baseConstructionPlaneInput.setByOffset(plane, adsk.core.ValueInput.createByReal(planeOffset))
     baseConstructionPlane = targetComponent.constructionPlanes.add(baseConstructionPlaneInput)
     cylinderBaseSketch: adsk.fusion.Sketch = targetComponent.sketches.add(baseConstructionPlane)
+    cylinderBaseSketch.name = "Simple cylinder sketch"
     dimensions: adsk.fusion.SketchDimensions = cylinderBaseSketch.sketchDimensions
     constraints: adsk.fusion.GeometricConstraints = cylinderBaseSketch.geometricConstraints
     centerOnSketch = cylinderBaseSketch.modelToSketchSpace(centerBottom)
@@ -58,6 +59,7 @@ def simpleCylinder(
         [],
         targetComponent,
     )
+    cylinderExtrude.name = "Simple cylinder extrude"
     return cylinderExtrude.bodies.item(0)
 
 def simpleBox(
@@ -79,6 +81,7 @@ def simpleBox(
     boxConstructionPlane = targetComponent.constructionPlanes.add(boxPlaneInput)
     sketches: adsk.fusion.Sketches = targetComponent.sketches
     recSketch: adsk.fusion.Sketch = sketches.add(boxConstructionPlane)
+    recSketch.name = "Simple box sketch"
     startPointOnSketch = recSketch.modelToSketchSpace(originPoint)
     startPointOnSketch.z = 0
     sketchUtils.createRectangle(width, length, startPointOnSketch, recSketch)
@@ -87,4 +90,5 @@ def simpleBox(
     extrude = extrudeFeatures.addSimple(recSketch.profiles.item(0),
         adsk.core.ValueInput.createByReal(height),
         adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+    extrude.name = "Simple box extrude"
     return extrude.bodies.item(0)
