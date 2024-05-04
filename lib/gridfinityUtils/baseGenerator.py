@@ -46,6 +46,67 @@ def createCircleAtPointSketch(
         )
 
     return (circleSketch, circle)
+
+def createTabAtCircleEdgeSketch(
+    plane: adsk.core.Base,
+    radius: float,
+    circleCenterPoint: adsk.core.Point3D,
+    targetComponent: adsk.fusion.Component,
+):
+    circleSketch, circle = createCircleAtPointSketch(
+        plane,
+        radius,
+        circleCenterPoint,
+        targetComponent,
+    )
+    circleCenterOnSketch = geometryUtils.pointToXY(circleSketch.modelToSketchSpace(circleCenterPoint))
+    angularPointOnSketch = geometryUtils.pointToXY(circleSketch.modelToSketchSpace(
+        adsk.core.Point3D.create(circleCenterPoint.x + radius, circleCenterPoint.y + radius, circleCenterPoint.z)
+    ))
+    dimensions: adsk.fusion.SketchDimensions = circleSketch.sketchDimensions
+    constraints: adsk.fusion.GeometricConstraints = circleSketch.geometricConstraints
+    sketchUtils.convertToConstruction(circleSketch.sketchCurves)
+    verticalConstructionLine = circleSketch.sketchCurves.sketchLines.addByTwoPoints(
+        circleCenterOnSketch,
+        adsk.core.Point3D.create(circleCenterOnSketch.x, circleCenterOnSketch.y + radius, circleCenterOnSketch.z)
+    )
+    verticalConstructionLine.isConstruction = True
+    diagonalConstructionLine = circleSketch.sketchCurves.sketchLines.addByTwoPoints(
+        circleCenterOnSketch,
+        angularPointOnSketch,
+    )
+    diagonalConstructionLine.isConstruction = True
+    constraints.addVertical(verticalConstructionLine)
+    dimensions.addAngularDimension(
+        diagonalConstructionLine,
+        verticalConstructionLine,
+        angularPointOnSketch,
+    )
+    constraints.addCoincident(
+        verticalConstructionLine.startSketchPoint,
+        circle.centerSketchPoint,
+    )
+    constraints.addCoincident(
+        verticalConstructionLine.endSketchPoint,
+        circle,
+    )
+    constraints.addCoincident(
+        diagonalConstructionLine.startSketchPoint,
+        circle.centerSketchPoint,
+    )
+    constraints.addCoincident(
+        diagonalConstructionLine.endSketchPoint,
+        circle,
+    )
+    circle = circleSketch.sketchCurves.sketchCircles.addByCenterRadius(
+        diagonalConstructionLine.endSketchPoint,
+        radius / 2,
+    )
+    dimensions.addRadialDimension(
+        circle,
+        circleCenterOnSketch,
+    )
+
     return circleSketch
 
 def createSingleGridfinityBaseBody(
@@ -151,6 +212,26 @@ def createSingleGridfinityBaseBody(
             targetComponent,
         )
         cutoutBodies.add(magnetSocketBody)
+
+        # magnet tab cutouts
+        if input.hasMagnetCutoutsTabs:
+            magnetTabCutoutSketch = createTabAtCircleEdgeSketch(
+                baseBottomPlane,
+                input.magnetCutoutsDiameter / 2,
+                cutoutCenterPoint,
+                targetComponent,
+            )
+            magnetTabCutoutSketch.name = "Cutout tab sketch"
+
+            magnetTabCutoutExtrude = extrudeUtils.simpleDistanceExtrude(
+                magnetTabCutoutSketch.profiles.item(0),
+                adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
+                input.magnetCutoutsDepth,
+                adsk.fusion.ExtentDirections.NegativeExtentDirection,
+                [],
+                targetComponent,
+            )
+            cutoutBodies.add(magnetTabCutoutExtrude.bodies.item(0))
         
         if input.hasScrewHoles and (const.BIN_BASE_HEIGHT - input.magnetCutoutsDepth) > const.BIN_MAGNET_HOLE_GROOVE_DEPTH:
             grooveBody = shapeUtils.simpleCylinder(
@@ -199,17 +280,31 @@ def createSingleGridfinityBaseBody(
         if cutoutBodies.count > 1:
             joinFeature = combineUtils.joinBodies(cutoutBodies.item(0), commonUtils.objectCollectionFromList(list(cutoutBodies)[1:]), targetComponent)
             cutoutBodies = commonUtils.objectCollectionFromList(joinFeature.bodies)
-        patternSpacingX = input.baseWidth - const.DIMENSION_SCREW_HOLES_OFFSET * 2
-        patternSpacingY = input.baseLength - const.DIMENSION_SCREW_HOLES_OFFSET * 2
-        patternInput = rectangularPatternFeatures.createInput(cutoutBodies,
-            targetComponent.xConstructionAxis,
-            adsk.core.ValueInput.createByReal(2),
-            adsk.core.ValueInput.createByReal(patternSpacingX),
-            adsk.fusion.PatternDistanceType.SpacingPatternDistanceType)
-        patternInput.directionTwoEntity = targetComponent.yConstructionAxis
-        patternInput.quantityTwo = adsk.core.ValueInput.createByReal(2)
-        patternInput.distanceTwo = adsk.core.ValueInput.createByReal(patternSpacingY)
-        patternFeature = rectangularPatternFeatures.add(patternInput)
+
+        baseXZMidPlaneInput = targetComponent.constructionPlanes.createInput()
+        baseXZMidPlaneInput.setByOffset(targetComponent.xZConstructionPlane, adsk.core.ValueInput.createByReal(input.baseLength / 2 - input.xyClearance))
+        baseXZMidPlane = targetComponent.constructionPlanes.add(baseXZMidPlaneInput)
+        baseXZMidPlane.name = "Base XZ mid plane"
+        baseXZMidPlane.isLightBulbOn = False
+        baseYZMidPlaneInput = targetComponent.constructionPlanes.createInput()
+        baseYZMidPlaneInput.setByOffset(targetComponent.yZConstructionPlane, adsk.core.ValueInput.createByReal(input.baseWidth / 2 - input.xyClearance))
+        baseYZMidPlane = targetComponent.constructionPlanes.add(baseYZMidPlaneInput)
+        baseYZMidPlane.name = "Base YZ mid plane"
+        baseYZMidPlane.isLightBulbOn = False
+        patternAxisInput = targetComponent.constructionAxes.createInput()
+        patternAxisInput.setByTwoPlanes(
+            baseXZMidPlane,
+            baseYZMidPlane
+        )
+        baseCenterAxis = targetComponent.constructionAxes.add(patternAxisInput)
+        baseCenterAxis.name = "Base center axis"
+        baseCenterAxis.isLightBulbOn = False
+        patternInput = circularPatternFeatures.createInput(
+            cutoutBodies,
+            baseCenterAxis,
+        )
+        patternInput.quantity = adsk.core.ValueInput.createByString("4")
+        patternFeature = circularPatternFeatures.add(patternInput)
         combineUtils.cutBody(baseBody, commonUtils.objectCollectionFromList(list(cutoutBodies) + list(patternFeature.bodies)), targetComponent)
 
     return baseBody
