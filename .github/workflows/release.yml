@@ -8,9 +8,9 @@ jobs:
     name: Create release-artifacts
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Create zip file for manual installation
-        uses: vimtor/action-zip@v1
+        uses: vimtor/action-zip@v1.2
         with:
           files: GridfinityGenerator.manifest GridfinityGenerator.py config.py LICENSE.md lib/ commands/ documentation/PRIVACY_POLICY.md
           recursive: false
