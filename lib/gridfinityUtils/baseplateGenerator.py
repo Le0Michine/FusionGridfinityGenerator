@@ -197,6 +197,8 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
     cuttingTools = cuttingTools + list(rectangularPattern.bodies)
 
     # create baseplate body
+    baseplateTrueWidth = input.baseplateWidth * input.baseWidth - input.xyClearance * 2
+    baseplateTrueLength = input.baseplateLength * input.baseLength - input.xyClearance * 2
     binInterfaceBody = shapeUtils.simpleBox(
         targetComponent.xYConstructionPlane,
         0,
@@ -208,17 +210,97 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
     )
 
     if input.binZClearance > 0:
-        binZClearance = extrudeUtils.simpleDistanceExtrude(
-            faceUtils.getTopFace(binInterfaceBody),
-            adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
-            input.binZClearance,
-            adsk.fusion.ExtentDirections.NegativeExtentDirection,
-            [],
-            targetComponent,
-        )
-        binZClearance.name = "flatten top side"
-        binZClearance.bodies.item(0).name = "top negative volume"
-        cuttingTools.append(binZClearance.bodies.item(0))
+        binZClearance = shapeUtils.simpleBox(
+                targetComponent.xYConstructionPlane,
+                0,
+                baseplateTrueWidth + input.paddingLeft + input.paddingRight,
+                baseplateTrueLength + input.paddingBottom + input.paddingTop,
+                -input.binZClearance,
+                geometryUtils.createOffsetPoint(
+                    targetComponent.originConstructionPoint.geometry,
+                    byX=-input.paddingLeft,
+                    byY=-input.paddingBottom
+                ),
+                targetComponent
+            )
+        binZClearance.name = "Top negative volume"
+        cuttingTools.append(binZClearance)
+
+    if input.hasPadding:
+        paddingHeigth = const.BIN_BASE_HEIGHT
+        mergeTools = []
+        if input.paddingLeft > 0:
+            paddingLeftBody = shapeUtils.simpleBox(
+                targetComponent.xYConstructionPlane,
+                0,
+                input.paddingLeft,
+                baseplateTrueLength + input.paddingBottom + input.paddingTop,
+                -paddingHeigth,
+                geometryUtils.createOffsetPoint(
+                    targetComponent.originConstructionPoint.geometry,
+                    byX=-input.paddingLeft,
+                    byY=-input.paddingBottom
+                ),
+                targetComponent
+            )
+            paddingLeftBody.name = "Padding left"
+            mergeTools.append(paddingLeftBody)
+        if input.paddingTop > 0:
+            paddingTopBody = shapeUtils.simpleBox(
+                targetComponent.xYConstructionPlane,
+                0,
+                baseplateTrueWidth + input.paddingLeft + input.paddingRight,
+                input.paddingTop,
+                -paddingHeigth,
+                geometryUtils.createOffsetPoint(
+                    targetComponent.originConstructionPoint.geometry,
+                    byX=-input.paddingLeft,
+                    byY=baseplateTrueLength
+                ),
+                targetComponent
+            )
+            paddingTopBody.name = "Padding top"
+            mergeTools.append(paddingTopBody)
+        if input.paddingRight > 0:
+            paddingRightBody = shapeUtils.simpleBox(
+                targetComponent.xYConstructionPlane,
+                0,
+                input.paddingRight,
+                baseplateTrueLength + input.paddingTop + input.paddingBottom,
+                -paddingHeigth,
+                geometryUtils.createOffsetPoint(
+                    targetComponent.originConstructionPoint.geometry,
+                    byX=baseplateTrueWidth,
+                    byY=-input.paddingBottom
+                ),
+                targetComponent
+            )
+            paddingRightBody.name = "Padding right"
+            mergeTools.append(paddingRightBody)
+        if input.paddingBottom > 0:
+            paddingBottomBody = shapeUtils.simpleBox(
+                targetComponent.xYConstructionPlane,
+                0,
+                baseplateTrueWidth + input.paddingLeft + input.paddingRight,
+                input.paddingBottom,
+                -paddingHeigth,
+                geometryUtils.createOffsetPoint(
+                    targetComponent.originConstructionPoint.geometry,
+                    byX=-input.paddingLeft,
+                    byY=-input.paddingBottom
+                ),
+                targetComponent
+            )
+            paddingBottomBody.name = "Padding bottom"
+            mergeTools.append(paddingBottomBody)
+        if len(mergeTools) > 0:
+            paddingCombineFeature = combineUtils.joinBodies(
+                binInterfaceBody,
+                commonUtils.objectCollectionFromList(mergeTools),
+                targetComponent,
+            )
+            paddingCombineFeature.name = "Combine base with padding bodies"
+            binInterfaceBody = paddingCombineFeature.bodies.item(0)
 
     cornerFillet = filletUtils.filletEdgesByLength(
         binInterfaceBody.faces,
@@ -226,7 +308,7 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
         const.BIN_BASE_HEIGHT,
         targetComponent,
         )
-    cornerFillet.name = "round outer corners"
+    cornerFillet.name = "Round outer corners"
     
     if input.hasExtendedBottom:
         baseplateBottomLayer = extrudeUtils.simpleDistanceExtrude(
@@ -243,11 +325,11 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
     bottomChamfer = filletUtils.chamferEdgesByLength(
         [faceUtils.getBottomFace(binInterfaceBody)],
         0.05,
-        input.baseplateLength * input.baseLength,
+        baseplateTrueLength + (input.paddingTop + input.paddingBottom if input.hasPadding else 0),
         const.BIN_CORNER_FILLET_RADIUS * 3,
         targetComponent,
     )
-    bottomChamfer.name = "bottom shamfer"
+    bottomChamfer.name = "Bottom chamfer"
 
     if not connectionHoleYTool is None and not connectionHoleXTool is None:
         holeToolsXFeature = patternUtils.recPattern(
@@ -294,7 +376,7 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
         toolBodies,
         targetComponent,
     )
-    finalCut.name = "final baseplate cut"
+    finalCut.name = "Final baseplate cut"
 
     return binInterfaceBody
 

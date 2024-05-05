@@ -52,6 +52,7 @@ XY_DIMENSIONS_GROUP = 'xy_dimensions'
 PLATE_FEATURES_GROUP = 'plate_features'
 MAGNET_SOCKET_GROUP = 'magnet_cutout_group'
 SCREW_HOLE_GROUP = 'screw_hole_group'
+SIDE_PADDING_GROUP = 'side_padding_group'
 ADVANCED_PLATE_SIZE_GROUP = 'advanced_plate_size_group'
 INPUT_CHANGES_GROUP = 'input_changes_group'
 PREVIEW_GROUP = 'preview_group'
@@ -74,6 +75,12 @@ BASEPLATE_MAGNET_HEIGHT_INPUT = 'magnet_height'
 BASEPLATE_WITH_SCREWS_INPUT = 'with_screw_holes'
 BASEPLATE_SCREW_DIAMETER_INPUT = 'screw_diameter'
 BASEPLATE_SCREW_HEIGHT_INPUT = 'screw_head_diameter'
+
+BASEPLATE_WITH_SIDE_PADDING_INPUT = 'with_side_padding'
+BASEPLATE_SIDE_PADDING_LEFT_INPUT = 'side_padding_left'
+BASEPLATE_SIDE_PADDING_TOP_INPUT = 'side_padding_top'
+BASEPLATE_SIDE_PADDING_RIGHT_INPUT = 'side_padding_right'
+BASEPLATE_SIDE_PADDING_BOTTOM_INPUT = 'side_padding_bottom'
 
 BASEPLATE_EXTRA_THICKNESS_INPUT = 'extra_bottom_thickness'
 BASEPLATE_BIN_Z_CLEARANCE_INPUT = 'bin_z_clearance'
@@ -237,6 +244,36 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     screwHeadSizeInput.tooltip = "Must be greater than screw diameter"
     uiState.registerCommandInput(screwHeadSizeInput)
 
+    sidePaddingGroup = plateFeaturesGroup.children.addGroupCommandInput(SIDE_PADDING_GROUP, 'Side padding')
+    sidePaddingGroup.isExpanded = uiState.getState(SIDE_PADDING_GROUP)
+    uiState.registerCommandInput(sidePaddingGroup)
+    generateSidePaddingInput = sidePaddingGroup.children.addBoolValueInput(BASEPLATE_WITH_SIDE_PADDING_INPUT, 'Add side padding', True, '', uiState.getState(BASEPLATE_WITH_SIDE_PADDING_INPUT))
+    uiState.registerCommandInput(generateSidePaddingInput)
+
+    sidePaddingLeftInput = sidePaddingGroup.children.addValueInput(BASEPLATE_SIDE_PADDING_LEFT_INPUT, 'Padding left', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BASEPLATE_SIDE_PADDING_LEFT_INPUT)))
+    sidePaddingLeftInput.minimumValue = 0
+    sidePaddingLeftInput.isMinimumInclusive = True
+    sidePaddingLeftInput.tooltip = "Must be equal or greater than 0"
+    uiState.registerCommandInput(sidePaddingLeftInput)
+
+    sidePaddingTopInput = sidePaddingGroup.children.addValueInput(BASEPLATE_SIDE_PADDING_TOP_INPUT, 'Padding top', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BASEPLATE_SIDE_PADDING_TOP_INPUT)))
+    sidePaddingTopInput.minimumValue = 0
+    sidePaddingTopInput.isMinimumInclusive = True
+    sidePaddingTopInput.tooltip = "Must be equal or greater than 0"
+    uiState.registerCommandInput(sidePaddingTopInput)
+
+    sidePaddingRightInput = sidePaddingGroup.children.addValueInput(BASEPLATE_SIDE_PADDING_RIGHT_INPUT, 'Padding right', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BASEPLATE_SIDE_PADDING_RIGHT_INPUT)))
+    sidePaddingRightInput.minimumValue = 0
+    sidePaddingRightInput.isMinimumInclusive = True
+    sidePaddingRightInput.tooltip = "Must be equal or greater than 0"
+    uiState.registerCommandInput(sidePaddingRightInput)
+
+    sidePaddingBottomInput = sidePaddingGroup.children.addValueInput(BASEPLATE_SIDE_PADDING_BOTTOM_INPUT, 'Padding bottom', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BASEPLATE_SIDE_PADDING_BOTTOM_INPUT)))
+    sidePaddingBottomInput.minimumValue = 0
+    sidePaddingBottomInput.isMinimumInclusive = True
+    sidePaddingBottomInput.tooltip = "Must be equal or greater than 0"
+    uiState.registerCommandInput(sidePaddingBottomInput)
+
     advancedPlateSizeGroup = plateFeaturesGroup.children.addGroupCommandInput(ADVANCED_PLATE_SIZE_GROUP, 'Advanced plate size options')
     advancedPlateSizeGroup.isExpanded = uiState.getState(ADVANCED_PLATE_SIZE_GROUP)
     uiState.registerCommandInput(advancedPlateSizeGroup)
@@ -399,6 +436,11 @@ def generateBaseplate(args: adsk.core.CommandEventArgs):
         baseplateGeneratorInput.hasScrewHoles = inputsState.hasScrewHoles
         baseplateGeneratorInput.screwHolesDiameter = inputsState.screwHoleSize
         baseplateGeneratorInput.screwHeadCutoutDiameter = inputsState.screwHeadSize
+        baseplateGeneratorInput.hasPadding = inputsState.hasPadding
+        baseplateGeneratorInput.paddingLeft = inputsState.paddingLeft
+        baseplateGeneratorInput.paddingTop = inputsState.paddingTop
+        baseplateGeneratorInput.paddingRight = inputsState.paddingRight
+        baseplateGeneratorInput.paddingBottom = inputsState.paddingBottom
         baseplateGeneratorInput.bottomExtensionHeight = inputsState.extraBottomThickness
         baseplateGeneratorInput.binZClearance = inputsState.verticalClearance
         baseplateGeneratorInput.hasConnectionHoles = inputsState.hasConnectionHoles
@@ -410,7 +452,7 @@ def generateBaseplate(args: adsk.core.CommandEventArgs):
 
         if des.designType == 1:
             # group features in timeline
-            plateGroup = des.timeline.timelineGroups.add(newCmpOcc.timelineObject.index, newCmpOcc.timelineObject.index + gridfinityBaseplateComponent.features.count + gridfinityBaseplateComponent.constructionAxes.count + gridfinityBaseplateComponent.sketches.count)
+            plateGroup = des.timeline.timelineGroups.add(newCmpOcc.timelineObject.index, newCmpOcc.timelineObject.index + gridfinityBaseplateComponent.features.count + gridfinityBaseplateComponent.constructionAxes.count + gridfinityBaseplateComponent.constructionPlanes.count + gridfinityBaseplateComponent.sketches.count)
             plateGroup.name = baseplateName
     except UnsupportedDesignTypeException as err:
         args.executeFailed = True
@@ -432,6 +474,7 @@ def initUiState():
     uiState.initValue(SCREW_HOLE_GROUP, True, adsk.core.GroupCommandInput.classType())
     uiState.initValue(ADVANCED_PLATE_SIZE_GROUP, True, adsk.core.GroupCommandInput.classType())
     uiState.initValue(INPUT_CHANGES_GROUP, True, adsk.core.GroupCommandInput.classType())
+    uiState.initValue(SIDE_PADDING_GROUP, True, adsk.core.GroupCommandInput.classType())
     uiState.initValue(PREVIEW_GROUP, True, adsk.core.GroupCommandInput.classType())
 
     uiState.initValue(BASEPLATE_BASE_UNIT_WIDTH_INPUT, DIMENSION_DEFAULT_WIDTH_UNIT, adsk.core.ValueCommandInput.classType())
@@ -446,6 +489,12 @@ def initUiState():
     uiState.initValue(BASEPLATE_MAGNET_DIAMETER_INPUT, const.DIMENSION_MAGNET_CUTOUT_DIAMETER, adsk.core.ValueCommandInput.classType())
     uiState.initValue(BASEPLATE_MAGNET_HEIGHT_INPUT, const.DIMENSION_MAGNET_CUTOUT_DEPTH, adsk.core.ValueCommandInput.classType())
     uiState.initValue(BASEPLATE_WITH_SCREWS_INPUT, True, adsk.core.BoolValueCommandInput.classType())
+
+    uiState.initValue(BASEPLATE_WITH_SIDE_PADDING_INPUT, False, adsk.core.BoolValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_SIDE_PADDING_LEFT_INPUT, 0, adsk.core.BoolValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_SIDE_PADDING_TOP_INPUT, 0, adsk.core.BoolValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_SIDE_PADDING_RIGHT_INPUT, 0, adsk.core.BoolValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_SIDE_PADDING_BOTTOM_INPUT, 0, adsk.core.BoolValueCommandInput.classType())
 
     uiState.initValue(BASEPLATE_SCREW_DIAMETER_INPUT, const.DIMENSION_PLATE_SCREW_HOLE_DIAMETER, adsk.core.ValueCommandInput.classType())
     uiState.initValue(BASEPLATE_SCREW_HEIGHT_INPUT, const.DIMENSION_SCREW_HEAD_CUTOUT_DIAMETER, adsk.core.ValueCommandInput.classType())
@@ -493,6 +542,11 @@ def getInputsState():
         uiState.getState(BASEPLATE_WITH_SCREWS_INPUT),
         uiState.getState(BASEPLATE_SCREW_DIAMETER_INPUT),
         uiState.getState(BASEPLATE_SCREW_HEIGHT_INPUT),
+        uiState.getState(BASEPLATE_WITH_SIDE_PADDING_INPUT),
+        uiState.getState(BASEPLATE_SIDE_PADDING_LEFT_INPUT),
+        uiState.getState(BASEPLATE_SIDE_PADDING_TOP_INPUT),
+        uiState.getState(BASEPLATE_SIDE_PADDING_RIGHT_INPUT),
+        uiState.getState(BASEPLATE_SIDE_PADDING_BOTTOM_INPUT),
         uiState.getState(BASEPLATE_EXTRA_THICKNESS_INPUT),
         uiState.getState(BASEPLATE_BIN_Z_CLEARANCE_INPUT),
         uiState.getState(BASEPLATE_HAS_CONNECTION_HOLE_INPUT),

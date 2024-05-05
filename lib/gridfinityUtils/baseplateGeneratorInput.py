@@ -106,6 +106,46 @@ class BaseplateGeneratorInput():
         self._hasScrewHoles = value
 
     @property
+    def hasPadding(self) -> bool:
+        return self._hasPadding
+
+    @hasPadding.setter
+    def hasPadding(self, value: bool):
+        self._hasPadding = value
+
+    @property
+    def paddingLeft(self) -> float:
+        return self._paddingLeft
+
+    @paddingLeft.setter
+    def paddingLeft(self, value: float):
+        self._paddingLeft = value
+
+    @property
+    def paddingTop(self) -> float:
+        return self._paddingTop
+
+    @paddingTop.setter
+    def paddingTop(self, value: float):
+        self._paddingTop = value
+
+    @property
+    def paddingRight(self) -> float:
+        return self._paddingRight
+
+    @paddingRight.setter
+    def paddingRight(self, value: float):
+        self._paddingRight = value
+
+    @property
+    def paddingBottom(self) -> float:
+        return self._paddingBottom
+
+    @paddingBottom.setter
+    def paddingBottom(self, value: float):
+        self._paddingBottom = value
+
+    @property
     def hasConnectionHoles(self) -> bool:
         return self._hasConnectionHoles
 

@@ -19,6 +19,12 @@ class InputState:
     screwHoleSize: float
     screwHeadSize: float
 
+    hasPadding: bool
+    paddingLeft: float
+    paddingTop: float
+    paddingRight: float
+    paddingBottom: float
+
     extraBottomThickness: float
     verticalClearance: float
 
