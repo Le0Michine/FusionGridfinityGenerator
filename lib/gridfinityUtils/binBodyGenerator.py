@@ -255,7 +255,7 @@ def createCompartment(
 
     # label tab
     if hasTab:
-        tabBody = createGridfinityBinBodyTab(tabInput, targetComponent)
+        tabBody, tabBodySubtract = createGridfinityBinBodyTab(tabInput, targetComponent)
 
         intersectTabInput = targetComponent.features.combineFeatures.createInput(
             tabBody,
@@ -265,4 +265,6 @@ def createCompartment(
         intersectTabInput.isKeepToolBodies = True
         intersectTabFeature = targetComponent.features.combineFeatures.add(intersectTabInput)
         bodiesToMerge = bodiesToMerge + [body for body in list(intersectTabFeature.bodies) if not body.revisionId == innerCutoutBody.revisionId]
+        
+        bodiesToSubtract = bodiesToSubtract + [tabBodySubtract]
     return (bodiesToMerge, bodiesToSubtract)
