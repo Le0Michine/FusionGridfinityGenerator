@@ -98,6 +98,10 @@ BIN_TAB_COMPARTMETS_TOP_LEFT = 'Top left compartment'
 BIN_TAB_COMPARTMETS_TOP_RIGHT = 'Top right compartment'
 BIN_TAB_COMPARTMETS_BOTTOM_LEFT = 'Bottom left compartment'
 BIN_TAB_COMPARTMETS_BOTTOM_RIGHT = 'Bottom right compartment'
+BIN_TAB_COMPARTMETS_TOP = 'Top compartments'
+BIN_TAB_COMPARTMETS_BOTTOM = 'Bottom compartments'
+BIN_TAB_COMPARTMETS_LEFT = 'Left compartments'
+BIN_TAB_COMPARTMETS_RIGHT = 'Right compartments'
 BIN_TAB_LENGTH_INPUT_ID = 'bin_tab_length'
 BIN_TAB_WIDTH_INPUT_ID = 'bin_tab_width'
 BIN_TAB_POSITION_INPUT_ID = 'bin_tab_position'
@@ -610,13 +614,17 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     commandUIState.registerCommandInput(binTabFeaturesGroup)
     generateTabCheckboxinput = binTabFeaturesGroup.children.addBoolValueInput(BIN_HAS_TAB_INPUT_ID, 'Add label tab (along bin width)', True, '', commandUIState.getState(BIN_HAS_TAB_INPUT_ID))
     commandUIState.registerCommandInput(generateTabCheckboxinput)
-    tabCompartmentsDropdown = compartmentsGroup.children.addDropDownCommandInput(BIN_TAB_COMPARTMETS_INPUT_ID, "Tab Position", adsk.core.DropDownStyles.LabeledIconDropDownStyle)
+    tabCompartmentsDropdown = binTabFeaturesGroup.children.addDropDownCommandInput(BIN_TAB_COMPARTMETS_INPUT_ID, "Tab Position", adsk.core.DropDownStyles.LabeledIconDropDownStyle)
     tabCompartmentsDropdownDefaultValue = commandUIState.getState(BIN_TAB_COMPARTMETS_INPUT_ID)
     tabCompartmentsDropdown.listItems.add(BIN_TAB_COMPARTMETS_ALL, tabCompartmentsDropdownDefaultValue == BIN_TAB_COMPARTMETS_ALL)
     tabCompartmentsDropdown.listItems.add(BIN_TAB_COMPARTMETS_TOP_LEFT, tabCompartmentsDropdownDefaultValue == BIN_TAB_COMPARTMETS_TOP_LEFT)
     tabCompartmentsDropdown.listItems.add(BIN_TAB_COMPARTMETS_TOP_RIGHT, tabCompartmentsDropdownDefaultValue == BIN_TAB_COMPARTMETS_TOP_RIGHT)
     tabCompartmentsDropdown.listItems.add(BIN_TAB_COMPARTMETS_BOTTOM_LEFT, tabCompartmentsDropdownDefaultValue == BIN_TAB_COMPARTMETS_BOTTOM_LEFT)
     tabCompartmentsDropdown.listItems.add(BIN_TAB_COMPARTMETS_BOTTOM_RIGHT, tabCompartmentsDropdownDefaultValue == BIN_TAB_COMPARTMETS_BOTTOM_RIGHT)
+    tabCompartmentsDropdown.listItems.add(BIN_TAB_COMPARTMETS_TOP, tabCompartmentsDropdownDefaultValue == BIN_TAB_COMPARTMETS_TOP)
+    tabCompartmentsDropdown.listItems.add(BIN_TAB_COMPARTMETS_BOTTOM, tabCompartmentsDropdownDefaultValue == BIN_TAB_COMPARTMETS_BOTTOM)
+    tabCompartmentsDropdown.listItems.add(BIN_TAB_COMPARTMETS_LEFT, tabCompartmentsDropdownDefaultValue == BIN_TAB_COMPARTMETS_LEFT)
+    tabCompartmentsDropdown.listItems.add(BIN_TAB_COMPARTMETS_RIGHT, tabCompartmentsDropdownDefaultValue == BIN_TAB_COMPARTMETS_RIGHT)
     commandUIState.registerCommandInput(tabCompartmentsDropdown)
     binTabLengthInput = binTabFeaturesGroup.children.addValueInput(BIN_TAB_LENGTH_INPUT_ID, 'Tab length (u)', '', adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_TAB_LENGTH_INPUT_ID)))
     commandUIState.registerCommandInput(binTabLengthInput)

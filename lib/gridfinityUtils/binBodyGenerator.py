@@ -157,6 +157,14 @@ def createGridfinityBinBody(
                     hasTab = True
                 elif input.tabCompartments == 4 and compartment.positionX == (input.compartmentsByX - 1) and compartment.positionY == 0:
                     hasTab = True
+                elif input.tabCompartments == 5 and compartment.positionY == (input.compartmentsByY - 1):
+                    hasTab = True
+                elif input.tabCompartments == 6 and compartment.positionY == 0:
+                    hasTab = True
+                elif input.tabCompartments == 7 and compartment.positionX == 0:
+                    hasTab = True
+                elif input.tabCompartments == 8 and compartment.positionX == (input.compartmentsByX - 1):
+                    hasTab = True
             [compartmentMerges, compartmentCuts] = createCompartment(
                 input.wallThickness,
                 compartmentOriginPoint,
