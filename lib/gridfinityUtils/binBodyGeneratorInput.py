@@ -189,12 +189,12 @@ class BinBodyGeneratorInput():
         self._hasTab = value
 
     @property
-    def hasSingleTab(self) -> bool:
-        return self._hasSingleTab
+    def tabCompartments(self) -> int:
+        return self._tabCompartments
 
-    @hasSingleTab.setter
-    def hasSingleTab(self, value: bool):
-        self._hasSingleTab = value
+    @tabCompartments.setter
+    def tabCompartments(self, value: int):
+        self._tabCompartments = value
 
     @property
     def tabWidth(self) -> float:

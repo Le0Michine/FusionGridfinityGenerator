@@ -92,7 +92,12 @@ BIN_MAGNET_HEIGHT_INPUT = 'magnet_height'
 BIN_HAS_SCOOP_INPUT_ID = 'bin_has_scoop'
 BIN_SCOOP_MAX_RADIUS_INPUT_ID = 'bin_scoop_max_radius'
 BIN_HAS_TAB_INPUT_ID = 'bin_has_tab'
-BIN_HAS_SINGLE_TAB_INPUT_ID = 'bin_has_single_tab'
+BIN_TAB_COMPARTMETS_INPUT_ID = 'bin_tab_compartments'
+BIN_TAB_COMPARTMETS_ALL = 'All compartments'
+BIN_TAB_COMPARTMETS_TOP_LEFT = 'Top left compartment'
+BIN_TAB_COMPARTMETS_TOP_RIGHT = 'Top right compartment'
+BIN_TAB_COMPARTMETS_BOTTOM_LEFT = 'Bottom left compartment'
+BIN_TAB_COMPARTMETS_BOTTOM_RIGHT = 'Bottom right compartment'
 BIN_TAB_LENGTH_INPUT_ID = 'bin_tab_length'
 BIN_TAB_WIDTH_INPUT_ID = 'bin_tab_width'
 BIN_TAB_POSITION_INPUT_ID = 'bin_tab_position'
@@ -178,7 +183,7 @@ def initDefaultUiState():
     commandUIState.initValue(BIN_SCOOP_MAX_RADIUS_INPUT_ID, const.BIN_SCOOP_MAX_RADIUS, adsk.core.ValueCommandInput.classType())
 
     commandUIState.initValue(BIN_HAS_TAB_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
-    commandUIState.initValue(BIN_HAS_SINGLE_TAB_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
+    commandUIState.initValue(BIN_TAB_COMPARTMETS_INPUT_ID, BIN_TAB_COMPARTMETS_ALL, adsk.core.DropDownCommandInput.classType())
     commandUIState.initValue(BIN_TAB_LENGTH_INPUT_ID, 1, adsk.core.ValueCommandInput.classType())
     commandUIState.initValue(BIN_TAB_WIDTH_INPUT_ID, const.BIN_TAB_WIDTH, adsk.core.ValueCommandInput.classType())
     commandUIState.initValue(BIN_TAB_POSITION_INPUT_ID, 0, adsk.core.ValueCommandInput.classType())
@@ -448,7 +453,6 @@ def is_all_input_valid(inputs: adsk.core.CommandInputs):
     has_scoop: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_SCOOP_INPUT_ID)
     binScoopMaxRadius: adsk.core.ValueCommandInput = inputs.itemById(BIN_SCOOP_MAX_RADIUS_INPUT_ID)
     hasTabInput: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_TAB_INPUT_ID)
-    hasSingleTabInput: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_SINGLE_TAB_INPUT_ID)
     binTabLength: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_LENGTH_INPUT_ID)
     binTabWidth: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_WIDTH_INPUT_ID)
     binTabPosition: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_POSITION_INPUT_ID)
@@ -606,8 +610,14 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     commandUIState.registerCommandInput(binTabFeaturesGroup)
     generateTabCheckboxinput = binTabFeaturesGroup.children.addBoolValueInput(BIN_HAS_TAB_INPUT_ID, 'Add label tab (along bin width)', True, '', commandUIState.getState(BIN_HAS_TAB_INPUT_ID))
     commandUIState.registerCommandInput(generateTabCheckboxinput)
-    generateSingleTabCheckboxinput = binTabFeaturesGroup.children.addBoolValueInput(BIN_HAS_SINGLE_TAB_INPUT_ID, 'Tab only on first compartment', True, '', commandUIState.getState(BIN_HAS_SINGLE_TAB_INPUT_ID))
-    commandUIState.registerCommandInput(generateSingleTabCheckboxinput)
+    tabCompartmentsDropdown = compartmentsGroup.children.addDropDownCommandInput(BIN_TAB_COMPARTMETS_INPUT_ID, "Tab Position", adsk.core.DropDownStyles.LabeledIconDropDownStyle)
+    tabCompartmentsDropdownDefaultValue = commandUIState.getState(BIN_TAB_COMPARTMETS_INPUT_ID)
+    tabCompartmentsDropdown.listItems.add(BIN_TAB_COMPARTMETS_ALL, tabCompartmentsDropdownDefaultValue == BIN_TAB_COMPARTMETS_ALL)
+    tabCompartmentsDropdown.listItems.add(BIN_TAB_COMPARTMETS_TOP_LEFT, tabCompartmentsDropdownDefaultValue == BIN_TAB_COMPARTMETS_TOP_LEFT)
+    tabCompartmentsDropdown.listItems.add(BIN_TAB_COMPARTMETS_TOP_RIGHT, tabCompartmentsDropdownDefaultValue == BIN_TAB_COMPARTMETS_TOP_RIGHT)
+    tabCompartmentsDropdown.listItems.add(BIN_TAB_COMPARTMETS_BOTTOM_LEFT, tabCompartmentsDropdownDefaultValue == BIN_TAB_COMPARTMETS_BOTTOM_LEFT)
+    tabCompartmentsDropdown.listItems.add(BIN_TAB_COMPARTMETS_BOTTOM_RIGHT, tabCompartmentsDropdownDefaultValue == BIN_TAB_COMPARTMETS_BOTTOM_RIGHT)
+    commandUIState.registerCommandInput(tabCompartmentsDropdown)
     binTabLengthInput = binTabFeaturesGroup.children.addValueInput(BIN_TAB_LENGTH_INPUT_ID, 'Tab length (u)', '', adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_TAB_LENGTH_INPUT_ID)))
     commandUIState.registerCommandInput(binTabLengthInput)
     binTabWidthInput = binTabFeaturesGroup.children.addValueInput(BIN_TAB_WIDTH_INPUT_ID, 'Tab width (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_TAB_WIDTH_INPUT_ID)))
@@ -826,7 +836,7 @@ def onChangeValidate():
     commandUIState.getInput(BIN_SCOOP_MAX_RADIUS_INPUT_ID).isEnabled = generateScoop
 
     generateTab: bool = commandUIState.getState(BIN_HAS_TAB_INPUT_ID)
-    commandUIState.getInput(BIN_HAS_SINGLE_TAB_INPUT_ID).isEnabled = generateTab
+    commandUIState.getInput(BIN_TAB_COMPARTMETS_INPUT_ID).isEnabled = generateTab
     commandUIState.getInput(BIN_TAB_LENGTH_INPUT_ID).isEnabled = generateTab
     commandUIState.getInput(BIN_TAB_WIDTH_INPUT_ID).isEnabled = generateTab
     commandUIState.getInput(BIN_TAB_ANGLE_INPUT_ID).isEnabled = generateTab
@@ -872,7 +882,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
     has_scoop: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_SCOOP_INPUT_ID)
     binScoopMaxRadius: adsk.core.ValueCommandInput = inputs.itemById(BIN_SCOOP_MAX_RADIUS_INPUT_ID)
     hasTabInput: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_TAB_INPUT_ID)
-    hasSingleTabInput: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_SINGLE_TAB_INPUT_ID)
+    tabCompartmentsInput: adsk.core.DropDownCommandInput = inputs.itemById(BIN_TAB_COMPARTMETS_INPUT_ID)
     binTabLength: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_LENGTH_INPUT_ID)
     binTabWidth: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_WIDTH_INPUT_ID)
     binTabPosition: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_POSITION_INPUT_ID)
@@ -945,7 +955,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
         binBodyInput.hasScoop = has_scoop.value and isHollow
         binBodyInput.scoopMaxRadius = binScoopMaxRadius.value
         binBodyInput.hasTab = hasTabInput.value and isHollow
-        binBodyInput.hasSingleTab = hasSingleTabInput.value
+        binBodyInput.tabCompartments = tabCompartmentsInput.selectedItem.index
         binBodyInput.tabLength = binTabLength.value
         binBodyInput.tabWidth = binTabWidth.value
         binBodyInput.tabPosition = binTabPosition.value
