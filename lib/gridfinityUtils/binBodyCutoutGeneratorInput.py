@@ -86,6 +86,14 @@ class BinBodyCutoutGeneratorInput():
         self._hasTab = value
 
     @property
+    def hasSingleTab(self) -> bool:
+        return self._hasSingleTab
+
+    @hasSingleTab.setter
+    def hasSingleTab(self, value: bool):
+        self._hasSingleTab = value
+
+    @property
     def tabWidth(self) -> float:
         return self._tabWidth
 
