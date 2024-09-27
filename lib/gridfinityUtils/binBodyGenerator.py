@@ -145,6 +145,26 @@ def createGridfinityBinBody(
             compartmentTabInput.overhangAngle = input.tabOverhangAngle
             compartmentTabInput.topClearance = const.BIN_TAB_TOP_CLEARANCE
 
+            hasTab = False
+            if input.hasTab:
+                if input.tabCompartments == 0:
+                    hasTab = True
+                elif input.tabCompartments == 1 and compartment.positionX == 0 and compartment.positionY == (input.compartmentsByY - 1):
+                    hasTab = True
+                elif input.tabCompartments == 2 and compartment.positionX == (input.compartmentsByX - 1) and compartment.positionY == (input.compartmentsByY - 1):
+                    hasTab = True
+                elif input.tabCompartments == 3 and compartment.positionX == 0 and compartment.positionY == 0:
+                    hasTab = True
+                elif input.tabCompartments == 4 and compartment.positionX == (input.compartmentsByX - 1) and compartment.positionY == 0:
+                    hasTab = True
+                elif input.tabCompartments == 5 and compartment.positionY == (input.compartmentsByY - 1):
+                    hasTab = True
+                elif input.tabCompartments == 6 and compartment.positionY == 0:
+                    hasTab = True
+                elif input.tabCompartments == 7 and compartment.positionX == 0:
+                    hasTab = True
+                elif input.tabCompartments == 8 and compartment.positionX == (input.compartmentsByX - 1):
+                    hasTab = True
             [compartmentMerges, compartmentCuts] = createCompartment(
                 input.wallThickness,
                 compartmentOriginPoint,
@@ -154,7 +174,7 @@ def createGridfinityBinBody(
                 input.binCornerFilletRadius - input.wallThickness,
                 input.hasScoop,
                 input.scoopMaxRadius,
-                input.hasTab,
+                hasTab,
                 compartmentTabInput,
                 targetComponent,
             )
