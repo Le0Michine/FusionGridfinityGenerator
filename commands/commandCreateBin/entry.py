@@ -92,9 +92,11 @@ BIN_MAGNET_HEIGHT_INPUT = 'magnet_height'
 BIN_HAS_SCOOP_INPUT_ID = 'bin_has_scoop'
 BIN_SCOOP_MAX_RADIUS_INPUT_ID = 'bin_scoop_max_radius'
 BIN_HAS_TAB_INPUT_ID = 'bin_has_tab'
+BIN_TAB_IS_HOLLOW_INPUT_ID = 'tab_is_hollow'
 BIN_TAB_LENGTH_INPUT_ID = 'bin_tab_length'
 BIN_TAB_WIDTH_INPUT_ID = 'bin_tab_width'
 BIN_TAB_POSITION_INPUT_ID = 'bin_tab_position'
+BIN_TAB_LABEL_ANGLE_INPUT_ID = 'bin_tab_label_angle'
 BIN_TAB_ANGLE_INPUT_ID = 'bin_tab_angle'
 BIN_WITH_LIP_INPUT_ID = 'with_lip'
 BIN_WITH_LIP_NOTCHES_INPUT_ID = 'with_lip_notches'
@@ -177,10 +179,12 @@ def initDefaultUiState():
     commandUIState.initValue(BIN_SCOOP_MAX_RADIUS_INPUT_ID, const.BIN_SCOOP_MAX_RADIUS, adsk.core.ValueCommandInput.classType())
 
     commandUIState.initValue(BIN_HAS_TAB_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
+    commandUIState.initValue(BIN_TAB_IS_HOLLOW_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
     commandUIState.initValue(BIN_TAB_LENGTH_INPUT_ID, 1, adsk.core.ValueCommandInput.classType())
     commandUIState.initValue(BIN_TAB_WIDTH_INPUT_ID, const.BIN_TAB_WIDTH, adsk.core.ValueCommandInput.classType())
     commandUIState.initValue(BIN_TAB_POSITION_INPUT_ID, 0, adsk.core.ValueCommandInput.classType())
-    commandUIState.initValue(BIN_TAB_ANGLE_INPUT_ID, '45 deg', adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_TAB_LABEL_ANGLE_INPUT_ID, f'{const.BIN_TAB_LABEL_ANGLE} DEG', adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_TAB_ANGLE_INPUT_ID, f'{const.BIN_TAB_OVERHANG_ANGLE} DEG', adsk.core.ValueCommandInput.classType())
 
     commandUIState.initValue(BIN_GENERATE_BASE_INPUT_ID, True, adsk.core.BoolValueCommandInput.classType())
     commandUIState.initValue(BIN_SCREW_HOLES_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
@@ -449,6 +453,7 @@ def is_all_input_valid(inputs: adsk.core.CommandInputs):
     binTabLength: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_LENGTH_INPUT_ID)
     binTabWidth: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_WIDTH_INPUT_ID)
     binTabPosition: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_POSITION_INPUT_ID)
+    binTabLabelAngle: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_LABEL_ANGLE_INPUT_ID)
     binTabAngle: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_ANGLE_INPUT_ID)
     binTypeDropdownInput: adsk.core.DropDownCommandInput = inputs.itemById(BIN_TYPE_DROPDOWN_ID)
     binCompartmentGridTypeDropdownInput: adsk.core.DropDownCommandInput = inputs.itemById(BIN_COMPARTMENTS_GRID_TYPE_ID)
@@ -603,12 +608,20 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     commandUIState.registerCommandInput(binTabFeaturesGroup)
     generateTabCheckboxinput = binTabFeaturesGroup.children.addBoolValueInput(BIN_HAS_TAB_INPUT_ID, 'Add label tab (along bin width)', True, '', commandUIState.getState(BIN_HAS_TAB_INPUT_ID))
     commandUIState.registerCommandInput(generateTabCheckboxinput)
+    binTabIsHollowInput = binTabFeaturesGroup.children.addBoolValueInput(BIN_TAB_IS_HOLLOW_INPUT_ID, 'Hollow tab', True, '', commandUIState.getState(BIN_TAB_IS_HOLLOW_INPUT_ID))
+    commandUIState.registerCommandInput(binTabIsHollowInput)
     binTabLengthInput = binTabFeaturesGroup.children.addValueInput(BIN_TAB_LENGTH_INPUT_ID, 'Tab length (u)', '', adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_TAB_LENGTH_INPUT_ID)))
     commandUIState.registerCommandInput(binTabLengthInput)
     binTabWidthInput = binTabFeaturesGroup.children.addValueInput(BIN_TAB_WIDTH_INPUT_ID, 'Tab width (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_TAB_WIDTH_INPUT_ID)))
     commandUIState.registerCommandInput(binTabWidthInput)
     binTabPostionInput = binTabFeaturesGroup.children.addValueInput(BIN_TAB_POSITION_INPUT_ID, 'Tab offset (u)', '', adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_TAB_POSITION_INPUT_ID)))
     commandUIState.registerCommandInput(binTabPostionInput)
+    binTabLabelAngleInput = binTabFeaturesGroup.children.addValueInput(BIN_TAB_LABEL_ANGLE_INPUT_ID, 'Tab label angle', 'deg', adsk.core.ValueInput.createByString(str(commandUIState.getState(BIN_TAB_LABEL_ANGLE_INPUT_ID))))
+    binTabLabelAngleInput.minimumValue = math.radians(0)
+    binTabLabelAngleInput.isMinimumInclusive = True
+    binTabLabelAngleInput.maximumValue = math.radians(90)
+    binTabLabelAngleInput.isMaximumInclusive = True
+    commandUIState.registerCommandInput(binTabLabelAngleInput)
     tabObverhangAngleInput = binTabFeaturesGroup.children.addValueInput(BIN_TAB_ANGLE_INPUT_ID, 'Tab overhang angle', 'deg', adsk.core.ValueInput.createByString(str(commandUIState.getState(BIN_TAB_ANGLE_INPUT_ID))))
     tabObverhangAngleInput.minimumValue = math.radians(30)
     tabObverhangAngleInput.isMinimumInclusive = True
@@ -821,8 +834,10 @@ def onChangeValidate():
     commandUIState.getInput(BIN_SCOOP_MAX_RADIUS_INPUT_ID).isEnabled = generateScoop
 
     generateTab: bool = commandUIState.getState(BIN_HAS_TAB_INPUT_ID)
+    commandUIState.getInput(BIN_TAB_IS_HOLLOW_INPUT_ID).isEnabled = generateTab
     commandUIState.getInput(BIN_TAB_LENGTH_INPUT_ID).isEnabled = generateTab
     commandUIState.getInput(BIN_TAB_WIDTH_INPUT_ID).isEnabled = generateTab
+    commandUIState.getInput(BIN_TAB_LABEL_ANGLE_INPUT_ID).isEnabled = generateTab
     commandUIState.getInput(BIN_TAB_ANGLE_INPUT_ID).isEnabled = generateTab
     commandUIState.getInput(BIN_TAB_POSITION_INPUT_ID).isEnabled = generateTab
     
@@ -866,9 +881,11 @@ def generateBin(args: adsk.core.CommandEventArgs):
     has_scoop: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_SCOOP_INPUT_ID)
     binScoopMaxRadius: adsk.core.ValueCommandInput = inputs.itemById(BIN_SCOOP_MAX_RADIUS_INPUT_ID)
     hasTabInput: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_TAB_INPUT_ID)
+    binTabIsHollow: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_TAB_IS_HOLLOW_INPUT_ID)
     binTabLength: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_LENGTH_INPUT_ID)
     binTabWidth: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_WIDTH_INPUT_ID)
     binTabPosition: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_POSITION_INPUT_ID)
+    binTabLabelAngle: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_LABEL_ANGLE_INPUT_ID)
     binTabAngle: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_ANGLE_INPUT_ID)
     binTypeDropdownInput: adsk.core.DropDownCommandInput = inputs.itemById(BIN_TYPE_DROPDOWN_ID)
     binCompartmentGridTypeDropdownInput: adsk.core.DropDownCommandInput = inputs.itemById(BIN_COMPARTMENTS_GRID_TYPE_ID)
@@ -938,9 +955,11 @@ def generateBin(args: adsk.core.CommandEventArgs):
         binBodyInput.hasScoop = has_scoop.value and isHollow
         binBodyInput.scoopMaxRadius = binScoopMaxRadius.value
         binBodyInput.hasTab = hasTabInput.value and isHollow
+        binBodyInput.isTabHollow = binTabIsHollow.value
         binBodyInput.tabLength = binTabLength.value
         binBodyInput.tabWidth = binTabWidth.value
         binBodyInput.tabPosition = binTabPosition.value
+        binBodyInput.tabLabelAngle = binTabLabelAngle.value
         binBodyInput.tabOverhangAngle = binTabAngle.value
         binBodyInput.compartmentsByX = compartmentsX.value
         binBodyInput.compartmentsByY = compartmentsY.value
@@ -1017,9 +1036,11 @@ def generateBin(args: adsk.core.CommandEventArgs):
                 compartmentTabInput.origin = tabOriginPoint
                 compartmentTabInput.length = max(0, min(binBodyInput.tabLength, binBodyInput.binWidth)) * binBodyInput.baseWidth - binBodyInput.wallThickness * 2 - binBodyInput.xyClearance * 2
                 compartmentTabInput.width = binBodyInput.tabWidth
+                compartmentTabInput.isTabHollow = binBodyInput.isTabHollow
+                compartmentTabInput.labelAngle = binBodyInput.tabLabelAngle
                 compartmentTabInput.overhangAngle = binBodyInput.tabOverhangAngle
                 compartmentTabInput.topClearance = const.BIN_TAB_TOP_CLEARANCE
-                tabBody = createGridfinityBinBodyTab(compartmentTabInput, gridfinityBinComponent)
+                tabBody, tabBodiesToSubtract = createGridfinityBinBodyTab(compartmentTabInput, gridfinityBinComponent)
                 combineInput = combineFeatures.createInput(tabBody, commonUtils.objectCollectionFromList([binBody]))
                 combineInput.operation = adsk.fusion.FeatureOperations.CutFeatureOperation
                 combineInput.isKeepToolBodies = True

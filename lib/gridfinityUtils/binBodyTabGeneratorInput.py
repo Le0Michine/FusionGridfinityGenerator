@@ -1,11 +1,12 @@
+import math
 import adsk.core, adsk.fusion, traceback
 
 from . import const
 
 class BinBodyTabGeneratorInput():
     def __init__(self):
-        self.overhangAngle = const.BIN_TAB_OVERHANG_ANGLE
-        self.labelAngle = const.BIN_TAB_LABEL_ANGLE
+        self.overhangAngle = math.radians(const.BIN_TAB_OVERHANG_ANGLE)
+        self.labelAngle = math.radians(const.BIN_TAB_LABEL_ANGLE)
         self.position = 0
 
     @property
@@ -56,4 +57,10 @@ class BinBodyTabGeneratorInput():
     def labelAngle(self, value: float):
         self._tablabelAngle = value
 
+    @property
+    def isTabHollow(self) -> bool:
+        return self._isTabHollow
     
+    @isTabHollow.setter
+    def isTabHollow(self, value: bool):
+        self._isTabHollow = value
