@@ -2,10 +2,10 @@ import adsk.core, adsk.fusion, traceback
 from ...lib import fusion360utils as futil
 
 class SingleInputState:
-    def __init__(self, inputId: str, inputValue: any, inutType: str):
+    def __init__(self, inputId: str, inputValue: any, inputType: str):
         self.id = inputId
         self.value = inputValue
-        self.type = inutType
+        self.type = inputType
 
     def toDict(self):
         return {
@@ -103,7 +103,7 @@ class CommandUiState:
         elif isinstance(input, adsk.core.StringValueCommandInput):
             input.value = value
         else:
-            futil.log(f'{self.commandName} Unknonwn input type: {input.id} [{input.objectType}]')
+            futil.log(f'{self.commandName} Unknown input type: {input.id} [{input.objectType}]')
 
     def getState(self, inputId: str):
         return self.inputState[inputId].value
@@ -111,7 +111,7 @@ class CommandUiState:
     def getInput(self, inputId: str):
         return self.commandInputs[inputId]
     
-    def toDict(self, ignoreKeys: [str] = []):
+    def toDict(self, ignoreKeys: list[str] = []):
         result = {}
         for key in self.inputState.keys():
             if key not in ignoreKeys:

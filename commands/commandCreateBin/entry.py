@@ -215,38 +215,46 @@ def initDefaultUiState():
                 futil.log(f'{CMD_NAME} Failed to restore default values, err: {err}')
     futil.log(f'{CMD_NAME} UI state initialized')
 
-def getErrorMessage():
+def getErrorMessage(text = "An unknown error occurred, please validate your inputs and try again"):
     stackTrace = traceback.format_exc()
-    return f"An unknonwn error occurred, please validate your inputs and try again:\n{stackTrace}"
+    return f"{text}:<br>{stackTrace}"
 
-def showErrorInMessageBox():
+def showErrorInMessageBox(text = "An unknown error occurred, please validate your inputs and try again"):
     if ui:
-        ui.messageBox(getErrorMessage(), f"{CMD_NAME} Error")
+        ui.messageBox(getErrorMessage(text), f"{CMD_NAME} Error")
 
 # Executed when add-in is run.
 def start():
-    futil.log(f'{CMD_NAME} Command Start Event')
-    addinConfig = configUtils.readConfig(CONFIG_FOLDER_PATH)
+    try:
+        futil.log(f'{CMD_NAME} Command Start Event')
+        addinConfig = configUtils.readConfig(CONFIG_FOLDER_PATH)
 
-    # Create a command Definition.
-    cmd_def = ui.commandDefinitions.addButtonDefinition(CMD_ID, CMD_NAME, CMD_Description, ICON_FOLDER)
+        # Create a command Definition.
+        cmd_def = ui.commandDefinitions.itemById(CMD_ID)
+        if not cmd_def:
+            cmd_def = ui.commandDefinitions.addButtonDefinition(CMD_ID, CMD_NAME, CMD_Description, ICON_FOLDER)
 
-    # Define an event handler for the command created event. It will be called when the button is clicked.
-    futil.add_handler(cmd_def.commandCreated, command_created)
+            # Define an event handler for the command created event. It will be called when the button is clicked.
+            futil.add_handler(cmd_def.commandCreated, command_created)
 
-    # ******** Add a button into the UI so the user can run the command. ********
-    # Get the target workspace the button will be created in.
-    workspace = ui.workspaces.itemById(WORKSPACE_ID)
+            # ******** Add a button into the UI so the user can run the command. ********
+            # Get the target workspace the button will be created in.
+            workspace = ui.workspaces.itemById(WORKSPACE_ID)
 
-    # Get the panel the button will be created in.
-    panel = workspace.toolbarPanels.itemById(PANEL_ID)
+            # Get the panel the button will be created in.
+            panel = workspace.toolbarPanels.itemById(PANEL_ID)
 
-    # Create the button command control in the UI after the specified existing command.
-    control = panel.controls.addCommand(cmd_def, COMMAND_BESIDE_ID, False)
+            # Create the button command control in the UI after the specified existing command.
+            control = panel.controls.addCommand(cmd_def, COMMAND_BESIDE_ID, False)
 
-    # Specify if the command is promoted to the main toolbar.
-    control.isPromoted = addinConfig['UI'].getboolean('is_promoted')
-    initDefaultUiState()
+            # Specify if the command is promoted to the main toolbar.
+            control.isPromoted = addinConfig['UI'].getboolean('is_promoted')
+        initDefaultUiState()
+        ui.statusMessage = ""
+    except Exception as err:
+        futil.log(f'{CMD_NAME} Error occurred at the start, {err}, {getErrorMessage()}')
+        ui.statusMessage = f"{CMD_NAME} failed to initialize"
+        showErrorInMessageBox(f"{CMD_NAME} Critical error occurred at the start, the command will be unavailable, if the issue persists use <a href=\"https://github.com/Le0Michine/FusionGridfinityGenerator/issues/new\">this link</a> to report it")
 
 # Executed when add-in is stopped.
 def stop():
