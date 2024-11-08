@@ -189,6 +189,14 @@ class BinBodyGeneratorInput():
         self._hasTab = value
 
     @property
+    def isTabHollow(self) -> bool:
+        return self._isTabHollow
+    
+    @isTabHollow.setter
+    def isTabHollow(self, value: bool):
+        self._isTabHollow = value
+        
+    @property
     def tabWidth(self) -> float:
         return self._tabWidth
 
@@ -211,6 +219,14 @@ class BinBodyGeneratorInput():
     @tabPosition.setter
     def tabPosition(self, value: float):
         self._tabPosition = value
+
+    @property
+    def tabLabelAngle(self) -> float:
+        return self._tabLabelAngle
+    
+    @tabLabelAngle.setter
+    def tabLabelAngle(self, value: float):
+        self._tabLabelAngle = value
 
     @property
     def tabOverhangAngle(self) -> float:
