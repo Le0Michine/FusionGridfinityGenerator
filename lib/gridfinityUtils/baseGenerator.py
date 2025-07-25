@@ -169,6 +169,12 @@ def createSingleGridfinityBaseBody(
         targetComponent
     )
 
+    # create the initial joint origin that will be duplicated into every base plate cutout
+    jointGeometry = adsk.fusion.JointGeometry.createByPlanarFace(baseBottomExtrude.endFaces.item(0), None, adsk.fusion.JointKeyPointTypes.CenterKeyPoint)
+    jointInput = targetComponent.jointOrigins.createInput(jointGeometry)
+    jointInput.isFlipped = True
+    targetComponent.jointOrigins.add(jointInput)
+
     if input.hasBottomChamfer:
         # chamfer bottom section
         chamferFeatures: adsk.fusion.ChamferFeatures = features.chamferFeatures
