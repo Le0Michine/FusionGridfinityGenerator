@@ -194,6 +194,18 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
     patternInput.quantityTwo = adsk.core.ValueInput.createByReal(input.baseplateLength)
     patternInput.distanceTwo = adsk.core.ValueInput.createByReal(input.baseLength)
     rectangularPattern = rectangularPatternFeatures.add(patternInput)
+
+    # replicate joint origins in the same pattern (unfortunately we can't use the rectangular pattern):
+    baseOrigin = targetComponent.jointOrigins.item(0)
+    for multX in range(input.baseplateWidth):
+        for multY in range(input.baseplateLength):
+            if multX != 0 or multY != 0:
+                jointInput = targetComponent.jointOrigins.createInput(baseOrigin.geometry)
+                jointInput.isFlipped = True
+                jointInput.offsetX = adsk.core.ValueInput.createByReal(multX * input.baseWidth)
+                jointInput.offsetY = adsk.core.ValueInput.createByReal(multY * input.baseLength)
+                targetComponent.jointOrigins.add(jointInput)
+
     cuttingTools = cuttingTools + list(rectangularPattern.bodies)
 
     # create baseplate body
