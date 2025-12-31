@@ -96,6 +96,15 @@ BIN_TAB_LENGTH_INPUT_ID = 'bin_tab_length'
 BIN_TAB_WIDTH_INPUT_ID = 'bin_tab_width'
 BIN_TAB_POSITION_INPUT_ID = 'bin_tab_position'
 BIN_TAB_ANGLE_INPUT_ID = 'bin_tab_angle'
+BIN_TAB_METHOD_INPUT_ID = 'bin_tab_method'
+BIN_TAB_ROOT_THICKNESS_INPUT_ID = 'bin_tab_root_thickness'
+BIN_TAB_TIP_THICKNESS_INPUT_ID = 'bin_tab_tip_thickness'
+BIN_TAB_UNIFORM_THICKNESS_INPUT_ID = 'bin_tab_uniform_thickness'
+BIN_TAB_FILLET_UNIFORM_INPUT_ID = 'bin_tab_fillet_uniform'
+BIN_TAB_FILLET_TOP_INPUT_ID = 'bin_tab_fillet_top'
+BIN_TAB_FILLET_BOTTOM_INPUT_ID = 'bin_tab_fillet_bottom'
+BIN_TAB_FILLET_BACK_INPUT_ID = 'bin_tab_fillet_back'
+
 BIN_WITH_LIP_INPUT_ID = 'with_lip'
 BIN_WITH_LIP_NOTCHES_INPUT_ID = 'with_lip_notches'
 BIN_COMPARTMENT_REAL_DIMENSIONS_TABLE = "compartment_real_dimensions"
@@ -161,7 +170,7 @@ def initDefaultUiState():
     commandUIState.initValue(BIN_XY_CLEARANCE_INPUT_ID, const.BIN_XY_CLEARANCE, adsk.core.ValueCommandInput.classType())
     commandUIState.initValue(BIN_WIDTH_INPUT_ID, 2, adsk.core.IntegerSpinnerCommandInput.classType())
     commandUIState.initValue(BIN_LENGTH_INPUT_ID, 3, adsk.core.IntegerSpinnerCommandInput.classType())
-    commandUIState.initValue(BIN_HEIGHT_INPUT_ID, 5, adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_HEIGHT_INPUT_ID, 5, adsk.core.IntegerSpinnerCommandInput.classType())
 
     commandUIState.initValue(BIN_GENERATE_BODY_INPUT_ID, True, adsk.core.BoolValueCommandInput.classType())
     commandUIState.initValue(BIN_TYPE_DROPDOWN_ID, BIN_TYPE_HOLLOW, adsk.core.DropDownCommandInput.classType())
@@ -181,6 +190,15 @@ def initDefaultUiState():
     commandUIState.initValue(BIN_TAB_WIDTH_INPUT_ID, const.BIN_TAB_WIDTH, adsk.core.ValueCommandInput.classType())
     commandUIState.initValue(BIN_TAB_POSITION_INPUT_ID, 0, adsk.core.ValueCommandInput.classType())
     commandUIState.initValue(BIN_TAB_ANGLE_INPUT_ID, '45 deg', adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_TAB_METHOD_INPUT_ID, const.BIN_TAB_METHOD_ANGLE, adsk.core.DropDownCommandInput.classType())
+    commandUIState.initValue(BIN_TAB_ROOT_THICKNESS_INPUT_ID, const.BIN_TAB_DEFAULT_ROOT_THICKNESS, adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_TAB_UNIFORM_THICKNESS_INPUT_ID, const.BIN_TAB_DEFAULT_IS_UNIFORM, adsk.core.BoolValueCommandInput.classType())
+    commandUIState.initValue(BIN_TAB_TIP_THICKNESS_INPUT_ID, const.BIN_TAB_DEFAULT_TIP_THICKNESS, adsk.core.ValueCommandInput.classType())
+    # Fillets default to half the tip thickness (0.07)
+    commandUIState.initValue(BIN_TAB_FILLET_TOP_INPUT_ID, const.BIN_TAB_DEFAULT_TIP_THICKNESS / 2, adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_TAB_FILLET_BOTTOM_INPUT_ID, const.BIN_TAB_DEFAULT_TIP_THICKNESS / 2, adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_TAB_FILLET_BACK_INPUT_ID, 0.0, adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_TAB_FILLET_UNIFORM_INPUT_ID, const.BIN_TAB_DEFAULT_IS_FILLET_UNIFORM, adsk.core.BoolValueCommandInput.classType())
 
     commandUIState.initValue(BIN_GENERATE_BASE_INPUT_ID, True, adsk.core.BoolValueCommandInput.classType())
     commandUIState.initValue(BIN_SCREW_HOLES_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
@@ -369,8 +387,11 @@ def render_compartments_table(inputs: adsk.core.CommandInputs):
     compartmentsGroup: adsk.core.GroupCommandInput = commandUIState.getInput(BIN_COMPARTMENTS_GROUP_ID)
     binCompartmentsTable = compartmentsGroup.children.addTableCommandInput(BIN_COMPARTMENTS_TABLE_ID, "Compartments", 5, "1:1:1:1:1")
     addButton = compartmentsGroup.commandInputs.addBoolValueInput(BIN_COMPARTMENTS_TABLE_ADD_ID, "Add", False, "", False)
+    commandUIState.registerCommandInput(addButton)
     removeButton = compartmentsGroup.commandInputs.addBoolValueInput(BIN_COMPARTMENTS_TABLE_REMOVE_ID, "Remove", False, "", False)
+    commandUIState.registerCommandInput(removeButton)
     populateUniform = compartmentsGroup.commandInputs.addBoolValueInput(BIN_COMPARTMENTS_TABLE_UNIFORM_ID, "Reset to uniform", False, "", False)
+    commandUIState.registerCommandInput(populateUniform)
     binCompartmentsTable.addToolbarCommandInput(addButton)
     binCompartmentsTable.addToolbarCommandInput(removeButton)
     binCompartmentsTable.addToolbarCommandInput(populateUniform)
@@ -548,8 +569,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     commandUIState.registerCommandInput(binWidthInput)
     binLengthInput = binDimensionsGroup.children.addIntegerSpinnerCommandInput(BIN_LENGTH_INPUT_ID, 'Bin length, Y (u)', 1, 100, 1, commandUIState.getState(BIN_LENGTH_INPUT_ID))
     commandUIState.registerCommandInput(binLengthInput)
-    binHeightInput = binDimensionsGroup.children.addValueInput(BIN_HEIGHT_INPUT_ID, 'Bin height, Z (u)', '', adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_HEIGHT_INPUT_ID)))
-    binHeightInput.minimumValue = 1
+    binHeightInput = binDimensionsGroup.children.addIntegerSpinnerCommandInput(BIN_HEIGHT_INPUT_ID, 'Bin height, Z (u)', 1, 100, 1, int(commandUIState.getState(BIN_HEIGHT_INPUT_ID)))
     binHeightInput.isMinimumInclusive = True
     commandUIState.registerCommandInput(binHeightInput)
 
@@ -615,14 +635,49 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     commandUIState.registerCommandInput(binTabLengthInput)
     binTabWidthInput = binTabFeaturesGroup.children.addValueInput(BIN_TAB_WIDTH_INPUT_ID, 'Tab width (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_TAB_WIDTH_INPUT_ID)))
     commandUIState.registerCommandInput(binTabWidthInput)
-    binTabPostionInput = binTabFeaturesGroup.children.addValueInput(BIN_TAB_POSITION_INPUT_ID, 'Tab offset (u)', '', adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_TAB_POSITION_INPUT_ID)))
-    commandUIState.registerCommandInput(binTabPostionInput)
-    tabObverhangAngleInput = binTabFeaturesGroup.children.addValueInput(BIN_TAB_ANGLE_INPUT_ID, 'Tab overhang angle', 'deg', adsk.core.ValueInput.createByString(str(commandUIState.getState(BIN_TAB_ANGLE_INPUT_ID))))
-    tabObverhangAngleInput.minimumValue = math.radians(30)
-    tabObverhangAngleInput.isMinimumInclusive = True
-    tabObverhangAngleInput.maximumValue = math.radians(65)
-    tabObverhangAngleInput.isMaximumInclusive = True
-    commandUIState.registerCommandInput(tabObverhangAngleInput)
+    binTabPositionInput = binTabFeaturesGroup.children.addValueInput(BIN_TAB_POSITION_INPUT_ID, 'Tab offset (u)', '', adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_TAB_POSITION_INPUT_ID)))
+    binTabPositionInput.minimumValue = 0.0
+    binTabPositionInput.isMinimumInclusive = True
+    commandUIState.registerCommandInput(binTabPositionInput)
+    tabOverhangAngleInput = binTabFeaturesGroup.children.addValueInput(BIN_TAB_ANGLE_INPUT_ID, 'Tab overhang angle', 'deg', adsk.core.ValueInput.createByString(str(commandUIState.getState(BIN_TAB_ANGLE_INPUT_ID))))
+    tabOverhangAngleInput.minimumValue = math.radians(30)
+    tabOverhangAngleInput.isMinimumInclusive = True
+    tabOverhangAngleInput.maximumValue = math.radians(65)
+    tabOverhangAngleInput.isMaximumInclusive = True
+    commandUIState.registerCommandInput(tabOverhangAngleInput)
+
+    tabMethodDropdown = binTabFeaturesGroup.children.addDropDownCommandInput(BIN_TAB_METHOD_INPUT_ID, 'Tab construction method', adsk.core.DropDownStyles.LabeledIconDropDownStyle)
+    tabMethodDropdownDefaultValue = commandUIState.getState(BIN_TAB_METHOD_INPUT_ID)
+    tabMethodDropdown.listItems.add(const.BIN_TAB_METHOD_ANGLE, tabMethodDropdownDefaultValue == const.BIN_TAB_METHOD_ANGLE)
+    tabMethodDropdown.listItems.add(const.BIN_TAB_METHOD_DIMENSIONS, tabMethodDropdownDefaultValue == const.BIN_TAB_METHOD_DIMENSIONS)
+    commandUIState.registerCommandInput(tabMethodDropdown)
+
+    rootThicknessInput = binTabFeaturesGroup.children.addValueInput(BIN_TAB_ROOT_THICKNESS_INPUT_ID, 'Root thickness (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_TAB_ROOT_THICKNESS_INPUT_ID)))
+    rootThicknessInput.minimumValue = 0.001
+    rootThicknessInput.isMinimumInclusive = True
+    commandUIState.registerCommandInput(rootThicknessInput)
+
+    uniformThicknessInput = binTabFeaturesGroup.children.addBoolValueInput(BIN_TAB_UNIFORM_THICKNESS_INPUT_ID, 'Uniform thickness', True, '', commandUIState.getState(BIN_TAB_UNIFORM_THICKNESS_INPUT_ID))
+    commandUIState.registerCommandInput(uniformThicknessInput)
+
+    tipThicknessInput = binTabFeaturesGroup.children.addValueInput(BIN_TAB_TIP_THICKNESS_INPUT_ID, 'Tip thickness (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_TAB_TIP_THICKNESS_INPUT_ID)))
+    tipThicknessInput.minimumValue = 0.001
+    tipThicknessInput.isMinimumInclusive = True
+    commandUIState.registerCommandInput(tipThicknessInput)
+
+    # Fillet Inputs
+    topFilletInput = binTabFeaturesGroup.children.addValueInput(BIN_TAB_FILLET_TOP_INPUT_ID, 'Top front fillet (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_TAB_FILLET_TOP_INPUT_ID)))
+    commandUIState.registerCommandInput(topFilletInput)
+    
+    uniformFilletInput = binTabFeaturesGroup.children.addBoolValueInput(BIN_TAB_FILLET_UNIFORM_INPUT_ID, 'Uniform fillet', True, '', commandUIState.getState(BIN_TAB_FILLET_UNIFORM_INPUT_ID))
+    commandUIState.registerCommandInput(uniformFilletInput)
+
+    bottomFilletInput = binTabFeaturesGroup.children.addValueInput(BIN_TAB_FILLET_BOTTOM_INPUT_ID, 'Bottom front fillet (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_TAB_FILLET_BOTTOM_INPUT_ID)))
+    commandUIState.registerCommandInput(bottomFilletInput)
+
+    backFilletInput = binTabFeaturesGroup.children.addValueInput(BIN_TAB_FILLET_BACK_INPUT_ID, 'Back bottom fillet (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_TAB_FILLET_BACK_INPUT_ID)))
+    commandUIState.registerCommandInput(backFilletInput)
+
     for input in binTabFeaturesGroup.children:
         if not input.id == BIN_HAS_TAB_INPUT_ID:
             input.isEnabled = commandUIState.getState(BIN_HAS_TAB_INPUT_ID)
@@ -809,7 +864,7 @@ def onChangeValidate():
     commandUIState.getInput(BIN_MAGNET_CUTOUTS_TABS_INPUT_ID).isEnabled = generateBase
     commandUIState.getInput(BIN_MAGNET_DIAMETER_INPUT).isEnabled = generateBase
     commandUIState.getInput(BIN_MAGNET_HEIGHT_INPUT).isEnabled = generateBase
-    commandUIState.getInput(BIN_SCREW_DIAMETER_INPUT).isEnabled = generateBase
+    commandUIState.getInput(BIN_SCREW_DIAMETER_INPUT).isEnabled = generateBase and commandUIState.getState(BIN_SCREW_HOLES_INPUT_ID)
 
     generateBody: bool = commandUIState.getState(BIN_GENERATE_BODY_INPUT_ID)
     binType: str = commandUIState.getState(BIN_TYPE_DROPDOWN_ID)
@@ -827,12 +882,49 @@ def onChangeValidate():
 
     generateScoop: bool = commandUIState.getState(BIN_HAS_SCOOP_INPUT_ID)
     commandUIState.getInput(BIN_SCOOP_MAX_RADIUS_INPUT_ID).isEnabled = generateScoop
+    
+    gridType: str = commandUIState.getState(BIN_COMPARTMENTS_GRID_TYPE_ID)
+    isCustomGrid = gridType == BIN_COMPARTMENTS_GRID_TYPE_CUSTOM
+    commandUIState.getInput(BIN_COMPARTMENTS_TABLE_ID).isVisible = isCustomGrid
+    commandUIState.getInput(BIN_COMPARTMENTS_TABLE_ADD_ID).isVisible = isCustomGrid
+    commandUIState.getInput(BIN_COMPARTMENTS_TABLE_REMOVE_ID).isVisible = isCustomGrid
+    commandUIState.getInput(BIN_COMPARTMENTS_TABLE_UNIFORM_ID).isVisible = isCustomGrid
 
     generateTab: bool = commandUIState.getState(BIN_HAS_TAB_INPUT_ID)
+    tabMethod: str = commandUIState.getState(BIN_TAB_METHOD_INPUT_ID)
+    isDimensionsMethod = tabMethod == const.BIN_TAB_METHOD_DIMENSIONS
+    isUniformThickness = commandUIState.getState(BIN_TAB_UNIFORM_THICKNESS_INPUT_ID)
+
     commandUIState.getInput(BIN_TAB_LENGTH_INPUT_ID).isEnabled = generateTab
     commandUIState.getInput(BIN_TAB_WIDTH_INPUT_ID).isEnabled = generateTab
-    commandUIState.getInput(BIN_TAB_ANGLE_INPUT_ID).isEnabled = generateTab
     commandUIState.getInput(BIN_TAB_POSITION_INPUT_ID).isEnabled = generateTab
+    
+    commandUIState.getInput(BIN_TAB_ANGLE_INPUT_ID).isVisible = not isDimensionsMethod
+    commandUIState.getInput(BIN_TAB_ANGLE_INPUT_ID).isEnabled = generateTab and not isDimensionsMethod
+
+    commandUIState.getInput(BIN_TAB_METHOD_INPUT_ID).isEnabled = generateTab
+    
+    commandUIState.getInput(BIN_TAB_ROOT_THICKNESS_INPUT_ID).isVisible = isDimensionsMethod
+    commandUIState.getInput(BIN_TAB_ROOT_THICKNESS_INPUT_ID).isEnabled = generateTab and isDimensionsMethod
+    
+    commandUIState.getInput(BIN_TAB_UNIFORM_THICKNESS_INPUT_ID).isVisible = isDimensionsMethod
+    commandUIState.getInput(BIN_TAB_UNIFORM_THICKNESS_INPUT_ID).isEnabled = generateTab and isDimensionsMethod
+
+    commandUIState.getInput(BIN_TAB_TIP_THICKNESS_INPUT_ID).isVisible = isDimensionsMethod
+    commandUIState.getInput(BIN_TAB_TIP_THICKNESS_INPUT_ID).isEnabled = generateTab and isDimensionsMethod and not isUniformThickness
+
+    isFilletUniform = commandUIState.getState(BIN_TAB_FILLET_UNIFORM_INPUT_ID)
+    commandUIState.getInput(BIN_TAB_FILLET_TOP_INPUT_ID).isVisible = generateTab
+    commandUIState.getInput(BIN_TAB_FILLET_TOP_INPUT_ID).isEnabled = generateTab
+    
+    commandUIState.getInput(BIN_TAB_FILLET_UNIFORM_INPUT_ID).isVisible = generateTab
+    commandUIState.getInput(BIN_TAB_FILLET_UNIFORM_INPUT_ID).isEnabled = generateTab
+    
+    commandUIState.getInput(BIN_TAB_FILLET_BOTTOM_INPUT_ID).isVisible = generateTab
+    commandUIState.getInput(BIN_TAB_FILLET_BOTTOM_INPUT_ID).isEnabled = generateTab and not isFilletUniform
+    
+    commandUIState.getInput(BIN_TAB_FILLET_BACK_INPUT_ID).isVisible = generateTab
+    commandUIState.getInput(BIN_TAB_FILLET_BACK_INPUT_ID).isEnabled = generateTab
     
     compartmentsGridType: str = commandUIState.getState(BIN_COMPARTMENTS_GRID_TYPE_ID)
     commandUIState.getInput(BIN_COMPARTMENTS_TABLE_ID).isVisible = compartmentsGridType == BIN_COMPARTMENTS_GRID_TYPE_CUSTOM
@@ -883,6 +975,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
     binCompartmentsTable: adsk.core.TableCommandInput = inputs.itemById(BIN_COMPARTMENTS_TABLE_ID)
     compartmentsX: adsk.core.IntegerSpinnerCommandInput = inputs.itemById(BIN_COMPARTMENTS_GRID_BASE_WIDTH_ID)
     compartmentsY: adsk.core.IntegerSpinnerCommandInput = inputs.itemById(BIN_COMPARTMENTS_GRID_BASE_LENGTH_ID)
+    tabMethod: str = inputs.itemById(BIN_TAB_METHOD_INPUT_ID).selectedItem.name
 
     isHollow = binTypeDropdownInput.selectedItem.name == BIN_TYPE_HOLLOW
     isSolid = binTypeDropdownInput.selectedItem.name == BIN_TYPE_SOLID
@@ -950,6 +1043,24 @@ def generateBin(args: adsk.core.CommandEventArgs):
         binBodyInput.tabWidth = binTabWidth.value
         binBodyInput.tabPosition = binTabPosition.value
         binBodyInput.tabOverhangAngle = binTabAngle.value
+        binBodyInput.tabMethod = tabMethod
+        binBodyInput.rootThickness = commandUIState.getState(BIN_TAB_ROOT_THICKNESS_INPUT_ID)
+        
+        isUniform = commandUIState.getState(BIN_TAB_UNIFORM_THICKNESS_INPUT_ID)
+        if isUniform:
+            binBodyInput.tipThickness = binBodyInput.rootThickness
+        else:
+            binBodyInput.tipThickness = commandUIState.getState(BIN_TAB_TIP_THICKNESS_INPUT_ID)
+
+        isFilletUniform = commandUIState.getState(BIN_TAB_FILLET_UNIFORM_INPUT_ID)
+        binBodyInput.tabFilletTop = commandUIState.getState(BIN_TAB_FILLET_TOP_INPUT_ID)
+        if isFilletUniform:
+            binBodyInput.tabFilletBottom = binBodyInput.tabFilletTop
+        else:
+            binBodyInput.tabFilletBottom = commandUIState.getState(BIN_TAB_FILLET_BOTTOM_INPUT_ID)
+        
+        binBodyInput.tabFilletBack = commandUIState.getState(BIN_TAB_FILLET_BACK_INPUT_ID)
+
         binBodyInput.compartmentsByX = compartmentsX.value
         binBodyInput.compartmentsByY = compartmentsY.value
 
@@ -1027,6 +1138,17 @@ def generateBin(args: adsk.core.CommandEventArgs):
                 compartmentTabInput.width = binBodyInput.tabWidth
                 compartmentTabInput.overhangAngle = binBodyInput.tabOverhangAngle
                 compartmentTabInput.topClearance = const.BIN_TAB_TOP_CLEARANCE
+
+                # Populate new fields
+                compartmentTabInput.tabMethod = commandUIState.getState(BIN_TAB_METHOD_INPUT_ID)
+                compartmentTabInput.rootThickness = commandUIState.getState(BIN_TAB_ROOT_THICKNESS_INPUT_ID)
+                
+                isUniform = commandUIState.getState(BIN_TAB_UNIFORM_THICKNESS_INPUT_ID)
+                if isUniform:
+                    compartmentTabInput.tipThickness = compartmentTabInput.rootThickness
+                else:
+                    compartmentTabInput.tipThickness = commandUIState.getState(BIN_TAB_TIP_THICKNESS_INPUT_ID)
+
                 tabBody = createGridfinityBinBodyTab(compartmentTabInput, gridfinityBinComponent)
                 combineInput = combineFeatures.createInput(tabBody, commonUtils.objectCollectionFromList([binBody]))
                 combineInput.operation = adsk.fusion.FeatureOperations.CutFeatureOperation

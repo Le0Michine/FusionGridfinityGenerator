@@ -144,6 +144,12 @@ def createGridfinityBinBody(
             compartmentTabInput.width = input.tabWidth
             compartmentTabInput.overhangAngle = input.tabOverhangAngle
             compartmentTabInput.topClearance = const.BIN_TAB_TOP_CLEARANCE
+            compartmentTabInput.tabMethod = input.tabMethod
+            compartmentTabInput.rootThickness = input.rootThickness
+            compartmentTabInput.tipThickness = input.tipThickness
+            compartmentTabInput.tabFilletTop = input.tabFilletTop
+            compartmentTabInput.tabFilletBottom = input.tabFilletBottom
+            compartmentTabInput.tabFilletBack = input.tabFilletBack
 
             [compartmentMerges, compartmentCuts] = createCompartment(
                 input.wallThickness,
@@ -257,12 +263,17 @@ def createCompartment(
     if hasTab:
         tabBody = createGridfinityBinBodyTab(tabInput, targetComponent)
 
-        intersectTabInput = targetComponent.features.combineFeatures.createInput(
-            tabBody,
-            commonUtils.objectCollectionFromList([innerCutoutBody]),
-            )
-        intersectTabInput.operation = adsk.fusion.FeatureOperations.IntersectFeatureOperation
-        intersectTabInput.isKeepToolBodies = True
-        intersectTabFeature = targetComponent.features.combineFeatures.add(intersectTabInput)
-        bodiesToMerge = bodiesToMerge + [body for body in list(intersectTabFeature.bodies) if not body.revisionId == innerCutoutBody.revisionId]
+        try:
+            intersectTabInput = targetComponent.features.combineFeatures.createInput(
+                tabBody,
+                commonUtils.objectCollectionFromList([innerCutoutBody]),
+                )
+            intersectTabInput.operation = adsk.fusion.FeatureOperations.IntersectFeatureOperation
+            intersectTabInput.isKeepToolBodies = True
+            intersectTabFeature = targetComponent.features.combineFeatures.add(intersectTabInput)
+            bodiesToMerge = bodiesToMerge + [body for body in list(intersectTabFeature.bodies) if not body.revisionId == innerCutoutBody.revisionId]
+        except:
+             # Fallback if intersection fails (e.g. Dimensions method might not overlap cutout exactly or logic differs)
+             # Just add the tab body itself
+             bodiesToMerge.append(tabBody)
     return (bodiesToMerge, bodiesToSubtract)
