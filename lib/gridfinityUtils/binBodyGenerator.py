@@ -142,6 +142,8 @@ def createGridfinityBinBody(
             compartmentTabInput.origin = tabOriginPoint
             compartmentTabInput.length = max(0, min(input.tabLength, input.binWidth)) * input.baseWidth
             compartmentTabInput.width = input.tabWidth
+            compartmentTabInput.isTabHollow = input.isTabHollow
+            compartmentTabInput.labelAngle = input.tabLabelAngle
             compartmentTabInput.overhangAngle = input.tabOverhangAngle
             compartmentTabInput.topClearance = const.BIN_TAB_TOP_CLEARANCE
 
@@ -255,14 +257,16 @@ def createCompartment(
 
     # label tab
     if hasTab:
-        tabBody = createGridfinityBinBodyTab(tabInput, targetComponent)
-
-        intersectTabInput = targetComponent.features.combineFeatures.createInput(
-            tabBody,
-            commonUtils.objectCollectionFromList([innerCutoutBody]),
-            )
-        intersectTabInput.operation = adsk.fusion.FeatureOperations.IntersectFeatureOperation
-        intersectTabInput.isKeepToolBodies = True
-        intersectTabFeature = targetComponent.features.combineFeatures.add(intersectTabInput)
-        bodiesToMerge = bodiesToMerge + [body for body in list(intersectTabFeature.bodies) if not body.revisionId == innerCutoutBody.revisionId]
+        tabBody, tabBodiesToSubtract = createGridfinityBinBodyTab(tabInput, targetComponent)
+        if tabBody:
+            intersectTabInput = targetComponent.features.combineFeatures.createInput(
+                tabBody,
+                commonUtils.objectCollectionFromList([innerCutoutBody]),
+                )
+            intersectTabInput.operation = adsk.fusion.FeatureOperations.IntersectFeatureOperation
+            intersectTabInput.isKeepToolBodies = True
+            intersectTabFeature = targetComponent.features.combineFeatures.add(intersectTabInput)
+            bodiesToMerge = bodiesToMerge + [body for body in list(intersectTabFeature.bodies) if not body.revisionId == innerCutoutBody.revisionId]
+            
+            bodiesToSubtract = bodiesToSubtract + tabBodiesToSubtract
     return (bodiesToMerge, bodiesToSubtract)
