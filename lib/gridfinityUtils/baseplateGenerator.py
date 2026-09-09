@@ -125,38 +125,15 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
     holeCuttingBodies: list[adsk.fusion.BRepBody] = []
     
     if input.hasExtendedBottom and input.hasMagnetCutouts:
-        if input.hasMagnetToothedHoles:
-            # Create toothed circle sketch
-            toothedSketch = baseGenerator.createToothedCircleSketch(
-                faceUtils.getBottomFace(baseBody),
-                input.magnetCutoutsDiameter / 2,
-                input.magnetToothedHolesCount,
-                input.magnetToothedHolesDepth,
-                holeCenterPoint,
-                targetComponent,
-            )
-            toothedSketch.name = "Magnet toothed cutout sketch"
-            
-            magnetSocketBody = extrudeUtils.simpleDistanceExtrude(
-                toothedSketch.profiles.item(0),
-                adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
-                input.magnetCutoutsDepth,
-                adsk.fusion.ExtentDirections.PositiveExtentDirection,
-                [],
-                targetComponent,
-            )
-            holeCuttingBodies.append(magnetSocketBody.bodies.item(0))
-        else:
-            # Create simple circular magnet socket
-            magnetSocketBody = shapeUtils.simpleCylinder(
-                faceUtils.getBottomFace(baseBody),
-                0,
-                input.magnetCutoutsDepth,
-                input.magnetCutoutsDiameter / 2,
-                holeCenterPoint,
-                targetComponent,
-            )
-            holeCuttingBodies.append(magnetSocketBody)
+        magnetSocketBody = shapeUtils.simpleCylinder(
+            faceUtils.getBottomFace(baseBody),
+            0,
+            input.magnetCutoutsDepth,
+            input.magnetCutoutsDiameter / 2,
+            holeCenterPoint,
+            targetComponent,
+        )
+        holeCuttingBodies.append(magnetSocketBody)
     
     if input.hasExtendedBottom and input.hasScrewHoles:
         screwHoleBody = shapeUtils.simpleCylinder(
