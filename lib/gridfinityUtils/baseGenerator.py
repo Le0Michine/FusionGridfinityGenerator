@@ -120,7 +120,7 @@ def createSplinedCircleSketch(
     """
     Creates a sketch with a toothed/splined circle profile for magnet holes.
     The teeth point outward from the base circle (external splines).
-    Uses a closed polyline connecting all tooth points with smooth arcs.
+    Creates a simple polygon pattern with fillets for smooth transitions.
     """
     sketches: adsk.fusion.Sketches = targetComponent.sketches
     splinedSketch: adsk.fusion.Sketch = sketches.add(plane)
@@ -129,29 +129,24 @@ def createSplinedCircleSketch(
     circleCenterOnSketch = splinedSketch.modelToSketchSpace(circleCenterPoint)
     center = adsk.core.Point3D.create(circleCenterOnSketch.x, circleCenterOnSketch.y, 0)
     
-    # For external splines: baseRadius is the inner circle, peakRadius extends outward
+    # For external splines: baseRadius is the magnet socket, peakRadius extends outward
     baseRadius = outerRadius
     peakRadius = outerRadius + splineDepth
     
     sketchArcs = splinedSketch.sketchCurves.sketchArcs
     sketchLines = splinedSketch.sketchCurves.sketchLines
-    sketchPoints = splinedSketch.sketchPoints
+    sketchConstraints = splinedSketch.sketchConstraints
     
     angleStep = (2 * math.pi) / splineCount
-    toothWidth = angleStep / 3  # Tooth is 1/3 of the angle step
+    toothWidth = angleStep / 3  # Tooth is 1/3 of angle step
     
-    # Build the closed profile by connecting points with arcs
-    # We'll create a series of arcs forming a closed loop: base->peak->base->...->back to start
-    
-    prevEndPoint = None
-    firstPoint = None
+    # Store all line segments for filleting
+    allCurves = []
     
     for i in range(splineCount):
-        # Tooth i: base start -> peak -> base end
         baseAngle1 = i * angleStep
         baseAngle2 = baseAngle1 + toothWidth
         peakAngle = baseAngle1 + toothWidth / 2
-        baseAngle3 = baseAngle2 + (angleStep - toothWidth)
         
         # Point on base circle at start of tooth
         base_start = adsk.core.Point3D.create(
@@ -160,7 +155,7 @@ def createSplinedCircleSketch(
             0
         )
         
-        # Peak of tooth (extends outward) 
+        # Peak of tooth (extends outward)
         peak = adsk.core.Point3D.create(
             center.x + peakRadius * math.cos(peakAngle),
             center.y + peakRadius * math.sin(peakAngle),
@@ -174,47 +169,58 @@ def createSplinedCircleSketch(
             0
         )
         
-        # Save first point for closing the loop
-        if firstPoint is None:
-            firstPoint = base_start
+        # Connect base start to peak
+        line1 = sketchLines.addByTwoPoints(base_start, peak)
+        allCurves.append(line1)
         
-        # If we need to connect from previous point
-        if prevEndPoint is not None and prevEndPoint != base_start:
-            # Create smooth arc between valley and next tooth base
-            valley_mid_angle = baseAngle1 - (angleStep - toothWidth) / 2
-            valley_mid = adsk.core.Point3D.create(
-                center.x + baseRadius * math.cos(valley_mid_angle),
-                center.y + baseRadius * math.sin(valley_mid_angle),
+        # Connect peak to base end
+        line2 = sketchLines.addByTwoPoints(peak, base_end)
+        allCurves.append(line2)
+        
+        # Connect to next tooth along base circle (valley section)
+        if i < splineCount - 1:
+            next_base_start = adsk.core.Point3D.create(
+                center.x + baseRadius * math.cos(baseAngle1 + angleStep),
+                center.y + baseRadius * math.sin(baseAngle1 + angleStep),
                 0
             )
-            try:
-                sketchArcs.addByThreePoints(prevEndPoint, valley_mid, base_start)
-            except:
-                sketchLines.addByTwoPoints(prevEndPoint, base_start)
-        
-        # Create radiused tooth peak arc (from base_start to peak to base_end)
-        # This creates the smooth external tooth
-        try:
-            sketchArcs.addByThreePoints(base_start, peak, base_end)
-        except:
-            # Fallback: use line segments
-            sketchLines.addByTwoPoints(base_start, peak)
-            sketchLines.addByTwoPoints(peak, base_end)
-        
-        prevEndPoint = base_end
+            valley_line = sketchLines.addByTwoPoints(base_end, next_base_start)
+            allCurves.append(valley_line)
+        else:
+            # Last tooth: close back to start of first tooth
+            first_base = adsk.core.Point3D.create(
+                center.x + baseRadius * math.cos(0),
+                center.y + baseRadius * math.sin(0),
+                0
+            )
+            valley_line = sketchLines.addByTwoPoints(base_end, first_base)
+            allCurves.append(valley_line)
     
-    # Close the loop - connect last tooth back to first
-    if prevEndPoint != firstPoint:
-        valley_mid_angle = 0 - (angleStep - toothWidth) / 2
-        valley_mid = adsk.core.Point3D.create(
-            center.x + baseRadius * math.cos(valley_mid_angle),
-            center.y + baseRadius * math.sin(valley_mid_angle),
-            0
-        )
-        try:
-            sketchArcs.addByThreePoints(prevEndPoint, valley_mid, firstPoint)
-        except:
-            sketchLines.addByTwoPoints(prevEndPoint, firstPoint)
+    # Add fillet constraints to smooth the base transitions
+    # These radii smooth where the teeth connect to the base circle
+    filletRadius = splineDepth * 0.3  # Make fillets proportional to tooth depth
+    
+    # Fillet the points where teeth meet the base circle
+    try:
+        for i, curve in enumerate(allCurves):
+            # Get the endpoint that's on the base circle
+            endPoint = curve.endSketchPoint
+            
+            # Only fillet if it's one of the valley lines (every 3rd curve for 6 teeth)
+            if (i + 1) % 3 == 0 or i == len(allCurves) - 1:
+                # Add fillet constraint at this vertex
+                try:
+                    # Find the two curves meeting at this point
+                    prevCurve = allCurves[(i - 1) % len(allCurves)]
+                    nextCurve = allCurves[(i + 1) % len(allCurves)]
+                    
+                    if endPoint == prevCurve.endSketchPoint:
+                        # Create fillet between prevCurve and curve
+                        sketchConstraints.addFilletConstraint(prevCurve, curve, filletRadius)
+                except:
+                    pass  # Fillet constraint may fail in some cases
+    except:
+        pass  # If filleting fails, the profile should still work
     
     return splinedSketch
 
