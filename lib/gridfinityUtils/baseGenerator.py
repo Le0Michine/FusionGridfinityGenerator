@@ -129,8 +129,6 @@ def createSplinedCircleSketch(
     center = adsk.core.Point3D.create(circleCenterOnSketch.x, circleCenterOnSketch.y, 0)
     
     innerRadius = outerRadius - splineDepth
-    sketchCurves = splinedSketch.sketchCurves
-    splines = sketchCurves.sketchSplines
     
     angleStep = (2 * math.pi) / splineCount
     
@@ -155,7 +153,8 @@ def createSplinedCircleSketch(
         pointArray.add(point)
     
     # Create spline with the points - this should form a closed profile
-    spline = splines.addByPoints(pointArray, False)  # False = not periodic, we'll close it manually
+    # Access sketchSplines directly from sketch, not through sketchCurves
+    spline = splinedSketch.sketchSplines.addByPoints(pointArray, False)  # False = not periodic, we'll close it manually
     
     return splinedSketch
 
