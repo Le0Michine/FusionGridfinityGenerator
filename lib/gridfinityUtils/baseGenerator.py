@@ -118,8 +118,8 @@ def createSplinedCircleSketch(
     targetComponent: adsk.fusion.Component,
 ):
     """
-    Creates a sketch with a splined circle profile for magnet holes.
-    Uses a spline curve through alternating outer/inner points for a smooth splined edge.
+    Creates a sketch with a toothed/splined circle profile for magnet holes.
+    Uses arcs to create alternating peaks and valleys forming a gear-like pattern.
     """
     sketches: adsk.fusion.Sketches = targetComponent.sketches
     splinedSketch: adsk.fusion.Sketch = sketches.add(plane)
@@ -129,32 +129,90 @@ def createSplinedCircleSketch(
     center = adsk.core.Point3D.create(circleCenterOnSketch.x, circleCenterOnSketch.y, 0)
     
     innerRadius = outerRadius - splineDepth
+    sketchArcs = splinedSketch.sketchCurves.sketchArcs
+    sketchLines = splinedSketch.sketchCurves.sketchLines
     
     angleStep = (2 * math.pi) / splineCount
     
-    # Generate all points: alternating between outer and inner radius
-    points = []
+    # Create toothed profile using arcs and lines
+    # Outer arc (peak), then radial line to inner point, then inner arc (valley), then radial line back to outer
     for i in range(splineCount):
-        # Outer point (spline peak)
-        angle_outer = i * angleStep
-        x_outer = center.x + outerRadius * math.cos(angle_outer)
-        y_outer = center.y + outerRadius * math.sin(angle_outer)
-        points.append(adsk.core.Point3D.create(x_outer, y_outer, 0))
+        # Outer arc peak
+        angle1 = i * angleStep
+        angle2 = angle1 + angleStep / 2
         
-        # Inner point (spline valley)
-        angle_inner = (i + 0.5) * angleStep
-        x_inner = center.x + innerRadius * math.cos(angle_inner)
-        y_inner = center.y + innerRadius * math.sin(angle_inner)
-        points.append(adsk.core.Point3D.create(x_inner, y_inner, 0))
-    
-    # Create a closed spline through all the points (spline peaks and valleys)
-    pointArray = adsk.core.ObjectCollection.create()
-    for point in points:
-        pointArray.add(point)
-    
-    # Create spline with the points - this should form a closed profile
-    # Access sketchSplines directly from sketch, not through sketchCurves
-    spline = splinedSketch.sketchSplines.addByPoints(pointArray, False)  # False = not periodic, we'll close it manually
+        start_outer = adsk.core.Point3D.create(
+            center.x + outerRadius * math.cos(angle1),
+            center.y + outerRadius * math.sin(angle1),
+            0
+        )
+        mid_outer = adsk.core.Point3D.create(
+            center.x + outerRadius * math.cos(angle1 + angleStep / 4),
+            center.y + outerRadius * math.sin(angle1 + angleStep / 4),
+            0
+        )
+        end_outer = adsk.core.Point3D.create(
+            center.x + outerRadius * math.cos(angle2),
+            center.y + outerRadius * math.sin(angle2),
+            0
+        )
+        
+        # Create outer arc
+        try:
+            arc_outer = sketchArcs.addByThreePoints(start_outer, mid_outer, end_outer)
+        except:
+            # Fallback: if arcs don't work, create line segments
+            sketchLines.addByTwoPoints(start_outer, end_outer)
+            arc_outer = None
+        
+        # Inner arc valley
+        angle3 = angle2
+        angle4 = angle2 + angleStep / 2
+        
+        start_inner = adsk.core.Point3D.create(
+            center.x + innerRadius * math.cos(angle3),
+            center.y + innerRadius * math.sin(angle3),
+            0
+        )
+        mid_inner = adsk.core.Point3D.create(
+            center.x + innerRadius * math.cos(angle3 + angleStep / 4),
+            center.y + innerRadius * math.sin(angle3 + angleStep / 4),
+            0
+        )
+        end_inner = adsk.core.Point3D.create(
+            center.x + innerRadius * math.cos(angle4),
+            center.y + innerRadius * math.sin(angle4),
+            0
+        )
+        
+        # Connect outer to inner with radial line
+        sketchLines.addByTwoPoints(end_outer, start_inner)
+        
+        # Create inner arc
+        try:
+            arc_inner = sketchArcs.addByThreePoints(start_inner, mid_inner, end_inner)
+        except:
+            # Fallback: create line segment
+            sketchLines.addByTwoPoints(start_inner, end_inner)
+            arc_inner = None
+        
+        # Connect inner back to next outer with radial line (will be done in next iteration)
+        if i < splineCount - 1:
+            next_angle = (i + 1) * angleStep
+            next_start_outer = adsk.core.Point3D.create(
+                center.x + outerRadius * math.cos(next_angle),
+                center.y + outerRadius * math.sin(next_angle),
+                0
+            )
+            sketchLines.addByTwoPoints(end_inner, next_start_outer)
+        else:
+            # Last iteration: close back to start
+            start_of_loop = adsk.core.Point3D.create(
+                center.x + outerRadius * math.cos(0),
+                center.y + outerRadius * math.sin(0),
+                0
+            )
+            sketchLines.addByTwoPoints(end_inner, start_of_loop)
     
     return splinedSketch
 
