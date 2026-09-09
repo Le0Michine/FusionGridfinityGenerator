@@ -157,9 +157,6 @@ def createToothedCircleSketch(
         nextIndex = (i + 1) % len(points)
         lines.addByTwoPoints(points[i], points[nextIndex])
     
-    # Close the sketch to ensure profile is recognized
-    toothedSketch.closeSketch()
-    
     return toothedSketch
 
 def createSingleGridfinityBaseBody(
