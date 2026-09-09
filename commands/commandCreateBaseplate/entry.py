@@ -234,14 +234,17 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     magnetSocketDepthInput = magnetCutoutGroup.children.addValueInput(BASEPLATE_MAGNET_HEIGHT_INPUT, 'Magnet cutout depth', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BASEPLATE_MAGNET_HEIGHT_INPUT)))
     uiState.registerCommandInput(magnetSocketDepthInput)
     
-    generateSplinedHolesCheckboxInput = magnetCutoutGroup.children.addBoolValueInput(BASEPLATE_MAGNET_SPLINED_HOLES_INPUT_ID, 'Add splined magnet holes', True, '', uiState.getState(BASEPLATE_MAGNET_SPLINED_HOLES_INPUT_ID))
+    generateSplinedHolesCheckboxInput = magnetCutoutGroup.children.addBoolValueInput(BASEPLATE_MAGNET_SPLINED_HOLES_INPUT_ID, 'Add splined indentation to magnet sockets', True, '', uiState.getState(BASEPLATE_MAGNET_SPLINED_HOLES_INPUT_ID))
     uiState.registerCommandInput(generateSplinedHolesCheckboxInput)
-    magnetSplinedHolesCountInput = magnetCutoutGroup.children.addIntegerSpinnerCommandInput(BASEPLATE_MAGNET_SPLINED_HOLES_COUNT_INPUT_ID, 'Magnet hole spline count', 3, 20, 1, uiState.getState(BASEPLATE_MAGNET_SPLINED_HOLES_COUNT_INPUT_ID))
+    magnetSplinedHolesCountInput = magnetCutoutGroup.children.addIntegerSpinnerCommandInput(BASEPLATE_MAGNET_SPLINED_HOLES_COUNT_INPUT_ID, 'Spline count', 3, 20, 1, uiState.getState(BASEPLATE_MAGNET_SPLINED_HOLES_COUNT_INPUT_ID))
     uiState.registerCommandInput(magnetSplinedHolesCountInput)
-    magnetSplinedHolesDepthInput = magnetCutoutGroup.children.addValueInput(BASEPLATE_MAGNET_SPLINED_HOLES_DEPTH_INPUT_ID, 'Magnet hole spline depth', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BASEPLATE_MAGNET_SPLINED_HOLES_DEPTH_INPUT_ID)))
+    magnetSplinedHolesDepthInput = magnetCutoutGroup.children.addValueInput(BASEPLATE_MAGNET_SPLINED_HOLES_DEPTH_INPUT_ID, 'Spline depth', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BASEPLATE_MAGNET_SPLINED_HOLES_DEPTH_INPUT_ID)))
     magnetSplinedHolesDepthInput.minimumValue = 0.01
     magnetSplinedHolesDepthInput.isMinimumInclusive = True
     uiState.registerCommandInput(magnetSplinedHolesDepthInput)
+    # Disable spline inputs if magnet sockets are disabled
+    for input in [generateSplinedHolesCheckboxInput, magnetSplinedHolesCountInput, magnetSplinedHolesDepthInput]:
+        input.isEnabled = uiState.getState(BASEPLATE_WITH_MAGNETS_INPUT)
 
     screwHoleGroup = plateFeaturesGroup.children.addGroupCommandInput(SCREW_HOLE_GROUP, 'Screw holes')
     screwHoleGroup.isExpanded = uiState.getState(SCREW_HOLE_GROUP)

@@ -253,7 +253,18 @@ def createSingleGridfinityBaseBody(
 
     # magnet cutouts
     if input.hasMagnetCutouts:
-        # Create magnet socket - either splined or simple cylinder
+        # Create base magnet socket (simple circular cutout)
+        magnetSocketBody = shapeUtils.simpleCylinder(
+            baseBottomPlane,
+            0,
+            -input.magnetCutoutsDepth,
+            input.magnetCutoutsDiameter / 2,
+            cutoutCenterPoint,
+            targetComponent,
+        )
+        cutoutBodies.add(magnetSocketBody)
+
+        # Add splined indentation on top of magnet socket (if enabled)
         if input.hasMagnetSplinedHoles:
             # Create splined circle sketch
             splinedSketch = createSplinedCircleSketch(
@@ -266,26 +277,15 @@ def createSingleGridfinityBaseBody(
             )
             splinedSketch.name = "Magnet splined cutout sketch"
             
-            magnetSocketBody = extrudeUtils.simpleDistanceExtrude(
+            magnetSplinedBody = extrudeUtils.simpleDistanceExtrude(
                 splinedSketch.profiles.item(0),
                 adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
-                input.magnetCutoutsDepth,
+                input.magnetSplinedHolesDepth,
                 adsk.fusion.ExtentDirections.NegativeExtentDirection,
                 [],
                 targetComponent,
             )
-            cutoutBodies.add(magnetSocketBody.bodies.item(0))
-        else:
-            # Create simple circular magnet socket
-            magnetSocketBody = shapeUtils.simpleCylinder(
-                baseBottomPlane,
-                0,
-                -input.magnetCutoutsDepth,
-                input.magnetCutoutsDiameter / 2,
-                cutoutCenterPoint,
-                targetComponent,
-            )
-            cutoutBodies.add(magnetSocketBody)
+            cutoutBodies.add(magnetSplinedBody.bodies.item(0))
 
         # magnet tab cutouts
         if input.hasMagnetCutoutsTabs:
