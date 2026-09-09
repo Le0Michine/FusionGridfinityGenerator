@@ -119,8 +119,8 @@ def createSplinedCircleSketch(
 ):
     """
     Creates a sketch with a toothed/splined circle profile for magnet holes.
-    The teeth point outward from the base circle (external splines, not internal indents).
-    Uses arcs to create smooth radiused tooth peaks.
+    The teeth point outward from the base circle (external splines).
+    Uses a closed polyline connecting all tooth points with smooth arcs.
     """
     sketches: adsk.fusion.Sketches = targetComponent.sketches
     splinedSketch: adsk.fusion.Sketch = sketches.add(plane)
@@ -135,13 +135,19 @@ def createSplinedCircleSketch(
     
     sketchArcs = splinedSketch.sketchCurves.sketchArcs
     sketchLines = splinedSketch.sketchCurves.sketchLines
+    sketchPoints = splinedSketch.sketchPoints
     
     angleStep = (2 * math.pi) / splineCount
-    toothWidth = angleStep / 3  # Tooth is 1/3 of the angle step, valleys are 2/3
+    toothWidth = angleStep / 3  # Tooth is 1/3 of the angle step
     
-    # Create toothed profile with external teeth
+    # Build the closed profile by connecting points with arcs
+    # We'll create a series of arcs forming a closed loop: base->peak->base->...->back to start
+    
+    prevEndPoint = None
+    firstPoint = None
+    
     for i in range(splineCount):
-        # Tooth i: base -> peak -> base
+        # Tooth i: base start -> peak -> base end
         baseAngle1 = i * angleStep
         baseAngle2 = baseAngle1 + toothWidth
         peakAngle = baseAngle1 + toothWidth / 2
@@ -154,7 +160,7 @@ def createSplinedCircleSketch(
             0
         )
         
-        # Peak of tooth (extends outward)
+        # Peak of tooth (extends outward) 
         peak = adsk.core.Point3D.create(
             center.x + peakRadius * math.cos(peakAngle),
             center.y + peakRadius * math.sin(peakAngle),
@@ -168,53 +174,47 @@ def createSplinedCircleSketch(
             0
         )
         
-        # Create radiused tooth peak using arc
-        # Arc from base_start to peak to base_end gives a radiused tooth
+        # Save first point for closing the loop
+        if firstPoint is None:
+            firstPoint = base_start
+        
+        # If we need to connect from previous point
+        if prevEndPoint is not None and prevEndPoint != base_start:
+            # Create smooth arc between valley and next tooth base
+            valley_mid_angle = baseAngle1 - (angleStep - toothWidth) / 2
+            valley_mid = adsk.core.Point3D.create(
+                center.x + baseRadius * math.cos(valley_mid_angle),
+                center.y + baseRadius * math.sin(valley_mid_angle),
+                0
+            )
+            try:
+                sketchArcs.addByThreePoints(prevEndPoint, valley_mid, base_start)
+            except:
+                sketchLines.addByTwoPoints(prevEndPoint, base_start)
+        
+        # Create radiused tooth peak arc (from base_start to peak to base_end)
+        # This creates the smooth external tooth
         try:
-            tooth_arc = sketchArcs.addByThreePoints(base_start, peak, base_end)
+            sketchArcs.addByThreePoints(base_start, peak, base_end)
         except:
-            # Fallback: use line segments if arc fails
+            # Fallback: use line segments
             sketchLines.addByTwoPoints(base_start, peak)
             sketchLines.addByTwoPoints(peak, base_end)
         
-        # Connect to next tooth along base circle with arc
-        if i < splineCount - 1:
-            next_start = adsk.core.Point3D.create(
-                center.x + baseRadius * math.cos(baseAngle3),
-                center.y + baseRadius * math.sin(baseAngle3),
-                0
-            )
-            # Arc along base circle for the valley
-            valley_mid_angle = baseAngle2 + (angleStep - toothWidth) / 2
-            valley_mid = adsk.core.Point3D.create(
-                center.x + baseRadius * math.cos(valley_mid_angle),
-                center.y + baseRadius * math.sin(valley_mid_angle),
-                0
-            )
-            try:
-                valley_arc = sketchArcs.addByThreePoints(base_end, valley_mid, next_start)
-            except:
-                # Fallback: use line
-                sketchLines.addByTwoPoints(base_end, next_start)
-        else:
-            # Last tooth: close back to start of first tooth
-            start_of_loop = adsk.core.Point3D.create(
-                center.x + baseRadius * math.cos(0),
-                center.y + baseRadius * math.sin(0),
-                0
-            )
-            # Final valley arc back to start
-            valley_mid_angle = baseAngle2 + (angleStep - toothWidth) / 2
-            valley_mid = adsk.core.Point3D.create(
-                center.x + baseRadius * math.cos(valley_mid_angle),
-                center.y + baseRadius * math.sin(valley_mid_angle),
-                0
-            )
-            try:
-                valley_arc = sketchArcs.addByThreePoints(base_end, valley_mid, start_of_loop)
-            except:
-                # Fallback: use line
-                sketchLines.addByTwoPoints(base_end, start_of_loop)
+        prevEndPoint = base_end
+    
+    # Close the loop - connect last tooth back to first
+    if prevEndPoint != firstPoint:
+        valley_mid_angle = 0 - (angleStep - toothWidth) / 2
+        valley_mid = adsk.core.Point3D.create(
+            center.x + baseRadius * math.cos(valley_mid_angle),
+            center.y + baseRadius * math.sin(valley_mid_angle),
+            0
+        )
+        try:
+            sketchArcs.addByThreePoints(prevEndPoint, valley_mid, firstPoint)
+        except:
+            sketchLines.addByTwoPoints(prevEndPoint, firstPoint)
     
     return splinedSketch
 
