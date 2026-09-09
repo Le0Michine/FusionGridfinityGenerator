@@ -120,7 +120,7 @@ def createToothedCircleSketch(
     """
     Creates a sketch with a toothed circle profile for magnet holes.
     Uses arcs for teeth (outer radius) and valleys (inner radius),
-    connected with radial line segments.
+    connected with radial line segments. Includes rounded corners.
     """
     sketches: adsk.fusion.Sketches = targetComponent.sketches
     toothedSketch: adsk.fusion.Sketch = sketches.add(plane)
@@ -136,23 +136,23 @@ def createToothedCircleSketch(
     
     angleStep = (2 * math.pi) / teethCount
     halfAngleStep = angleStep / 2
+    filletRadius = teethDepth * 0.3  # Radius for rounding the tooth corners
+    
+    # Store all curve segments for filleting
+    outerArcs = []
+    innerArcs = []
+    radialLines = []
     
     # Create toothed profile by alternating outer arcs (teeth) and inner arcs (valleys)
     for i in range(teethCount):
         # Angle for this tooth
         toothStartAngle = i * angleStep
-        toothMidAngle = toothStartAngle + halfAngleStep
         toothEndAngle = (i + 1) * angleStep
         
         # Points for outer arc (tooth peak)
         outerStartPoint = adsk.core.Point3D.create(
             center.x + outerRadius * math.cos(toothStartAngle),
             center.y + outerRadius * math.sin(toothStartAngle),
-            0
-        )
-        outerEndPoint = adsk.core.Point3D.create(
-            center.x + outerRadius * math.cos(toothEndAngle),
-            center.y + outerRadius * math.sin(toothEndAngle),
             0
         )
         
@@ -162,6 +162,14 @@ def createToothedCircleSketch(
             outerStartPoint,
             halfAngleStep
         )
+        outerArcs.append(outerArc)
+        
+        # Point at end of outer arc
+        outerEndPoint = adsk.core.Point3D.create(
+            center.x + outerRadius * math.cos(toothEndAngle),
+            center.y + outerRadius * math.sin(toothEndAngle),
+            0
+        )
         
         # Points for inner arc (valley between teeth)
         innerStartPoint = adsk.core.Point3D.create(
@@ -169,25 +177,66 @@ def createToothedCircleSketch(
             center.y + innerRadius * math.sin(toothEndAngle),
             0
         )
+        
+        # Radial line from end of outer arc to inner arc start
+        radialLine1 = lines.addByTwoPoints(outerEndPoint, innerStartPoint)
+        radialLines.append(radialLine1)
+        
+        # Create inner arc (the valley) - goes backwards around the circle
+        innerArc = arcs.addByCenterStartSweep(
+            center,
+            innerStartPoint,
+            -halfAngleStep
+        )
+        innerArcs.append(innerArc)
+        
+        # Point at end of inner arc
         innerEndPoint = adsk.core.Point3D.create(
             center.x + innerRadius * math.cos(toothStartAngle),
             center.y + innerRadius * math.sin(toothStartAngle),
             0
         )
         
-        # Radial line from end of outer arc to inner arc start
-        lines.addByTwoPoints(outerEndPoint, innerStartPoint)
-        
-        # Create inner arc (the valley)
-        innerArc = arcs.addByCenterStartSweep(
-            center,
-            innerStartPoint,
-            -halfAngleStep  # negative to go backwards around the circle
-        )
-        
-        # Radial line from end of inner arc back to start of next outer arc
-        if i < teethCount - 1:
-            lines.addByTwoPoints(innerEndPoint, outerStartPoint)
+        # Radial line from end of inner arc back to start of outer arc
+        radialLine2 = lines.addByTwoPoints(innerEndPoint, outerStartPoint)
+        radialLines.append(radialLine2)
+    
+    # Add filleted corners to smooth the transitions
+    # Fillet at the transition from outer arc to radial line
+    for i in range(len(outerArcs)):
+        try:
+            outerArc = outerArcs[i]
+            radialLine1 = radialLines[i * 2]
+            arcs.addFillet(outerArc, outerArc.endSketchPoint.geometry, radialLine1, radialLine1.startSketchPoint.geometry, filletRadius)
+        except:
+            pass  # Skip if fillet fails
+    
+    # Fillet at the transition from radial line to inner arc
+    for i in range(len(innerArcs)):
+        try:
+            radialLine1 = radialLines[i * 2]
+            innerArc = innerArcs[i]
+            arcs.addFillet(radialLine1, radialLine1.endSketchPoint.geometry, innerArc, innerArc.startSketchPoint.geometry, filletRadius)
+        except:
+            pass
+    
+    # Fillet at the transition from inner arc to radial line
+    for i in range(len(innerArcs)):
+        try:
+            innerArc = innerArcs[i]
+            radialLine2 = radialLines[i * 2 + 1]
+            arcs.addFillet(innerArc, innerArc.endSketchPoint.geometry, radialLine2, radialLine2.startSketchPoint.geometry, filletRadius)
+        except:
+            pass
+    
+    # Fillet at the transition from radial line back to outer arc
+    for i in range(len(radialLines) // 2):
+        try:
+            radialLine2 = radialLines[i * 2 + 1]
+            nextOuterArc = outerArcs[(i + 1) % len(outerArcs)]
+            arcs.addFillet(radialLine2, radialLine2.endSketchPoint.geometry, nextOuterArc, nextOuterArc.startSketchPoint.geometry, filletRadius)
+        except:
+            pass
     
     return toothedSketch
 
