@@ -10,6 +10,9 @@ class BaseplateGeneratorInput():
         self.screwHeadCutoutDiameter = const.DIMENSION_SCREW_HEAD_CUTOUT_DIAMETER
         self.magnetCutoutsDiameter = const.DIMENSION_MAGNET_CUTOUT_DIAMETER
         self.magnetCutoutsDepth = const.DIMENSION_MAGNET_CUTOUT_DEPTH
+        self.hasMagnetToothedHoles = False
+        self.magnetToothedHolesCount = 6
+        self.magnetToothedHolesDepth = 0.05
         self.hasSkeletonizedBottom = True
         self.bottomExtensionHeight = const.BASEPLATE_EXTRA_HEIGHT
         self.xyClearance = const.BIN_XY_CLEARANCE
@@ -200,3 +203,27 @@ class BaseplateGeneratorInput():
     @magnetCutoutsDepth.setter
     def magnetCutoutsDepth(self, value: float):
         self._magnetCutoutsDepth = value
+
+    @property
+    def hasMagnetToothedHoles(self) -> bool:
+        return self._hasMagnetToothedHoles
+
+    @hasMagnetToothedHoles.setter
+    def hasMagnetToothedHoles(self, value: bool):
+        self._hasMagnetToothedHoles = value
+
+    @property
+    def magnetToothedHolesCount(self) -> int:
+        return self._magnetToothedHolesCount
+
+    @magnetToothedHolesCount.setter
+    def magnetToothedHolesCount(self, value: int):
+        self._magnetToothedHolesCount = value
+
+    @property
+    def magnetToothedHolesDepth(self) -> float:
+        return self._magnetToothedHolesDepth
+
+    @magnetToothedHolesDepth.setter
+    def magnetToothedHolesDepth(self, value: float):
+        self._magnetToothedHolesDepth = value

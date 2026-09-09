@@ -11,6 +11,9 @@ class BaseGeneratorInput():
         self.magnetCutoutsDiameter = DIMENSION_MAGNET_CUTOUT_DIAMETER
         self.magnetCutoutsDepth = DIMENSION_MAGNET_CUTOUT_DEPTH
         self.cornerFilletRadius = BIN_CORNER_FILLET_RADIUS
+        self.hasMagnetToothedHoles = False
+        self.magnetToothedHolesCount = 6
+        self.magnetToothedHolesDepth = 0.05
 
     @property
     def originPoint(self) -> adsk.core.Point3D:
@@ -99,3 +102,27 @@ class BaseGeneratorInput():
     @magnetCutoutsDepth.setter
     def magnetCutoutsDepth(self, value: float):
         self._magnetCutoutsDepth = value
+
+    @property
+    def hasMagnetToothedHoles(self) -> bool:
+        return self._hasMagnetToothedHoles
+
+    @hasMagnetToothedHoles.setter
+    def hasMagnetToothedHoles(self, value: bool):
+        self._hasMagnetToothedHoles = value
+
+    @property
+    def magnetToothedHolesCount(self) -> int:
+        return self._magnetToothedHolesCount
+
+    @magnetToothedHolesCount.setter
+    def magnetToothedHolesCount(self, value: int):
+        self._magnetToothedHolesCount = value
+
+    @property
+    def magnetToothedHolesDepth(self) -> float:
+        return self._magnetToothedHolesDepth
+
+    @magnetToothedHolesDepth.setter
+    def magnetToothedHolesDepth(self, value: float):
+        self._magnetToothedHolesDepth = value

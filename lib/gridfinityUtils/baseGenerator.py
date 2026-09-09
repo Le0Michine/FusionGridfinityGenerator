@@ -109,6 +109,66 @@ def createTabAtCircleEdgeSketch(
 
     return circleSketch
 
+def createToothedCircleSketch(
+    plane: adsk.core.Base,
+    outerRadius: float,
+    teethCount: int,
+    teethDepth: float,
+    circleCenterPoint: adsk.core.Point3D,
+    targetComponent: adsk.fusion.Component,
+):
+    """
+    Creates a sketch with a toothed circle profile for magnet holes.
+    The teeth are created as indentations around the circle perimeter.
+    
+    Args:
+        plane: The construction plane for the sketch
+        outerRadius: Radius of the outer hole wall
+        teethCount: Number of teeth around the circle
+        teethDepth: Depth of tooth indentation (offset from outer wall)
+        circleCenterPoint: Center point of the circle
+        targetComponent: Target component for the sketch
+    """
+    sketches: adsk.fusion.Sketches = targetComponent.sketches
+    toothedSketch: adsk.fusion.Sketch = sketches.add(plane)
+    toothedSketch.name = "Toothed circle sketch"
+    
+    circleCenterOnSketch = toothedSketch.modelToSketchSpace(circleCenterPoint)
+    center = adsk.core.Point3D.create(circleCenterOnSketch.x, circleCenterOnSketch.y, 0)
+    
+    innerRadius = outerRadius - teethDepth
+    
+    # Draw the toothed profile using lines and arcs
+    sketchCurves = toothedSketch.sketchCurves
+    lines = sketchCurves.sketchLines
+    arcs = sketchCurves.sketchArcs
+    
+    points = []
+    angleStep = (2 * math.pi) / teethCount
+    
+    # Create alternating outer and inner radius points
+    for i in range(teethCount * 2):
+        angle = i * angleStep / 2
+        # Alternate between outer and inner radius
+        if i % 2 == 0:
+            radius = outerRadius
+        else:
+            radius = innerRadius
+        
+        x = center.x + radius * math.cos(angle)
+        y = center.y + radius * math.sin(angle)
+        points.append(adsk.core.Point3D.create(x, y, 0))
+    
+    # Connect all points with line segments to create the toothed profile
+    for i in range(len(points)):
+        nextIndex = (i + 1) % len(points)
+        lines.addByTwoPoints(points[i], points[nextIndex])
+    
+    # Close the loop by connecting back to the first point if needed
+    # The lines already form a closed loop
+    
+    return toothedSketch
+
 def createSingleGridfinityBaseBody(
     input: BaseGeneratorInput,
     targetComponent: adsk.fusion.Component,
@@ -203,15 +263,39 @@ def createSingleGridfinityBaseBody(
 
     # magnet cutouts
     if input.hasMagnetCutouts:
-        magnetSocketBody = shapeUtils.simpleCylinder(
-            baseBottomPlane,
-            0,
-            -input.magnetCutoutsDepth,
-            input.magnetCutoutsDiameter / 2,
-            cutoutCenterPoint,
-            targetComponent,
-        )
-        cutoutBodies.add(magnetSocketBody)
+        # Create magnet socket - either toothed or simple cylinder
+        if input.hasMagnetToothedHoles:
+            # Create toothed circle sketch
+            toothedSketch = createToothedCircleSketch(
+                baseBottomPlane,
+                input.magnetCutoutsDiameter / 2,
+                input.magnetToothedHolesCount,
+                input.magnetToothedHolesDepth,
+                cutoutCenterPoint,
+                targetComponent,
+            )
+            toothedSketch.name = "Magnet toothed cutout sketch"
+            
+            magnetSocketBody = extrudeUtils.simpleDistanceExtrude(
+                toothedSketch.profiles.item(0),
+                adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
+                input.magnetCutoutsDepth,
+                adsk.fusion.ExtentDirections.NegativeExtentDirection,
+                [],
+                targetComponent,
+            )
+            cutoutBodies.add(magnetSocketBody.bodies.item(0))
+        else:
+            # Create simple circular magnet socket
+            magnetSocketBody = shapeUtils.simpleCylinder(
+                baseBottomPlane,
+                0,
+                -input.magnetCutoutsDepth,
+                input.magnetCutoutsDiameter / 2,
+                cutoutCenterPoint,
+                targetComponent,
+            )
+            cutoutBodies.add(magnetSocketBody)
 
         # magnet tab cutouts
         if input.hasMagnetCutoutsTabs:

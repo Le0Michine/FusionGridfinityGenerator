@@ -89,6 +89,9 @@ BIN_MAGNET_CUTOUTS_TABS_INPUT_ID = 'bin_magnet_cutouts_tabs'
 BIN_SCREW_DIAMETER_INPUT = 'screw_diameter'
 BIN_MAGNET_DIAMETER_INPUT = 'magnet_diameter'
 BIN_MAGNET_HEIGHT_INPUT = 'magnet_height'
+BIN_MAGNET_TOOTHED_HOLES_INPUT_ID = 'bin_magnet_toothed_holes'
+BIN_MAGNET_TOOTHED_HOLES_COUNT_INPUT_ID = 'bin_magnet_toothed_holes_count'
+BIN_MAGNET_TOOTHED_HOLES_DEPTH_INPUT_ID = 'bin_magnet_toothed_holes_depth'
 BIN_HAS_SCOOP_INPUT_ID = 'bin_has_scoop'
 BIN_SCOOP_MAX_RADIUS_INPUT_ID = 'bin_scoop_max_radius'
 BIN_HAS_TAB_INPUT_ID = 'bin_has_tab'
@@ -190,6 +193,9 @@ def initDefaultUiState():
     commandUIState.initValue(BIN_MAGNET_CUTOUTS_TABS_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
     commandUIState.initValue(BIN_MAGNET_DIAMETER_INPUT, const.DIMENSION_MAGNET_CUTOUT_DIAMETER, adsk.core.ValueCommandInput.classType())
     commandUIState.initValue(BIN_MAGNET_HEIGHT_INPUT, const.DIMENSION_MAGNET_CUTOUT_DEPTH, adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_MAGNET_TOOTHED_HOLES_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
+    commandUIState.initValue(BIN_MAGNET_TOOTHED_HOLES_COUNT_INPUT_ID, 6, adsk.core.IntegerSpinnerCommandInput.classType())
+    commandUIState.initValue(BIN_MAGNET_TOOTHED_HOLES_DEPTH_INPUT_ID, 0.05, adsk.core.ValueCommandInput.classType())
 
     commandCompartmentsTableUIState = []
     recordedDefaults = configUtils.readJsonConfig(UI_INPUT_DEFAULTS_CONFIG_PATH)
@@ -653,6 +659,15 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     magnetHeightInput.minimumValue = 0.1
     magnetHeightInput.isMinimumInclusive = True
     commandUIState.registerCommandInput(magnetHeightInput)
+    
+    generateToothedHolesCheckboxInput = baseFeaturesGroup.children.addBoolValueInput(BIN_MAGNET_TOOTHED_HOLES_INPUT_ID, 'Add toothed magnet holes', True, '', commandUIState.getState(BIN_MAGNET_TOOTHED_HOLES_INPUT_ID))
+    commandUIState.registerCommandInput(generateToothedHolesCheckboxInput)
+    magnetToothedHolesCountInput = baseFeaturesGroup.children.addIntegerSpinnerCommandInput(BIN_MAGNET_TOOTHED_HOLES_COUNT_INPUT_ID, 'Magnet hole teeth count', 3, 20, 1, commandUIState.getState(BIN_MAGNET_TOOTHED_HOLES_COUNT_INPUT_ID))
+    commandUIState.registerCommandInput(magnetToothedHolesCountInput)
+    magnetToothedHolesDepthInput = baseFeaturesGroup.children.addValueInput(BIN_MAGNET_TOOTHED_HOLES_DEPTH_INPUT_ID, 'Magnet hole teeth depth', defaultLengthUnits, adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_MAGNET_TOOTHED_HOLES_DEPTH_INPUT_ID)))
+    magnetToothedHolesDepthInput.minimumValue = 0.01
+    magnetToothedHolesDepthInput.isMinimumInclusive = True
+    commandUIState.registerCommandInput(magnetToothedHolesDepthInput)
 
     userChangesGroup = inputs.addGroupCommandInput(USER_CHANGES_GROUP_ID, 'Changes')
     userChangesGroup.isExpanded = commandUIState.getState(USER_CHANGES_GROUP_ID)
@@ -868,6 +883,9 @@ def generateBin(args: adsk.core.CommandEventArgs):
     bin_magnet_cutouts_tabs: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_MAGNET_CUTOUTS_TABS_INPUT_ID)
     bin_magnet_cutout_diameter: adsk.core.ValueCommandInput = inputs.itemById(BIN_MAGNET_DIAMETER_INPUT)
     bin_magnet_cutout_depth: adsk.core.ValueCommandInput = inputs.itemById(BIN_MAGNET_HEIGHT_INPUT)
+    bin_magnet_toothed_holes: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_MAGNET_TOOTHED_HOLES_INPUT_ID)
+    bin_magnet_toothed_holes_count: adsk.core.IntegerSpinnerCommandInput = inputs.itemById(BIN_MAGNET_TOOTHED_HOLES_COUNT_INPUT_ID)
+    bin_magnet_toothed_holes_depth: adsk.core.ValueCommandInput = inputs.itemById(BIN_MAGNET_TOOTHED_HOLES_DEPTH_INPUT_ID)
     with_lip: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_WITH_LIP_INPUT_ID)
     with_lip_notches: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_WITH_LIP_NOTCHES_INPUT_ID)
     has_scoop: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_SCOOP_INPUT_ID)
@@ -923,6 +941,9 @@ def generateBin(args: adsk.core.CommandEventArgs):
         baseGeneratorInput.screwHolesDiameter = bin_screw_hole_diameter.value
         baseGeneratorInput.magnetCutoutsDiameter = bin_magnet_cutout_diameter.value
         baseGeneratorInput.magnetCutoutsDepth = bin_magnet_cutout_depth.value
+        baseGeneratorInput.hasMagnetToothedHoles = bin_magnet_toothed_holes.value and not isShelled
+        baseGeneratorInput.magnetToothedHolesCount = bin_magnet_toothed_holes_count.value
+        baseGeneratorInput.magnetToothedHolesDepth = bin_magnet_toothed_holes_depth.value
 
         baseBodies: list[adsk.fusion.BRepBody]
         if bin_generate_base.value:
