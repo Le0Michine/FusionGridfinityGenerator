@@ -119,7 +119,7 @@ def createToothedCircleSketch(
 ):
     """
     Creates a sketch with a toothed circle profile for magnet holes.
-    Simple polygon alternating between outer and inner radii.
+    Uses a spline curve through alternating outer/inner points for a smooth toothed edge.
     """
     sketches: adsk.fusion.Sketches = targetComponent.sketches
     toothedSketch: adsk.fusion.Sketch = sketches.add(plane)
@@ -130,7 +130,7 @@ def createToothedCircleSketch(
     
     innerRadius = outerRadius - teethDepth
     sketchCurves = toothedSketch.sketchCurves
-    lines = sketchCurves.sketchLines
+    splines = sketchCurves.sketchSplines
     
     angleStep = (2 * math.pi) / teethCount
     
@@ -149,10 +149,13 @@ def createToothedCircleSketch(
         y_inner = center.y + innerRadius * math.sin(angle_inner)
         points.append(adsk.core.Point3D.create(x_inner, y_inner, 0))
     
-    # Connect all points with line segments forming a closed polygon
-    for i in range(len(points)):
-        nextIndex = (i + 1) % len(points)
-        lines.addByTwoPoints(points[i], points[nextIndex])
+    # Create a closed spline through all the points (tooth peaks and valleys)
+    pointArray = adsk.core.ObjectCollection.create()
+    for point in points:
+        pointArray.add(point)
+    
+    # Create spline with the points - this should form a closed profile
+    spline = splines.addByPoints(pointArray, False)  # False = not periodic, we'll close it manually
     
     return toothedSketch
 
