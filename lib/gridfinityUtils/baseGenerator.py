@@ -119,7 +119,8 @@ def createToothedCircleSketch(
 ):
     """
     Creates a sketch with a toothed circle profile for magnet holes.
-    Creates a closed polygon alternating between outer and inner radii.
+    Uses arcs for teeth (outer radius) and valleys (inner radius),
+    connected with radial line segments.
     """
     sketches: adsk.fusion.Sketches = targetComponent.sketches
     toothedSketch: adsk.fusion.Sketch = sketches.add(plane)
@@ -129,33 +130,64 @@ def createToothedCircleSketch(
     center = adsk.core.Point3D.create(circleCenterOnSketch.x, circleCenterOnSketch.y, 0)
     
     innerRadius = outerRadius - teethDepth
-    
-    # Create profile points alternating between outer and inner radius
     sketchCurves = toothedSketch.sketchCurves
+    arcs = sketchCurves.sketchArcs
     lines = sketchCurves.sketchLines
     
-    points = []
     angleStep = (2 * math.pi) / teethCount
+    halfAngleStep = angleStep / 2
     
-    # Generate points: alternating between outer and inner radius
-    # For each tooth, create 2 points (one outer, one inner)
+    # Create toothed profile by alternating outer arcs (teeth) and inner arcs (valleys)
     for i in range(teethCount):
-        # Outer point at this tooth angle
-        angle_outer = i * angleStep
-        x_outer = center.x + outerRadius * math.cos(angle_outer)
-        y_outer = center.y + outerRadius * math.sin(angle_outer)
-        points.append(adsk.core.Point3D.create(x_outer, y_outer, 0))
+        # Angle for this tooth
+        toothStartAngle = i * angleStep
+        toothMidAngle = toothStartAngle + halfAngleStep
+        toothEndAngle = (i + 1) * angleStep
         
-        # Inner point between this tooth and the next
-        angle_inner = (i + 0.5) * angleStep
-        x_inner = center.x + innerRadius * math.cos(angle_inner)
-        y_inner = center.y + innerRadius * math.sin(angle_inner)
-        points.append(adsk.core.Point3D.create(x_inner, y_inner, 0))
-    
-    # Connect all points with line segments forming a closed loop
-    for i in range(len(points)):
-        nextIndex = (i + 1) % len(points)
-        lines.addByTwoPoints(points[i], points[nextIndex])
+        # Points for outer arc (tooth peak)
+        outerStartPoint = adsk.core.Point3D.create(
+            center.x + outerRadius * math.cos(toothStartAngle),
+            center.y + outerRadius * math.sin(toothStartAngle),
+            0
+        )
+        outerEndPoint = adsk.core.Point3D.create(
+            center.x + outerRadius * math.cos(toothEndAngle),
+            center.y + outerRadius * math.sin(toothEndAngle),
+            0
+        )
+        
+        # Create outer arc (the tooth peak)
+        outerArc = arcs.addByCenterStartSweep(
+            center,
+            outerStartPoint,
+            halfAngleStep
+        )
+        
+        # Points for inner arc (valley between teeth)
+        innerStartPoint = adsk.core.Point3D.create(
+            center.x + innerRadius * math.cos(toothEndAngle),
+            center.y + innerRadius * math.sin(toothEndAngle),
+            0
+        )
+        innerEndPoint = adsk.core.Point3D.create(
+            center.x + innerRadius * math.cos(toothStartAngle),
+            center.y + innerRadius * math.sin(toothStartAngle),
+            0
+        )
+        
+        # Radial line from end of outer arc to inner arc start
+        lines.addByTwoPoints(outerEndPoint, innerStartPoint)
+        
+        # Create inner arc (the valley)
+        innerArc = arcs.addByCenterStartSweep(
+            center,
+            innerStartPoint,
+            -halfAngleStep  # negative to go backwards around the circle
+        )
+        
+        # Radial line from end of inner arc back to start of next outer arc
+        if i < teethCount - 1:
+            lines.addByTwoPoints(innerEndPoint, outerStartPoint)
     
     return toothedSketch
 
