@@ -125,30 +125,40 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
     holeCuttingBodies: list[adsk.fusion.BRepBody] = []
     
     if input.hasExtendedBottom and input.hasMagnetCutouts:
-        # Create base magnet socket (simple circular cutout)
-        magnetSocketBody = shapeUtils.simpleCylinder(
-            faceUtils.getBottomFace(baseBody),
-            0,
-            input.magnetCutoutsDepth,
-            input.magnetCutoutsDiameter / 2,
-            holeCenterPoint,
-            targetComponent,
-        )
-        holeCuttingBodies.append(magnetSocketBody)
-        
-        # Add splined indentation on top of magnet socket (if enabled)
+        # Create magnet socket with integrated splines (if enabled) or simple cylinder
         if input.hasMagnetSplinedHoles:
-            # Create splined teeth using multiple small circles (one per tooth)
-            splinedBodies = baseGenerator.createSplinedTeethBodies(
+            # Create sketch with spline teeth as single closed profile
+            splinedSketch = baseGenerator.createSplinedMagnetSketch(
                 faceUtils.getBottomFace(baseBody),
-                input.magnetCutoutsDiameter / 2,
+                input.magnetCutoutsDiameter,
                 input.magnetSplinedHolesCount,
                 input.magnetSplinedHolesDepth,
                 holeCenterPoint,
                 targetComponent,
             )
-            for splinedBody in splinedBodies:
-                holeCuttingBodies.append(splinedBody)
+            splinedSketch.name = "Splined magnet socket sketch"
+            
+            # Extrude the entire splined socket profile at once
+            magnetSocketBody = extrudeUtils.simpleDistanceExtrude(
+                splinedSketch.profiles.item(0),
+                adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
+                input.magnetCutoutsDepth,
+                adsk.fusion.ExtentDirections.PositiveExtentDirection,
+                [],
+                targetComponent,
+            )
+            holeCuttingBodies.append(magnetSocketBody.bodies.item(0))
+        else:
+            # Create simple circular magnet socket
+            magnetSocketBody = shapeUtils.simpleCylinder(
+                faceUtils.getBottomFace(baseBody),
+                0,
+                input.magnetCutoutsDepth,
+                input.magnetCutoutsDiameter / 2,
+                holeCenterPoint,
+                targetComponent,
+            )
+            holeCuttingBodies.append(magnetSocketBody)
     
     if input.hasExtendedBottom and input.hasScrewHoles:
         screwHoleBody = shapeUtils.simpleCylinder(
