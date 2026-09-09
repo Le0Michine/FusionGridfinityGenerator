@@ -251,16 +251,39 @@ def createSingleGridfinityBaseBody(
 
     # magnet cutouts
     if input.hasMagnetCutouts:
-        # Create simple circular magnet socket
-        magnetSocketBody = shapeUtils.simpleCylinder(
-            baseBottomPlane,
-            0,
-            -input.magnetCutoutsDepth,
-            input.magnetCutoutsDiameter / 2,
-            cutoutCenterPoint,
-            targetComponent,
-        )
-        cutoutBodies.add(magnetSocketBody)
+        # Create magnet socket - either toothed or simple cylinder
+        if input.hasMagnetToothedHoles:
+            # Create toothed circle sketch
+            toothedSketch = createToothedCircleSketch(
+                baseBottomPlane,
+                input.magnetCutoutsDiameter / 2,
+                input.magnetToothedHolesCount,
+                input.magnetToothedHolesDepth,
+                cutoutCenterPoint,
+                targetComponent,
+            )
+            toothedSketch.name = "Magnet toothed cutout sketch"
+            
+            magnetSocketBody = extrudeUtils.simpleDistanceExtrude(
+                toothedSketch.profiles.item(0),
+                adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
+                input.magnetCutoutsDepth,
+                adsk.fusion.ExtentDirections.NegativeExtentDirection,
+                [],
+                targetComponent,
+            )
+            cutoutBodies.add(magnetSocketBody.bodies.item(0))
+        else:
+            # Create simple circular magnet socket
+            magnetSocketBody = shapeUtils.simpleCylinder(
+                baseBottomPlane,
+                0,
+                -input.magnetCutoutsDepth,
+                input.magnetCutoutsDiameter / 2,
+                cutoutCenterPoint,
+                targetComponent,
+            )
+            cutoutBodies.add(magnetSocketBody)
 
         # magnet tab cutouts
         if input.hasMagnetCutoutsTabs:
