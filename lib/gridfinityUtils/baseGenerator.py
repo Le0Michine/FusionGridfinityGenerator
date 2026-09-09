@@ -120,7 +120,7 @@ def createSplinedCircleSketch(
     """
     Creates a sketch with a toothed/splined circle profile for magnet holes.
     The teeth point outward from the base circle (external splines).
-    Creates a simple polygon pattern with fillets for smooth transitions.
+    Creates a simple polygon pattern with narrow, spline-like teeth.
     """
     sketches: adsk.fusion.Sketches = targetComponent.sketches
     splinedSketch: adsk.fusion.Sketch = sketches.add(plane)
@@ -135,13 +135,10 @@ def createSplinedCircleSketch(
     
     sketchArcs = splinedSketch.sketchCurves.sketchArcs
     sketchLines = splinedSketch.sketchCurves.sketchLines
-    sketchConstraints = splinedSketch.sketchConstraints
     
     angleStep = (2 * math.pi) / splineCount
-    toothWidth = angleStep / 3  # Tooth is 1/3 of angle step
-    
-    # Store all line segments for filleting
-    allCurves = []
+    # Much narrower teeth - only 1/8 of the angle step (was 1/3)
+    toothWidth = angleStep / 8
     
     for i in range(splineCount):
         baseAngle1 = i * angleStep
@@ -170,12 +167,10 @@ def createSplinedCircleSketch(
         )
         
         # Connect base start to peak
-        line1 = sketchLines.addByTwoPoints(base_start, peak)
-        allCurves.append(line1)
+        sketchLines.addByTwoPoints(base_start, peak)
         
         # Connect peak to base end
-        line2 = sketchLines.addByTwoPoints(peak, base_end)
-        allCurves.append(line2)
+        sketchLines.addByTwoPoints(peak, base_end)
         
         # Connect to next tooth along base circle (valley section)
         if i < splineCount - 1:
@@ -184,8 +179,18 @@ def createSplinedCircleSketch(
                 center.y + baseRadius * math.sin(baseAngle1 + angleStep),
                 0
             )
-            valley_line = sketchLines.addByTwoPoints(base_end, next_base_start)
-            allCurves.append(valley_line)
+            # Create arc along base circle for smooth valley
+            valley_mid_angle = baseAngle2 + (angleStep - toothWidth) / 2
+            valley_mid = adsk.core.Point3D.create(
+                center.x + baseRadius * math.cos(valley_mid_angle),
+                center.y + baseRadius * math.sin(valley_mid_angle),
+                0
+            )
+            try:
+                sketchArcs.addByThreePoints(base_end, valley_mid, next_base_start)
+            except:
+                # Fallback to line if arc fails
+                sketchLines.addByTwoPoints(base_end, next_base_start)
         else:
             # Last tooth: close back to start of first tooth
             first_base = adsk.core.Point3D.create(
@@ -193,34 +198,17 @@ def createSplinedCircleSketch(
                 center.y + baseRadius * math.sin(0),
                 0
             )
-            valley_line = sketchLines.addByTwoPoints(base_end, first_base)
-            allCurves.append(valley_line)
-    
-    # Add fillet constraints to smooth the base transitions
-    # These radii smooth where the teeth connect to the base circle
-    filletRadius = splineDepth * 0.3  # Make fillets proportional to tooth depth
-    
-    # Fillet the points where teeth meet the base circle
-    try:
-        for i, curve in enumerate(allCurves):
-            # Get the endpoint that's on the base circle
-            endPoint = curve.endSketchPoint
-            
-            # Only fillet if it's one of the valley lines (every 3rd curve for 6 teeth)
-            if (i + 1) % 3 == 0 or i == len(allCurves) - 1:
-                # Add fillet constraint at this vertex
-                try:
-                    # Find the two curves meeting at this point
-                    prevCurve = allCurves[(i - 1) % len(allCurves)]
-                    nextCurve = allCurves[(i + 1) % len(allCurves)]
-                    
-                    if endPoint == prevCurve.endSketchPoint:
-                        # Create fillet between prevCurve and curve
-                        sketchConstraints.addFilletConstraint(prevCurve, curve, filletRadius)
-                except:
-                    pass  # Fillet constraint may fail in some cases
-    except:
-        pass  # If filleting fails, the profile should still work
+            valley_mid_angle = baseAngle2 + (angleStep - toothWidth) / 2
+            valley_mid = adsk.core.Point3D.create(
+                center.x + baseRadius * math.cos(valley_mid_angle),
+                center.y + baseRadius * math.sin(valley_mid_angle),
+                0
+            )
+            try:
+                sketchArcs.addByThreePoints(base_end, valley_mid, first_base)
+            except:
+                # Fallback to line if arc fails
+                sketchLines.addByTwoPoints(base_end, first_base)
     
     return splinedSketch
 
