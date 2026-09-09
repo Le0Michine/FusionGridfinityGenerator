@@ -109,108 +109,48 @@ def createTabAtCircleEdgeSketch(
 
     return circleSketch
 
-def createSplinedCircleSketch(
+def createSplinedTeethBodies(
     plane: adsk.core.Base,
-    outerRadius: float,
+    socketRadius: float,
     splineCount: int,
     splineDepth: float,
     circleCenterPoint: adsk.core.Point3D,
     targetComponent: adsk.fusion.Component,
 ):
     """
-    Creates a sketch with splined/toothed circle profile for magnet holes.
-    Splines are narrow fingers protruding INTO the socket void.
-    innerRadius: bottom of teeth (inside socket)
-    outerRadius: top of teeth (at socket edge)
+    Creates multiple small tooth bodies for splined magnet socket indentation.
+    Each tooth is a small cylindrical cutout at a peak position.
+    Returns list of BRepBody objects for boolean operations.
     """
-    sketches: adsk.fusion.Sketches = targetComponent.sketches
-    splinedSketch: adsk.fusion.Sketch = sketches.add(plane)
-    splinedSketch.name = "Splined circle sketch"
-    
-    circleCenterOnSketch = splinedSketch.modelToSketchSpace(circleCenterPoint)
-    center = adsk.core.Point3D.create(circleCenterOnSketch.x, circleCenterOnSketch.y, 0)
-    
-    # Splines protrude INTO the socket void
-    # innerRadius: base of tooth (deep in socket)
-    # outerRadius: peak of tooth (at socket wall)
-    innerRadius = outerRadius - splineDepth
-    
-    sketchArcs = splinedSketch.sketchCurves.sketchArcs
-    sketchLines = splinedSketch.sketchCurves.sketchLines
+    toothBodies = []
     
     angleStep = (2 * math.pi) / splineCount
-    # Narrow teeth - 1/10 of angle step
-    toothWidth = angleStep / 10
+    # Tooth radius is proportional to spline depth - makes it narrow and spline-like
+    toothRadius = splineDepth * 0.4
     
-    # Create closed polyline profile
     for i in range(splineCount):
-        # Calculate angles for this tooth
-        baseAngle1 = i * angleStep
-        baseAngle2 = baseAngle1 + toothWidth
-        peakAngle = baseAngle1 + toothWidth / 2
+        peakAngle = i * angleStep + angleStep / 20  # Center of tooth
         
-        # Tooth peak (at socket wall, outerRadius)
-        peak = adsk.core.Point3D.create(
-            center.x + outerRadius * math.cos(peakAngle),
-            center.y + outerRadius * math.sin(peakAngle),
-            0
+        # Position of tooth peak (on socket wall)
+        toothCenterPoint = adsk.core.Point3D.create(
+            circleCenterPoint.x + socketRadius * math.cos(peakAngle),
+            circleCenterPoint.y + socketRadius * math.sin(peakAngle),
+            circleCenterPoint.z,
         )
         
-        # Inner points (base of tooth, deep in socket)
-        inner_start = adsk.core.Point3D.create(
-            center.x + innerRadius * math.cos(baseAngle1),
-            center.y + innerRadius * math.sin(baseAngle1),
-            0
+        # Create small cylinder for this tooth
+        toothBody = shapeUtils.simpleCylinder(
+            plane,
+            0,
+            -splineDepth,
+            toothRadius,
+            toothCenterPoint,
+            targetComponent,
         )
-        
-        inner_end = adsk.core.Point3D.create(
-            center.x + innerRadius * math.cos(baseAngle2),
-            center.y + innerRadius * math.sin(baseAngle2),
-            0
-        )
-        
-        # Connect: inner_start -> peak -> inner_end
-        sketchLines.addByTwoPoints(inner_start, peak)
-        sketchLines.addByTwoPoints(peak, inner_end)
-        
-        # Connect to next tooth along inner arc
-        if i < splineCount - 1:
-            nextAngle = baseAngle1 + angleStep
-            next_inner_start = adsk.core.Point3D.create(
-                center.x + innerRadius * math.cos(nextAngle),
-                center.y + innerRadius * math.sin(nextAngle),
-                0
-            )
-            # Arc along inner circle (smooth valley)
-            valley_mid_angle = baseAngle2 + (angleStep - toothWidth) / 2
-            valley_mid = adsk.core.Point3D.create(
-                center.x + innerRadius * math.cos(valley_mid_angle),
-                center.y + innerRadius * math.sin(valley_mid_angle),
-                0
-            )
-            try:
-                sketchArcs.addByThreePoints(inner_end, valley_mid, next_inner_start)
-            except:
-                sketchLines.addByTwoPoints(inner_end, next_inner_start)
-        else:
-            # Close loop back to first tooth
-            first_inner = adsk.core.Point3D.create(
-                center.x + innerRadius * math.cos(0),
-                center.y + innerRadius * math.sin(0),
-                0
-            )
-            valley_mid_angle = baseAngle2 + (angleStep - toothWidth) / 2
-            valley_mid = adsk.core.Point3D.create(
-                center.x + innerRadius * math.cos(valley_mid_angle),
-                center.y + innerRadius * math.sin(valley_mid_angle),
-                0
-            )
-            try:
-                sketchArcs.addByThreePoints(inner_end, valley_mid, first_inner)
-            except:
-                sketchLines.addByTwoPoints(inner_end, first_inner)
+        toothBody.name = f"Splined tooth {i+1}"
+        toothBodies.append(toothBody)
     
-    return splinedSketch
+    return toothBodies
 
 def createSingleGridfinityBaseBody(
     input: BaseGeneratorInput,
@@ -319,8 +259,9 @@ def createSingleGridfinityBaseBody(
 
         # Add splined indentation on top of magnet socket (if enabled)
         if input.hasMagnetSplinedHoles:
-            # Create splined circle sketch
-            splinedSketch = createSplinedCircleSketch(
+            # Create splined teeth using multiple small circles (one per tooth)
+            # This is more reliable than a complex polyline profile
+            splinedBodies = createSplinedTeethBodies(
                 baseBottomPlane,
                 input.magnetCutoutsDiameter / 2,
                 input.magnetSplinedHolesCount,
@@ -328,17 +269,8 @@ def createSingleGridfinityBaseBody(
                 cutoutCenterPoint,
                 targetComponent,
             )
-            splinedSketch.name = "Magnet splined cutout sketch"
-            
-            magnetSplinedBody = extrudeUtils.simpleDistanceExtrude(
-                splinedSketch.profiles.item(0),
-                adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
-                input.magnetSplinedHolesDepth,
-                adsk.fusion.ExtentDirections.NegativeExtentDirection,
-                [],
-                targetComponent,
-            )
-            cutoutBodies.add(magnetSplinedBody.bodies.item(0))
+            for splinedBody in splinedBodies:
+                cutoutBodies.add(splinedBody)
 
         # magnet tab cutouts
         if input.hasMagnetCutoutsTabs:

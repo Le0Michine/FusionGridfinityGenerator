@@ -138,8 +138,8 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
         
         # Add splined indentation on top of magnet socket (if enabled)
         if input.hasMagnetSplinedHoles:
-            # Create splined circle sketch
-            splinedSketch = baseGenerator.createSplinedCircleSketch(
+            # Create splined teeth using multiple small circles (one per tooth)
+            splinedBodies = baseGenerator.createSplinedTeethBodies(
                 faceUtils.getBottomFace(baseBody),
                 input.magnetCutoutsDiameter / 2,
                 input.magnetSplinedHolesCount,
@@ -147,17 +147,8 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
                 holeCenterPoint,
                 targetComponent,
             )
-            splinedSketch.name = "Magnet splined cutout sketch"
-            
-            magnetSplinedBody = extrudeUtils.simpleDistanceExtrude(
-                splinedSketch.profiles.item(0),
-                adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
-                input.magnetSplinedHolesDepth,
-                adsk.fusion.ExtentDirections.PositiveExtentDirection,
-                [],
-                targetComponent,
-            )
-            holeCuttingBodies.append(magnetSplinedBody.bodies.item(0))
+            for splinedBody in splinedBodies:
+                holeCuttingBodies.append(splinedBody)
     
     if input.hasExtendedBottom and input.hasScrewHoles:
         screwHoleBody = shapeUtils.simpleCylinder(
