@@ -120,14 +120,6 @@ def createToothedCircleSketch(
     """
     Creates a sketch with a toothed circle profile for magnet holes.
     The teeth are created as indentations around the circle perimeter.
-    
-    Args:
-        plane: The construction plane for the sketch
-        outerRadius: Radius of the outer hole wall
-        teethCount: Number of teeth around the circle
-        teethDepth: Depth of tooth indentation (offset from outer wall)
-        circleCenterPoint: Center point of the circle
-        targetComponent: Target component for the sketch
     """
     sketches: adsk.fusion.Sketches = targetComponent.sketches
     toothedSketch: adsk.fusion.Sketch = sketches.add(plane)
@@ -138,15 +130,14 @@ def createToothedCircleSketch(
     
     innerRadius = outerRadius - teethDepth
     
-    # Draw the toothed profile using lines and arcs
+    # Create profile points alternating between outer and inner radius
     sketchCurves = toothedSketch.sketchCurves
     lines = sketchCurves.sketchLines
-    arcs = sketchCurves.sketchArcs
     
     points = []
     angleStep = (2 * math.pi) / teethCount
     
-    # Create alternating outer and inner radius points
+    # Generate points: alternating between outer and inner radius
     for i in range(teethCount * 2):
         angle = i * angleStep / 2
         # Alternate between outer and inner radius
@@ -159,13 +150,10 @@ def createToothedCircleSketch(
         y = center.y + radius * math.sin(angle)
         points.append(adsk.core.Point3D.create(x, y, 0))
     
-    # Connect all points with line segments to create the toothed profile
+    # Connect all points with line segments forming a closed loop
     for i in range(len(points)):
         nextIndex = (i + 1) % len(points)
         lines.addByTwoPoints(points[i], points[nextIndex])
-    
-    # Close the loop by connecting back to the first point if needed
-    # The lines already form a closed loop
     
     return toothedSketch
 
