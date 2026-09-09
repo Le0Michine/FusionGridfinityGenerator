@@ -10,9 +10,9 @@ class BaseplateGeneratorInput():
         self.screwHeadCutoutDiameter = const.DIMENSION_SCREW_HEAD_CUTOUT_DIAMETER
         self.magnetCutoutsDiameter = const.DIMENSION_MAGNET_CUTOUT_DIAMETER
         self.magnetCutoutsDepth = const.DIMENSION_MAGNET_CUTOUT_DEPTH
-        self.hasMagnetToothedHoles = False
-        self.magnetToothedHolesCount = 6
-        self.magnetToothedHolesDepth = 0.05
+        self.hasMagnetSplinedHoles = False
+        self.magnetSplinedHolesCount = 6
+        self.magnetSplinedHolesDepth = 0.05
         self.hasSkeletonizedBottom = True
         self.bottomExtensionHeight = const.BASEPLATE_EXTRA_HEIGHT
         self.xyClearance = const.BIN_XY_CLEARANCE
@@ -205,25 +205,25 @@ class BaseplateGeneratorInput():
         self._magnetCutoutsDepth = value
 
     @property
-    def hasMagnetToothedHoles(self) -> bool:
-        return self._hasMagnetToothedHoles
+    def hasMagnetSplinedHoles(self) -> bool:
+        return self._hasMagnetSplinedHoles
 
-    @hasMagnetToothedHoles.setter
-    def hasMagnetToothedHoles(self, value: bool):
-        self._hasMagnetToothedHoles = value
-
-    @property
-    def magnetToothedHolesCount(self) -> int:
-        return self._magnetToothedHolesCount
-
-    @magnetToothedHolesCount.setter
-    def magnetToothedHolesCount(self, value: int):
-        self._magnetToothedHolesCount = value
+    @hasMagnetSplinedHoles.setter
+    def hasMagnetSplinedHoles(self, value: bool):
+        self._hasMagnetSplinedHoles = value
 
     @property
-    def magnetToothedHolesDepth(self) -> float:
-        return self._magnetToothedHolesDepth
+    def magnetSplinedHolesCount(self) -> int:
+        return self._magnetSplinedHolesCount
 
-    @magnetToothedHolesDepth.setter
-    def magnetToothedHolesDepth(self, value: float):
-        self._magnetToothedHolesDepth = value
+    @magnetSplinedHolesCount.setter
+    def magnetSplinedHolesCount(self, value: int):
+        self._magnetSplinedHolesCount = value
+
+    @property
+    def magnetSplinedHolesDepth(self) -> float:
+        return self._magnetSplinedHolesDepth
+
+    @magnetSplinedHolesDepth.setter
+    def magnetSplinedHolesDepth(self, value: float):
+        self._magnetSplinedHolesDepth = value

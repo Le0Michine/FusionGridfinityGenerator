@@ -71,9 +71,9 @@ BASEPLATE_TYPE_SKELETONIZED = 'Skeletonized'
 BASEPLATE_WITH_MAGNETS_INPUT = 'with_magnet_cutouts'
 BASEPLATE_MAGNET_DIAMETER_INPUT = 'magnet_diameter'
 BASEPLATE_MAGNET_HEIGHT_INPUT = 'magnet_height'
-BASEPLATE_MAGNET_TOOTHED_HOLES_INPUT_ID = 'baseplate_magnet_toothed_holes'
-BASEPLATE_MAGNET_TOOTHED_HOLES_COUNT_INPUT_ID = 'baseplate_magnet_toothed_holes_count'
-BASEPLATE_MAGNET_TOOTHED_HOLES_DEPTH_INPUT_ID = 'baseplate_magnet_toothed_holes_depth'
+BASEPLATE_MAGNET_SPLINED_HOLES_INPUT_ID = 'baseplate_magnet_splined_holes'
+BASEPLATE_MAGNET_SPLINED_HOLES_COUNT_INPUT_ID = 'baseplate_magnet_splined_holes_count'
+BASEPLATE_MAGNET_SPLINED_HOLES_DEPTH_INPUT_ID = 'baseplate_magnet_splined_holes_depth'
 
 BASEPLATE_WITH_SCREWS_INPUT = 'with_screw_holes'
 BASEPLATE_SCREW_DIAMETER_INPUT = 'screw_diameter'
@@ -234,14 +234,14 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     magnetSocketDepthInput = magnetCutoutGroup.children.addValueInput(BASEPLATE_MAGNET_HEIGHT_INPUT, 'Magnet cutout depth', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BASEPLATE_MAGNET_HEIGHT_INPUT)))
     uiState.registerCommandInput(magnetSocketDepthInput)
     
-    generateToothedHolesCheckboxInput = magnetCutoutGroup.children.addBoolValueInput(BASEPLATE_MAGNET_TOOTHED_HOLES_INPUT_ID, 'Add toothed magnet holes', True, '', uiState.getState(BASEPLATE_MAGNET_TOOTHED_HOLES_INPUT_ID))
-    uiState.registerCommandInput(generateToothedHolesCheckboxInput)
-    magnetToothedHolesCountInput = magnetCutoutGroup.children.addIntegerSpinnerCommandInput(BASEPLATE_MAGNET_TOOTHED_HOLES_COUNT_INPUT_ID, 'Magnet hole teeth count', 3, 20, 1, uiState.getState(BASEPLATE_MAGNET_TOOTHED_HOLES_COUNT_INPUT_ID))
-    uiState.registerCommandInput(magnetToothedHolesCountInput)
-    magnetToothedHolesDepthInput = magnetCutoutGroup.children.addValueInput(BASEPLATE_MAGNET_TOOTHED_HOLES_DEPTH_INPUT_ID, 'Magnet hole teeth depth', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BASEPLATE_MAGNET_TOOTHED_HOLES_DEPTH_INPUT_ID)))
-    magnetToothedHolesDepthInput.minimumValue = 0.01
-    magnetToothedHolesDepthInput.isMinimumInclusive = True
-    uiState.registerCommandInput(magnetToothedHolesDepthInput)
+    generateSplinedHolesCheckboxInput = magnetCutoutGroup.children.addBoolValueInput(BASEPLATE_MAGNET_SPLINED_HOLES_INPUT_ID, 'Add splined magnet holes', True, '', uiState.getState(BASEPLATE_MAGNET_SPLINED_HOLES_INPUT_ID))
+    uiState.registerCommandInput(generateSplinedHolesCheckboxInput)
+    magnetSplinedHolesCountInput = magnetCutoutGroup.children.addIntegerSpinnerCommandInput(BASEPLATE_MAGNET_SPLINED_HOLES_COUNT_INPUT_ID, 'Magnet hole spline count', 3, 20, 1, uiState.getState(BASEPLATE_MAGNET_SPLINED_HOLES_COUNT_INPUT_ID))
+    uiState.registerCommandInput(magnetSplinedHolesCountInput)
+    magnetSplinedHolesDepthInput = magnetCutoutGroup.children.addValueInput(BASEPLATE_MAGNET_SPLINED_HOLES_DEPTH_INPUT_ID, 'Magnet hole spline depth', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BASEPLATE_MAGNET_SPLINED_HOLES_DEPTH_INPUT_ID)))
+    magnetSplinedHolesDepthInput.minimumValue = 0.01
+    magnetSplinedHolesDepthInput.isMinimumInclusive = True
+    uiState.registerCommandInput(magnetSplinedHolesDepthInput)
 
     screwHoleGroup = plateFeaturesGroup.children.addGroupCommandInput(SCREW_HOLE_GROUP, 'Screw holes')
     screwHoleGroup.isExpanded = uiState.getState(SCREW_HOLE_GROUP)
@@ -456,9 +456,9 @@ def generateBaseplate(args: adsk.core.CommandEventArgs):
         baseplateGeneratorInput.hasMagnetCutouts = inputsState.hasMagnetSockets
         baseplateGeneratorInput.magnetCutoutsDiameter = inputsState.magnetSocketSize
         baseplateGeneratorInput.magnetCutoutsDepth = inputsState.magnetSocketDepth
-        baseplateGeneratorInput.hasMagnetToothedHoles = inputsState.hasMagnetToothedHoles
-        baseplateGeneratorInput.magnetToothedHolesCount = inputsState.magnetToothedHolesCount
-        baseplateGeneratorInput.magnetToothedHolesDepth = inputsState.magnetToothedHolesDepth
+        baseplateGeneratorInput.hasMagnetSplinedHoles = inputsState.hasMagnetSplinedHoles
+        baseplateGeneratorInput.magnetSplinedHolesCount = inputsState.magnetSplinedHolesCount
+        baseplateGeneratorInput.magnetSplinedHolesDepth = inputsState.magnetSplinedHolesDepth
         baseplateGeneratorInput.hasScrewHoles = inputsState.hasScrewHoles
         baseplateGeneratorInput.screwHolesDiameter = inputsState.screwHoleSize
         baseplateGeneratorInput.screwHeadCutoutDiameter = inputsState.screwHeadSize
@@ -514,9 +514,9 @@ def initUiState():
 
     uiState.initValue(BASEPLATE_MAGNET_DIAMETER_INPUT, const.DIMENSION_MAGNET_CUTOUT_DIAMETER, adsk.core.ValueCommandInput.classType())
     uiState.initValue(BASEPLATE_MAGNET_HEIGHT_INPUT, const.DIMENSION_MAGNET_CUTOUT_DEPTH, adsk.core.ValueCommandInput.classType())
-    uiState.initValue(BASEPLATE_MAGNET_TOOTHED_HOLES_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
-    uiState.initValue(BASEPLATE_MAGNET_TOOTHED_HOLES_COUNT_INPUT_ID, 6, adsk.core.IntegerSpinnerCommandInput.classType())
-    uiState.initValue(BASEPLATE_MAGNET_TOOTHED_HOLES_DEPTH_INPUT_ID, 0.05, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_MAGNET_SPLINED_HOLES_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_MAGNET_SPLINED_HOLES_COUNT_INPUT_ID, 6, adsk.core.IntegerSpinnerCommandInput.classType())
+    uiState.initValue(BASEPLATE_MAGNET_SPLINED_HOLES_DEPTH_INPUT_ID, 0.05, adsk.core.ValueCommandInput.classType())
     uiState.initValue(BASEPLATE_WITH_SCREWS_INPUT, True, adsk.core.BoolValueCommandInput.classType())
 
     uiState.initValue(BASEPLATE_WITH_SIDE_PADDING_INPUT, False, adsk.core.BoolValueCommandInput.classType())
@@ -568,9 +568,9 @@ def getInputsState():
         uiState.getState(BASEPLATE_WITH_MAGNETS_INPUT),
         uiState.getState(BASEPLATE_MAGNET_DIAMETER_INPUT),
         uiState.getState(BASEPLATE_MAGNET_HEIGHT_INPUT),
-        uiState.getState(BASEPLATE_MAGNET_TOOTHED_HOLES_INPUT_ID),
-        uiState.getState(BASEPLATE_MAGNET_TOOTHED_HOLES_COUNT_INPUT_ID),
-        uiState.getState(BASEPLATE_MAGNET_TOOTHED_HOLES_DEPTH_INPUT_ID),
+        uiState.getState(BASEPLATE_MAGNET_SPLINED_HOLES_INPUT_ID),
+        uiState.getState(BASEPLATE_MAGNET_SPLINED_HOLES_COUNT_INPUT_ID),
+        uiState.getState(BASEPLATE_MAGNET_SPLINED_HOLES_DEPTH_INPUT_ID),
         uiState.getState(BASEPLATE_WITH_SCREWS_INPUT),
         uiState.getState(BASEPLATE_SCREW_DIAMETER_INPUT),
         uiState.getState(BASEPLATE_SCREW_HEIGHT_INPUT),

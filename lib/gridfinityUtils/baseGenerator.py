@@ -109,47 +109,47 @@ def createTabAtCircleEdgeSketch(
 
     return circleSketch
 
-def createToothedCircleSketch(
+def createSplinedCircleSketch(
     plane: adsk.core.Base,
     outerRadius: float,
-    teethCount: int,
-    teethDepth: float,
+    splineCount: int,
+    splineDepth: float,
     circleCenterPoint: adsk.core.Point3D,
     targetComponent: adsk.fusion.Component,
 ):
     """
-    Creates a sketch with a toothed circle profile for magnet holes.
-    Uses a spline curve through alternating outer/inner points for a smooth toothed edge.
+    Creates a sketch with a splined circle profile for magnet holes.
+    Uses a spline curve through alternating outer/inner points for a smooth splined edge.
     """
     sketches: adsk.fusion.Sketches = targetComponent.sketches
-    toothedSketch: adsk.fusion.Sketch = sketches.add(plane)
-    toothedSketch.name = "Toothed circle sketch"
+    splinedSketch: adsk.fusion.Sketch = sketches.add(plane)
+    splinedSketch.name = "Splined circle sketch"
     
-    circleCenterOnSketch = toothedSketch.modelToSketchSpace(circleCenterPoint)
+    circleCenterOnSketch = splinedSketch.modelToSketchSpace(circleCenterPoint)
     center = adsk.core.Point3D.create(circleCenterOnSketch.x, circleCenterOnSketch.y, 0)
     
-    innerRadius = outerRadius - teethDepth
-    sketchCurves = toothedSketch.sketchCurves
+    innerRadius = outerRadius - splineDepth
+    sketchCurves = splinedSketch.sketchCurves
     splines = sketchCurves.sketchSplines
     
-    angleStep = (2 * math.pi) / teethCount
+    angleStep = (2 * math.pi) / splineCount
     
     # Generate all points: alternating between outer and inner radius
     points = []
-    for i in range(teethCount):
-        # Outer point (tooth peak)
+    for i in range(splineCount):
+        # Outer point (spline peak)
         angle_outer = i * angleStep
         x_outer = center.x + outerRadius * math.cos(angle_outer)
         y_outer = center.y + outerRadius * math.sin(angle_outer)
         points.append(adsk.core.Point3D.create(x_outer, y_outer, 0))
         
-        # Inner point (tooth valley)
+        # Inner point (spline valley)
         angle_inner = (i + 0.5) * angleStep
         x_inner = center.x + innerRadius * math.cos(angle_inner)
         y_inner = center.y + innerRadius * math.sin(angle_inner)
         points.append(adsk.core.Point3D.create(x_inner, y_inner, 0))
     
-    # Create a closed spline through all the points (tooth peaks and valleys)
+    # Create a closed spline through all the points (spline peaks and valleys)
     pointArray = adsk.core.ObjectCollection.create()
     for point in points:
         pointArray.add(point)
@@ -157,7 +157,7 @@ def createToothedCircleSketch(
     # Create spline with the points - this should form a closed profile
     spline = splines.addByPoints(pointArray, False)  # False = not periodic, we'll close it manually
     
-    return toothedSketch
+    return splinedSketch
 
 def createSingleGridfinityBaseBody(
     input: BaseGeneratorInput,
@@ -253,21 +253,21 @@ def createSingleGridfinityBaseBody(
 
     # magnet cutouts
     if input.hasMagnetCutouts:
-        # Create magnet socket - either toothed or simple cylinder
-        if input.hasMagnetToothedHoles:
-            # Create toothed circle sketch
-            toothedSketch = createToothedCircleSketch(
+        # Create magnet socket - either splined or simple cylinder
+        if input.hasMagnetSplinedHoles:
+            # Create splined circle sketch
+            splinedSketch = createSplinedCircleSketch(
                 baseBottomPlane,
                 input.magnetCutoutsDiameter / 2,
-                input.magnetToothedHolesCount,
-                input.magnetToothedHolesDepth,
+                input.magnetSplinedHolesCount,
+                input.magnetSplinedHolesDepth,
                 cutoutCenterPoint,
                 targetComponent,
             )
-            toothedSketch.name = "Magnet toothed cutout sketch"
+            splinedSketch.name = "Magnet splined cutout sketch"
             
             magnetSocketBody = extrudeUtils.simpleDistanceExtrude(
-                toothedSketch.profiles.item(0),
+                splinedSketch.profiles.item(0),
                 adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
                 input.magnetCutoutsDepth,
                 adsk.fusion.ExtentDirections.NegativeExtentDirection,

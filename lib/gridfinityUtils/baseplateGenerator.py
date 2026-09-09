@@ -125,20 +125,20 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
     holeCuttingBodies: list[adsk.fusion.BRepBody] = []
     
     if input.hasExtendedBottom and input.hasMagnetCutouts:
-        if input.hasMagnetToothedHoles:
-            # Create toothed circle sketch
-            toothedSketch = baseGenerator.createToothedCircleSketch(
+        if input.hasMagnetSplinedHoles:
+            # Create splined circle sketch
+            splinedSketch = baseGenerator.createSplinedCircleSketch(
                 faceUtils.getBottomFace(baseBody),
                 input.magnetCutoutsDiameter / 2,
-                input.magnetToothedHolesCount,
-                input.magnetToothedHolesDepth,
+                input.magnetSplinedHolesCount,
+                input.magnetSplinedHolesDepth,
                 holeCenterPoint,
                 targetComponent,
             )
-            toothedSketch.name = "Magnet toothed cutout sketch"
+            splinedSketch.name = "Magnet splined cutout sketch"
             
             magnetSocketBody = extrudeUtils.simpleDistanceExtrude(
-                toothedSketch.profiles.item(0),
+                splinedSketch.profiles.item(0),
                 adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
                 input.magnetCutoutsDepth,
                 adsk.fusion.ExtentDirections.PositiveExtentDirection,
