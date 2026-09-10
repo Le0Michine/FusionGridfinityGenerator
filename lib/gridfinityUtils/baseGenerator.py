@@ -269,7 +269,9 @@ def createSplinedMagnetChamferTool(
     center = adsk.core.Point3D.create(
         (outerPerimeterBounds.minPoint.x + outerPerimeterBounds.maxPoint.x) / 2,
         (outerPerimeterBounds.minPoint.y + outerPerimeterBounds.maxPoint.y) / 2,
-        outerPerimeterBounds.minPoint.z,
+        outerPerimeterBounds.minPoint.z
+        if extentDirection == adsk.fusion.ExtentDirections.NegativeExtentDirection
+        else outerPerimeterBounds.maxPoint.z,
     )
     cutDirection = 1 if extentDirection == adsk.fusion.ExtentDirections.NegativeExtentDirection else -1
     socketRadius = socketDiameter / 2
