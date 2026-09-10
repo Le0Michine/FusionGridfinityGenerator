@@ -1,5 +1,6 @@
 import adsk.core, adsk.fusion, traceback
 import os
+import math
 
 
 
@@ -74,6 +75,8 @@ BASEPLATE_MAGNET_HEIGHT_INPUT = 'magnet_height'
 BASEPLATE_MAGNET_SPLINED_HOLES_INPUT_ID = 'baseplate_magnet_splined_holes'
 BASEPLATE_MAGNET_SPLINED_HOLES_COUNT_INPUT_ID = 'baseplate_magnet_splined_holes_count'
 BASEPLATE_MAGNET_SPLINED_HOLES_DEPTH_INPUT_ID = 'baseplate_magnet_splined_holes_depth'
+BASEPLATE_MAGNET_SPLINED_HOLES_WIDTH_INPUT_ID = 'baseplate_magnet_splined_holes_width'
+BASEPLATE_MAGNET_SPLINED_HOLES_CHAMFER_LENGTH_INPUT_ID = 'baseplate_magnet_splined_holes_chamfer_length'
 
 BASEPLATE_WITH_SCREWS_INPUT = 'with_screw_holes'
 BASEPLATE_SCREW_DIAMETER_INPUT = 'screw_diameter'
@@ -87,6 +90,12 @@ BASEPLATE_SIDE_PADDING_BOTTOM_INPUT = 'side_padding_bottom'
 
 BASEPLATE_EXTRA_THICKNESS_INPUT = 'extra_bottom_thickness'
 BASEPLATE_BIN_Z_CLEARANCE_INPUT = 'bin_z_clearance'
+
+def getMaximumSplinedHolesCount(socketDiameter: float, splineDepth: float, splineWidth: float) -> int:
+    if splineWidth <= 0:
+        return 100
+    outerCircumference = 2 * math.pi * (socketDiameter / 2 + splineDepth)
+    return max(3, int(outerCircumference / (2 * splineWidth)))
 BASEPLATE_HAS_CONNECTION_HOLE_INPUT = 'has_connection_hole'
 BASEPLATE_CONNECTION_HOLE_DIAMETER_INPUT = 'connection_hole_diameter'
 
@@ -236,14 +245,27 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     
     generateSplinedHolesCheckboxInput = magnetCutoutGroup.children.addBoolValueInput(BASEPLATE_MAGNET_SPLINED_HOLES_INPUT_ID, 'Add splined indentation to magnet sockets', True, '', uiState.getState(BASEPLATE_MAGNET_SPLINED_HOLES_INPUT_ID))
     uiState.registerCommandInput(generateSplinedHolesCheckboxInput)
-    magnetSplinedHolesCountInput = magnetCutoutGroup.children.addIntegerSpinnerCommandInput(BASEPLATE_MAGNET_SPLINED_HOLES_COUNT_INPUT_ID, 'Spline count', 3, 20, 1, uiState.getState(BASEPLATE_MAGNET_SPLINED_HOLES_COUNT_INPUT_ID))
+    maximumSplinedHolesCount = getMaximumSplinedHolesCount(
+        uiState.getState(BASEPLATE_MAGNET_DIAMETER_INPUT),
+        uiState.getState(BASEPLATE_MAGNET_SPLINED_HOLES_DEPTH_INPUT_ID),
+        uiState.getState(BASEPLATE_MAGNET_SPLINED_HOLES_WIDTH_INPUT_ID),
+    )
+    splinedHolesCount = min(max(3, int(uiState.getState(BASEPLATE_MAGNET_SPLINED_HOLES_COUNT_INPUT_ID))), maximumSplinedHolesCount)
+    uiState.initValue(BASEPLATE_MAGNET_SPLINED_HOLES_COUNT_INPUT_ID, splinedHolesCount, adsk.core.IntegerSpinnerCommandInput.classType())
+    magnetSplinedHolesCountInput = magnetCutoutGroup.children.addIntegerSpinnerCommandInput(BASEPLATE_MAGNET_SPLINED_HOLES_COUNT_INPUT_ID, 'Spline count', 3, maximumSplinedHolesCount, 1, splinedHolesCount)
     uiState.registerCommandInput(magnetSplinedHolesCountInput)
     magnetSplinedHolesDepthInput = magnetCutoutGroup.children.addValueInput(BASEPLATE_MAGNET_SPLINED_HOLES_DEPTH_INPUT_ID, 'Spline depth', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BASEPLATE_MAGNET_SPLINED_HOLES_DEPTH_INPUT_ID)))
     magnetSplinedHolesDepthInput.minimumValue = 0.01
     magnetSplinedHolesDepthInput.isMinimumInclusive = True
     uiState.registerCommandInput(magnetSplinedHolesDepthInput)
+    magnetSplinedHolesWidthInput = magnetCutoutGroup.children.addValueInput(BASEPLATE_MAGNET_SPLINED_HOLES_WIDTH_INPUT_ID, 'Spline tooth width', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BASEPLATE_MAGNET_SPLINED_HOLES_WIDTH_INPUT_ID)))
+    magnetSplinedHolesWidthInput.minimumValue = 0.001
+    magnetSplinedHolesWidthInput.isMinimumInclusive = True
+    uiState.registerCommandInput(magnetSplinedHolesWidthInput)
+    magnetSplinedHolesChamferLengthInput = magnetCutoutGroup.children.addValueInput(BASEPLATE_MAGNET_SPLINED_HOLES_CHAMFER_LENGTH_INPUT_ID, 'Spline tooth chamfer length', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BASEPLATE_MAGNET_SPLINED_HOLES_CHAMFER_LENGTH_INPUT_ID)))
+    uiState.registerCommandInput(magnetSplinedHolesChamferLengthInput)
     # Disable spline inputs if magnet sockets are disabled
-    for input in [generateSplinedHolesCheckboxInput, magnetSplinedHolesCountInput, magnetSplinedHolesDepthInput]:
+    for input in [generateSplinedHolesCheckboxInput, magnetSplinedHolesCountInput, magnetSplinedHolesDepthInput, magnetSplinedHolesWidthInput, magnetSplinedHolesChamferLengthInput]:
         input.isEnabled = uiState.getState(BASEPLATE_WITH_MAGNETS_INPUT)
 
     screwHoleGroup = plateFeaturesGroup.children.addGroupCommandInput(SCREW_HOLE_GROUP, 'Screw holes')
@@ -462,6 +484,8 @@ def generateBaseplate(args: adsk.core.CommandEventArgs):
         baseplateGeneratorInput.hasMagnetSplinedHoles = inputsState.hasMagnetSplinedHoles
         baseplateGeneratorInput.magnetSplinedHolesCount = inputsState.magnetSplinedHolesCount
         baseplateGeneratorInput.magnetSplinedHolesDepth = inputsState.magnetSplinedHolesDepth
+        baseplateGeneratorInput.magnetSplinedHolesWidth = inputsState.magnetSplinedHolesWidth
+        baseplateGeneratorInput.magnetSplinedHolesChamferLength = inputsState.magnetSplinedHolesChamferLength
         baseplateGeneratorInput.hasScrewHoles = inputsState.hasScrewHoles
         baseplateGeneratorInput.screwHolesDiameter = inputsState.screwHoleSize
         baseplateGeneratorInput.screwHeadCutoutDiameter = inputsState.screwHeadSize
@@ -520,6 +544,8 @@ def initUiState():
     uiState.initValue(BASEPLATE_MAGNET_SPLINED_HOLES_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
     uiState.initValue(BASEPLATE_MAGNET_SPLINED_HOLES_COUNT_INPUT_ID, 6, adsk.core.IntegerSpinnerCommandInput.classType())
     uiState.initValue(BASEPLATE_MAGNET_SPLINED_HOLES_DEPTH_INPUT_ID, 0.05, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_MAGNET_SPLINED_HOLES_WIDTH_INPUT_ID, 0.02, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_MAGNET_SPLINED_HOLES_CHAMFER_LENGTH_INPUT_ID, 0, adsk.core.ValueCommandInput.classType())
     uiState.initValue(BASEPLATE_WITH_SCREWS_INPUT, True, adsk.core.BoolValueCommandInput.classType())
 
     uiState.initValue(BASEPLATE_WITH_SIDE_PADDING_INPUT, False, adsk.core.BoolValueCommandInput.classType())
@@ -574,6 +600,8 @@ def getInputsState():
         uiState.getState(BASEPLATE_MAGNET_SPLINED_HOLES_INPUT_ID),
         uiState.getState(BASEPLATE_MAGNET_SPLINED_HOLES_COUNT_INPUT_ID),
         uiState.getState(BASEPLATE_MAGNET_SPLINED_HOLES_DEPTH_INPUT_ID),
+        uiState.getState(BASEPLATE_MAGNET_SPLINED_HOLES_WIDTH_INPUT_ID),
+        uiState.getState(BASEPLATE_MAGNET_SPLINED_HOLES_CHAMFER_LENGTH_INPUT_ID),
         uiState.getState(BASEPLATE_WITH_SCREWS_INPUT),
         uiState.getState(BASEPLATE_SCREW_DIAMETER_INPUT),
         uiState.getState(BASEPLATE_SCREW_HEIGHT_INPUT),

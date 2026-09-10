@@ -17,6 +17,8 @@ class InputState:
     hasMagnetSplinedHoles: bool
     magnetSplinedHolesCount: int
     magnetSplinedHolesDepth: float
+    magnetSplinedHolesWidth: float
+    magnetSplinedHolesChamferLength: float
 
     hasScrewHoles: bool
     screwHoleSize: float

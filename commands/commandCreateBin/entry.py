@@ -92,6 +92,9 @@ BIN_MAGNET_HEIGHT_INPUT = 'magnet_height'
 BIN_MAGNET_SPLINED_HOLES_INPUT_ID = 'bin_magnet_splined_holes'
 BIN_MAGNET_SPLINED_HOLES_COUNT_INPUT_ID = 'bin_magnet_splined_holes_count'
 BIN_MAGNET_SPLINED_HOLES_DEPTH_INPUT_ID = 'bin_magnet_splined_holes_depth'
+BIN_MAGNET_SPLINED_HOLES_WIDTH_INPUT_ID = 'bin_magnet_splined_holes_width'
+BIN_MAGNET_SPLINED_HOLES_CHAMFER_LENGTH_INPUT_ID = 'bin_magnet_splined_holes_chamfer_length'
+BIN_MAGNET_SPLINED_HOLES_GROUP_ID = 'bin_magnet_splined_holes_group'
 BIN_HAS_SCOOP_INPUT_ID = 'bin_has_scoop'
 BIN_SCOOP_MAX_RADIUS_INPUT_ID = 'bin_scoop_max_radius'
 BIN_HAS_TAB_INPUT_ID = 'bin_has_tab'
@@ -135,6 +138,12 @@ INFO_TEXT = ("<b>Help:</b> Info for inputs can be found "
              "<a href=\"https://github.com/Le0Michine/FusionGridfinityGenerator/wiki/Bin-generator-options\">"
              "Here on our GitHub</a>.")
 
+def getMaximumSplinedHolesCount(socketDiameter: float, splineDepth: float, splineWidth: float) -> int:
+    if splineWidth <= 0:
+        return 100
+    outerCircumference = 2 * math.pi * (socketDiameter / 2 + splineDepth)
+    return max(3, int(outerCircumference / (2 * splineWidth)))
+
 def refreshUi():
     global commandUIState
     commandUIState.forceUIRefresh()
@@ -151,7 +160,7 @@ def initDefaultUiState():
     commandUIState.initValue(BIN_BASIC_SIZES_GROUP, True, adsk.core.GroupCommandInput.classType())
     commandUIState.initValue(BIN_DIMENSIONS_GROUP, True, adsk.core.GroupCommandInput.classType())
     commandUIState.initValue(BIN_FEATURES_GROUP, True, adsk.core.GroupCommandInput.classType())
-    commandUIState.initValue(BIN_COMPARTMENTS_GROUP_ID, True, adsk.core.GroupCommandInput.classType())
+    commandUIState.initValue(BIN_COMPARTMENTS_GROUP_ID, False, adsk.core.GroupCommandInput.classType())
     commandUIState.initValue(BIN_SCOOP_GROUP_ID, True, adsk.core.GroupCommandInput.classType())
     commandUIState.initValue(BIN_TAB_FEATURES_GROUP_ID, True, adsk.core.GroupCommandInput.classType())
     commandUIState.initValue(BIN_BASE_FEATURES_GROUP_ID, True, adsk.core.GroupCommandInput.classType())
@@ -196,6 +205,9 @@ def initDefaultUiState():
     commandUIState.initValue(BIN_MAGNET_SPLINED_HOLES_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
     commandUIState.initValue(BIN_MAGNET_SPLINED_HOLES_COUNT_INPUT_ID, 6, adsk.core.IntegerSpinnerCommandInput.classType())
     commandUIState.initValue(BIN_MAGNET_SPLINED_HOLES_DEPTH_INPUT_ID, 0.05, adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_MAGNET_SPLINED_HOLES_WIDTH_INPUT_ID, 0.02, adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_MAGNET_SPLINED_HOLES_CHAMFER_LENGTH_INPUT_ID, 0, adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_MAGNET_SPLINED_HOLES_GROUP_ID, True, adsk.core.GroupCommandInput.classType())
 
     commandCompartmentsTableUIState = []
     recordedDefaults = configUtils.readJsonConfig(UI_INPUT_DEFAULTS_CONFIG_PATH)
@@ -662,14 +674,30 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     
     generateSplinedHolesCheckboxInput = baseFeaturesGroup.children.addBoolValueInput(BIN_MAGNET_SPLINED_HOLES_INPUT_ID, 'Add splined indentation to magnet sockets', True, '', commandUIState.getState(BIN_MAGNET_SPLINED_HOLES_INPUT_ID))
     commandUIState.registerCommandInput(generateSplinedHolesCheckboxInput)
-    magnetSplinedHolesCountInput = baseFeaturesGroup.children.addIntegerSpinnerCommandInput(BIN_MAGNET_SPLINED_HOLES_COUNT_INPUT_ID, 'Spline count', 3, 20, 1, commandUIState.getState(BIN_MAGNET_SPLINED_HOLES_COUNT_INPUT_ID))
+    maximumSplinedHolesCount = getMaximumSplinedHolesCount(
+        commandUIState.getState(BIN_MAGNET_DIAMETER_INPUT),
+        commandUIState.getState(BIN_MAGNET_SPLINED_HOLES_DEPTH_INPUT_ID),
+        commandUIState.getState(BIN_MAGNET_SPLINED_HOLES_WIDTH_INPUT_ID),
+    )
+    splinedHolesCount = min(max(3, int(commandUIState.getState(BIN_MAGNET_SPLINED_HOLES_COUNT_INPUT_ID))), maximumSplinedHolesCount)
+    commandUIState.initValue(BIN_MAGNET_SPLINED_HOLES_COUNT_INPUT_ID, splinedHolesCount, adsk.core.IntegerSpinnerCommandInput.classType())
+    splinedHolesGroup = baseFeaturesGroup.children.addGroupCommandInput(BIN_MAGNET_SPLINED_HOLES_GROUP_ID, 'Splined magnet options')
+    splinedHolesGroup.isExpanded = commandUIState.getState(BIN_MAGNET_SPLINED_HOLES_GROUP_ID)
+    commandUIState.registerCommandInput(splinedHolesGroup)
+    magnetSplinedHolesCountInput = splinedHolesGroup.children.addIntegerSpinnerCommandInput(BIN_MAGNET_SPLINED_HOLES_COUNT_INPUT_ID, 'Count', 3, maximumSplinedHolesCount, 1, splinedHolesCount)
     commandUIState.registerCommandInput(magnetSplinedHolesCountInput)
-    magnetSplinedHolesDepthInput = baseFeaturesGroup.children.addValueInput(BIN_MAGNET_SPLINED_HOLES_DEPTH_INPUT_ID, 'Spline depth', defaultLengthUnits, adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_MAGNET_SPLINED_HOLES_DEPTH_INPUT_ID)))
+    magnetSplinedHolesDepthInput = splinedHolesGroup.children.addValueInput(BIN_MAGNET_SPLINED_HOLES_DEPTH_INPUT_ID, 'Depth', defaultLengthUnits, adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_MAGNET_SPLINED_HOLES_DEPTH_INPUT_ID)))
     magnetSplinedHolesDepthInput.minimumValue = 0.01
     magnetSplinedHolesDepthInput.isMinimumInclusive = True
     commandUIState.registerCommandInput(magnetSplinedHolesDepthInput)
+    magnetSplinedHolesWidthInput = splinedHolesGroup.children.addValueInput(BIN_MAGNET_SPLINED_HOLES_WIDTH_INPUT_ID, 'Width', defaultLengthUnits, adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_MAGNET_SPLINED_HOLES_WIDTH_INPUT_ID)))
+    magnetSplinedHolesWidthInput.minimumValue = 0.001
+    magnetSplinedHolesWidthInput.isMinimumInclusive = True
+    commandUIState.registerCommandInput(magnetSplinedHolesWidthInput)
+    magnetSplinedHolesChamferLengthInput = splinedHolesGroup.children.addValueInput(BIN_MAGNET_SPLINED_HOLES_CHAMFER_LENGTH_INPUT_ID, 'Chamfer', defaultLengthUnits, adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_MAGNET_SPLINED_HOLES_CHAMFER_LENGTH_INPUT_ID)))
+    commandUIState.registerCommandInput(magnetSplinedHolesChamferLengthInput)
     # Disable spline inputs if magnet sockets are disabled
-    for input in [generateSplinedHolesCheckboxInput, magnetSplinedHolesCountInput, magnetSplinedHolesDepthInput]:
+    for input in [generateSplinedHolesCheckboxInput, magnetSplinedHolesCountInput, magnetSplinedHolesDepthInput, magnetSplinedHolesWidthInput, magnetSplinedHolesChamferLengthInput]:
         input.isEnabled = commandUIState.getState(BIN_MAGNET_CUTOUTS_INPUT_ID)
 
     userChangesGroup = inputs.addGroupCommandInput(USER_CHANGES_GROUP_ID, 'Changes')
@@ -827,6 +855,7 @@ def onChangeValidate():
     commandUIState.getInput(BIN_MAGNET_DIAMETER_INPUT).isEnabled = generateBase
     commandUIState.getInput(BIN_MAGNET_HEIGHT_INPUT).isEnabled = generateBase
     commandUIState.getInput(BIN_SCREW_DIAMETER_INPUT).isEnabled = generateBase
+    commandUIState.getInput(BIN_MAGNET_SPLINED_HOLES_GROUP_ID).isEnabled = generateBase and commandUIState.getState(BIN_MAGNET_CUTOUTS_INPUT_ID) and commandUIState.getState(BIN_MAGNET_SPLINED_HOLES_INPUT_ID)
 
     generateBody: bool = commandUIState.getState(BIN_GENERATE_BODY_INPUT_ID)
     binType: str = commandUIState.getState(BIN_TYPE_DROPDOWN_ID)
@@ -889,6 +918,8 @@ def generateBin(args: adsk.core.CommandEventArgs):
     bin_magnet_splined_holes: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_MAGNET_SPLINED_HOLES_INPUT_ID)
     bin_magnet_splined_holes_count: adsk.core.IntegerSpinnerCommandInput = inputs.itemById(BIN_MAGNET_SPLINED_HOLES_COUNT_INPUT_ID)
     bin_magnet_splined_holes_depth: adsk.core.ValueCommandInput = inputs.itemById(BIN_MAGNET_SPLINED_HOLES_DEPTH_INPUT_ID)
+    bin_magnet_splined_holes_width: adsk.core.ValueCommandInput = inputs.itemById(BIN_MAGNET_SPLINED_HOLES_WIDTH_INPUT_ID)
+    bin_magnet_splined_holes_chamfer_length: adsk.core.ValueCommandInput = inputs.itemById(BIN_MAGNET_SPLINED_HOLES_CHAMFER_LENGTH_INPUT_ID)
     with_lip: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_WITH_LIP_INPUT_ID)
     with_lip_notches: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_WITH_LIP_NOTCHES_INPUT_ID)
     has_scoop: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_SCOOP_INPUT_ID)
@@ -947,6 +978,8 @@ def generateBin(args: adsk.core.CommandEventArgs):
         baseGeneratorInput.hasMagnetSplinedHoles = bin_magnet_splined_holes.value and not isShelled
         baseGeneratorInput.magnetSplinedHolesCount = bin_magnet_splined_holes_count.value
         baseGeneratorInput.magnetSplinedHolesDepth = bin_magnet_splined_holes_depth.value
+        baseGeneratorInput.magnetSplinedHolesWidth = bin_magnet_splined_holes_width.value
+        baseGeneratorInput.magnetSplinedHolesChamferLength = bin_magnet_splined_holes_chamfer_length.value
 
         baseBodies: list[adsk.fusion.BRepBody]
         if bin_generate_base.value:

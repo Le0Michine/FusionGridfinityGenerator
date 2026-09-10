@@ -13,6 +13,8 @@ class BaseplateGeneratorInput():
         self.hasMagnetSplinedHoles = False
         self.magnetSplinedHolesCount = 6
         self.magnetSplinedHolesDepth = 0.05
+        self.magnetSplinedHolesWidth = 0.02
+        self.magnetSplinedHolesChamferLength = 0
         self.hasSkeletonizedBottom = True
         self.bottomExtensionHeight = const.BASEPLATE_EXTRA_HEIGHT
         self.xyClearance = const.BIN_XY_CLEARANCE
@@ -227,3 +229,19 @@ class BaseplateGeneratorInput():
     @magnetSplinedHolesDepth.setter
     def magnetSplinedHolesDepth(self, value: float):
         self._magnetSplinedHolesDepth = value
+
+    @property
+    def magnetSplinedHolesWidth(self) -> float:
+        return self._magnetSplinedHolesWidth
+
+    @magnetSplinedHolesWidth.setter
+    def magnetSplinedHolesWidth(self, value: float):
+        self._magnetSplinedHolesWidth = value
+
+    @property
+    def magnetSplinedHolesChamferLength(self) -> float:
+        return self._magnetSplinedHolesChamferLength
+
+    @magnetSplinedHolesChamferLength.setter
+    def magnetSplinedHolesChamferLength(self, value: float):
+        self._magnetSplinedHolesChamferLength = value
