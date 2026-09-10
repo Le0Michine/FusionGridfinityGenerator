@@ -17,6 +17,7 @@ Bin options | Baseplate options
 - there are options to generate thick plate with magnet or/and screw holes
 - thick plate can be skeletonized to reduce weight, it also allows room for connection holes which can be customized to fit certain screw size or glue in pin
 - size of magnet sockets and screw holes can be adjusted
+- magnet sockets on extended baseplates can include configurable splined indentations for a tighter press fit
 
 #### Baseplate types
 Light | Skeleton with connection holes | Full
@@ -33,6 +34,7 @@ Light | Skeleton with connection holes | Full
 - lip can have notches preventing bins from sliding when stacked
 - wall thickness can be adjusted
 - magnet sockets can be customized to allow snug fit of the magnets, or a different size
+- magnet sockets can include configurable splined indentations for a tighter press fit
 - screw holes diameter can be adjusted
 - when magnet and screw holes are enabled together, a groove will be generated to help with printability
 - bin can be shelled with constant wall thickness to save printing time and filament
@@ -47,6 +49,17 @@ Solid bottom | With screw holes | With magnet cutouts | Combined
 ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-solid-bottom.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-screw-holes.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-magnet-cutouts.png)  | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-magnet-cutouts-and-screw-holes-with-groove.png)
 
 #### Bin half base size
+
+#### Splined magnet socket configuration
+
+Enable **Add splined indentation to magnet sockets** to replace each circular magnet socket with a single splined socket profile. Splines work alongside magnet socket tabs and are patterned with the existing magnet-cutout tools.
+
+- **Spline count**: Number of evenly spaced rounded indentations around the socket.
+- **Spline depth**: Radial depth of each indentation. The socket's fixed outer diameter is the magnet cutout diameter plus twice this value.
+- **Spline tooth width**: Width of each rounded indentation at its inward cap.
+- **Chamfer**: Optional 45-degree circular lead-in at the socket opening. Set this to `0 mm` to leave the socket entrance unchamfered; values greater than the spline depth are limited to the spline depth.
+
+Splined sockets are available for bins with a generated, non-shelled base and for extended baseplates. Light baseplates do not include magnet cutouts.
 
 Half base (21x21mm) |
 :---:

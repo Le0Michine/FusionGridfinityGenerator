@@ -54,6 +54,7 @@ def createChamfer(
     edges: adsk.core.ObjectCollection,
     distance: float,
     targetComponent: adsk.fusion.Component,
+    isTangentChain: bool = True,
 ):
     features: adsk.fusion.Features = targetComponent.features
     chamferFeatures: adsk.fusion.ChamferFeatures = features.chamferFeatures
@@ -61,5 +62,5 @@ def createChamfer(
     chamferInput.chamferEdgeSets.addEqualDistanceChamferEdgeSet(
         edges,
         adsk.core.ValueInput.createByReal(distance),
-        True)
+        isTangentChain)
     return chamferFeatures.add(chamferInput)

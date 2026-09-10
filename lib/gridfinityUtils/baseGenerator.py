@@ -109,6 +109,236 @@ def createTabAtCircleEdgeSketch(
 
     return circleSketch
 
+def createSplinedMagnetSketch(
+    plane: adsk.core.Base,
+    socketDiameter: float,
+    splineCount: int,
+    splineDepth: float,
+    splineWidth: float,
+    circleCenterPoint: adsk.core.Point3D,
+    targetComponent: adsk.fusion.Component,
+):
+    """
+    Creates one closed outer perimeter with rounded inward spline notches.
+
+    This follows the manual sketch workflow: begin at the outer socket circle,
+    replace a section at each spline position with a radial U-shaped notch,
+    and retain the remaining circle segments as the outer boundary.
+    """
+    sketches: adsk.fusion.Sketches = targetComponent.sketches
+    splinedSketch: adsk.fusion.Sketch = sketches.add(plane)
+    splinedSketch.name = "Splined magnet socket sketch"
+    circleCenterOnSketch = splinedSketch.modelToSketchSpace(circleCenterPoint)
+    center = adsk.core.Point3D.create(circleCenterOnSketch.x, circleCenterOnSketch.y, 0)
+
+    if splineCount < 3 or splineDepth <= 0 or splineWidth <= 0:
+        raise ValueError("Spline count, depth, and width must be positive.")
+
+    outerRadius = socketDiameter / 2 + splineDepth
+    splineRadius = min(splineWidth / 2, outerRadius * math.sin(math.pi / splineCount) * 0.7)
+    outerTransitionRadius = min(splineRadius, splineDepth / 2)
+    shoulderCenterRadicand = (
+        (outerRadius - outerTransitionRadius) ** 2
+        - (splineRadius + outerTransitionRadius) ** 2
+    )
+    if shoulderCenterRadicand <= 0:
+        raise ValueError("Spline depth or width is too large for the magnet socket diameter.")
+    splineStep = (2 * math.pi) / splineCount
+    arcs = splinedSketch.sketchCurves.sketchArcs
+    lines = splinedSketch.sketchCurves.sketchLines
+    constraints = splinedSketch.geometricConstraints
+    shoulderCenterX = math.sqrt(shoulderCenterRadicand)
+    notchCapCenterX = outerRadius - splineDepth + splineRadius
+
+    def localPoint(angle: float, radialDistance: float, tangentDistance: float):
+        radial = adsk.core.Vector3D.create(math.cos(angle), math.sin(angle), 0)
+        tangent = adsk.core.Vector3D.create(-math.sin(angle), math.cos(angle), 0)
+        return adsk.core.Point3D.create(
+            center.x + radial.x * radialDistance + tangent.x * tangentDistance,
+            center.y + radial.y * radialDistance + tangent.y * tangentDistance,
+            0,
+        )
+
+    upperShoulders = []
+    lowerShoulders = []
+
+    for splineIndex in range(splineCount):
+        splineAngle = splineIndex * splineStep
+        shoulderCenterY = splineRadius + outerTransitionRadius
+        shoulderOuterX = shoulderCenterX * outerRadius / (outerRadius - outerTransitionRadius)
+        shoulderOuterY = shoulderCenterY * outerRadius / (outerRadius - outerTransitionRadius)
+        shoulderOuterAngle = math.atan2(shoulderOuterY, shoulderOuterX)
+        shoulderOuterVector = (shoulderOuterX - shoulderCenterX, shoulderOuterY - shoulderCenterY)
+        shoulderLegVector = (0, splineRadius - shoulderCenterY)
+        shoulderMidpointVector = (
+            shoulderOuterVector[0] + shoulderLegVector[0],
+            shoulderOuterVector[1] + shoulderLegVector[1],
+        )
+        shoulderMidpointLength = math.hypot(shoulderMidpointVector[0], shoulderMidpointVector[1])
+        shoulderMidX = shoulderCenterX + outerTransitionRadius * shoulderMidpointVector[0] / shoulderMidpointLength
+        shoulderMidY = shoulderCenterY + outerTransitionRadius * shoulderMidpointVector[1] / shoulderMidpointLength
+
+        # The counter-clockwise shoulder is an exact reflection of this one.
+        upperOuter = localPoint(splineAngle, shoulderOuterX, shoulderOuterY)
+        upperLeg = localPoint(splineAngle, shoulderCenterX, splineRadius)
+        upperMid = localPoint(splineAngle, shoulderMidX, shoulderMidY)
+        lowerOuter = localPoint(splineAngle, shoulderOuterX, -shoulderOuterY)
+        lowerLeg = localPoint(splineAngle, shoulderCenterX, -splineRadius)
+        lowerMid = localPoint(splineAngle, shoulderMidX, -shoulderMidY)
+        upperOuterAngle = shoulderOuterAngle
+        lowerOuterAngle = -shoulderOuterAngle
+
+        upperSweep = shoulderOuterAngle + math.pi / 2
+        upperShoulder = arcs.addByCenterStartSweep(
+            localPoint(splineAngle, shoulderCenterX, shoulderCenterY),
+            upperLeg,
+            upperSweep,
+        )
+        upperLegLine = lines.addByTwoPoints(upperShoulder.startSketchPoint, localPoint(splineAngle, notchCapCenterX, splineRadius))
+        notchArc = arcs.addByThreePoints(
+            upperLegLine.endSketchPoint,
+            localPoint(splineAngle, notchCapCenterX - splineRadius, 0),
+            localPoint(splineAngle, notchCapCenterX, -splineRadius),
+        )
+        lowerLegLine = lines.addByTwoPoints(notchArc.endSketchPoint, lowerLeg)
+        lowerSweep = math.pi / 2 + shoulderOuterAngle
+        lowerShoulder = arcs.addByCenterStartSweep(
+            localPoint(splineAngle, shoulderCenterX, -shoulderCenterY),
+            lowerOuter,
+            lowerSweep,
+        )
+        constraints.addCoincident(lowerLegLine.endSketchPoint, lowerShoulder.endSketchPoint)
+        upperShoulders.append(upperShoulder)
+        lowerShoulders.append(lowerShoulder)
+
+    outerSweep = splineStep + 2 * shoulderOuterAngle
+    for splineIndex in range(splineCount):
+        outerArc = arcs.addByCenterStartSweep(
+            center,
+            lowerShoulders[splineIndex].startSketchPoint,
+            outerSweep,
+        )
+        constraints.addCoincident(
+            outerArc.endSketchPoint,
+            upperShoulders[(splineIndex + 1) % splineCount].endSketchPoint,
+        )
+
+    return splinedSketch
+
+def getSplinedMagnetSocketProfile(
+    splinedSketch: adsk.fusion.Sketch,
+    circleCenterPoint: adsk.core.Point3D,
+):
+    center = splinedSketch.modelToSketchSpace(circleCenterPoint)
+    profilesAtCenter = []
+
+    for profile in splinedSketch.profiles:
+        bounds = profile.boundingBox
+        if (
+            profile.profileLoops.count == 1
+            and profile.profileLoops.item(0).isOuter
+            and bounds.minPoint.x <= center.x <= bounds.maxPoint.x
+            and bounds.minPoint.y <= center.y <= bounds.maxPoint.y
+        ):
+            profilesAtCenter.append(profile)
+
+    if not profilesAtCenter:
+        raise RuntimeError("Could not find the splined magnet socket profile.")
+
+    return max(
+        profilesAtCenter,
+        key=lambda profile: (
+            (profile.boundingBox.maxPoint.x - profile.boundingBox.minPoint.x)
+            * (profile.boundingBox.maxPoint.y - profile.boundingBox.minPoint.y)
+        ),
+    )
+
+def createSplinedMagnetChamferTool(
+    magnetSocketBody: adsk.fusion.BRepBody,
+    socketDiameter: float,
+    splineDepth: float,
+    chamferLength: float,
+    splineAngle: float,
+    extentDirection: adsk.fusion.ExtentDirections,
+    targetComponent: adsk.fusion.Component,
+):
+    if chamferLength <= 0:
+        return
+
+    outerPerimeterBounds = magnetSocketBody.boundingBox
+    center = adsk.core.Point3D.create(
+        (outerPerimeterBounds.minPoint.x + outerPerimeterBounds.maxPoint.x) / 2,
+        (outerPerimeterBounds.minPoint.y + outerPerimeterBounds.maxPoint.y) / 2,
+        outerPerimeterBounds.minPoint.z
+        if extentDirection == adsk.fusion.ExtentDirections.NegativeExtentDirection
+        else outerPerimeterBounds.maxPoint.z,
+    )
+    cutDirection = 1 if extentDirection == adsk.fusion.ExtentDirections.NegativeExtentDirection else -1
+    socketRadius = socketDiameter / 2
+    chamferLength = min(chamferLength, splineDepth)
+    radialVector = adsk.core.Vector3D.create(math.cos(splineAngle), math.sin(splineAngle), 0)
+    radialOverlap = min(chamferLength * 0.001, 0.00001)
+    radialPoint = adsk.core.Point3D.create(
+        center.x + radialVector.x * (socketRadius - radialOverlap),
+        center.y + radialVector.y * (socketRadius - radialOverlap),
+        center.z,
+    )
+    chamferOuterPoint = adsk.core.Point3D.create(
+        center.x + radialVector.x * (socketRadius + chamferLength),
+        center.y + radialVector.y * (socketRadius + chamferLength),
+        center.z,
+    )
+    chamferDepthPoint = adsk.core.Point3D.create(
+        radialPoint.x,
+        radialPoint.y,
+        radialPoint.z + cutDirection * chamferLength,
+    )
+
+    chamferPlaneInput = targetComponent.constructionPlanes.createInput()
+    if abs(math.cos(splineAngle)) >= abs(math.sin(splineAngle)):
+        chamferPlaneInput.setByOffset(
+            targetComponent.xZConstructionPlane,
+            adsk.core.ValueInput.createByReal(center.y),
+        )
+    else:
+        chamferPlaneInput.setByOffset(
+            targetComponent.yZConstructionPlane,
+            adsk.core.ValueInput.createByReal(center.x),
+        )
+    chamferPlane = targetComponent.constructionPlanes.add(chamferPlaneInput)
+    chamferPlane.name = "Spline tooth chamfer plane"
+    chamferPlane.isLightBulbOn = False
+
+    chamferSketch = targetComponent.sketches.add(chamferPlane)
+    chamferSketch.name = "Spline tooth chamfer profile"
+    chamferPoints = [
+        chamferSketch.modelToSketchSpace(point)
+        for point in [radialPoint, chamferOuterPoint, chamferDepthPoint]
+    ]
+    chamferLines = chamferSketch.sketchCurves.sketchLines
+    chamferLines.addByTwoPoints(chamferPoints[0], chamferPoints[1])
+    chamferLines.addByTwoPoints(chamferPoints[1], chamferPoints[2])
+    chamferLines.addByTwoPoints(chamferPoints[2], chamferPoints[0])
+
+    axisLine = chamferLines.addByTwoPoints(
+        chamferSketch.modelToSketchSpace(center),
+        chamferSketch.modelToSketchSpace(
+            adsk.core.Point3D.create(center.x, center.y, center.z + 1),
+        ),
+    )
+    axisLine.isConstruction = True
+
+    revolutions = targetComponent.features.revolveFeatures
+    revolutionInput = revolutions.createInput(
+        chamferSketch.profiles.item(chamferSketch.profiles.count - 1),
+        axisLine,
+        adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
+    )
+    revolutionInput.setAngleExtent(False, adsk.core.ValueInput.createByString("360 deg"))
+    revolution = revolutions.add(revolutionInput)
+    revolution.name = "Spline tooth chamfer blank"
+    return revolution.bodies.item(0)
+
 def createSingleGridfinityBaseBody(
     input: BaseGeneratorInput,
     targetComponent: adsk.fusion.Component,
@@ -203,15 +433,52 @@ def createSingleGridfinityBaseBody(
 
     # magnet cutouts
     if input.hasMagnetCutouts:
-        magnetSocketBody = shapeUtils.simpleCylinder(
-            baseBottomPlane,
-            0,
-            -input.magnetCutoutsDepth,
-            input.magnetCutoutsDiameter / 2,
-            cutoutCenterPoint,
-            targetComponent,
-        )
-        cutoutBodies.add(magnetSocketBody)
+        # Create magnet socket with integrated splines (if enabled) or simple cylinder
+        if input.hasMagnetSplinedHoles:
+            splinedSketch = createSplinedMagnetSketch(
+                baseBottomPlane,
+                input.magnetCutoutsDiameter,
+                input.magnetSplinedHolesCount,
+                input.magnetSplinedHolesDepth,
+                input.magnetSplinedHolesWidth,
+                cutoutCenterPoint,
+                targetComponent,
+            )
+            magnetSocketExtrude = extrudeUtils.simpleDistanceExtrude(
+                getSplinedMagnetSocketProfile(splinedSketch, cutoutCenterPoint),
+                adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
+                input.magnetCutoutsDepth,
+                adsk.fusion.ExtentDirections.NegativeExtentDirection,
+                [],
+                targetComponent,
+            )
+            splineChamferBody = createSplinedMagnetChamferTool(
+                magnetSocketExtrude.bodies.item(0),
+                input.magnetCutoutsDiameter,
+                input.magnetSplinedHolesDepth,
+                input.magnetSplinedHolesChamferLength,
+                0,
+                adsk.fusion.ExtentDirections.NegativeExtentDirection,
+                targetComponent,
+            )
+            if splineChamferBody:
+                combineUtils.joinBodies(
+                    magnetSocketExtrude.bodies.item(0),
+                    commonUtils.objectCollectionFromList([splineChamferBody]),
+                    targetComponent,
+                )
+            cutoutBodies.add(magnetSocketExtrude.bodies.item(0))
+        else:
+            # Create simple circular magnet socket
+            magnetSocketBody = shapeUtils.simpleCylinder(
+                baseBottomPlane,
+                0,
+                -input.magnetCutoutsDepth,
+                input.magnetCutoutsDiameter / 2,
+                cutoutCenterPoint,
+                targetComponent,
+            )
+            cutoutBodies.add(magnetSocketBody)
 
         # magnet tab cutouts
         if input.hasMagnetCutoutsTabs:

@@ -125,15 +125,52 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
     holeCuttingBodies: list[adsk.fusion.BRepBody] = []
     
     if input.hasExtendedBottom and input.hasMagnetCutouts:
-        magnetSocketBody = shapeUtils.simpleCylinder(
-            faceUtils.getBottomFace(baseBody),
-            0,
-            input.magnetCutoutsDepth,
-            input.magnetCutoutsDiameter / 2,
-            holeCenterPoint,
-            targetComponent,
-        )
-        holeCuttingBodies.append(magnetSocketBody)
+        # Create magnet socket with integrated splines (if enabled) or simple cylinder
+        if input.hasMagnetSplinedHoles:
+            splinedSketch = baseGenerator.createSplinedMagnetSketch(
+                faceUtils.getBottomFace(baseBody),
+                input.magnetCutoutsDiameter,
+                input.magnetSplinedHolesCount,
+                input.magnetSplinedHolesDepth,
+                input.magnetSplinedHolesWidth,
+                holeCenterPoint,
+                targetComponent,
+            )
+            magnetSocketExtrude = extrudeUtils.simpleDistanceExtrude(
+                baseGenerator.getSplinedMagnetSocketProfile(splinedSketch, holeCenterPoint),
+                adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
+                input.magnetCutoutsDepth,
+                adsk.fusion.ExtentDirections.PositiveExtentDirection,
+                [],
+                targetComponent,
+            )
+            splineChamferBody = baseGenerator.createSplinedMagnetChamferTool(
+                magnetSocketExtrude.bodies.item(0),
+                input.magnetCutoutsDiameter,
+                input.magnetSplinedHolesDepth,
+                input.magnetSplinedHolesChamferLength,
+                0,
+                adsk.fusion.ExtentDirections.PositiveExtentDirection,
+                targetComponent,
+            )
+            if splineChamferBody:
+                combineUtils.joinBodies(
+                    magnetSocketExtrude.bodies.item(0),
+                    commonUtils.objectCollectionFromList([splineChamferBody]),
+                    targetComponent,
+                )
+            holeCuttingBodies.append(magnetSocketExtrude.bodies.item(0))
+        else:
+            # Create simple circular magnet socket
+            magnetSocketBody = shapeUtils.simpleCylinder(
+                faceUtils.getBottomFace(baseBody),
+                0,
+                input.magnetCutoutsDepth,
+                input.magnetCutoutsDiameter / 2,
+                holeCenterPoint,
+                targetComponent,
+            )
+            holeCuttingBodies.append(magnetSocketBody)
     
     if input.hasExtendedBottom and input.hasScrewHoles:
         screwHoleBody = shapeUtils.simpleCylinder(

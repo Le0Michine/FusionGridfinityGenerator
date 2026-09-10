@@ -10,6 +10,11 @@ class BaseplateGeneratorInput():
         self.screwHeadCutoutDiameter = const.DIMENSION_SCREW_HEAD_CUTOUT_DIAMETER
         self.magnetCutoutsDiameter = const.DIMENSION_MAGNET_CUTOUT_DIAMETER
         self.magnetCutoutsDepth = const.DIMENSION_MAGNET_CUTOUT_DEPTH
+        self.hasMagnetSplinedHoles = False
+        self.magnetSplinedHolesCount = 6
+        self.magnetSplinedHolesDepth = 0.05
+        self.magnetSplinedHolesWidth = 0.02
+        self.magnetSplinedHolesChamferLength = 0
         self.hasSkeletonizedBottom = True
         self.bottomExtensionHeight = const.BASEPLATE_EXTRA_HEIGHT
         self.xyClearance = const.BIN_XY_CLEARANCE
@@ -200,3 +205,43 @@ class BaseplateGeneratorInput():
     @magnetCutoutsDepth.setter
     def magnetCutoutsDepth(self, value: float):
         self._magnetCutoutsDepth = value
+
+    @property
+    def hasMagnetSplinedHoles(self) -> bool:
+        return self._hasMagnetSplinedHoles
+
+    @hasMagnetSplinedHoles.setter
+    def hasMagnetSplinedHoles(self, value: bool):
+        self._hasMagnetSplinedHoles = value
+
+    @property
+    def magnetSplinedHolesCount(self) -> int:
+        return self._magnetSplinedHolesCount
+
+    @magnetSplinedHolesCount.setter
+    def magnetSplinedHolesCount(self, value: int):
+        self._magnetSplinedHolesCount = value
+
+    @property
+    def magnetSplinedHolesDepth(self) -> float:
+        return self._magnetSplinedHolesDepth
+
+    @magnetSplinedHolesDepth.setter
+    def magnetSplinedHolesDepth(self, value: float):
+        self._magnetSplinedHolesDepth = value
+
+    @property
+    def magnetSplinedHolesWidth(self) -> float:
+        return self._magnetSplinedHolesWidth
+
+    @magnetSplinedHolesWidth.setter
+    def magnetSplinedHolesWidth(self, value: float):
+        self._magnetSplinedHolesWidth = value
+
+    @property
+    def magnetSplinedHolesChamferLength(self) -> float:
+        return self._magnetSplinedHolesChamferLength
+
+    @magnetSplinedHolesChamferLength.setter
+    def magnetSplinedHolesChamferLength(self, value: float):
+        self._magnetSplinedHolesChamferLength = value
