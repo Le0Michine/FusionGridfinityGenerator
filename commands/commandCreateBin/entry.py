@@ -671,7 +671,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     magnetHeightInput.minimumValue = 0.1
     magnetHeightInput.isMinimumInclusive = True
     commandUIState.registerCommandInput(magnetHeightInput)
-    
+
     generateSplinedHolesCheckboxInput = baseFeaturesGroup.children.addBoolValueInput(BIN_MAGNET_SPLINED_HOLES_INPUT_ID, 'Add splined indentation to magnet sockets', True, '', commandUIState.getState(BIN_MAGNET_SPLINED_HOLES_INPUT_ID))
     commandUIState.registerCommandInput(generateSplinedHolesCheckboxInput)
     maximumSplinedHolesCount = getMaximumSplinedHolesCount(

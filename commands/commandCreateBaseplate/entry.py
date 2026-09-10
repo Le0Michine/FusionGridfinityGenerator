@@ -242,7 +242,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     uiState.registerCommandInput(magnetSocketDiameterInput)
     magnetSocketDepthInput = magnetCutoutGroup.children.addValueInput(BASEPLATE_MAGNET_HEIGHT_INPUT, 'Magnet cutout depth', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BASEPLATE_MAGNET_HEIGHT_INPUT)))
     uiState.registerCommandInput(magnetSocketDepthInput)
-    
+
     generateSplinedHolesCheckboxInput = magnetCutoutGroup.children.addBoolValueInput(BASEPLATE_MAGNET_SPLINED_HOLES_INPUT_ID, 'Add splined indentation to magnet sockets', True, '', uiState.getState(BASEPLATE_MAGNET_SPLINED_HOLES_INPUT_ID))
     uiState.registerCommandInput(generateSplinedHolesCheckboxInput)
     maximumSplinedHolesCount = getMaximumSplinedHolesCount(
