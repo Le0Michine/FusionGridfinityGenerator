@@ -119,12 +119,12 @@ def createSplinedMagnetSketch(
 ):
     """
     Creates a sketch with a closed profile for splined magnet socket cutout.
-    Single closed boundary: outer edge with integrated spline teeth pointing inward.
+    Single closed boundary: star-shaped polygon alternating between outer (teeth) and inner (valleys) radii.
     
     Geometry:
-    - Inner radius: socketDiameter / 2 (base socket)
-    - Outer radius: socketDiameter / 2 + splineDepth (where teeth point inward to)
-    - Single closed profile combining socket outline + integrated spline teeth
+    - Inner radius: socketDiameter / 2 (valleys between teeth)
+    - Outer radius: socketDiameter / 2 + splineDepth (tooth peaks)
+    - Creates 2*splineCount points in alternating pattern, connected as continuous polygon
     """
     sketches: adsk.fusion.Sketches = targetComponent.sketches
     splinedSketch: adsk.fusion.Sketch = sketches.add(plane)
@@ -134,111 +134,47 @@ def createSplinedMagnetSketch(
     center = adsk.core.Point3D.create(circleCenterOnSketch.x, circleCenterOnSketch.y, 0)
     
     # Socket dimensions
-    innerRadius = socketDiameter / 2  # Base of socket
-    outerRadius = socketDiameter / 2 + splineDepth  # Peak of teeth (pointing inward)
+    innerRadius = socketDiameter / 2  # Base of socket (valleys)
+    outerRadius = socketDiameter / 2 + splineDepth  # Tooth peaks
     
-    sketchArcs = splinedSketch.sketchCurves.sketchArcs
     sketchLines = splinedSketch.sketchCurves.sketchLines
     
+    # Angle between each tooth center
     angleStep = (2 * math.pi) / splineCount
-    # Tooth width - narrower for spline-like appearance
-    toothWidth = angleStep * 0.5  # 50% of angle step
+    # Tooth half-width (how wide each tooth is)
+    toothHalfWidth = angleStep * 0.35
     
-    # Build closed profile going all the way around
-    prevInnerEnd = None
-    firstOuterStart = None
+    # Build all vertices as continuous list: outer, inner, outer, inner, ...
+    # This creates a star pattern with clean edges
+    vertices = []
     
     for i in range(splineCount):
-        # Tooth positions
-        peakAngle1 = i * angleStep - toothWidth / 2  # Start of tooth
-        peakAngle2 = i * angleStep + toothWidth / 2  # End of tooth  
-        peakAngleMid = i * angleStep  # Middle of tooth (deepest point)
+        # Tooth center angle
+        toothCenterAngle = i * angleStep
         
-        # Outer edge: from start of tooth to end of tooth (along outer radius)
-        outerStart = adsk.core.Point3D.create(
-            center.x + outerRadius * math.cos(peakAngle1),
-            center.y + outerRadius * math.sin(peakAngle1),
+        # Tooth peak (outer radius)
+        peakAngle = toothCenterAngle
+        outerPt = adsk.core.Point3D.create(
+            center.x + outerRadius * math.cos(peakAngle),
+            center.y + outerRadius * math.sin(peakAngle),
             0
         )
-        outerMid = adsk.core.Point3D.create(
-            center.x + outerRadius * math.cos(peakAngleMid),
-            center.y + outerRadius * math.sin(peakAngleMid),
+        vertices.append(outerPt)
+        
+        # Valley on right side of tooth (inner radius)
+        valleyRightAngle = toothCenterAngle + toothHalfWidth
+        innerPtRight = adsk.core.Point3D.create(
+            center.x + innerRadius * math.cos(valleyRightAngle),
+            center.y + innerRadius * math.sin(valleyRightAngle),
             0
         )
-        outerEnd = adsk.core.Point3D.create(
-            center.x + outerRadius * math.cos(peakAngle2),
-            center.y + outerRadius * math.sin(peakAngle2),
-            0
-        )
-        
-        # Inner edge points
-        innerStart = adsk.core.Point3D.create(
-            center.x + innerRadius * math.cos(peakAngle1),
-            center.y + innerRadius * math.sin(peakAngle1),
-            0
-        )
-        innerMid = adsk.core.Point3D.create(
-            center.x + innerRadius * math.cos(peakAngleMid),
-            center.y + innerRadius * math.sin(peakAngleMid),
-            0
-        )
-        innerEnd = adsk.core.Point3D.create(
-            center.x + innerRadius * math.cos(peakAngle2),
-            center.y + innerRadius * math.sin(peakAngle2),
-            0
-        )
-        
-        # Save first point for closing
-        if i == 0:
-            firstOuterStart = outerStart
-        
-        # Connect from previous tooth's inner end to this tooth's outer start
-        if prevInnerEnd is not None and prevInnerEnd != outerStart:
-            # Arc along outer radius connecting the teeth peaks
-            midAngle = peakAngle1 - toothWidth / 4
-            outerConnectMid = adsk.core.Point3D.create(
-                center.x + outerRadius * math.cos(midAngle),
-                center.y + outerRadius * math.sin(midAngle),
-                0
-            )
-            try:
-                sketchArcs.addByThreePoints(prevInnerEnd, outerConnectMid, outerStart)
-            except:
-                sketchLines.addByTwoPoints(prevInnerEnd, outerStart)
-        
-        # Outer edge arc: the tooth peak curve
-        try:
-            sketchArcs.addByThreePoints(outerStart, outerMid, outerEnd)
-        except:
-            sketchLines.addByTwoPoints(outerStart, outerEnd)
-        
-        # Radial line down from outer to inner (right side of tooth)
-        sketchLines.addByTwoPoints(outerEnd, innerEnd)
-        
-        # Inner arc: the valley between teeth
-        try:
-            sketchArcs.addByThreePoints(innerEnd, innerMid, innerStart)
-        except:
-            sketchLines.addByTwoPoints(innerEnd, innerStart)
-        
-        # Radial line back up from inner to outer (left side of tooth)
-        sketchLines.addByTwoPoints(innerStart, outerStart)
-        
-        prevInnerEnd = innerEnd
+        vertices.append(innerPtRight)
     
-    # Close the loop
-    if prevInnerEnd != firstOuterStart:
-        # Arc along outer to connect last tooth back to first
-        midAngle = 0 - toothWidth / 4
-        outerConnectMid = adsk.core.Point3D.create(
-            center.x + outerRadius * math.cos(midAngle),
-            center.y + outerRadius * math.sin(midAngle),
-            0
-        )
-        try:
-            sketchArcs.addByThreePoints(prevInnerEnd, outerConnectMid, firstOuterStart)
-        except:
-            sketchLines.addByTwoPoints(prevInnerEnd, firstOuterStart)
+    # Connect all vertices with lines to form closed polygon
+    for i in range(len(vertices)):
+        startPt = vertices[i]
+        endPt = vertices[(i + 1) % len(vertices)]  # Wrap around to first point
+        sketchLines.addByTwoPoints(startPt, endPt)
     
     return splinedSketch
 
