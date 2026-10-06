@@ -22,8 +22,8 @@ def createGridfinityBinBodyLip(
     input: BinBodyLipGeneratorInput,
     targetComponent: adsk.fusion.Component,
 ):
-    actualLipBodyWidth = (input.baseWidth * input.binWidth) - input.xyClearance * 2.0
-    actualLipBodyLength = (input.baseLength * input.binLength) - input.xyClearance * 2.0
+    actualLipBodyWidth = (input.baseWidth * input.binWidth) + input.paddingLeft + input.paddingRight - input.xyClearance * 2.0
+    actualLipBodyLength = (input.baseLength * input.binLength) + input.paddingTop + input.paddingBottom - input.xyClearance * 2.0
     lipBodyHeight = const.BIN_LIP_EXTRA_HEIGHT
     features: adsk.fusion.Features = targetComponent.features
 
@@ -62,8 +62,8 @@ def createGridfinityBinBodyLip(
             byY=-input.xyClearance * 2,
             byZ=const.BIN_BASE_HEIGHT
         )
-        lipCutoutInput.baseWidth = input.baseWidth + input.xyClearance * 2
-        lipCutoutInput.baseLength = input.baseLength + input.xyClearance * 2
+        lipCutoutInput.baseWidth = input.baseWidth + input.paddingLeft + input.paddingRight + input.xyClearance * 2
+        lipCutoutInput.baseLength = input.baseLength + input.paddingTop + input.paddingBottom + input.xyClearance * 2
         lipCutoutInput.xyClearance = input.xyClearance
         lipCutoutInput.hasBottomChamfer = False
         lipCutoutInput.cornerFilletRadius = input.binCornerFilletRadius + input.xyClearance * 2
@@ -113,8 +113,8 @@ def createGridfinityBinBodyLip(
             byY=-input.xyClearance * 2,
             byZ=const.BIN_BASE_HEIGHT
         )
-        lipCutoutInput.baseWidth = input.baseWidth * input.binWidth + input.xyClearance * 2
-        lipCutoutInput.baseLength = input.baseLength * input.binLength + input.xyClearance * 2
+        lipCutoutInput.baseWidth = input.baseWidth * input.binWidth + input.paddingLeft + input.paddingRight + input.xyClearance * 2
+        lipCutoutInput.baseLength = input.baseLength * input.binLength + input.paddingTop + input.paddingBottom + input.xyClearance * 2
         lipCutoutInput.xyClearance = input.xyClearance
         lipCutoutInput.hasBottomChamfer = False
         lipCutoutInput.cornerFilletRadius = input.binCornerFilletRadius + input.xyClearance * 2
@@ -130,7 +130,7 @@ def createGridfinityBinBodyLip(
         sketchUtils.createRectangle(
             actualLipBodyWidth,
             actualLipBodyLength,
-            topChamferSketch.modelToSketchSpace(adsk.core.Point3D.create(0, 0, topChamferSketch.origin.z)),
+            topChamferSketch.modelToSketchSpace(adsk.core.Point3D.create(-input.paddingLeft, -input.paddingBottom, topChamferSketch.origin.z)),
             topChamferSketch,
         )
         topChamferNegativeVolume = extrudeUtils.simpleDistanceExtrude(

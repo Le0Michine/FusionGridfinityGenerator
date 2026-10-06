@@ -254,7 +254,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     sidePaddingGroup = plateFeaturesGroup.children.addGroupCommandInput(SIDE_PADDING_GROUP, 'Side padding')
     sidePaddingGroup.isExpanded = uiState.getState(SIDE_PADDING_GROUP)
     uiState.registerCommandInput(sidePaddingGroup)
-    generateSidePaddingInput = sidePaddingGroup.children.addBoolValueInput(BASEPLATE_WITH_SIDE_PADDING_INPUT, 'Add side padding', True, '', uiState.getState(BASEPLATE_WITH_SIDE_PADDING_INPUT))
+    generateSidePaddingInput = sidePaddingGroup.children.addBoolValueInput(BASEPLATE_WITH_SIDE_PADDING_INPUT, 'Add padding', True, '', uiState.getState(BASEPLATE_WITH_SIDE_PADDING_INPUT))
     uiState.registerCommandInput(generateSidePaddingInput)
 
     sidePaddingLeftInput = sidePaddingGroup.children.addValueInput(BASEPLATE_SIDE_PADDING_LEFT_INPUT, 'Padding left', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BASEPLATE_SIDE_PADDING_LEFT_INPUT)))

@@ -30,17 +30,22 @@ def createGridfinityBinBody(
     targetComponent: adsk.fusion.Component,
 ) -> tuple[adsk.fusion.BRepBody, adsk.fusion.BRepBody]:
 
-    actualBodyWidth = (input.baseWidth * input.binWidth) - input.xyClearance * 2.0
-    actualBodyLength = (input.baseLength * input.binLength) - input.xyClearance * 2.0
+    actualBodyWidth = (input.baseWidth * input.binWidth) + input.paddingLeft + input.paddingRight - input.xyClearance * 2.0
+    actualBodyLength = (input.baseLength * input.binLength) + input.paddingTop + input.paddingBottom - input.xyClearance * 2.0
     binHeightWithoutBase = input.binHeight - 1
     binBodyTotalHeight = binHeightWithoutBase * input.heightUnit + max(0, input.heightUnit - const.BIN_BASE_HEIGHT)
     features: adsk.fusion.Features = targetComponent.features
-    binBodyExtrude = extrudeUtils.createBox(
+    originPoint: adsk.core.Point3D = geometryUtils.createOffsetPoint(
+            targetComponent.originConstructionPoint.geometry,
+            byX=-input.paddingLeft,
+            byY=-input.paddingBottom,
+        )
+    binBodyExtrude = extrudeUtils.createBoxAtPoint(
         actualBodyWidth,
         actualBodyLength,
         binBodyTotalHeight,
         targetComponent,
-        targetComponent.xYConstructionPlane
+        originPoint,
     )
     binBody = binBodyExtrude.bodies.item(0)
     binBody.name = 'Bin body'
@@ -58,8 +63,8 @@ def createGridfinityBinBody(
 
     if input.hasLip:
         lipOriginPoint = adsk.core.Point3D.create(
-            0,
-            0,
+            -input.paddingLeft,
+            -input.paddingBottom,
             binHeightWithoutBase * input.heightUnit + max(0, input.heightUnit - const.BIN_BASE_HEIGHT)
         )
         lipInput = BinBodyLipGeneratorInput()
@@ -71,6 +76,11 @@ def createGridfinityBinBody(
         lipInput.xyClearance = input.xyClearance
         lipInput.binCornerFilletRadius = input.binCornerFilletRadius
         lipInput.origin = lipOriginPoint
+        lipInput.hasPadding = input.hasPadding
+        lipInput.paddingLeft = input.paddingLeft
+        lipInput.paddingTop = input.paddingTop
+        lipInput.paddingRight = input.paddingRight
+        lipInput.paddingBottom = input.paddingBottom
         lipBody = createGridfinityBinBodyLip(lipInput, targetComponent)
 
         if input.wallThickness < const.BIN_LIP_WALL_THICKNESS:
@@ -81,8 +91,8 @@ def createGridfinityBinBody(
                 lipBottomChamferSize,
                 targetComponent,
                 adsk.core.Point3D.create(
-                    input.wallThickness,
-                    (const.BIN_LIP_WALL_THICKNESS - input.xyClearance) if input.hasScoop else input.wallThickness,
+                    input.wallThickness - input.paddingLeft,
+                    (const.BIN_LIP_WALL_THICKNESS - input.xyClearance - input.paddingBottom) if input.hasScoop else input.wallThickness - input.paddingBottom,
                     lipOriginPoint.z,
                 )
             )
@@ -122,8 +132,8 @@ def createGridfinityBinBody(
         compartmentLengthUnit = (totalCompartmentsLength - (input.compartmentsByY - 1) * input.wallThickness) / input.compartmentsByY
 
         for compartment in input.compartments:
-            compartmentX = compartmentsMinX + compartment.positionX * (compartmentWidthUnit + input.wallThickness)
-            compartmentY = compartmentsMinY + compartment.positionY * (compartmentLengthUnit + input.wallThickness)
+            compartmentX = compartmentsMinX + compartment.positionX * (compartmentWidthUnit + input.wallThickness) - input.paddingLeft
+            compartmentY = compartmentsMinY + compartment.positionY * (compartmentLengthUnit + input.wallThickness) - input.paddingBottom
             compartmentOriginPoint = adsk.core.Point3D.create(
                 compartmentX,
                 compartmentY,
@@ -165,8 +175,8 @@ def createGridfinityBinBody(
             compartmentsTopClearance = createCompartmentCutout(
                 input.wallThickness,
                 adsk.core.Point3D.create(
-                    compartmentsMinX,
-                    compartmentsMinY,
+                    compartmentsMinX - input.paddingLeft,
+                    compartmentsMinY - input.paddingBottom,
                     binBodyTotalHeight
                 ),
                 actualBodyWidth - input.wallThickness * 2,

@@ -11,6 +11,11 @@ class BaseGeneratorInput():
         self.magnetCutoutsDiameter = DIMENSION_MAGNET_CUTOUT_DIAMETER
         self.magnetCutoutsDepth = DIMENSION_MAGNET_CUTOUT_DEPTH
         self.cornerFilletRadius = BIN_CORNER_FILLET_RADIUS
+        self.hasPadding = False
+        self.paddingLeft = 0
+        self.paddingTop = 0
+        self.paddingRight = 0
+        self.paddingBottom = 0
 
     @property
     def originPoint(self) -> adsk.core.Point3D:
@@ -99,3 +104,43 @@ class BaseGeneratorInput():
     @magnetCutoutsDepth.setter
     def magnetCutoutsDepth(self, value: float):
         self._magnetCutoutsDepth = value
+
+    @property
+    def hasPadding(self) -> bool:
+        return self._hasPadding
+    
+    @hasPadding.setter
+    def hasPadding(self, value: bool):
+        self._hasPadding = value
+
+    @property
+    def paddingLeft(self) -> float:
+        return self._paddingLeft if self._hasPadding else 0
+    
+    @paddingLeft.setter
+    def paddingLeft(self, value: float):
+        self._paddingLeft = value
+
+    @property
+    def paddingTop(self) -> float:
+        return self._paddingTop if self._hasPadding else 0
+    
+    @paddingTop.setter
+    def paddingTop(self, value: float):
+        self._paddingTop = value
+
+    @property
+    def paddingRight(self) -> float:
+        return self._paddingRight if self._hasPadding else 0
+    
+    @paddingRight.setter
+    def paddingRight(self, value: float):
+        self._paddingRight = value
+
+    @property
+    def paddingBottom(self) -> float:
+        return self._paddingBottom if self._hasPadding else 0
+    
+    @paddingBottom.setter
+    def paddingBottom(self, value: float):
+        self._paddingBottom = value

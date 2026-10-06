@@ -403,8 +403,8 @@ def cutBaseClearance(
     basesYCount,
     targetComponent: adsk.fusion.Component,
 ):
-    actual_base_width = baseConfiguration.baseWidth * basesXCount - baseConfiguration.xyClearance * 2
-    actual_base_length = baseConfiguration.baseLength * basesYCount - baseConfiguration.xyClearance * 2
+    actual_base_width = baseConfiguration.baseWidth * basesXCount + baseConfiguration.paddingLeft + baseConfiguration.paddingRight - baseConfiguration.xyClearance * 2
+    actual_base_length = baseConfiguration.baseLength * basesYCount + baseConfiguration.paddingTop + baseConfiguration.paddingBottom - baseConfiguration.xyClearance * 2
     features = targetComponent.features
     baseConstructionPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
     baseConstructionPlaneInput.setByOffset(targetComponent.xYConstructionPlane, adsk.core.ValueInput.createByReal(baseConfiguration.originPoint.z))
@@ -416,8 +416,8 @@ def cutBaseClearance(
         actual_base_width,
         actual_base_length,
         adsk.core.Point3D.create(
-            baseConfiguration.originPoint.x + baseConfiguration.xyClearance,
-            baseConfiguration.originPoint.y + baseConfiguration.xyClearance,
+            baseConfiguration.originPoint.x + baseConfiguration.xyClearance - baseConfiguration.paddingLeft,
+            baseConfiguration.originPoint.y + baseConfiguration.xyClearance - baseConfiguration.paddingBottom,
             baseConfiguration.originPoint.z,
         ),
         baseClearanceCutSketch
@@ -438,7 +438,15 @@ def cutBaseClearance(
     geometricConstraints.addEqual(fillet3, fillet4)
     sketchDimensions.addRadialDimension(fillet1, fillet1.startSketchPoint.geometry)
 
-    baseClearanceCutSketch.offset(commonUtils.objectCollectionFromList([fillet1, fillet2, fillet3, fillet4, side1, side2, side3, side4]), baseConfiguration.originPoint, 1)
+    baseClearanceCutSketch.offset(
+        commonUtils.objectCollectionFromList([fillet1, fillet2, fillet3, fillet4, side1, side2, side3, side4]), 
+        adsk.core.Point3D.create(
+            baseConfiguration.originPoint.x - baseConfiguration.paddingLeft,
+            baseConfiguration.originPoint.y - baseConfiguration.paddingBottom,
+            baseConfiguration.originPoint.z,
+        ),
+        1
+    )
 
     cuttingProfile = min(list(baseClearanceCutSketch.profiles), key=lambda x: x.boundingBox.minPoint.x)
     clearanceCutExtrudeInput = features.extrudeFeatures.createInput(
