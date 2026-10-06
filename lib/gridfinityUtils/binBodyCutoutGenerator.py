@@ -54,12 +54,17 @@ def createGridfinityBinBodyCutout(
     innerCutoutBody.name = 'Inner cutout'
 
     # scoop
+    scoopBothSides = input.hasScoop and input.scoopBothSides
     if input.hasScoop:
         [innerCutoutScoopFace, innerCutoputScoopOppositeFace] = getInnerCutoutScoopFace(innerCutoutBody)
-        scoopEdge = faceUtils.getBottomHorizontalEdge(innerCutoutScoopFace.edges)
+        scoopEdges = [faceUtils.getBottomHorizontalEdge(innerCutoutScoopFace.edges)]
         scoopMaxRadius = min(input.scoopMaxRadius, input.height) if min(input.scoopMaxRadius, input.height) >= input.filletRadius else input.filletRadius
+        if scoopBothSides:
+            scoopEdges.append(faceUtils.getBottomHorizontalEdge(innerCutoputScoopOppositeFace.edges))
+            # two opposite scoops can't be wider than the cutout, otherwise the fillets would overlap
+            scoopMaxRadius = min(scoopMaxRadius, input.length / 2)
         filletUtils.createFillet(
-            [scoopEdge],
+            scoopEdges,
             scoopMaxRadius,
             False,
             targetComponent
@@ -73,7 +78,8 @@ def createGridfinityBinBodyCutout(
         True,
         targetComponent
     )
-    if input.hasBottomFillet:
+    # when the scoop goes along both sides the opposite edge is already rounded by it
+    if input.hasBottomFillet and not scoopBothSides:
         # recalculate faces after fillet
         [innerCutoutScoopFace, innerCutoputScoopOppositeFace] = getInnerCutoutScoopFace(innerCutoutBody)
         scoopOppositeEdge = faceUtils.getBottomHorizontalEdge(innerCutoputScoopOppositeFace.edges)

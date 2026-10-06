@@ -59,6 +59,7 @@ class BinBodyGeneratorInput():
         self.hasLipNotches = False
         self.hasScoop = False
         self.scoopMaxRadius = const.BIN_SCOOP_MAX_RADIUS
+        self.scoopBothSides = False
         self.tabOverhangAngle = const.BIN_TAB_OVERHANG_ANGLE
         self.tabPosition = 0
         self.tabLength = 1
@@ -179,6 +180,14 @@ class BinBodyGeneratorInput():
     @scoopMaxRadius.setter
     def scoopMaxRadius(self, value: float):
         self._scoopMaxRadius = value
+
+    @property
+    def scoopBothSides(self) -> bool:
+        return self._scoopBothSides
+
+    @scoopBothSides.setter
+    def scoopBothSides(self, value: bool):
+        self._scoopBothSides = value
 
     @property
     def hasTab(self) -> bool:

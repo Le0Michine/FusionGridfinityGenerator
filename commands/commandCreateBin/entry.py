@@ -91,6 +91,7 @@ BIN_MAGNET_DIAMETER_INPUT = 'magnet_diameter'
 BIN_MAGNET_HEIGHT_INPUT = 'magnet_height'
 BIN_HAS_SCOOP_INPUT_ID = 'bin_has_scoop'
 BIN_SCOOP_MAX_RADIUS_INPUT_ID = 'bin_scoop_max_radius'
+BIN_SCOOP_BOTH_SIDES_INPUT_ID = 'bin_scoop_both_sides'
 BIN_HAS_TAB_INPUT_ID = 'bin_has_tab'
 BIN_TAB_LENGTH_INPUT_ID = 'bin_tab_length'
 BIN_TAB_WIDTH_INPUT_ID = 'bin_tab_width'
@@ -175,6 +176,7 @@ def initDefaultUiState():
 
     commandUIState.initValue(BIN_HAS_SCOOP_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
     commandUIState.initValue(BIN_SCOOP_MAX_RADIUS_INPUT_ID, const.BIN_SCOOP_MAX_RADIUS, adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_SCOOP_BOTH_SIDES_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
 
     commandUIState.initValue(BIN_HAS_TAB_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
     commandUIState.initValue(BIN_TAB_LENGTH_INPUT_ID, 1, adsk.core.ValueCommandInput.classType())
@@ -599,6 +601,8 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     commandUIState.registerCommandInput(binScoopGroup)
     generateScoopCheckboxInput = binScoopGroup.children.addBoolValueInput(BIN_HAS_SCOOP_INPUT_ID, 'Add scoop (along bin width)', True, '', commandUIState.getState(BIN_HAS_SCOOP_INPUT_ID))
     commandUIState.registerCommandInput(generateScoopCheckboxInput)
+    scoopBothSidesCheckboxInput = binScoopGroup.children.addBoolValueInput(BIN_SCOOP_BOTH_SIDES_INPUT_ID, 'Both sides', True, '', commandUIState.getState(BIN_SCOOP_BOTH_SIDES_INPUT_ID))
+    commandUIState.registerCommandInput(scoopBothSidesCheckboxInput)
     binScoopMaxRadiusInput = binScoopGroup.children.addValueInput(BIN_SCOOP_MAX_RADIUS_INPUT_ID, 'Scoop max radius (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_SCOOP_MAX_RADIUS_INPUT_ID)))
     commandUIState.registerCommandInput(binScoopMaxRadiusInput)
     for input in binScoopGroup.children:
@@ -826,6 +830,7 @@ def onChangeValidate():
 
     generateScoop: bool = commandUIState.getState(BIN_HAS_SCOOP_INPUT_ID)
     commandUIState.getInput(BIN_SCOOP_MAX_RADIUS_INPUT_ID).isEnabled = generateScoop
+    commandUIState.getInput(BIN_SCOOP_BOTH_SIDES_INPUT_ID).isEnabled = generateScoop
 
     generateTab: bool = commandUIState.getState(BIN_HAS_TAB_INPUT_ID)
     commandUIState.getInput(BIN_TAB_LENGTH_INPUT_ID).isEnabled = generateTab
@@ -872,6 +877,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
     with_lip_notches: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_WITH_LIP_NOTCHES_INPUT_ID)
     has_scoop: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_SCOOP_INPUT_ID)
     binScoopMaxRadius: adsk.core.ValueCommandInput = inputs.itemById(BIN_SCOOP_MAX_RADIUS_INPUT_ID)
+    scoopBothSides: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_SCOOP_BOTH_SIDES_INPUT_ID)
     hasTabInput: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_TAB_INPUT_ID)
     binTabLength: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_LENGTH_INPUT_ID)
     binTabWidth: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_WIDTH_INPUT_ID)
@@ -949,6 +955,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
         binBodyInput.wallThickness = bin_wall_thickness.value
         binBodyInput.hasScoop = has_scoop.value and isHollow
         binBodyInput.scoopMaxRadius = binScoopMaxRadius.value
+        binBodyInput.scoopBothSides = binBodyInput.hasScoop and scoopBothSides.value
         binBodyInput.hasTab = hasTabInput.value and isHollow
         binBodyInput.tabLength = binTabLength.value
         binBodyInput.tabWidth = binTabWidth.value

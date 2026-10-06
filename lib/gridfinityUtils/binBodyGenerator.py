@@ -56,6 +56,11 @@ def createGridfinityBinBody(
         targetComponent,
     ).name = 'Bin body corner fillets'
 
+    # with a lip the scoop side wall is made flush with the lip so the scoop curve flows into it
+    lipWallThickness = const.BIN_LIP_WALL_THICKNESS - input.xyClearance
+    frontWallThickness = lipWallThickness if input.hasLip and input.hasScoop else input.wallThickness
+    backWallThickness = lipWallThickness if input.hasLip and input.hasScoop and input.scoopBothSides else input.wallThickness
+
     if input.hasLip:
         lipOriginPoint = adsk.core.Point3D.create(
             0,
@@ -77,12 +82,12 @@ def createGridfinityBinBody(
             lipBottomChamferSize = max(const.BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS, input.binCornerFilletRadius - input.wallThickness)
             lipBottomChamferExtrude = extrudeUtils.createBoxAtPoint(
                 actualBodyWidth - input.wallThickness * 2,
-                (actualBodyLength - input.wallThickness - const.BIN_LIP_WALL_THICKNESS + input.xyClearance) if input.hasScoop else (actualBodyLength - input.wallThickness * 2),
+                actualBodyLength - frontWallThickness - backWallThickness,
                 lipBottomChamferSize,
                 targetComponent,
                 adsk.core.Point3D.create(
                     input.wallThickness,
-                    (const.BIN_LIP_WALL_THICKNESS - input.xyClearance) if input.hasScoop else input.wallThickness,
+                    frontWallThickness,
                     lipOriginPoint.z,
                 )
             )
@@ -94,9 +99,17 @@ def createGridfinityBinBody(
                 targetComponent,
             )
             lipBottomChamferExtrudeTopFace = faceUtils.getTopFace(lipBottomChamferExtrude.bodies.item(0))
-            scoopSideEdge = min([edge for edge in lipBottomChamferExtrudeTopFace.edges if geometryUtils.isCollinearToX(edge)], key=lambda x: x.boundingBox.minPoint.y)
-
-            edgesToChamfer = list(scoopSideEdge.tangentiallyConnectedEdges)[3:] if input.hasScoop else scoopSideEdge.tangentiallyConnectedEdges
+            topFaceEdges = list(lipBottomChamferExtrudeTopFace.edges)
+            edgesToChamfer = topFaceEdges
+            if input.hasScoop:
+                # no chamfer along scoop sides, the wall there is flush with the lip
+                xCollinearEdges = [edge for edge in topFaceEdges if geometryUtils.isCollinearToX(edge)]
+                scoopSideEdges = [min(xCollinearEdges, key=lambda x: x.boundingBox.minPoint.y)]
+                if input.scoopBothSides:
+                    scoopSideEdges.append(max(xCollinearEdges, key=lambda x: x.boundingBox.minPoint.y))
+                for scoopSideEdge in scoopSideEdges:
+                    # skip the edge itself and the two corner fillet arcs connected to it
+                    edgesToChamfer = edgeUtils.excludeEdges(edgesToChamfer, [scoopSideEdge] + edgeUtils.getConnectedEdges(scoopSideEdge, topFaceEdges))
             chamferFeatures: adsk.fusion.ChamferFeatures = features.chamferFeatures
             bottomLipChamferInput = chamferFeatures.createInput2()
             bottomLipChamferEdges = commonUtils.objectCollectionFromList(edgesToChamfer)
@@ -112,8 +125,8 @@ def createGridfinityBinBody(
     if not input.isSolid:
         compartmentsMinX = input.wallThickness
         compartmentsMaxX = actualBodyWidth - input.wallThickness
-        compartmentsMinY = (const.BIN_LIP_WALL_THICKNESS - input.xyClearance) if input.hasLip and input.hasScoop else input.wallThickness
-        compartmentsMaxY = actualBodyLength - input.wallThickness
+        compartmentsMinY = frontWallThickness
+        compartmentsMaxY = actualBodyLength - backWallThickness
 
         totalCompartmentsWidth = compartmentsMaxX - compartmentsMinX
         totalCompartmentsLength = compartmentsMaxY - compartmentsMinY
@@ -154,6 +167,7 @@ def createGridfinityBinBody(
                 input.binCornerFilletRadius - input.wallThickness,
                 input.hasScoop,
                 input.scoopMaxRadius,
+                input.scoopBothSides,
                 input.hasTab,
                 compartmentTabInput,
                 targetComponent,
@@ -170,11 +184,12 @@ def createGridfinityBinBody(
                     binBodyTotalHeight
                 ),
                 actualBodyWidth - input.wallThickness * 2,
-                actualBodyLength - input.wallThickness - compartmentsMinY,
+                compartmentsMaxY - compartmentsMinY,
                 const.BIN_TAB_TOP_CLEARANCE,
                 input.binCornerFilletRadius - input.wallThickness,
                 False,
                 0,
+                False,
                 False,
                 targetComponent,
             )
@@ -205,6 +220,7 @@ def createCompartmentCutout(
         cornerFilletRadius: float,
         hasScoop: bool,
         scoopMaxRadius: float,
+        scoopBothSides: bool,
         hasBottomFillet: bool,
         targetComponent: adsk.fusion.Component,
     ) -> adsk.fusion.BRepBody:
@@ -217,6 +233,7 @@ def createCompartmentCutout(
     innerCutoutInput.height = depth
     innerCutoutInput.hasScoop = hasScoop
     innerCutoutInput.scoopMaxRadius = scoopMaxRadius
+    innerCutoutInput.scoopBothSides = scoopBothSides
     innerCutoutInput.filletRadius = innerCutoutFilletRadius
     innerCutoutInput.hasBottomFillet = hasBottomFillet
 
@@ -231,6 +248,7 @@ def createCompartment(
         cornerFilletRadius: float,
         hasScoop: bool,
         scoopMaxRadius: float,
+        scoopBothSides: bool,
         hasTab: bool,
         tabInput: BinBodyTabGeneratorInput,
         targetComponent: adsk.fusion.Component,
@@ -248,6 +266,7 @@ def createCompartment(
         cornerFilletRadius,
         hasScoop,
         scoopMaxRadius,
+        scoopBothSides,
         True,
         targetComponent,
     )

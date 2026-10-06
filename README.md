@@ -37,6 +37,7 @@ Light | Skeleton with connection holes | Full
 - when magnet and screw holes are enabled together, a groove will be generated to help with printability
 - bin can be shelled with constant wall thickness to save printing time and filament
 - label tab can be generated (length, offset and overhang angle are adjustable)
+- scoop can be generated along the bin width, on one or both sides
 - allows generation of base or body separately, could be useful if need combine it with existing model
 - compartments can be configured to use uniform scale
 - custom compartmens layout is based on the uniform grid and allows merging multiple cells together, specifying custom depth and position

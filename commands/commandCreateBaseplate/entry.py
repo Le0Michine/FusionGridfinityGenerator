@@ -24,6 +24,7 @@ CMD_NAME = 'Gridfinity baseplate'
 CMD_Description = 'Create gridfinity baseplate'
 
 uiState = CommandUiState(CMD_NAME)
+actualDimensionsTableUiState = CommandUiState(CMD_NAME)
 # Specify that the command will be promoted to the panel.
 IS_PROMOTED = True
 
@@ -63,6 +64,9 @@ BIN_XY_CLEARANCE_INPUT_ID = 'bin_xy_clearance'
 BASEPLATE_WIDTH_INPUT = 'plate_width'
 BASEPLATE_LENGTH_INPUT = 'plate_length'
 BASEPLATE_TYPE_DROPDOWN = 'plate_type_dropdown'
+BASEPLATE_REAL_DIMENSIONS_TABLE = 'real_dimensions'
+BASEPLATE_REAL_DIMENSIONS_TABLE_TOTAL_WIDTH = 'total_real_width'
+BASEPLATE_REAL_DIMENSIONS_TABLE_TOTAL_LENGTH = 'total_real_length'
 
 BASEPLATE_TYPE_LIGHT = 'Light'
 BASEPLATE_TYPE_FULL = 'Full'
@@ -164,6 +168,45 @@ def stop():
         command_definition.deleteMe()
 
 
+def render_actual_baseplate_dimensions_table(inputs: adsk.core.CommandInputs):
+    global actualDimensionsTableUiState
+    actualDimensionsTable = inputs.addTableCommandInput(BASEPLATE_REAL_DIMENSIONS_TABLE, "Actual dimensions (mm)", 2, "1:1")
+    totalWidth = actualDimensionsTable.commandInputs.addStringValueInput(BASEPLATE_REAL_DIMENSIONS_TABLE_TOTAL_WIDTH, "", "Width")
+    totalWidth.isReadOnly = True
+    actualDimensionsTableUiState.registerCommandInput(totalWidth)
+    actualDimensionsTableUiState.initValue(totalWidth.id, "", totalWidth.objectType)
+    totalLength = actualDimensionsTable.commandInputs.addStringValueInput(BASEPLATE_REAL_DIMENSIONS_TABLE_TOTAL_LENGTH, "", "Length")
+    totalLength.isReadOnly = True
+    actualDimensionsTableUiState.registerCommandInput(totalLength)
+    actualDimensionsTableUiState.initValue(totalLength.id, "", totalLength.objectType)
+    actualDimensionsTable.addCommandInput(totalWidth, 0, 0)
+    actualDimensionsTable.addCommandInput(totalLength, 0, 1)
+    actualDimensionsTable.tooltip = 'Actual baseplate dimensions'
+    actualDimensionsTable.tablePresentationStyle = adsk.core.TablePresentationStyles.transparentBackgroundTablePresentationStyle
+    actualDimensionsTable.hasGrid = False
+    actualDimensionsTable.minimumVisibleRows = 1
+    actualDimensionsTable.maximumVisibleRows = 1
+    return actualDimensionsTable
+
+def update_actual_baseplate_dimensions():
+    global actualDimensionsTableUiState
+    try:
+        inputsState = getInputsState()
+        # matches the size produced by the generator, bins sit inside the plate with xy clearance
+        actualWidth = inputsState.baseWidth * inputsState.plateWidth - inputsState.xyClearance * 2
+        actualLength = inputsState.baseLength * inputsState.plateLength - inputsState.xyClearance * 2
+        if inputsState.hasPadding:
+            actualWidth = actualWidth + inputsState.paddingLeft + inputsState.paddingRight
+            actualLength = actualLength + inputsState.paddingTop + inputsState.paddingBottom
+        totalWidthValue = round(actualWidth * 10, 2)
+        totalLengthValue = round(actualLength * 10, 2)
+        actualDimensionsTableUiState.updateValue(BASEPLATE_REAL_DIMENSIONS_TABLE_TOTAL_WIDTH, f'Width: {totalWidthValue}mm')
+        actualDimensionsTableUiState.getInput(BASEPLATE_REAL_DIMENSIONS_TABLE_TOTAL_WIDTH).tooltip = f'Total baseplate width: {totalWidthValue}mm'
+        actualDimensionsTableUiState.updateValue(BASEPLATE_REAL_DIMENSIONS_TABLE_TOTAL_LENGTH, f'Length: {totalLengthValue}mm')
+        actualDimensionsTableUiState.getInput(BASEPLATE_REAL_DIMENSIONS_TABLE_TOTAL_LENGTH).tooltip = f'Total baseplate length: {totalLengthValue}mm'
+    except:
+        showErrorInMessageBox()
+
 # Function that is called when a user clicks the corresponding button in the UI.
 # This defines the contents of the command dialog and connects to the command related events.
 def command_created(args: adsk.core.CommandCreatedEventArgs):
@@ -210,6 +253,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     uiState.registerCommandInput(baseplateWidthInput)
     baseplateLengthInput = mainDimensionsGroup.children.addIntegerSpinnerCommandInput(BASEPLATE_LENGTH_INPUT, 'Plate length, Y (u)', 1, 100, 1, uiState.getState(BASEPLATE_LENGTH_INPUT))
     uiState.registerCommandInput(baseplateLengthInput)
+    render_actual_baseplate_dimensions_table(mainDimensionsGroup.children)
 
     plateFeaturesGroup = inputs.addGroupCommandInput(PLATE_FEATURES_GROUP, 'Features')
     plateFeaturesGroup.isExpanded = uiState.getState(PLATE_FEATURES_GROUP)
@@ -321,6 +365,8 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     showLivePreview = previewGroup.children.addBoolValueInput(SHOW_PREVIEW_INPUT, 'Show preview (slow)', True, '', uiState.getState(SHOW_PREVIEW_INPUT))
     uiState.registerCommandInput(showLivePreview)
 
+    update_actual_baseplate_dimensions()
+
     futil.add_handler(args.command.execute, command_execute, local_handlers=local_handlers)
     futil.add_handler(args.command.inputChanged, command_input_changed, local_handlers=local_handlers)
     futil.add_handler(args.command.executePreview, command_preview, local_handlers=local_handlers)
@@ -367,6 +413,7 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
         uiState.forceUIRefresh()
     else:
         uiState.onInputUpdate(changed_input)
+    update_actual_baseplate_dimensions()
 
     if isinstance(changed_input, adsk.core.GroupCommandInput) and changed_input.isExpanded == True:
         for input in changed_input.children:
