@@ -203,18 +203,62 @@ def createSingleGridfinityBaseBody(
 
     # magnet cutouts
     if input.hasMagnetCutouts:
-        magnetSocketBody = shapeUtils.simpleCylinder(
-            baseBottomPlane,
-            0,
-            -input.magnetCutoutsDepth,
-            input.magnetCutoutsDiameter / 2,
-            cutoutCenterPoint,
-            targetComponent,
-        )
-        cutoutBodies.add(magnetSocketBody)
+        if input.hasRefinedMagnetHole:
+            # Refined magnet hole (grizzie17's design):
+            # - Press-fit pocket slightly smaller than magnet, with side insertion slot
+            # - Thin floor below pocket prevents magnet falling out
+            # - Poke-through hole below for magnet removal
+            pocketRadius = input.magnetCutoutsDiameter / 2 - const.DIMENSION_REFINED_HOLE_SQUEEZE
+            pocketDepth = const.DIMENSION_REFINED_HOLE_DEPTH
+            floorThickness = const.DIMENSION_REFINED_HOLE_FLOOR
 
-        # magnet tab cutouts
-        if input.hasMagnetCutoutsTabs:
+            # Slot exit point at the base edge, centered on the hole Y position
+            slotEdgePoint = adsk.core.Point3D.create(
+                input.originPoint.x,
+                cutoutCenterPoint.y,
+                0,
+            )
+            # Pocket is offset up from the bottom face by the floor thickness
+            magnetSocketBody = shapeUtils.refinedMagnetHoleBody(
+                baseBottomPlane,
+                -floorThickness,
+                pocketRadius,
+                pocketDepth,
+                slotEdgePoint,
+                cutoutCenterPoint,
+                targetComponent,
+            )
+            cutoutBodies.add(magnetSocketBody)
+
+            # Poke-through slot for magnet removal with a toothpick.
+            # Goes from the base bottom face all the way through to the top
+            # of the pocket, on the opposite side from the insertion slot.
+            pokeRadius = const.DIMENSION_REFINED_POKE_THROUGH_DIAMETER / 2
+            pokeDepth = floorThickness + pocketDepth
+            pokeBody = shapeUtils.refinedPokeThrough(
+                baseBottomPlane,
+                0,
+                pokeDepth,
+                pokeRadius,
+                slotEdgePoint,
+                cutoutCenterPoint,
+                targetComponent,
+            )
+            pokeBody.name = "Refined poke-through slot"
+            cutoutBodies.add(pokeBody)
+        else:
+            magnetSocketBody = shapeUtils.simpleCylinder(
+                baseBottomPlane,
+                0,
+                -input.magnetCutoutsDepth,
+                input.magnetCutoutsDiameter / 2,
+                cutoutCenterPoint,
+                targetComponent,
+            )
+            cutoutBodies.add(magnetSocketBody)
+
+        # magnet tab cutouts (only for standard holes, not refined)
+        if input.hasMagnetCutoutsTabs and not input.hasRefinedMagnetHole:
             magnetTabCutoutSketch = createTabAtCircleEdgeSketch(
                 baseBottomPlane,
                 input.magnetCutoutsDiameter / 2,
@@ -232,8 +276,8 @@ def createSingleGridfinityBaseBody(
                 targetComponent,
             )
             cutoutBodies.add(magnetTabCutoutExtrude.bodies.item(0))
-        
-        if input.hasScrewHoles and (const.BIN_BASE_HEIGHT - input.magnetCutoutsDepth) > const.BIN_MAGNET_HOLE_GROOVE_DEPTH:
+
+        if not input.hasRefinedMagnetHole and input.hasScrewHoles and (const.BIN_BASE_HEIGHT - input.magnetCutoutsDepth) > const.BIN_MAGNET_HOLE_GROOVE_DEPTH:
             grooveBody = shapeUtils.simpleCylinder(
                 baseBottomPlane,
                 -input.magnetCutoutsDepth,

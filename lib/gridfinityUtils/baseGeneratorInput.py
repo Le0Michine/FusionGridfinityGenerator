@@ -7,6 +7,7 @@ class BaseGeneratorInput():
         self.hasMagnetCutouts = False
         self.hasScrewHoles = False
         self.hasBottomChamfer = True
+        self.hasRefinedMagnetHole = False
         self.screwHolesDiameter = DIMENSION_SCREW_HOLE_DIAMETER
         self.magnetCutoutsDiameter = DIMENSION_MAGNET_CUTOUT_DIAMETER
         self.magnetCutoutsDepth = DIMENSION_MAGNET_CUTOUT_DEPTH
