@@ -401,6 +401,7 @@ def cutBaseClearance(
     baseConfiguration: BaseGeneratorInput,
     basesXCount,
     basesYCount,
+    targetBodies: list[adsk.fusion.BRepBody],
     targetComponent: adsk.fusion.Component,
 ):
     actual_base_width = baseConfiguration.baseWidth * basesXCount - baseConfiguration.xyClearance * 2
@@ -449,6 +450,7 @@ def cutBaseClearance(
         adsk.fusion.DistanceExtentDefinition.create(adsk.core.ValueInput.createByReal(100)),
         adsk.fusion.DistanceExtentDefinition.create(adsk.core.ValueInput.createByReal(100)),
     )
-    clearanceCutExtrudeInput.participantBodies = list(targetComponent.bRepBodies)
+    # the target component can be the root of a part design, which also holds unrelated bodies
+    clearanceCutExtrudeInput.participantBodies = targetBodies
     clearanceCutExtrude = features.extrudeFeatures.add(clearanceCutExtrudeInput)
     clearanceCutExtrude.name = "Base side clearance cut"

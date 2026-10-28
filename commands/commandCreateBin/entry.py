@@ -977,21 +977,24 @@ def generateBin(args: adsk.core.CommandEventArgs):
                 binBodyInput,
                 gridfinityBinComponent,
             )
+        combineFeatures = gridfinityBinComponent.features.combineFeatures
+
+        # merge everything before the clearance cut, so the cut only has to reference the bin body
+        if bin_generate_body.value and bin_generate_base.value:
+            toolBodies = commonUtils.objectCollectionFromList(baseBodies)
+            combineFeatureInput = combineFeatures.createInput(binBody, toolBodies)
+            combineFeatures.add(combineFeatureInput)
+            binBody.name = binName
+
         if bin_generate_body.value or bin_generate_base.value:
             cutBaseClearance(
                 baseGeneratorInput,
                 bin_width.value,
                 bin_length.value,
+                # feet only touch each other along edges, so without a body they stay separate
+                [binBody] if bin_generate_body.value else baseBodies,
                 gridfinityBinComponent,
             )
-
-        # merge everything
-        if bin_generate_body.value and bin_generate_base.value:
-            toolBodies = commonUtils.objectCollectionFromList(baseBodies)
-            combineFeatures = gridfinityBinComponent.features.combineFeatures
-            combineFeatureInput = combineFeatures.createInput(binBody, toolBodies)
-            combineFeatures.add(combineFeatureInput)
-            gridfinityBinComponent.bRepBodies.item(0).name = binName
 
         if isShelled and bin_generate_body.value:
             # face.boundingBox.maxPoint.z ~ face.boundingBox.minPoint.z => face horizontal
@@ -1015,8 +1018,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
                 toolBodies = adsk.core.ObjectCollection.create()
                 toolBodies.add(topBody)
                 combineAfterShellFeatureInput = combineFeatures.createInput(bottomBody, toolBodies)
-                combineFeatures.add(combineAfterShellFeatureInput)
-                binBody = gridfinityBinComponent.bRepBodies.item(0)
+                binBody = combineFeatures.add(combineAfterShellFeatureInput).bodies.item(0)
             else:
                 shellUtils.simpleShell([topFace], binBodyInput.wallThickness - xyClearance, gridfinityBinComponent)
 
