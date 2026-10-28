@@ -26,21 +26,32 @@ def shortestEdge(face: adsk.fusion.BRepFace):
     return min(face.edges, key=lambda x: x.length)
 
 def isYNormal(face: adsk.fusion.BRepFace):
-    return math.isclose(face.boundingBox.minPoint.y, face.boundingBox.maxPoint.y, abs_tol=DEFAULT_FILTER_TOLERANCE)
+    return geometryUtils.isBoundingBoxFlat(face.boundingBox, 'y')
 
 def isXNormal(face: adsk.fusion.BRepFace):
-    return math.isclose(face.boundingBox.minPoint.x, face.boundingBox.maxPoint.x, abs_tol=DEFAULT_FILTER_TOLERANCE)
+    return geometryUtils.isBoundingBoxFlat(face.boundingBox, 'x')
 
 def isZNormal(face: adsk.fusion.BRepFace):
-    return math.isclose(face.boundingBox.minPoint.z, face.boundingBox.maxPoint.z, abs_tol=DEFAULT_FILTER_TOLERANCE)
+    return geometryUtils.isBoundingBoxFlat(face.boundingBox, 'z')
+
+
+def getNormalFaceExtremes(faces: adsk.fusion.BRepFaces, axis):
+    positions = []
+    for face in faces:
+        bounds = face.boundingBox
+        minimum = getattr(bounds.minPoint, axis)
+        maximum = getattr(bounds.maxPoint, axis)
+        if math.isclose(minimum, maximum, abs_tol=DEFAULT_FILTER_TOLERANCE):
+            positions.append((face, minimum))
+    return (min(positions, key=lambda item: item[1])[0],
+            max(positions, key=lambda item: item[1])[0])
+
 
 def getBottomFace(body: adsk.fusion.BRepBody):
-    horizontalFaces = [face for face in body.faces if isZNormal(face)]
-    return min(horizontalFaces, key=lambda x: x.boundingBox.minPoint.z)
+    return getNormalFaceExtremes(body.faces, 'z')[0]
 
 def getTopFace(body: adsk.fusion.BRepBody):
-    horizontalFaces = [face for face in body.faces if isZNormal(face)]
-    return max(horizontalFaces, key=lambda x: x.boundingBox.minPoint.z)
+    return getNormalFaceExtremes(body.faces, 'z')[1]
 
 def getTopHorizontalEdge(edges: adsk.fusion.BRepEdges):
     horizontalEdges = [edge for edge in edges if geometryUtils.isHorizontal(edge)]
