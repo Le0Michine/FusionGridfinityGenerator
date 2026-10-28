@@ -75,7 +75,6 @@ BIN_XY_CLEARANCE_INPUT_ID = 'bin_xy_tolerance'
 BIN_WIDTH_INPUT_ID = 'bin_width'
 BIN_LENGTH_INPUT_ID = 'bin_length'
 BIN_HEIGHT_INPUT_ID = 'bin_height'
-BIN_WIDTH_INPUT_ID = 'bin_width'
 BIN_REAL_DIMENSIONS_TABLE = "real_dimensions"
 BIN_REAL_DIMENSIONS_TABLE_TOTAL_WIDTH = "total_real_width"
 BIN_REAL_DIMENSIONS_TABLE_TOTAL_LENGTH = "total_real_length"
