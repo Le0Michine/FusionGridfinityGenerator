@@ -4,7 +4,7 @@ import math
 import copy
 
 from ...lib import fusion360utils as futil
-from . import const, combineUtils, faceUtils, commonUtils, sketchUtils, extrudeUtils, baseGenerator, edgeUtils, filletUtils, geometryUtils
+from . import const, combineUtils, faceUtils, commonUtils, sketchUtils, extrudeUtils, baseGenerator, edgeUtils, filletUtils, geometryUtils, patternUtils
 from .binBodyCutoutGenerator import createGridfinityBinBodyCutout
 from .binBodyCutoutGeneratorInput import BinBodyCutoutGeneratorInput
 from .baseGeneratorInput import BaseGeneratorInput
@@ -24,6 +24,33 @@ def uniformCompartments(countX, countY):
         for j in range(countY):
             compartments.append(BinBodyCompartmentDefinition(i, j, 1, 1))
     return compartments
+
+def patternCompartments(entities, input, spacingX, spacingY, targetComponent, name, computeOption=None):
+    directions = (targetComponent.xConstructionAxis, targetComponent.yConstructionAxis)
+    quantities = (input.compartmentsByX, input.compartmentsByY)
+    distances = (spacingX, spacingY)
+    if quantities[0] == 1:
+        # Use the populated direction as the primary axis for a single-column grid.
+        directions = directions[::-1]
+        quantities = quantities[::-1]
+        distances = distances[::-1]
+    pattern = patternUtils.recPattern(
+        commonUtils.objectCollectionFromList(entities),
+        directions,
+        distances,
+        quantities,
+        targetComponent,
+        computeOption,
+    )
+    pattern.name = name
+    return pattern
+
+def patternCompartmentBodies(bodies, input, spacingX, spacingY, targetComponent, name):
+    if not bodies or input.compartmentsByX * input.compartmentsByY == 1:
+        return bodies
+    pattern = patternCompartments(bodies, input, spacingX, spacingY, targetComponent, name)
+    return bodies + list(pattern.bodies)
+
 
 def createGridfinityBinBody(
     input: BinBodyGeneratorInput,
@@ -121,7 +148,9 @@ def createGridfinityBinBody(
         compartmentWidthUnit = (totalCompartmentsWidth - (input.compartmentsByX - 1) * input.wallThickness) / input.compartmentsByX
         compartmentLengthUnit = (totalCompartmentsLength - (input.compartmentsByY - 1) * input.wallThickness) / input.compartmentsByY
 
-        for compartment in input.compartments:
+        useCompartmentPattern = input.isUniformCompartments and len(input.compartments) > 1
+        compartmentsToBuild = input.compartments[:1] if useCompartmentPattern else input.compartments
+        for compartment in compartmentsToBuild:
             compartmentX = compartmentsMinX + compartment.positionX * (compartmentWidthUnit + input.wallThickness)
             compartmentY = compartmentsMinY + compartment.positionY * (compartmentLengthUnit + input.wallThickness)
             compartmentOriginPoint = adsk.core.Point3D.create(
@@ -158,8 +187,31 @@ def createGridfinityBinBody(
                 compartmentTabInput,
                 targetComponent,
             )
-            bodiesToSubtract = bodiesToSubtract + compartmentCuts
-            bodiesToMerge = bodiesToMerge + compartmentMerges
+            if useCompartmentPattern:
+                # These cavities are identical and disjoint, so copy their cut faces instead
+                # of creating every cutter body and asking Combine to intersect them all.
+                # Optimized compute assumes every instance meets the same surrounding geometry;
+                # revisit if uniform compartments ever stop being identical.
+                # Patterning a cut feature requires design history, which entry.py enforces.
+                seedCut = combineUtils.cutBody(
+                    binBody, commonUtils.objectCollectionFromList(compartmentCuts), targetComponent)
+                seedCut.name = 'Seed compartment cut'
+                patternCompartments(
+                    [seedCut], input,
+                    compartmentWidthUnit + input.wallThickness,
+                    compartmentLengthUnit + input.wallThickness,
+                    targetComponent, 'Uniform compartment cuts',
+                    adsk.fusion.PatternComputeOptions.OptimizedPatternCompute,
+                )
+                compartmentCuts = []
+                compartmentMerges = patternCompartmentBodies(
+                    compartmentMerges, input,
+                    compartmentWidthUnit + input.wallThickness,
+                    compartmentLengthUnit + input.wallThickness,
+                    targetComponent, 'Uniform compartment label tabs',
+                )
+            bodiesToSubtract.extend(compartmentCuts)
+            bodiesToMerge.extend(compartmentMerges)
 
         if len(input.compartments) > 1:
             compartmentsTopClearance = createCompartmentCutout(

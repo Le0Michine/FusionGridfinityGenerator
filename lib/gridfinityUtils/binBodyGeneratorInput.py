@@ -64,6 +64,7 @@ class BinBodyGeneratorInput():
         self.tabLength = 1
         self.tabWidth = const.BIN_TAB_WIDTH
         self.compartments = [BinBodyCompartmentDefinition()]
+        self.isUniformCompartments = False
         self.compartmentsByX = 1
         self.compartmentsByY = 1
         self.binCornerFilletRadius = const.BIN_CORNER_FILLET_RADIUS

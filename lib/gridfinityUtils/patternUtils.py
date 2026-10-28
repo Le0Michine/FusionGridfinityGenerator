@@ -8,6 +8,7 @@ def recPattern(
     distances: Tuple[float, float],
     quantities: Tuple[int, int],
     targetComponent: adsk.fusion.Component,
+    computeOption=None,
     ):
     rectangularPatternFeatures: adsk.fusion.RectangularPatternFeatures = targetComponent.features.rectangularPatternFeatures
     patternInput = rectangularPatternFeatures.createInput(inputEntities,
@@ -18,6 +19,8 @@ def recPattern(
     patternInput.directionTwoEntity = directions[1]
     patternInput.quantityTwo = adsk.core.ValueInput.createByReal(quantities[1])
     patternInput.distanceTwo = adsk.core.ValueInput.createByReal(distances[1])
+    if computeOption is not None:
+        patternInput.patternComputeOption = computeOption
     return rectangularPatternFeatures.add(patternInput)
 
 def circPattern(

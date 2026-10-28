@@ -958,6 +958,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
         binBodyInput.compartmentsByY = compartmentsY.value
 
         if binCompartmentGridTypeDropdownInput.selectedItem.name == BIN_COMPARTMENTS_GRID_TYPE_UNIFORM:
+            binBodyInput.isUniformCompartments = True
             binBodyInput.compartments = uniformCompartments(binBodyInput.compartmentsByX, binBodyInput.compartmentsByY)
         else:
             binBodyInput.compartments = []
