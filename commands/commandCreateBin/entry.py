@@ -697,6 +697,7 @@ def command_preview(args: adsk.core.CommandEventArgs):
         if showPreview.value or showPreviewManual.value:
             args.isValidResult = generateBin(args)
             showPreviewManual.value = False
+            commandUIState.onInputUpdate(showPreviewManual)
     else:
         args.executeFailed = True
         args.executeFailedMessage = "Some inputs are invalid, unable to generate preview"
