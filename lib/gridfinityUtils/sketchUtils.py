@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import math
 import adsk.core, adsk.fusion, traceback
 import os
@@ -10,50 +11,62 @@ def isVertical(line: adsk.fusion.SketchLine):
 def isHorizontal(line: adsk.fusion.SketchLine):
     return math.isclose(line.startSketchPoint.geometry.y, line.endSketchPoint.geometry.y, abs_tol=const.DEFAULT_FILTER_TOLERANCE)
 
+@contextmanager
+def deferSketchCompute(sketch):
+    """Batch construction of a new sketch before any feature depends on it."""
+    wasDeferred = sketch.isComputeDeferred
+    try:
+        sketch.isComputeDeferred = True
+        yield
+    finally:
+        sketch.isComputeDeferred = wasDeferred
+
+
 def createRectangle(
     width: float,
     length: float,
     startPoint: adsk.core.Point3D,
     sketch: adsk.fusion.Sketch,
 ):
-    constraints: adsk.fusion.GeometricConstraints = sketch.geometricConstraints
-    dimensions: adsk.fusion.SketchDimensions = sketch.sketchDimensions
-    lines: adsk.fusion.SketchLines = sketch.sketchCurves.sketchLines
-    rectangleLines = lines.addTwoPointRectangle(
-        startPoint,
-        adsk.core.Point3D.create(startPoint.x + width, startPoint.y + length, 0)
-    )
-    constraints.addHorizontal(rectangleLines.item(0))
-    constraints.addVertical(rectangleLines.item(1))
-    constraints.addHorizontal(rectangleLines.item(2))
-    constraints.addVertical(rectangleLines.item(3))
-    if startPoint.isEqualTo(sketch.originPoint.geometry):
-        constraints.addCoincident(sketch.originPoint, rectangleLines.item(3))
-        constraints.addCoincident(sketch.originPoint, rectangleLines.item(0))
-    else:
-        dimensions.addDistanceDimension(
-            sketch.originPoint,
-            rectangleLines.item(0).startSketchPoint,
-            adsk.fusion.DimensionOrientations.VerticalDimensionOrientation,
-            rectangleLines.item(0).startSketchPoint.geometry,
-            True,
+    with deferSketchCompute(sketch):
+        constraints: adsk.fusion.GeometricConstraints = sketch.geometricConstraints
+        dimensions: adsk.fusion.SketchDimensions = sketch.sketchDimensions
+        lines: adsk.fusion.SketchLines = sketch.sketchCurves.sketchLines
+        rectangleLines = lines.addTwoPointRectangle(
+            startPoint,
+            adsk.core.Point3D.create(startPoint.x + width, startPoint.y + length, 0)
         )
-        dimensions.addDistanceDimension(
-            sketch.originPoint,
-            rectangleLines.item(3).startSketchPoint,
+        constraints.addHorizontal(rectangleLines.item(0))
+        constraints.addVertical(rectangleLines.item(1))
+        constraints.addHorizontal(rectangleLines.item(2))
+        constraints.addVertical(rectangleLines.item(3))
+        if startPoint.isEqualTo(sketch.originPoint.geometry):
+            constraints.addCoincident(sketch.originPoint, rectangleLines.item(3))
+            constraints.addCoincident(sketch.originPoint, rectangleLines.item(0))
+        else:
+            dimensions.addDistanceDimension(
+                sketch.originPoint,
+                rectangleLines.item(0).startSketchPoint,
+                adsk.fusion.DimensionOrientations.VerticalDimensionOrientation,
+                rectangleLines.item(0).startSketchPoint.geometry,
+                True,
+            )
+            dimensions.addDistanceDimension(
+                sketch.originPoint,
+                rectangleLines.item(3).startSketchPoint,
+                adsk.fusion.DimensionOrientations.HorizontalDimensionOrientation,
+                rectangleLines.item(3).startSketchPoint.geometry,
+                True,
+            )
+        dimensions.addDistanceDimension(rectangleLines.item(0).startSketchPoint,
+            rectangleLines.item(0).endSketchPoint,
             adsk.fusion.DimensionOrientations.HorizontalDimensionOrientation,
-            rectangleLines.item(3).startSketchPoint.geometry,
-            True,
-        )
-    dimensions.addDistanceDimension(rectangleLines.item(0).startSketchPoint,
-        rectangleLines.item(0).endSketchPoint,
-        adsk.fusion.DimensionOrientations.HorizontalDimensionOrientation,
-        rectangleLines.item(0).endSketchPoint.geometry)
-    dimensions.addDistanceDimension(rectangleLines.item(1).startSketchPoint,
-        rectangleLines.item(1).endSketchPoint,
-        adsk.fusion.DimensionOrientations.VerticalDimensionOrientation,
-        rectangleLines.item(1).endSketchPoint.geometry)
-    return rectangleLines
+            rectangleLines.item(0).endSketchPoint.geometry)
+        dimensions.addDistanceDimension(rectangleLines.item(1).startSketchPoint,
+            rectangleLines.item(1).endSketchPoint,
+            adsk.fusion.DimensionOrientations.VerticalDimensionOrientation,
+            rectangleLines.item(1).endSketchPoint.geometry)
+        return rectangleLines
 
 def filterCirclesByRadius(
     radius: float,

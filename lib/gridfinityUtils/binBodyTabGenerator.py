@@ -29,63 +29,64 @@ def createGridfinityBinBodyTab(
     tabProfilePlane = targetComponent.constructionPlanes.add(tabProfilePlaneInput)
     tabSketch: adsk.fusion.Sketch = targetComponent.sketches.add(tabProfilePlane)
     tabSketch.name = "label tab sketch"
-    tabSketchLine = tabSketch.sketchCurves.sketchLines
-    tabTopEdgeHeight = input.origin.z - input.topClearance
-    actualTabWidth = input.width + BIN_TAB_EDGE_FILLET_RADIUS / math.tan((math.radians(90) - input.overhangAngle) / 2)
-    actualTabHeight = actualTabWidth / math.tan(input.overhangAngle)
-    line1 = tabSketchLine.addByTwoPoints(
-        tabSketch.modelToSketchSpace(adsk.core.Point3D.create(input.origin.x, input.origin.y, tabTopEdgeHeight)),
-        tabSketch.modelToSketchSpace(adsk.core.Point3D.create(input.origin.x, input.origin.y, tabTopEdgeHeight - actualTabHeight)),
-    )
-    line2 = tabSketchLine.addByTwoPoints(
-        tabSketch.modelToSketchSpace(adsk.core.Point3D.create(input.origin.x, input.origin.y, tabTopEdgeHeight)),
-        tabSketch.modelToSketchSpace(adsk.core.Point3D.create(input.origin.x, input.origin.y - actualTabWidth, tabTopEdgeHeight)),
-    )
-    line3 = tabSketchLine.addByTwoPoints(
-        tabSketch.modelToSketchSpace(adsk.core.Point3D.create(input.origin.x, input.origin.y, tabTopEdgeHeight - actualTabHeight)),
-        tabSketch.modelToSketchSpace(adsk.core.Point3D.create(input.origin.x, input.origin.y - actualTabWidth, tabTopEdgeHeight)),
-    )
-
-    constraints: adsk.fusion.GeometricConstraints = tabSketch.geometricConstraints
-    dimensions: adsk.fusion.SketchDimensions = tabSketch.sketchDimensions
-
-    # horizontal/vertical relative to local sketch XY coordinates
-    constraints.addHorizontal(line1)
-    constraints.addVertical(line2)
-    constraints.addCoincident(line1.startSketchPoint, line2.startSketchPoint)
-    constraints.addCoincident(line2.endSketchPoint, line3.endSketchPoint)
-    constraints.addCoincident(line1.endSketchPoint, line3.startSketchPoint)
-
-    dimensions.addDistanceDimension(
-        tabSketch.originPoint,
-        line1.startSketchPoint,
-        adsk.fusion.DimensionOrientations.VerticalDimensionOrientation,
-        line1.startSketchPoint.geometry,
-        True
+    with sketchUtils.deferSketchCompute(tabSketch):
+        tabSketchLine = tabSketch.sketchCurves.sketchLines
+        tabTopEdgeHeight = input.origin.z - input.topClearance
+        actualTabWidth = input.width + BIN_TAB_EDGE_FILLET_RADIUS / math.tan((math.radians(90) - input.overhangAngle) / 2)
+        actualTabHeight = actualTabWidth / math.tan(input.overhangAngle)
+        line1 = tabSketchLine.addByTwoPoints(
+            tabSketch.modelToSketchSpace(adsk.core.Point3D.create(input.origin.x, input.origin.y, tabTopEdgeHeight)),
+            tabSketch.modelToSketchSpace(adsk.core.Point3D.create(input.origin.x, input.origin.y, tabTopEdgeHeight - actualTabHeight)),
+        )
+        line2 = tabSketchLine.addByTwoPoints(
+            tabSketch.modelToSketchSpace(adsk.core.Point3D.create(input.origin.x, input.origin.y, tabTopEdgeHeight)),
+            tabSketch.modelToSketchSpace(adsk.core.Point3D.create(input.origin.x, input.origin.y - actualTabWidth, tabTopEdgeHeight)),
+        )
+        line3 = tabSketchLine.addByTwoPoints(
+            tabSketch.modelToSketchSpace(adsk.core.Point3D.create(input.origin.x, input.origin.y, tabTopEdgeHeight - actualTabHeight)),
+            tabSketch.modelToSketchSpace(adsk.core.Point3D.create(input.origin.x, input.origin.y - actualTabWidth, tabTopEdgeHeight)),
         )
 
-    dimensions.addDistanceDimension(
-        tabSketch.originPoint,
-        line1.startSketchPoint,
-        adsk.fusion.DimensionOrientations.HorizontalDimensionOrientation,
-        line1.startSketchPoint.geometry,
-        True
-        )
+        constraints: adsk.fusion.GeometricConstraints = tabSketch.geometricConstraints
+        dimensions: adsk.fusion.SketchDimensions = tabSketch.sketchDimensions
 
-    dimensions.addDistanceDimension(
-        line2.startSketchPoint,
-        line2.endSketchPoint,
-        adsk.fusion.DimensionOrientations.VerticalDimensionOrientation,
-        line2.endSketchPoint.geometry,
-        True
-        )
+        # horizontal/vertical relative to local sketch XY coordinates
+        constraints.addHorizontal(line1)
+        constraints.addVertical(line2)
+        constraints.addCoincident(line1.startSketchPoint, line2.startSketchPoint)
+        constraints.addCoincident(line2.endSketchPoint, line3.endSketchPoint)
+        constraints.addCoincident(line1.endSketchPoint, line3.startSketchPoint)
+
+        dimensions.addDistanceDimension(
+            tabSketch.originPoint,
+            line1.startSketchPoint,
+            adsk.fusion.DimensionOrientations.VerticalDimensionOrientation,
+            line1.startSketchPoint.geometry,
+            True
+            )
+
+        dimensions.addDistanceDimension(
+            tabSketch.originPoint,
+            line1.startSketchPoint,
+            adsk.fusion.DimensionOrientations.HorizontalDimensionOrientation,
+            line1.startSketchPoint.geometry,
+            True
+            )
+
+        dimensions.addDistanceDimension(
+            line2.startSketchPoint,
+            line2.endSketchPoint,
+            adsk.fusion.DimensionOrientations.VerticalDimensionOrientation,
+            line2.endSketchPoint.geometry,
+            True
+            )
             
-    dimensions.addAngularDimension(
-        line1,
-        line3,
-        line1.endSketchPoint.geometry,
-        True,
-        )
+        dimensions.addAngularDimension(
+            line1,
+            line3,
+            line1.endSketchPoint.geometry,
+            True,
+            )
 
     tabExtrudeFeature = extrudeUtils.simpleDistanceExtrude(
         tabSketch.profiles.item(0),
