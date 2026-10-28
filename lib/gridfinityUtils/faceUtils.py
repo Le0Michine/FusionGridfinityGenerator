@@ -14,7 +14,10 @@ def maxByArea(faces: adsk.fusion.BRepFaces):
 
 def closestToOrigin(faces: adsk.fusion.BRepFaces):
     origin = adsk.core.Point3D.create(0, 0, 0)
-    return min(faces, key=lambda x: min(x.boundingBox.minPoint.distanceTo(origin), x.boundingBox.maxPoint.distanceTo(origin)))
+    def distance(face):
+        bounds = face.boundingBox
+        return min(bounds.minPoint.distanceTo(origin), bounds.maxPoint.distanceTo(origin))
+    return min(faces, key=distance)
 
 def longestEdge(face: adsk.fusion.BRepFace):
     return max(face.edges, key=lambda x: x.length)

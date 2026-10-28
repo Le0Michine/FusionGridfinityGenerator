@@ -65,7 +65,6 @@ def createGridfinityBinBodyCutout(
             targetComponent
         )
     # fillet inner cutout
-    [innerCutoutScoopFace, innerCutoputScoopOppositeFace] = getInnerCutoutScoopFace(innerCutoutBody)
     innerCutoutVerticalFaces = faceUtils.getVerticalEdges(innerCutoutBody.faces)
     filletUtils.createFillet(
         innerCutoutVerticalFaces,
