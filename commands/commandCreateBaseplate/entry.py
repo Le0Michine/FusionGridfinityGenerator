@@ -5,6 +5,7 @@ import os
 
 from ...lib import configUtils
 from ...lib import tagUtils
+from ...lib import placementUtils
 from ...lib import fusion360utils as futil
 from ... import config
 from ...lib.gridfinityUtils.const import DIMENSION_DEFAULT_WIDTH_UNIT
@@ -23,6 +24,9 @@ ui = app.userInterface
 CMD_ID = f'{config.COMPANY_NAME}_{config.ADDIN_NAME}_cmdBaseplate'
 CMD_NAME = 'Gridfinity baseplate'
 CMD_Description = 'Create gridfinity baseplate'
+
+# default name of baseplates generated before tagging, keep as is even if the naming changes
+BASEPLATE_LEGACY_NAME_PREFIX = 'Gridfinity baseplate '
 
 uiState = CommandUiState(CMD_NAME)
 # Specify that the command will be promoted to the panel.
@@ -459,8 +463,26 @@ def generateBaseplate(args: adsk.core.CommandEventArgs):
         baseplateGeneratorInput.connectionScrewHolesDiameter = inputsState.connectionHoleSize
         baseplateGeneratorInput.cornerFilletRadius = const.BIN_CORNER_FILLET_RADIUS
 
+        # pick the spot before generating, so none of this baseplate's geometry can count as an obstacle
+        paddingInput = baseplateGeneratorInput if baseplateGeneratorInput.hasPadding else None
+        baseplatePlacement = placementUtils.findPlacement(
+            des,
+            tagUtils.TAG_BASEPLATE,
+            BASEPLATE_LEGACY_NAME_PREFIX,
+            (
+                -paddingInput.paddingLeft if paddingInput else 0,
+                -paddingInput.paddingBottom if paddingInput else 0,
+                baseplateGeneratorInput.baseplateWidth * baseplateGeneratorInput.baseWidth - baseplateGeneratorInput.xyClearance * 2 + (paddingInput.paddingRight if paddingInput else 0),
+                baseplateGeneratorInput.baseplateLength * baseplateGeneratorInput.baseLength - baseplateGeneratorInput.xyClearance * 2 + (paddingInput.paddingTop if paddingInput else 0),
+            ),
+            baseplateGeneratorInput.baseWidth,
+            baseplateGeneratorInput.baseLength,
+        )
+
         baseplateBody = createGridfinityBaseplate(baseplateGeneratorInput, gridfinityBaseplateComponent)
         baseplateBody.name = baseplateName
+        if baseplatePlacement != (0, 0):
+            placementUtils.moveBodies([baseplateBody], *baseplatePlacement, gridfinityBaseplateComponent).name = 'Baseplate placement'
         # mark generated geometry so it can be told apart from the rest of the design
         tagUtils.tagBody(baseplateBody, tagUtils.TAG_BASEPLATE)
 

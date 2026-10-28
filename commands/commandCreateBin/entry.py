@@ -5,6 +5,7 @@ import math
 
 from ...lib import configUtils
 from ...lib import tagUtils
+from ...lib import placementUtils
 from ...lib import fusion360utils as futil
 from ... import config
 from ...lib.gridfinityUtils import combineUtils
@@ -116,6 +117,9 @@ BIN_COMPARTMENTS_TABLE_UNIFORM_ID = 'compartments_table_uniform'
 BIN_TYPE_DROPDOWN_ID = 'bin_type'
 BIN_TYPE_HOLLOW = 'Hollow'
 BIN_TYPE_SHELLED = 'Shelled'
+
+# default name of bins generated before tagging, keep as is even if the naming changes
+BIN_LEGACY_NAME_PREFIX = 'Gridfinity bin '
 BIN_TYPE_SOLID = 'Solid'
 
 INPUT_CHANGES_SAVE_DEFAULTS = 'input_changes_buttons_save_new_defaults'
@@ -908,6 +912,21 @@ def generateBin(args: adsk.core.CommandEventArgs):
             gridfinityBinComponent: adsk.fusion.Component = des.rootComponent
         features: adsk.fusion.Features = gridfinityBinComponent.features
 
+        # pick the spot before generating, so none of this bin's geometry can count as an obstacle
+        binPlacement = placementUtils.findPlacement(
+            des,
+            tagUtils.TAG_BIN,
+            BIN_LEGACY_NAME_PREFIX,
+            (
+                0,
+                0,
+                bin_width.value * base_width_unit.value - xyClearance * 2,
+                bin_length.value * base_length_unit.value - xyClearance * 2,
+            ),
+            base_width_unit.value,
+            base_length_unit.value,
+        )
+
         # create base interface
         baseGeneratorInput = BaseGeneratorInput()
         baseGeneratorInput.originPoint = geometryUtils.createOffsetPoint(
@@ -1047,9 +1066,12 @@ def generateBin(args: adsk.core.CommandEventArgs):
                     gridfinityBinComponent.features.removeFeatures.add(body)
                 combineUtils.joinBodies(binBody, commonUtils.objectCollectionFromList([tabMainBody]), gridfinityBinComponent)
 
-        # mark generated geometry so later bins can tell it apart from the rest of the design
         if bin_generate_body.value or bin_generate_base.value:
-            for body in [binBody] if bin_generate_body.value else baseBodies:
+            generatedBodies = [binBody] if bin_generate_body.value else baseBodies
+            if binPlacement != (0, 0):
+                placementUtils.moveBodies(generatedBodies, *binPlacement, gridfinityBinComponent).name = 'Bin placement'
+            # mark generated geometry so later bins can tell it apart from the rest of the design
+            for body in generatedBodies:
                 tagUtils.tagBody(body, tagUtils.TAG_BIN)
 
         # group features in timeline
