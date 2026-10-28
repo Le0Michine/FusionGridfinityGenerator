@@ -16,14 +16,6 @@ from ... import config
 app = adsk.core.Application.get()
 ui = app.userInterface
 
-def getInnerCutoutScoopFace(
-    innerCutout: adsk.fusion.BRepBody
-    ) -> tuple[adsk.fusion.BRepFace, adsk.fusion.BRepFace]:
-    innerCutoutYNormalFaces = [face for face in innerCutout.faces if faceUtils.isYNormal(face)]
-    scoopFace = min(innerCutoutYNormalFaces, key=lambda x: x.boundingBox.minPoint.y)
-    oppositeFace = max(innerCutoutYNormalFaces, key=lambda x: x.boundingBox.minPoint.y)
-    return (scoopFace, oppositeFace)
-
 def createGridfinityBinBodyTab(
     input: BinBodyTabGeneratorInput,
     targetComponent: adsk.fusion.Component,
