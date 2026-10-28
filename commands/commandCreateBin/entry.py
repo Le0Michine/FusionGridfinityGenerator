@@ -4,6 +4,7 @@ import math
 
 
 from ...lib import configUtils
+from ...lib import tagUtils
 from ...lib import fusion360utils as futil
 from ... import config
 from ...lib.gridfinityUtils import combineUtils
@@ -1045,6 +1046,11 @@ def generateBin(args: adsk.core.CommandEventArgs):
                 for body in bodiesToRemove:
                     gridfinityBinComponent.features.removeFeatures.add(body)
                 combineUtils.joinBodies(binBody, commonUtils.objectCollectionFromList([tabMainBody]), gridfinityBinComponent)
+
+        # mark generated geometry so later bins can tell it apart from the rest of the design
+        if bin_generate_body.value or bin_generate_base.value:
+            for body in [binBody] if bin_generate_body.value else baseBodies:
+                tagUtils.tagBody(body, tagUtils.TAG_BIN)
 
         # group features in timeline
         binGroup = des.timeline.timelineGroups.add(originalTimelineCount, des.timeline.count - 1)

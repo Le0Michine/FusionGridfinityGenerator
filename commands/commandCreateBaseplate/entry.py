@@ -4,6 +4,7 @@ import os
 
 
 from ...lib import configUtils
+from ...lib import tagUtils
 from ...lib import fusion360utils as futil
 from ... import config
 from ...lib.gridfinityUtils.const import DIMENSION_DEFAULT_WIDTH_UNIT
@@ -460,6 +461,8 @@ def generateBaseplate(args: adsk.core.CommandEventArgs):
 
         baseplateBody = createGridfinityBaseplate(baseplateGeneratorInput, gridfinityBaseplateComponent)
         baseplateBody.name = baseplateName
+        # mark generated geometry so it can be told apart from the rest of the design
+        tagUtils.tagBody(baseplateBody, tagUtils.TAG_BASEPLATE)
 
         if des.designType == adsk.fusion.DesignTypes.ParametricDesignType:
             # group features in timeline
