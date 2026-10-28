@@ -1,5 +1,6 @@
 import adsk.core, adsk.fusion, traceback
 import os
+import time
 
 
 
@@ -417,6 +418,7 @@ def command_destroy(args: adsk.core.CommandEventArgs):
 
 
 def generateBaseplate(args: adsk.core.CommandEventArgs):
+    startTime = time.perf_counter()
     futil.log(f'{CMD_NAME} Generating baseplate')
     inputsState = getInputsState()
 
@@ -490,6 +492,7 @@ def generateBaseplate(args: adsk.core.CommandEventArgs):
             # group features in timeline
             plateGroup = des.timeline.timelineGroups.add(originalTimelineCount, des.timeline.count - 1)
             plateGroup.name = baseplateName
+        futil.log(f'{CMD_NAME} {baseplateName} generated in {time.perf_counter() - startTime:.3f}s')
     except UnsupportedDesignTypeException as err:
         args.executeFailed = True
         args.executeFailedMessage = 'Design type is unsupported. Projects with disabled design history are unsupported, please enable timeline feature to proceed.'

@@ -406,29 +406,47 @@ def cutBaseClearance(
 ):
     actual_base_width = baseConfiguration.baseWidth * basesXCount - baseConfiguration.xyClearance * 2
     actual_base_length = baseConfiguration.baseLength * basesYCount - baseConfiguration.xyClearance * 2
-    features = targetComponent.features
-    baseConstructionPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
-    baseConstructionPlaneInput.setByOffset(targetComponent.xYConstructionPlane, adsk.core.ValueInput.createByReal(baseConfiguration.originPoint.z))
-    baseConstructionPlane = targetComponent.constructionPlanes.add(baseConstructionPlaneInput)
-    sketches: adsk.fusion.Sketches = targetComponent.sketches
-    baseClearanceCutSketch: adsk.fusion.Sketch = sketches.add(baseConstructionPlane)
-    baseClearanceCutSketch.name = "Base clearance cut sketch"
-    innerRectangle = createRectangle(
-        actual_base_width,
-        actual_base_length,
+    clearanceCutExtrude = cutOutsideRoundedRectangle(
         adsk.core.Point3D.create(
             baseConfiguration.originPoint.x + baseConfiguration.xyClearance,
             baseConfiguration.originPoint.y + baseConfiguration.xyClearance,
             baseConfiguration.originPoint.z,
         ),
-        baseClearanceCutSketch
+        actual_base_width,
+        actual_base_length,
+        baseConfiguration.cornerFilletRadius - baseConfiguration.xyClearance,
+        targetBodies,
+        targetComponent,
     )
-    sketchArcs = baseClearanceCutSketch.sketchCurves.sketchArcs
-    geometricConstraints = baseClearanceCutSketch.geometricConstraints
-    sketchDimensions = baseClearanceCutSketch.sketchDimensions
+    clearanceCutExtrude.name = "Base side clearance cut"
+
+def cutOutsideRoundedRectangle(
+    cornerPoint: adsk.core.Point3D,
+    width: float,
+    length: float,
+    filletRadius: float,
+    targetBodies: list[adsk.fusion.BRepBody],
+    targetComponent: adsk.fusion.Component,
+) -> adsk.fusion.ExtrudeFeature:
+    """Cuts everything outside a rounded rectangle from the target bodies, through their full height"""
+    features = targetComponent.features
+    cutConstructionPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
+    cutConstructionPlaneInput.setByOffset(targetComponent.xYConstructionPlane, adsk.core.ValueInput.createByReal(cornerPoint.z))
+    cutConstructionPlane = targetComponent.constructionPlanes.add(cutConstructionPlaneInput)
+    sketches: adsk.fusion.Sketches = targetComponent.sketches
+    cutSketch: adsk.fusion.Sketch = sketches.add(cutConstructionPlane)
+    cutSketch.name = "Outside rounded rectangle cut sketch"
+    innerRectangle = createRectangle(
+        width,
+        length,
+        cornerPoint,
+        cutSketch
+    )
+    sketchArcs = cutSketch.sketchCurves.sketchArcs
+    geometricConstraints = cutSketch.geometricConstraints
+    sketchDimensions = cutSketch.sketchDimensions
 
     [side1, side2, side3, side4] = list(innerRectangle)
-    filletRadius = baseConfiguration.cornerFilletRadius - baseConfiguration.xyClearance
     fillet1 = sketchArcs.addFillet(side1, side1.endSketchPoint.geometry, side2, side2.startSketchPoint.geometry, filletRadius)
     fillet2 = sketchArcs.addFillet(side2, side2.endSketchPoint.geometry, side3, side3.startSketchPoint.geometry, filletRadius)
     fillet3 = sketchArcs.addFillet(side3, side3.endSketchPoint.geometry, side4, side4.startSketchPoint.geometry, filletRadius)
@@ -439,18 +457,19 @@ def cutBaseClearance(
     geometricConstraints.addEqual(fillet3, fillet4)
     sketchDimensions.addRadialDimension(fillet1, fillet1.startSketchPoint.geometry)
 
-    baseClearanceCutSketch.offset(commonUtils.objectCollectionFromList([fillet1, fillet2, fillet3, fillet4, side1, side2, side3, side4]), baseConfiguration.originPoint, 1)
+    # offset outwards, towards a point past the rectangle corner
+    outsidePoint = adsk.core.Point3D.create(cornerPoint.x - 1, cornerPoint.y - 1, 0)
+    cutSketch.offset(commonUtils.objectCollectionFromList([fillet1, fillet2, fillet3, fillet4, side1, side2, side3, side4]), outsidePoint, 1)
 
-    cuttingProfile = min(list(baseClearanceCutSketch.profiles), key=lambda x: x.boundingBox.minPoint.x)
-    clearanceCutExtrudeInput = features.extrudeFeatures.createInput(
+    cuttingProfile = min(list(cutSketch.profiles), key=lambda x: x.boundingBox.minPoint.x)
+    cutExtrudeInput = features.extrudeFeatures.createInput(
         cuttingProfile,
         adsk.fusion.FeatureOperations.CutFeatureOperation,
     )
-    clearanceCutExtrudeInput.setTwoSidesExtent(
+    cutExtrudeInput.setTwoSidesExtent(
         adsk.fusion.DistanceExtentDefinition.create(adsk.core.ValueInput.createByReal(100)),
         adsk.fusion.DistanceExtentDefinition.create(adsk.core.ValueInput.createByReal(100)),
     )
     # the target component can be the root of a part design, which also holds unrelated bodies
-    clearanceCutExtrudeInput.participantBodies = targetBodies
-    clearanceCutExtrude = features.extrudeFeatures.add(clearanceCutExtrudeInput)
-    clearanceCutExtrude.name = "Base side clearance cut"
+    cutExtrudeInput.participantBodies = targetBodies
+    return features.extrudeFeatures.add(cutExtrudeInput)

@@ -26,19 +26,10 @@ def uniformCompartments(countX, countY):
     return compartments
 
 def patternCompartments(entities, input, spacingX, spacingY, targetComponent, name, computeOption=None):
-    directions = (targetComponent.xConstructionAxis, targetComponent.yConstructionAxis)
-    quantities = (input.compartmentsByX, input.compartmentsByY)
-    distances = (spacingX, spacingY)
-    if quantities[0] == 1:
-        # Use the populated direction as the primary axis for a single-column grid.
-        directions = directions[::-1]
-        quantities = quantities[::-1]
-        distances = distances[::-1]
-    pattern = patternUtils.recPattern(
+    pattern = patternUtils.recPatternGrid(
         commonUtils.objectCollectionFromList(entities),
-        directions,
-        distances,
-        quantities,
+        (input.compartmentsByX, input.compartmentsByY),
+        (spacingX, spacingY),
         targetComponent,
         computeOption,
     )

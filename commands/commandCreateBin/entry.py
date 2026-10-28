@@ -1,5 +1,6 @@
 import adsk.core, adsk.fusion, traceback
 import os
+import time
 import math
 
 
@@ -856,6 +857,7 @@ def saveUIInputsAsDefaults():
         futil.log(f'{CMD_NAME} UI state failed to save')
 
 def generateBin(args: adsk.core.CommandEventArgs):
+    startTime = time.perf_counter()
     inputs = args.command.commandInputs
     base_width_unit: adsk.core.ValueCommandInput = inputs.itemById(BIN_BASE_WIDTH_UNIT_INPUT_ID)
     base_length_unit: adsk.core.ValueCommandInput = inputs.itemById(BIN_BASE_LENGTH_UNIT_INPUT_ID)
@@ -1077,6 +1079,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
         # group features in timeline
         binGroup = des.timeline.timelineGroups.add(originalTimelineCount, des.timeline.count - 1)
         binGroup.name = binName
+        futil.log(f'{CMD_NAME} {binName} generated in {time.perf_counter() - startTime:.3f}s')
     except UnsupportedDesignTypeException as err:
         args.executeFailed = True
         args.executeFailedMessage = 'Design type is unsupported. Projects with disabled design history are unsupported, please enable timeline feature to proceed.'

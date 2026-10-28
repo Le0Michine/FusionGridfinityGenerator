@@ -10,9 +10,11 @@ def cutBody(
     targetBody: adsk.fusion.BRepBodies,
     toolBodies: adsk.core.ObjectCollection,
     targetComponent: adsk.fusion.Component,
+    isKeepToolBodies: bool = False,
     ):
     combineInput = targetComponent.features.combineFeatures.createInput(targetBody, toolBodies)
     combineInput.operation = adsk.fusion.FeatureOperations.CutFeatureOperation
+    combineInput.isKeepToolBodies = isKeepToolBodies
     combineFeature = targetComponent.features.combineFeatures.add(combineInput)
     return combineFeature
 

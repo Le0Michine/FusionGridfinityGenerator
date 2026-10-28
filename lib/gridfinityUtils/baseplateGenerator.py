@@ -2,11 +2,12 @@ import math
 import adsk.core, adsk.fusion, traceback
 import os
 
-from . import const, commonUtils, filletUtils, combineUtils, faceUtils, extrudeUtils, sketchUtils, baseGenerator, patternUtils, shapeUtils, geometryUtils
+from . import const, commonUtils, filletUtils, combineUtils, faceUtils, extrudeUtils, sketchUtils, baseGenerator, patternUtils, shapeUtils, geometryUtils, edgeUtils
 from .baseGeneratorInput import BaseGeneratorInput
 from .baseplateGeneratorInput import BaseplateGeneratorInput
 
 def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: adsk.fusion.Component):
+    timer = commonUtils.StepTimer('Baseplate {}x{}'.format(int(input.baseplateWidth), int(input.baseplateLength)))
     features = targetComponent.features
     cutoutInput = BaseGeneratorInput()
     cutoutInput.xyClearance = input.xyClearance
@@ -20,7 +21,7 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
     cutoutInput.cornerFilletRadius = input.cornerFilletRadius + cutoutInput.xyClearance
     baseBody = baseGenerator.createSingleGridfinityBaseBody(cutoutInput, targetComponent)
 
-    cuttingTools: list[adsk.fusion.BRepBody] = [baseBody]
+    cuttingTools: list[adsk.fusion.BRepBody] = []
     extraCutoutBodies: list[adsk.fusion.BRepBody] = []
 
     holeCenterPoint = adsk.core.Point3D.create(
@@ -180,156 +181,11 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
             commonUtils.objectCollectionFromList(extraCutoutBodies),
             targetComponent,
         )
-    
-    # replicate base in rectangular pattern
-    rectangularPatternFeatures: adsk.fusion.RectangularPatternFeatures = features.rectangularPatternFeatures
-    patternInputBodies = adsk.core.ObjectCollection.create()
-    patternInputBodies.add(baseBody)
-    patternInput = rectangularPatternFeatures.createInput(patternInputBodies,
-        targetComponent.xConstructionAxis,
-        adsk.core.ValueInput.createByReal(input.baseplateWidth),
-        adsk.core.ValueInput.createByReal(input.baseWidth),
-        adsk.fusion.PatternDistanceType.SpacingPatternDistanceType)
-    patternInput.directionTwoEntity = targetComponent.yConstructionAxis
-    patternInput.quantityTwo = adsk.core.ValueInput.createByReal(input.baseplateLength)
-    patternInput.distanceTwo = adsk.core.ValueInput.createByReal(input.baseLength)
-    rectangularPattern = rectangularPatternFeatures.add(patternInput)
-    cuttingTools = cuttingTools + list(rectangularPattern.bodies)
 
-    # create baseplate body
+    timer.step('seed socket')
+
     baseplateTrueWidth = input.baseplateWidth * input.baseWidth - input.xyClearance * 2
     baseplateTrueLength = input.baseplateLength * input.baseLength - input.xyClearance * 2
-    binInterfaceBody = shapeUtils.simpleBox(
-        targetComponent.xYConstructionPlane,
-        0,
-        input.baseplateWidth * input.baseWidth - input.xyClearance * 2,
-        input.baseplateLength * input.baseLength - input.xyClearance * 2,
-        -const.BIN_BASE_HEIGHT,
-        targetComponent.originConstructionPoint.geometry,
-        targetComponent,
-    )
-
-    if input.binZClearance > 0:
-        binZClearance = shapeUtils.simpleBox(
-                targetComponent.xYConstructionPlane,
-                0,
-                baseplateTrueWidth + input.paddingLeft + input.paddingRight,
-                baseplateTrueLength + input.paddingBottom + input.paddingTop,
-                -input.binZClearance,
-                geometryUtils.createOffsetPoint(
-                    targetComponent.originConstructionPoint.geometry,
-                    byX=-input.paddingLeft,
-                    byY=-input.paddingBottom
-                ),
-                targetComponent
-            )
-        binZClearance.name = "Top negative volume"
-        cuttingTools.append(binZClearance)
-
-    if input.hasPadding:
-        paddingHeigth = const.BIN_BASE_HEIGHT
-        mergeTools = []
-        if input.paddingLeft > 0:
-            paddingLeftBody = shapeUtils.simpleBox(
-                targetComponent.xYConstructionPlane,
-                0,
-                input.paddingLeft,
-                baseplateTrueLength + input.paddingBottom + input.paddingTop,
-                -paddingHeigth,
-                geometryUtils.createOffsetPoint(
-                    targetComponent.originConstructionPoint.geometry,
-                    byX=-input.paddingLeft,
-                    byY=-input.paddingBottom
-                ),
-                targetComponent
-            )
-            paddingLeftBody.name = "Padding left"
-            mergeTools.append(paddingLeftBody)
-        if input.paddingTop > 0:
-            paddingTopBody = shapeUtils.simpleBox(
-                targetComponent.xYConstructionPlane,
-                0,
-                baseplateTrueWidth + input.paddingLeft + input.paddingRight,
-                input.paddingTop,
-                -paddingHeigth,
-                geometryUtils.createOffsetPoint(
-                    targetComponent.originConstructionPoint.geometry,
-                    byX=-input.paddingLeft,
-                    byY=baseplateTrueLength
-                ),
-                targetComponent
-            )
-            paddingTopBody.name = "Padding top"
-            mergeTools.append(paddingTopBody)
-        if input.paddingRight > 0:
-            paddingRightBody = shapeUtils.simpleBox(
-                targetComponent.xYConstructionPlane,
-                0,
-                input.paddingRight,
-                baseplateTrueLength + input.paddingTop + input.paddingBottom,
-                -paddingHeigth,
-                geometryUtils.createOffsetPoint(
-                    targetComponent.originConstructionPoint.geometry,
-                    byX=baseplateTrueWidth,
-                    byY=-input.paddingBottom
-                ),
-                targetComponent
-            )
-            paddingRightBody.name = "Padding right"
-            mergeTools.append(paddingRightBody)
-        if input.paddingBottom > 0:
-            paddingBottomBody = shapeUtils.simpleBox(
-                targetComponent.xYConstructionPlane,
-                0,
-                baseplateTrueWidth + input.paddingLeft + input.paddingRight,
-                input.paddingBottom,
-                -paddingHeigth,
-                geometryUtils.createOffsetPoint(
-                    targetComponent.originConstructionPoint.geometry,
-                    byX=-input.paddingLeft,
-                    byY=-input.paddingBottom
-                ),
-                targetComponent
-            )
-            paddingBottomBody.name = "Padding bottom"
-            mergeTools.append(paddingBottomBody)
-        if len(mergeTools) > 0:
-            paddingCombineFeature = combineUtils.joinBodies(
-                binInterfaceBody,
-                commonUtils.objectCollectionFromList(mergeTools),
-                targetComponent,
-            )
-            paddingCombineFeature.name = "Combine base with padding bodies"
-            binInterfaceBody = paddingCombineFeature.bodies.item(0)
-
-    cornerFillet = filletUtils.filletEdgesByLength(
-        binInterfaceBody.faces,
-        input.cornerFilletRadius - input.xyClearance,
-        const.BIN_BASE_HEIGHT,
-        targetComponent,
-        )
-    cornerFillet.name = "Round outer corners"
-    
-    if input.hasExtendedBottom:
-        baseplateBottomLayer = extrudeUtils.simpleDistanceExtrude(
-            faceUtils.getBottomFace(binInterfaceBody),
-            adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
-            input.bottomExtensionHeight,
-            adsk.fusion.ExtentDirections.PositiveExtentDirection,
-            [],
-            targetComponent,
-        )
-        baseplateBottomLayerBody = baseplateBottomLayer.bodies.item(0)
-        combineUtils.joinBodies(binInterfaceBody, commonUtils.objectCollectionFromList([baseplateBottomLayerBody]), targetComponent)
-
-    bottomChamfer = filletUtils.chamferEdgesByLength(
-        [faceUtils.getBottomFace(binInterfaceBody)],
-        0.05,
-        baseplateTrueLength + (input.paddingTop + input.paddingBottom if input.hasPadding else 0),
-        const.BIN_CORNER_FILLET_RADIUS * 3,
-        targetComponent,
-    )
-    bottomChamfer.name = "Bottom chamfer"
 
     if not connectionHoleYTool is None and not connectionHoleXTool is None:
         holeToolsXFeature = patternUtils.recPattern(
@@ -367,18 +223,156 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
         mirrorConnectionHolesXZ = features.mirrorFeatures.add(mirrorConnectionHolesXZInput)
 
         cuttingTools = cuttingTools + list(mirrorConnectionHolesYZ.bodies) + list(mirrorConnectionHolesXZ.bodies) + connectionHoleYToolList + connectionHoleXToolList
+    timer.step('connection holes')
 
+    # the plate is built from socket cells each cut once by the seed socket, then patterned and joined,
+    # instead of cutting a plate body with a socket body per cell
+    gridHeight = const.BIN_BASE_HEIGHT + (input.bottomExtensionHeight if input.hasExtendedBottom else 0)
+    # cells start below the top clearance, the same as cutting it from the whole plate
+    gridTop = -max(0, input.binZClearance)
+    paddingLeft = input.paddingLeft if input.hasPadding else 0
+    paddingTop = input.paddingTop if input.hasPadding else 0
+    paddingRight = input.paddingRight if input.hasPadding else 0
+    paddingBottom = input.paddingBottom if input.hasPadding else 0
+    baseplateBody = createSocketCellGrid(input, baseBody, gridTop, gridHeight, targetComponent, timer)
 
-    # cut everything
-    toolBodies = commonUtils.objectCollectionFromList(cuttingTools)
-    finalCut = combineUtils.cutBody(
-        binInterfaceBody,
-        toolBodies,
+    # padding past the cells. Sockets overhang their cells by the xy clearance, but only within the top
+    # xy clearance depth, which the top clearance removes anyway unless it is set smaller
+    cellsMinX = -input.xyClearance
+    cellsMaxX = input.baseplateWidth * input.baseWidth - input.xyClearance
+    cellsMinY = -input.xyClearance
+    cellsMaxY = input.baseplateLength * input.baseLength - input.xyClearance
+    outlineMinX = -paddingLeft
+    outlineMaxX = baseplateTrueWidth + paddingRight
+    outlineMinY = -paddingBottom
+    outlineMaxY = baseplateTrueLength + paddingTop
+    paddingStrips = [
+        ("Padding left", outlineMinX, outlineMinY, cellsMinX, outlineMaxY),
+        ("Padding right", cellsMaxX, outlineMinY, outlineMaxX, outlineMaxY),
+        ("Padding bottom", cellsMinX, outlineMinY, cellsMaxX, cellsMinY),
+        ("Padding top", cellsMinX, cellsMaxY, cellsMaxX, outlineMaxY),
+    ]
+    paddingBodies: list[adsk.fusion.BRepBody] = []
+    for (name, minX, minY, maxX, maxY) in paddingStrips:
+        if maxX - minX > const.DEFAULT_FILTER_TOLERANCE and maxY - minY > const.DEFAULT_FILTER_TOLERANCE:
+            paddingBody = shapeUtils.simpleBox(
+                targetComponent.xYConstructionPlane,
+                gridTop,
+                maxX - minX,
+                maxY - minY,
+                -(gridHeight + gridTop),
+                adsk.core.Point3D.create(minX, minY, 0),
+                targetComponent,
+            )
+            paddingBody.name = name
+            paddingBodies.append(paddingBody)
+    if len(paddingBodies) > 0:
+        combineUtils.joinBodies(
+            baseplateBody,
+            commonUtils.objectCollectionFromList(paddingBodies),
+            targetComponent,
+        ).name = "Join padding"
+        timer.step(f'padding ({len(paddingBodies)} strips)')
+
+    # trims cells overhanging the plate edge and rounds the outer corners
+    baseGenerator.cutOutsideRoundedRectangle(
+        adsk.core.Point3D.create(outlineMinX, outlineMinY, 0),
+        outlineMaxX - outlineMinX,
+        outlineMaxY - outlineMinY,
+        input.cornerFilletRadius - input.xyClearance,
+        [baseplateBody],
+        targetComponent,
+    ).name = "Trim to plate outline"
+    timer.step('trim to outline')
+
+    bottomFace = faceUtils.getBottomFace(baseplateBody)
+    plateBox = baseplateBody.boundingBox
+    def isOnOutline(edge: adsk.fusion.BRepEdge):
+        edgeBox = edge.boundingBox
+        return any(math.isclose(edgeValue, plateValue, abs_tol=const.DEFAULT_FILTER_TOLERANCE) for (edgeValue, plateValue) in [
+            (edgeBox.minPoint.x, plateBox.minPoint.x),
+            (edgeBox.maxPoint.x, plateBox.maxPoint.x),
+            (edgeBox.minPoint.y, plateBox.minPoint.y),
+            (edgeBox.maxPoint.y, plateBox.maxPoint.y),
+        ])
+    # the bottom face also has socket edges now, only chamfer the outline edges picked by length as before
+    bottomChamferEdges = [
+        edge for edge in edgeUtils.selectEdgesByLength(
+            [bottomFace],
+            outlineMaxY - outlineMinY,
+            const.BIN_CORNER_FILLET_RADIUS * 3,
+        )
+        if isOnOutline(edge)
+    ]
+    if len(bottomChamferEdges) > 0:
+        filletUtils.createChamfer(
+            commonUtils.objectCollectionFromList(bottomChamferEdges),
+            0.05,
+            targetComponent,
+        ).name = "Bottom chamfer"
+    timer.step('bottom chamfer')
+
+    # cut everything else
+    if len(cuttingTools) > 0:
+        finalCut = combineUtils.cutBody(
+            baseplateBody,
+            commonUtils.objectCollectionFromList(cuttingTools),
+            targetComponent,
+        )
+        finalCut.name = "Final baseplate cut"
+        timer.step('final cut')
+    timer.total()
+
+    return baseplateBody
+
+def createSocketCellGrid(
+    input: BaseplateGeneratorInput,
+    socketBody: adsk.fusion.BRepBody,
+    gridTop: float,
+    gridHeight: float,
+    targetComponent: adsk.fusion.Component,
+    timer: commonUtils.StepTimer,
+) -> adsk.fusion.BRepBody:
+    """
+    The grid area cut by every socket, from one cell cut by the seed socket, patterned and joined.
+    A cell only needs its own socket: sockets are symmetric around their cell center and convex in every
+    horizontal section, so whatever a neighbouring socket reaches into a cell lies within the cell's own socket.
+    """
+    cellBody = shapeUtils.simpleBox(
+        targetComponent.xYConstructionPlane,
+        gridTop,
+        input.baseWidth,
+        input.baseLength,
+        -(gridHeight + gridTop),
+        adsk.core.Point3D.create(-input.xyClearance, -input.xyClearance, 0),
         targetComponent,
     )
-    finalCut.name = "Final baseplate cut"
+    cellBody.name = "Socket cell"
+    combineUtils.cutBody(
+        cellBody,
+        commonUtils.objectCollectionFromList([socketBody]),
+        targetComponent,
+    ).name = "Socket cell cut"
+    timer.step('socket cell')
 
-    return binInterfaceBody
+    if input.baseplateWidth * input.baseplateLength > 1:
+        cellCopies = patternUtils.recPatternGrid(
+            commonUtils.objectCollectionFromList([cellBody]),
+            (input.baseplateWidth, input.baseplateLength),
+            (input.baseWidth, input.baseLength),
+            targetComponent,
+        )
+        cellCopies.name = "Socket cell grid"
+        # pattern bodies include the source body, which a combine rejects as its own tool
+        copyBodies = [body for body in cellCopies.bodies if body != cellBody]
+        timer.step(f'socket cell grid ({len(copyBodies)} copies)')
+        combineUtils.joinBodies(
+            cellBody,
+            commonUtils.objectCollectionFromList(copyBodies),
+            targetComponent,
+        ).name = "Join socket cells"
+        timer.step('join socket cells')
+    return cellBody
 
 def createConnectionHoleTool(connectionHoleFace: adsk.fusion.BRepFace, diameter: float, depth: float, targetComponent: adsk.fusion.Component):
     connectionHoleSketch: adsk.fusion.Sketch = targetComponent.sketches.add(connectionHoleFace)

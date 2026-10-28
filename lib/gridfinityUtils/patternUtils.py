@@ -23,6 +23,21 @@ def recPattern(
         patternInput.patternComputeOption = computeOption
     return rectangularPatternFeatures.add(patternInput)
 
+def recPatternGrid(
+    inputEntities: adsk.core.ObjectCollection,
+    quantities: Tuple[int, int],
+    distances: Tuple[float, float],
+    targetComponent: adsk.fusion.Component,
+    computeOption=None,
+    ):
+    directions = (targetComponent.xConstructionAxis, targetComponent.yConstructionAxis)
+    if quantities[0] == 1:
+        # Use the populated direction as the primary axis for a single-column grid.
+        directions = directions[::-1]
+        quantities = quantities[::-1]
+        distances = distances[::-1]
+    return recPattern(inputEntities, directions, distances, quantities, targetComponent, computeOption)
+
 def circPattern(
     inputEntities: adsk.core.ObjectCollection,
     axis: adsk.core.Base,
