@@ -88,6 +88,7 @@ BIN_GENERATE_BODY_INPUT_ID = 'bin_generate_body'
 BIN_SCREW_HOLES_INPUT_ID = 'bin_screw_holes'
 BIN_MAGNET_CUTOUTS_INPUT_ID = 'bin_magnet_cutouts'
 BIN_MAGNET_CUTOUTS_TABS_INPUT_ID = 'bin_magnet_cutouts_tabs'
+BIN_MAGNET_REFINED_HOLE_INPUT_ID = 'bin_magnet_refined_hole'
 BIN_SCREW_DIAMETER_INPUT = 'screw_diameter'
 BIN_MAGNET_DIAMETER_INPUT = 'magnet_diameter'
 BIN_MAGNET_HEIGHT_INPUT = 'magnet_height'
@@ -193,6 +194,7 @@ def initDefaultUiState():
     commandUIState.initValue(BIN_SCREW_DIAMETER_INPUT, const.DIMENSION_SCREW_HOLE_DIAMETER, adsk.core.ValueCommandInput.classType())
     commandUIState.initValue(BIN_MAGNET_CUTOUTS_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
     commandUIState.initValue(BIN_MAGNET_CUTOUTS_TABS_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
+    commandUIState.initValue(BIN_MAGNET_REFINED_HOLE_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
     commandUIState.initValue(BIN_MAGNET_DIAMETER_INPUT, const.DIMENSION_MAGNET_CUTOUT_DIAMETER, adsk.core.ValueCommandInput.classType())
     commandUIState.initValue(BIN_MAGNET_HEIGHT_INPUT, const.DIMENSION_MAGNET_CUTOUT_DEPTH, adsk.core.ValueCommandInput.classType())
 
@@ -648,6 +650,8 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     commandUIState.registerCommandInput(generateMagnetSocketCheckboxInput)
     generateMagnetsTabCheckboxInput = baseFeaturesGroup.children.addBoolValueInput(BIN_MAGNET_CUTOUTS_TABS_INPUT_ID, 'Add tabs to magnet sockets', True, '', commandUIState.getState(BIN_MAGNET_CUTOUTS_TABS_INPUT_ID))
     commandUIState.registerCommandInput(generateMagnetsTabCheckboxInput)
+    refinedMagnetHoleCheckboxInput = baseFeaturesGroup.children.addBoolValueInput(BIN_MAGNET_REFINED_HOLE_INPUT_ID, 'Side-insertion magnet slots (no glue)', True, '', commandUIState.getState(BIN_MAGNET_REFINED_HOLE_INPUT_ID))
+    commandUIState.registerCommandInput(refinedMagnetHoleCheckboxInput)
     magnetSizeInput = baseFeaturesGroup.children.addValueInput(BIN_MAGNET_DIAMETER_INPUT, 'Magnet cutout diameter', defaultLengthUnits, adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_MAGNET_DIAMETER_INPUT)))
     magnetSizeInput.minimumValue = 0.1
     magnetSizeInput.isMinimumInclusive = True
@@ -812,6 +816,7 @@ def onChangeValidate():
     commandUIState.getInput(BIN_SCREW_HOLES_INPUT_ID).isEnabled = generateBase
     commandUIState.getInput(BIN_MAGNET_CUTOUTS_INPUT_ID).isEnabled = generateBase
     commandUIState.getInput(BIN_MAGNET_CUTOUTS_TABS_INPUT_ID).isEnabled = generateBase
+    commandUIState.getInput(BIN_MAGNET_REFINED_HOLE_INPUT_ID).isEnabled = generateBase
     commandUIState.getInput(BIN_MAGNET_DIAMETER_INPUT).isEnabled = generateBase
     commandUIState.getInput(BIN_MAGNET_HEIGHT_INPUT).isEnabled = generateBase
     commandUIState.getInput(BIN_SCREW_DIAMETER_INPUT).isEnabled = generateBase
@@ -873,6 +878,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
     bin_magnet_cutouts: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_MAGNET_CUTOUTS_INPUT_ID)
     bin_screw_hole_diameter: adsk.core.ValueCommandInput = inputs.itemById(BIN_SCREW_DIAMETER_INPUT)
     bin_magnet_cutouts_tabs: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_MAGNET_CUTOUTS_TABS_INPUT_ID)
+    bin_magnet_refined_hole: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_MAGNET_REFINED_HOLE_INPUT_ID)
     bin_magnet_cutout_diameter: adsk.core.ValueCommandInput = inputs.itemById(BIN_MAGNET_DIAMETER_INPUT)
     bin_magnet_cutout_depth: adsk.core.ValueCommandInput = inputs.itemById(BIN_MAGNET_HEIGHT_INPUT)
     with_lip: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_WITH_LIP_INPUT_ID)
@@ -942,6 +948,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
         baseGeneratorInput.hasScrewHoles = bin_screw_holes.value and not isShelled
         baseGeneratorInput.hasMagnetCutouts = bin_magnet_cutouts.value and not isShelled
         baseGeneratorInput.hasMagnetCutoutsTabs = bin_magnet_cutouts_tabs.value and not isShelled
+        baseGeneratorInput.hasRefinedMagnetHole = bin_magnet_refined_hole.value and not isShelled
         baseGeneratorInput.screwHolesDiameter = bin_screw_hole_diameter.value
         baseGeneratorInput.magnetCutoutsDiameter = bin_magnet_cutout_diameter.value
         baseGeneratorInput.magnetCutoutsDepth = bin_magnet_cutout_depth.value

@@ -40,5 +40,15 @@ DIMENSION_MAGNET_CUTOUT_DIAMETER = 0.65
 DIMENSION_MAGNET_CUTOUT_DEPTH = 0.24
 DIMENSION_PRINT_HELPER_GROOVE_DEPTH = 0.03
 
+# Refined magnet hole constants (based on grizzie17's Gridfinity Refined design)
+# Pocket is slightly smaller than magnet for press-fit (6.5mm - 2*0.32mm = 5.86mm)
+DIMENSION_REFINED_HOLE_SQUEEZE = 0.032
+# Magnet height minus tolerance (2mm - 0.1mm = 1.9mm)
+DIMENSION_REFINED_HOLE_DEPTH = 0.19
+# Thin floor below the pocket to prevent magnet from falling out (h_slit * 2 = 0.4mm)
+DIMENSION_REFINED_HOLE_FLOOR = 0.04
+# Poke-through hole diameter for magnet removal with a toothpick
+DIMENSION_REFINED_POKE_THROUGH_DIAMETER = 0.25
+
 
 DEFAULT_FILTER_TOLERANCE = 0.00001
