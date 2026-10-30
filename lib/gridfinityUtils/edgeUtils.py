@@ -25,3 +25,18 @@ def selectEdgesByLength(
 def excludeEdges(edges: list[adsk.fusion.BRepEdge], toExclude: list[adsk.fusion.BRepEdge]):
     toExcludeIds = [edge.tempId for edge in toExclude]
     return [edge for edge in edges if not edge.tempId in toExcludeIds]
+
+def getConnectedEdges(edge: adsk.fusion.BRepEdge, edges: list[adsk.fusion.BRepEdge]):
+    """Returns edges from the list which share a vertex with the given edge, the edge itself is excluded"""
+    tol = const.DEFAULT_FILTER_TOLERANCE
+    [_, start, end] = edge.evaluator.getEndPoints()
+    connectedEdges: list[adsk.fusion.BRepEdge] = []
+    for other in edges:
+        if other.tempId == edge.tempId:
+            continue
+        [_, otherStart, otherEnd] = other.evaluator.getEndPoints()
+        for point in [start, end]:
+            if point.isEqualToByTolerance(otherStart, tol) or point.isEqualToByTolerance(otherEnd, tol):
+                connectedEdges.append(other)
+                break
+    return connectedEdges
