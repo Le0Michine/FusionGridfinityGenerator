@@ -71,6 +71,8 @@ Full length | Single slot | With offset
 :-------------------------:|:-------------------------:|:-------------------------:
 ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-label-tab-full.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-label-tab-single-slot.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-label-tab-with-offset.png)
 
+Note: Default label size uses 12mm continuous labels from label printers such as Brother PTP700 (higher res, PC or Mac only), PTP300BT (lower res, mobile app only), DYMO LetraTag® 200B.
+
 #### Bin scoop feature
 Scoop enabled | Scoop disabled
 :-------------------------:|:-------------------------:
