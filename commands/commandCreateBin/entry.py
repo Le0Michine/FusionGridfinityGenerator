@@ -91,6 +91,8 @@ BIN_MAGNET_CUTOUTS_TABS_INPUT_ID = 'bin_magnet_cutouts_tabs'
 BIN_SCREW_DIAMETER_INPUT = 'screw_diameter'
 BIN_MAGNET_DIAMETER_INPUT = 'magnet_diameter'
 BIN_MAGNET_HEIGHT_INPUT = 'magnet_height'
+BIN_MAGNET_CHAMFER_XY_INPUT = 'magnet_chamfer_xy'
+BIN_MAGNET_CHAMFER_Z_INPUT = 'magnet_chamfer_z'
 BIN_HAS_SCOOP_INPUT_ID = 'bin_has_scoop'
 BIN_SCOOP_MAX_RADIUS_INPUT_ID = 'bin_scoop_max_radius'
 BIN_HAS_TAB_INPUT_ID = 'bin_has_tab'
@@ -149,6 +151,30 @@ def initDefaultUiState():
     global commandUIState
     global actualDimensionsTableUiState
     global commandCompartmentsTableUIState
+
+    commandCompartmentsTableUIState = []
+    recordedDefaults = configUtils.readJsonConfig(UI_INPUT_DEFAULTS_CONFIG_PATH)
+    if recordedDefaults is not None and 'static_ui' in recordedDefaults and 'compartments_table' in recordedDefaults:
+        staticUiState = recordedDefaults['static_ui']
+        compartmentsTableState = recordedDefaults['compartments_table']
+        if staticUiState is not None:
+            futil.log(f'{CMD_NAME} Found previously saved default values, restoring {staticUiState}')
+
+            try:
+                commandUIState.initValues(staticUiState)
+                futil.log(f'{CMD_NAME} Successfully restored default values')
+            except Exception as err:
+                futil.log(f'{CMD_NAME} Failed to restore default values, err: {err}')
+        if compartmentsTableState is not None and isinstance(compartmentsTableState, list):
+            futil.log(f'{CMD_NAME} Found previously saving default values for compartments table, restoring {compartmentsTableState}')
+            try:
+                for row in compartmentsTableState:
+                    commandCompartmentsTableUIState.append(CommandUiState(CMD_NAME))
+                    commandCompartmentsTableUIState[-1].initValues(row)
+                futil.log(f'{CMD_NAME} Successfully restored compartments table default values')
+            except Exception as err:
+                futil.log(f'{CMD_NAME} Failed to restore default values, err: {err}')
+
     commandUIState.initValue(INFO_GROUP, True, adsk.core.GroupCommandInput.classType())
     commandUIState.initValue(BIN_BASIC_SIZES_GROUP, True, adsk.core.GroupCommandInput.classType())
     commandUIState.initValue(BIN_DIMENSIONS_GROUP, True, adsk.core.GroupCommandInput.classType())
@@ -195,29 +221,9 @@ def initDefaultUiState():
     commandUIState.initValue(BIN_MAGNET_CUTOUTS_TABS_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
     commandUIState.initValue(BIN_MAGNET_DIAMETER_INPUT, const.DIMENSION_MAGNET_CUTOUT_DIAMETER, adsk.core.ValueCommandInput.classType())
     commandUIState.initValue(BIN_MAGNET_HEIGHT_INPUT, const.DIMENSION_MAGNET_CUTOUT_DEPTH, adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_MAGNET_CHAMFER_XY_INPUT, const.DIMENSION_MAGNET_CUTOUT_CHAMFER_XY, adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_MAGNET_CHAMFER_Z_INPUT, const.DIMENSION_MAGNET_CUTOUT_CHAMFER_Z, adsk.core.ValueCommandInput.classType())
 
-    commandCompartmentsTableUIState = []
-    recordedDefaults = configUtils.readJsonConfig(UI_INPUT_DEFAULTS_CONFIG_PATH)
-    if recordedDefaults is not None and 'static_ui' in recordedDefaults and 'compartments_table' in recordedDefaults:
-        staticUiState = recordedDefaults['static_ui']
-        compartmentsTableState = recordedDefaults['compartments_table']
-        if staticUiState is not None:
-            futil.log(f'{CMD_NAME} Found previously saved default values, restoring {staticUiState}')
-
-            try:
-                commandUIState.initValues(staticUiState)
-                futil.log(f'{CMD_NAME} Successfully restored default values')
-            except Exception as err:
-                futil.log(f'{CMD_NAME} Failed to restore default values, err: {err}')
-        if compartmentsTableState is not None and isinstance(compartmentsTableState, list):
-            futil.log(f'{CMD_NAME} Found previously saving default values for compartments table, restoring {compartmentsTableState}')
-            try:
-                for row in compartmentsTableState:
-                    commandCompartmentsTableUIState.append(CommandUiState(CMD_NAME))
-                    commandCompartmentsTableUIState[-1].initValues(row)
-                futil.log(f'{CMD_NAME} Successfully restored compartments table default values')
-            except Exception as err:
-                futil.log(f'{CMD_NAME} Failed to restore default values, err: {err}')
     futil.log(f'{CMD_NAME} UI state initialized')
 
 def getErrorMessage(text = "An unknown error occurred, please validate your inputs and try again"):
@@ -453,6 +459,8 @@ def is_all_input_valid(inputs: adsk.core.CommandInputs):
     bin_screw_hole_diameter: adsk.core.ValueCommandInput = inputs.itemById(BIN_SCREW_DIAMETER_INPUT)
     bin_magnet_cutout_diameter: adsk.core.ValueCommandInput = inputs.itemById(BIN_MAGNET_DIAMETER_INPUT)
     bin_magnet_cutout_depth: adsk.core.ValueCommandInput = inputs.itemById(BIN_MAGNET_HEIGHT_INPUT)
+    bin_magnet_cutout_chamfer_xy: adsk.core.ValueCommandInput = inputs.itemById(BIN_MAGNET_CHAMFER_XY_INPUT)
+    bin_magnet_cutout_chamfer_z: adsk.core.ValueCommandInput = inputs.itemById(BIN_MAGNET_CHAMFER_Z_INPUT)
     with_lip: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_WITH_LIP_INPUT_ID)
     with_lip_notches: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_WITH_LIP_NOTCHES_INPUT_ID)
     has_scoop: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_SCOOP_INPUT_ID)
@@ -658,6 +666,14 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     magnetHeightInput.minimumValue = 0.1
     magnetHeightInput.isMinimumInclusive = True
     commandUIState.registerCommandInput(magnetHeightInput)
+    magnetChamferXYInput = baseFeaturesGroup.children.addValueInput(BIN_MAGNET_CHAMFER_XY_INPUT, 'Magnet cutout chamfer XY', defaultLengthUnits, adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_MAGNET_CHAMFER_XY_INPUT)))
+    magnetChamferXYInput.minimumValue = 0.0
+    magnetChamferXYInput.isMinimumInclusive = True
+    commandUIState.registerCommandInput(magnetChamferXYInput)
+    magnetChamferZInput = baseFeaturesGroup.children.addValueInput(BIN_MAGNET_CHAMFER_Z_INPUT, 'Magnet cutout chamfer Z', defaultLengthUnits, adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_MAGNET_CHAMFER_Z_INPUT)))
+    magnetChamferZInput.minimumValue = 0.0
+    magnetChamferZInput.isMinimumInclusive = True
+    commandUIState.registerCommandInput(magnetChamferZInput)
 
     userChangesGroup = inputs.addGroupCommandInput(USER_CHANGES_GROUP_ID, 'Changes')
     userChangesGroup.isExpanded = commandUIState.getState(USER_CHANGES_GROUP_ID)
@@ -814,6 +830,8 @@ def onChangeValidate():
     commandUIState.getInput(BIN_MAGNET_CUTOUTS_TABS_INPUT_ID).isEnabled = generateBase
     commandUIState.getInput(BIN_MAGNET_DIAMETER_INPUT).isEnabled = generateBase
     commandUIState.getInput(BIN_MAGNET_HEIGHT_INPUT).isEnabled = generateBase
+    commandUIState.getInput(BIN_MAGNET_CHAMFER_XY_INPUT).isEnabled = generateBase
+    commandUIState.getInput(BIN_MAGNET_CHAMFER_Z_INPUT).isEnabled = generateBase
     commandUIState.getInput(BIN_SCREW_DIAMETER_INPUT).isEnabled = generateBase
 
     generateBody: bool = commandUIState.getState(BIN_GENERATE_BODY_INPUT_ID)
@@ -875,6 +893,8 @@ def generateBin(args: adsk.core.CommandEventArgs):
     bin_magnet_cutouts_tabs: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_MAGNET_CUTOUTS_TABS_INPUT_ID)
     bin_magnet_cutout_diameter: adsk.core.ValueCommandInput = inputs.itemById(BIN_MAGNET_DIAMETER_INPUT)
     bin_magnet_cutout_depth: adsk.core.ValueCommandInput = inputs.itemById(BIN_MAGNET_HEIGHT_INPUT)
+    bin_magnet_cutout_chamfer_xy: adsk.core.ValueCommandInput = inputs.itemById(BIN_MAGNET_CHAMFER_XY_INPUT)
+    bin_magnet_cutout_chamfer_z: adsk.core.ValueCommandInput = inputs.itemById(BIN_MAGNET_CHAMFER_Z_INPUT)
     with_lip: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_WITH_LIP_INPUT_ID)
     with_lip_notches: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_WITH_LIP_NOTCHES_INPUT_ID)
     has_scoop: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_SCOOP_INPUT_ID)
@@ -945,6 +965,8 @@ def generateBin(args: adsk.core.CommandEventArgs):
         baseGeneratorInput.screwHolesDiameter = bin_screw_hole_diameter.value
         baseGeneratorInput.magnetCutoutsDiameter = bin_magnet_cutout_diameter.value
         baseGeneratorInput.magnetCutoutsDepth = bin_magnet_cutout_depth.value
+        baseGeneratorInput.magnetCutoutsChamferXY = bin_magnet_cutout_chamfer_xy.value
+        baseGeneratorInput.magnetCutoutsChamferZ = bin_magnet_cutout_chamfer_z.value
 
         baseBodies: list[adsk.fusion.BRepBody]
         if bin_generate_base.value:

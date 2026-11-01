@@ -10,16 +10,21 @@ def simpleDistanceExtrude(
     direction: adsk.fusion.ExtentDirections,
     participantBodies: list[adsk.fusion.BRepBody],
     targetComponent: adsk.fusion.Component,
+    offset: float = 0.0,
+    taperAngle: float = 0.0,
     ):
     features: adsk.fusion.Features = targetComponent.features
     extrudeFeatures: adsk.fusion.ExtrudeFeatures = features.extrudeFeatures
     extrudeInput = extrudeFeatures.createInput(profile, operation)
     extrudeInput.participantBodies = participantBodies
+    if offset != 0:
+        startExtent = adsk.fusion.OffsetStartDefinition.create(adsk.core.ValueInput.createByReal(offset))
+        extrudeInput.startExtent = startExtent
     extrudeExtent = adsk.fusion.DistanceExtentDefinition.create(adsk.core.ValueInput.createByReal(distance))
     extrudeInput.setOneSideExtent(
         extrudeExtent,
         direction,
-        adsk.core.ValueInput.createByReal(0),
+        adsk.core.ValueInput.createByReal(taperAngle),
     )
     extrudeFeature = extrudeFeatures.add(extrudeInput)
     return extrudeFeature

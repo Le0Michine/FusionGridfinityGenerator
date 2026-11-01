@@ -213,6 +213,18 @@ def createSingleGridfinityBaseBody(
         )
         cutoutBodies.add(magnetSocketBody)
 
+        if input.magnetCutoutsChamferXY > 0 and input.magnetCutoutsChamferZ > 0:
+            magnetChamferExtrude = extrudeUtils.simpleDistanceExtrude(
+                faceUtils.getBottomFace(magnetSocketBody),
+                adsk.fusion.FeatureOperations.JoinFeatureOperation,
+                input.magnetCutoutsChamferZ,
+                adsk.fusion.ExtentDirections.PositiveExtentDirection,
+                [magnetSocketBody],
+                targetComponent,
+                -input.magnetCutoutsChamferZ,
+                math.atan(input.magnetCutoutsChamferXY/input.magnetCutoutsChamferZ),
+            )
+
         # magnet tab cutouts
         if input.hasMagnetCutoutsTabs:
             magnetTabCutoutSketch = createTabAtCircleEdgeSketch(

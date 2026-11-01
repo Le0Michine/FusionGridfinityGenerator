@@ -1,6 +1,6 @@
 import adsk.core, adsk.fusion, traceback
 
-from .const import DIMENSION_MAGNET_CUTOUT_DEPTH, DIMENSION_MAGNET_CUTOUT_DIAMETER, DIMENSION_SCREW_HOLE_DIAMETER, BIN_CORNER_FILLET_RADIUS
+from .const import DIMENSION_MAGNET_CUTOUT_DEPTH, DIMENSION_MAGNET_CUTOUT_DIAMETER, DIMENSION_SCREW_HOLE_DIAMETER, DIMENSION_MAGNET_CUTOUT_CHAMFER_XY, DIMENSION_MAGNET_CUTOUT_CHAMFER_Z, BIN_CORNER_FILLET_RADIUS
 
 class BaseGeneratorInput():
     def __init__(self):
@@ -10,6 +10,8 @@ class BaseGeneratorInput():
         self.screwHolesDiameter = DIMENSION_SCREW_HOLE_DIAMETER
         self.magnetCutoutsDiameter = DIMENSION_MAGNET_CUTOUT_DIAMETER
         self.magnetCutoutsDepth = DIMENSION_MAGNET_CUTOUT_DEPTH
+        self.magnetCutoutsChamferXY = DIMENSION_MAGNET_CUTOUT_CHAMFER_XY
+        self.magnetCutoutsChamferZ = DIMENSION_MAGNET_CUTOUT_CHAMFER_Z
         self.cornerFilletRadius = BIN_CORNER_FILLET_RADIUS
 
     @property
@@ -99,3 +101,19 @@ class BaseGeneratorInput():
     @magnetCutoutsDepth.setter
     def magnetCutoutsDepth(self, value: float):
         self._magnetCutoutsDepth = value
+
+    @property
+    def magnetCutoutsChamferXY(self) -> float:
+        return self._magnetCutoutsChamferXY
+
+    @magnetCutoutsChamferXY.setter
+    def magnetCutoutsChamferXY(self, value: float):
+        self._magnetCutoutsChamferXY = value
+
+    @property
+    def magnetCutoutsChamferZ(self) -> float:
+        return self._magnetCutoutsChamferZ
+
+    @magnetCutoutsChamferZ.setter
+    def magnetCutoutsChamferZ(self, value: float):
+        self._magnetCutoutsChamferZ = value

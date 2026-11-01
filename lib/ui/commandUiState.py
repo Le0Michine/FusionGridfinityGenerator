@@ -27,7 +27,8 @@ class CommandUiState:
             del self.commandInputs[inputId]
 
     def initValue(self, inputId: str, inputValue: any, inputType: str):
-        self.inputState[inputId] = SingleInputState(inputId, inputValue, inputType)
+        if inputId not in self.inputState:
+            self.inputState[inputId] = SingleInputState(inputId, inputValue, inputType)
 
     def updateValue(self, inputId: str, inputValue: any):
         if inputId in self.inputState:
