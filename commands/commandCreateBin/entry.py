@@ -137,6 +137,10 @@ INFO_TEXT = ("<b>Help:</b> Info for inputs can be found "
              "<a href=\"https://github.com/Le0Michine/FusionGridfinityGenerator/wiki/Bin-generator-options\">"
              "Here on our GitHub</a>.")
 
+def infoText():
+    version = tagUtils.getGeneratorVersion()
+    return f"{INFO_TEXT}<br><span style=\"color:#808080; font-size:small\">Version {version}</span>" if version else INFO_TEXT
+
 def refreshUi():
     global commandUIState
     commandUIState.forceUIRefresh()
@@ -518,7 +522,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     defaultLengthUnits = app.activeProduct.unitsManager.defaultLengthUnits
 
     infoGroup = inputs.addGroupCommandInput(INFO_GROUP, 'Info')
-    infoGroup.children.addTextBoxCommandInput("info_text", "Info", INFO_TEXT, 3, True)
+    infoGroup.children.addTextBoxCommandInput("info_text", "Info", infoText(), 4, True)
     infoGroup.isExpanded = commandUIState.getState(INFO_GROUP)
     commandUIState.registerCommandInput(infoGroup)
 

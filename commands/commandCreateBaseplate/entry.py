@@ -103,6 +103,10 @@ INFO_TEXT = ("<b>Help:</b> Info for inputs can be found "
              "<a href=\"https://github.com/Le0Michine/FusionGridfinityGenerator/wiki/Baseplate-generator-options\">"
              "Here on our GitHub</a>.")
 
+def infoText():
+    version = tagUtils.getGeneratorVersion()
+    return f"{INFO_TEXT}<br><span style=\"color:#808080; font-size:small\">Version {version}</span>" if version else INFO_TEXT
+
 INPUTS_VALID = True
 
 def getErrorMessage(text = "An unknown error occurred, please validate your inputs and try again"):
@@ -187,7 +191,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     infoGroup = inputs.addGroupCommandInput(INFO_GROUP, 'Info')
     infoGroup.isExpanded = uiState.getState(INFO_GROUP)
     uiState.registerCommandInput(infoGroup)
-    infoGroup.children.addTextBoxCommandInput("info_text", "Info", INFO_TEXT, 3, True)
+    infoGroup.children.addTextBoxCommandInput("info_text", "Info", infoText(), 4, True)
 
     basicSizesGroup = inputs.addGroupCommandInput(BASIC_SIZES_GROUP, 'Basic size')
     basicSizesGroup.isExpanded = uiState.getState(BASIC_SIZES_GROUP)
