@@ -90,6 +90,8 @@ def moveBodies(
     offsetX: float,
     offsetY: float,
     targetComponent: adsk.fusion.Component,
+    *,
+    name: str,
 ) -> adsk.fusion.MoveFeature:
     moveFeatures = targetComponent.features.moveFeatures
     bodiesToMove = adsk.core.ObjectCollection.create()
@@ -102,4 +104,6 @@ def moveBodies(
         adsk.core.ValueInput.createByReal(0),
         True,
     )
-    return moveFeatures.add(moveInput)
+    moveFeature = moveFeatures.add(moveInput)
+    moveFeature.name = name
+    return moveFeature

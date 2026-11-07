@@ -19,7 +19,7 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
     cutoutInput.baseWidth = input.baseWidth + cutoutInput.xyClearance * 2
     cutoutInput.baseLength = input.baseLength + cutoutInput.xyClearance * 2
     cutoutInput.cornerFilletRadius = input.cornerFilletRadius + cutoutInput.xyClearance
-    baseBody = baseGenerator.createSingleGridfinityBaseBody(cutoutInput, targetComponent)
+    baseBody = baseGenerator.createSingleGridfinityBaseBody(cutoutInput, targetComponent, name='Socket')
 
     cuttingTools: list[adsk.fusion.BRepBody] = []
     extraCutoutBodies: list[adsk.fusion.BRepBody] = []
@@ -38,9 +38,9 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
             faceUtils.getBottomFace(baseBody),
             input.magnetCutoutsDiameter / 2,
             holeCenterPoint,
-            targetComponent
+            targetComponent,
+            name='Skeleton cutout sketch',
         )
-        centerCutoutSketch.name = "center bottom cutout"
         sketchUtils.convertToConstruction(centerCutoutSketch.sketchCurves)
         sketchCurves = centerCutoutSketch.sketchCurves
         dimensions = centerCutoutSketch.sketchDimensions
@@ -94,6 +94,7 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
             adsk.fusion.ExtentDirections.PositiveExtentDirection,
             [],
             targetComponent,
+            name='Skeleton cutout',
         )
 
         constructionAxisInput: adsk.fusion.ConstructionAxisInput = targetComponent.constructionAxes.createInput()
@@ -102,6 +103,7 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
             line3.endSketchPoint,
         )
         constructionAxis = targetComponent.constructionAxes.add(constructionAxisInput)
+        constructionAxis.name = 'Skeleton cutout axis'
         constructionAxis.isLightBulbOn = False
 
         centerCutoutPattern = patternUtils.circPattern(
@@ -109,19 +111,21 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
             constructionAxis,
             4,
             targetComponent,
+            name='Skeleton cutouts pattern',
         )
         centerCutoutBody = centerCutoutExtrudeFeature.bodies.item(0)
         combineUtils.joinBodies(
             centerCutoutBody,
             commonUtils.objectCollectionFromList([body for body in list(centerCutoutPattern.bodies) if not body.name == centerCutoutBody.name]),
             targetComponent,
+            name='Skeleton cutouts join',
         )
         extraCutoutBodies.append(centerCutoutBody)
         if input.hasConnectionHoles:
             connectionHoleFaceY = min([face for face in centerCutoutBody.faces if faceUtils.isYNormal(face)], key=lambda x: x.boundingBox.minPoint.y)
-            connectionHoleYTool = createConnectionHoleTool(connectionHoleFaceY, input.connectionScrewHolesDiameter / 2, input.baseWidth / 2, targetComponent)
+            connectionHoleYTool = createConnectionHoleTool(connectionHoleFaceY, input.connectionScrewHolesDiameter / 2, input.baseWidth / 2, targetComponent, name='Connection hole Y')
             connectionHoleFaceX = min([face for face in centerCutoutBody.faces if faceUtils.isXNormal(face)], key=lambda x: x.boundingBox.minPoint.x)
-            connectionHoleXTool = createConnectionHoleTool(connectionHoleFaceX, input.connectionScrewHolesDiameter / 2, input.baseWidth / 2, targetComponent)
+            connectionHoleXTool = createConnectionHoleTool(connectionHoleFaceX, input.connectionScrewHolesDiameter / 2, input.baseWidth / 2, targetComponent, name='Connection hole X')
 
     holeCuttingBodies: list[adsk.fusion.BRepBody] = []
     
@@ -133,6 +137,7 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
             input.magnetCutoutsDiameter / 2,
             holeCenterPoint,
             targetComponent,
+            name='Plate magnet socket',
         )
         holeCuttingBodies.append(magnetSocketBody)
     
@@ -144,6 +149,7 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
             input.screwHolesDiameter / 2,
             holeCenterPoint,
             targetComponent,
+            name='Plate screw hole',
         )
         holeCuttingBodies.append(screwHoleBody)
 
@@ -155,11 +161,13 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
             input.screwHeadCutoutDiameter / 2,
             holeCenterPoint,
             targetComponent,
+            name='Plate screw head',
         )
         filletUtils.createChamfer(
             commonUtils.objectCollectionFromList(faceUtils.getTopFace(screwHeadBody).edges),
             (input.screwHeadCutoutDiameter - input.screwHolesDiameter) / 2,
             targetComponent,
+            name='Plate screw head chamfer',
         )
         holeCuttingBodies.append(screwHeadBody)
 
@@ -171,7 +179,8 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
             (targetComponent.xConstructionAxis, targetComponent.yConstructionAxis),
             (patternSpacingX, patternSpacingY),
             (2, 2),
-            targetComponent
+            targetComponent,
+            name='Plate holes pattern',
         )
         extraCutoutBodies = extraCutoutBodies + holeCuttingBodies + list(magnetScrewCutoutsPattern.bodies)
 
@@ -180,6 +189,7 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
             baseBody,
             commonUtils.objectCollectionFromList(extraCutoutBodies),
             targetComponent,
+            name='Socket bottom cutouts join',
         )
 
     timer.step('seed socket')
@@ -193,7 +203,8 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
             (targetComponent.xConstructionAxis, targetComponent.yConstructionAxis),
             (input.baseWidth, input.baseLength),
             (1, input.baseplateLength),
-            targetComponent
+            targetComponent,
+            name='Connection holes X pattern',
         )
         connectionHoleXToolList = list(connectionHoleXTool.bodies) + list(holeToolsXFeature.bodies)
 
@@ -202,25 +213,30 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
             (targetComponent.xConstructionAxis, targetComponent.yConstructionAxis),
             (input.baseLength, input.baseLength),
             (input.baseplateWidth, 1),
-            targetComponent
+            targetComponent,
+            name='Connection holes Y pattern',
         )
         connectionHoleYToolList = list(connectionHoleYTool.bodies) + list(holeToolsYFeature.bodies)
 
         constructionPlaneXZInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
         constructionPlaneXZInput.setByOffset(targetComponent.xZConstructionPlane, adsk.core.ValueInput.createByReal(input.baseplateLength * input.baseLength / 2 - input.xyClearance))
         constructionPlaneXZ = targetComponent.constructionPlanes.add(constructionPlaneXZInput)
+        constructionPlaneXZ.name = 'Plate XZ mid plane'
         constructionPlaneXZ.isLightBulbOn = False
 
         constructionPlaneYZInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
         constructionPlaneYZInput.setByOffset(targetComponent.yZConstructionPlane, adsk.core.ValueInput.createByReal(input.baseplateWidth * input.baseWidth / 2 - input.xyClearance))
         constructionPlaneYZ = targetComponent.constructionPlanes.add(constructionPlaneYZInput)
+        constructionPlaneYZ.name = 'Plate YZ mid plane'
         constructionPlaneYZ.isLightBulbOn = False
 
         mirrorConnectionHolesYZInput = features.mirrorFeatures.createInput(commonUtils.objectCollectionFromList(connectionHoleXToolList), constructionPlaneYZ)
         mirrorConnectionHolesYZ = features.mirrorFeatures.add(mirrorConnectionHolesYZInput)
+        mirrorConnectionHolesYZ.name = 'Connection holes X mirror'
 
         mirrorConnectionHolesXZInput = features.mirrorFeatures.createInput(commonUtils.objectCollectionFromList(connectionHoleYToolList), constructionPlaneXZ)
         mirrorConnectionHolesXZ = features.mirrorFeatures.add(mirrorConnectionHolesXZInput)
+        mirrorConnectionHolesXZ.name = 'Connection holes Y mirror'
 
         cuttingTools = cuttingTools + list(mirrorConnectionHolesYZ.bodies) + list(mirrorConnectionHolesXZ.bodies) + connectionHoleYToolList + connectionHoleXToolList
     timer.step('connection holes')
@@ -263,15 +279,16 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
                 -(gridHeight + gridTop),
                 adsk.core.Point3D.create(minX, minY, 0),
                 targetComponent,
+                name=name,
             )
-            paddingBody.name = name
             paddingBodies.append(paddingBody)
     if len(paddingBodies) > 0:
         combineUtils.joinBodies(
             baseplateBody,
             commonUtils.objectCollectionFromList(paddingBodies),
             targetComponent,
-        ).name = "Join padding"
+            name='Padding join',
+        )
         timer.step(f'padding ({len(paddingBodies)} strips)')
 
     # trims cells overhanging the plate edge and rounds the outer corners
@@ -282,7 +299,8 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
         input.cornerFilletRadius - input.xyClearance,
         [baseplateBody],
         targetComponent,
-    ).name = "Trim to plate outline"
+        name='Plate outline trim',
+    )
     timer.step('trim to outline')
 
     bottomFace = faceUtils.getBottomFace(baseplateBody)
@@ -309,17 +327,18 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
             commonUtils.objectCollectionFromList(bottomChamferEdges),
             0.05,
             targetComponent,
-        ).name = "Bottom chamfer"
+            name='Plate bottom chamfer',
+        )
     timer.step('bottom chamfer')
 
     # cut everything else
     if len(cuttingTools) > 0:
-        finalCut = combineUtils.cutBody(
+        combineUtils.cutBody(
             baseplateBody,
             commonUtils.objectCollectionFromList(cuttingTools),
             targetComponent,
+            name='Connection holes cut',
         )
-        finalCut.name = "Final baseplate cut"
         timer.step('final cut')
     timer.total()
 
@@ -346,13 +365,14 @@ def createSocketCellGrid(
         -(gridHeight + gridTop),
         adsk.core.Point3D.create(-input.xyClearance, -input.xyClearance, 0),
         targetComponent,
+        name='Socket cell',
     )
-    cellBody.name = "Socket cell"
     combineUtils.cutBody(
         cellBody,
         commonUtils.objectCollectionFromList([socketBody]),
         targetComponent,
-    ).name = "Socket cell cut"
+        name='Socket cell cut',
+    )
     timer.step('socket cell')
 
     if input.baseplateWidth * input.baseplateLength > 1:
@@ -361,8 +381,8 @@ def createSocketCellGrid(
             (input.baseplateWidth, input.baseplateLength),
             (input.baseWidth, input.baseLength),
             targetComponent,
+            name='Socket cell grid',
         )
-        cellCopies.name = "Socket cell grid"
         # pattern bodies include the source body, which a combine rejects as its own tool
         copyBodies = [body for body in cellCopies.bodies if body != cellBody]
         timer.step(f'socket cell grid ({len(copyBodies)} copies)')
@@ -370,13 +390,14 @@ def createSocketCellGrid(
             cellBody,
             commonUtils.objectCollectionFromList(copyBodies),
             targetComponent,
-        ).name = "Join socket cells"
+            name='Socket cells join',
+        )
         timer.step('join socket cells')
     return cellBody
 
-def createConnectionHoleTool(connectionHoleFace: adsk.fusion.BRepFace, diameter: float, depth: float, targetComponent: adsk.fusion.Component):
+def createConnectionHoleTool(connectionHoleFace: adsk.fusion.BRepFace, diameter: float, depth: float, targetComponent: adsk.fusion.Component, *, name: str):
     connectionHoleSketch: adsk.fusion.Sketch = targetComponent.sketches.add(connectionHoleFace)
-    connectionHoleSketch.name = "side connector hole"
+    connectionHoleSketch.name = f'{name} sketch'
     sketchCurves = connectionHoleSketch.sketchCurves
     dimensions = connectionHoleSketch.sketchDimensions
     constraints = connectionHoleSketch.geometricConstraints
@@ -400,5 +421,6 @@ def createConnectionHoleTool(connectionHoleFace: adsk.fusion.BRepFace, diameter:
         adsk.fusion.ExtentDirections.PositiveExtentDirection,
         [],
         targetComponent,
+        name=name,
     )
     return connectionHoleTool

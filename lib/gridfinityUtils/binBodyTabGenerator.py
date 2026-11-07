@@ -20,7 +20,10 @@ ui = app.userInterface
 def createGridfinityBinBodyTab(
     input: BinBodyTabGeneratorInput,
     targetComponent: adsk.fusion.Component,
+    *,
+    name: str,
 ):
+    """The body and all its features are named after the given name"""
 
     tabProfilePlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
     tabProfilePlaneInput.setByOffset(
@@ -28,8 +31,9 @@ def createGridfinityBinBodyTab(
         valueInput(input.originX)
         )
     tabProfilePlane = targetComponent.constructionPlanes.add(tabProfilePlaneInput)
+    tabProfilePlane.name = f'{name} plane'
     tabSketch: adsk.fusion.Sketch = targetComponent.sketches.add(tabProfilePlane)
-    tabSketch.name = "label tab sketch"
+    tabSketch.name = f'{name} sketch'
     with sketchUtils.deferSketchCompute(tabSketch):
         tabSketchLine = tabSketch.sketchCurves.sketchLines
         tabTopEdgeHeight = input.origin.z - input.topClearance
@@ -97,9 +101,10 @@ def createGridfinityBinBodyTab(
         adsk.fusion.ExtentDirections.PositiveExtentDirection,
         [],
         targetComponent,
+        name=name,
     )
     tabBody = tabExtrudeFeature.bodies.item(0)
-    tabBody.name = 'label tab'
+    tabBody.name = name
 
     tabTopFace = faceUtils.getTopFace(tabBody)
     roundedEdge = min([edge for edge in tabTopFace.edges if geometryUtils.isCollinearToX(edge)], key=lambda x: x.boundingBox.minPoint.y)
@@ -107,8 +112,8 @@ def createGridfinityBinBodyTab(
         [roundedEdge],
         BIN_TAB_EDGE_FILLET_RADIUS,
         False,
-        targetComponent
+        targetComponent,
+        name=f'{name} edge fillet',
     )
-    fillet.name = 'label tab fillet'
 
     return tabBody

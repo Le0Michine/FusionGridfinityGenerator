@@ -9,6 +9,8 @@ def createFillet(
     radius: float,
     isTangentChain: bool,
     targetComponent: adsk.fusion.Component,
+    *,
+    name: str,
     ):
     features: adsk.fusion.Features = targetComponent.features
     filletFeatures: adsk.fusion.FilletFeatures = features.filletFeatures
@@ -20,13 +22,17 @@ def createFillet(
         filletEdges,
         adsk.core.ValueInput.createByReal(radius),
         isTangentChain)
-    return filletFeatures.add(filletInput)
+    filletFeature = filletFeatures.add(filletInput)
+    filletFeature.name = name
+    return filletFeature
 
 def filletEdgesByLength(
     faces: adsk.fusion.BRepFaces,
     radius: float,
     filterEdgeLength: float,
     targetComponent: adsk.fusion.Component,
+    *,
+    name: str,
     ):
     features: adsk.fusion.Features = targetComponent.features
     filletFeatures: adsk.fusion.FilletFeatures = features.filletFeatures
@@ -34,7 +40,9 @@ def filletEdgesByLength(
     bottomFilletInput.isRollingBallCorner = True
     bottomFilletEdges = edgeUtils.selectEdgesByLength(faces, filterEdgeLength, const.DEFAULT_FILTER_TOLERANCE)
     bottomFilletInput.edgeSetInputs.addConstantRadiusEdgeSet(bottomFilletEdges, adsk.core.ValueInput.createByReal(radius), True)
-    return filletFeatures.add(bottomFilletInput)
+    filletFeature = filletFeatures.add(bottomFilletInput)
+    filletFeature.name = name
+    return filletFeature
 
 def chamferEdgesByLength(
     faces: adsk.fusion.BRepFaces,
@@ -42,18 +50,23 @@ def chamferEdgesByLength(
     filterEdgeLength: float,
     filterEdgeTolerance: float,
     targetComponent: adsk.fusion.Component,
+    *,
+    name: str,
 ):
     chamferEdges = edgeUtils.selectEdgesByLength(faces, filterEdgeLength, filterEdgeTolerance)
     return createChamfer(
         chamferEdges,
         distance,
         targetComponent,
+        name=name,
     )
 
 def createChamfer(
     edges: adsk.core.ObjectCollection,
     distance: float,
     targetComponent: adsk.fusion.Component,
+    *,
+    name: str,
 ):
     features: adsk.fusion.Features = targetComponent.features
     chamferFeatures: adsk.fusion.ChamferFeatures = features.chamferFeatures
@@ -62,4 +75,6 @@ def createChamfer(
         edges,
         adsk.core.ValueInput.createByReal(distance),
         True)
-    return chamferFeatures.add(chamferInput)
+    chamferFeature = chamferFeatures.add(chamferInput)
+    chamferFeature.name = name
+    return chamferFeature

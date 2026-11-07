@@ -488,7 +488,7 @@ def generateBaseplate(args: adsk.core.CommandEventArgs):
         baseplateBody = createGridfinityBaseplate(baseplateGeneratorInput, gridfinityBaseplateComponent)
         baseplateBody.name = baseplateName
         if baseplatePlacement != (0, 0):
-            placementUtils.moveBodies([baseplateBody], *baseplatePlacement, gridfinityBaseplateComponent).name = 'Baseplate placement'
+            placementUtils.moveBodies([baseplateBody], *baseplatePlacement, gridfinityBaseplateComponent, name='Baseplate placement')
         # mark generated geometry so it can be told apart from the rest of the design
         tagUtils.tagBody(baseplateBody, tagUtils.TAG_BASEPLATE)
 

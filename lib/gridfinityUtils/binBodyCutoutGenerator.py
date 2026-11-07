@@ -22,7 +22,10 @@ def getInnerCutoutScoopFace(
 def createGridfinityBinBodyCutout(
     input: BinBodyCutoutGeneratorInput,
     targetComponent: adsk.fusion.Component,
+    *,
+    name: str,
 ):
+    """The body and all its features are named after the given name"""
 
     cutoutPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
     cutoutPlaneInput.setByOffset(
@@ -30,8 +33,9 @@ def createGridfinityBinBodyCutout(
         valueInput(input.originZ)
     )
     cutoutConstructionPlane = targetComponent.constructionPlanes.add(cutoutPlaneInput)
+    cutoutConstructionPlane.name = f'{name} plane'
     innerCutoutSketch: adsk.fusion.Sketch = targetComponent.sketches.add(cutoutConstructionPlane)
-    innerCutoutSketch.name = 'Inner cutout sketch'
+    innerCutoutSketch.name = f'{name} sketch'
     sketchUtils.createRectangle(
         input.width,
         input.length,
@@ -48,10 +52,10 @@ def createGridfinityBinBodyCutout(
         adsk.fusion.ExtentDirections.NegativeExtentDirection,
         [],
         targetComponent,
+        name=name,
     )
-    innerCutout.name = 'Inner cutout extrude'
     innerCutoutBody = innerCutout.bodies.item(0)
-    innerCutoutBody.name = 'Inner cutout'
+    innerCutoutBody.name = name
 
     # scoop
     if input.hasScoop:
@@ -63,7 +67,8 @@ def createGridfinityBinBodyCutout(
             [scoopEdge],
             scoopMaxRadius,
             False,
-            targetComponent
+            targetComponent,
+            name=f'{name} scoop',
         )
     # fillet inner cutout
     innerCutoutVerticalFaces = faceUtils.getVerticalEdges(innerCutoutBody.faces)
@@ -71,7 +76,8 @@ def createGridfinityBinBodyCutout(
         innerCutoutVerticalFaces,
         input.filletRadius,
         True,
-        targetComponent
+        targetComponent,
+        name=f'{name} corner fillets',
     )
     if input.hasBottomFillet:
         # recalculate faces after fillet
@@ -82,7 +88,8 @@ def createGridfinityBinBodyCutout(
             [scoopOppositeEdge],
             input.filletRadius,
             True,
-            targetComponent
+            targetComponent,
+            name=f'{name} bottom fillet',
         )
 
     return innerCutoutBody

@@ -13,12 +13,16 @@ def simpleCylinder(
     radius: float,
     centerBottom: adsk.core.Point3D,
     targetComponent: adsk.fusion.Component,
+    *,
+    name: str,
 ):
+    """Plane, sketch, extrude and body are named after the cylinder"""
     baseConstructionPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
     baseConstructionPlaneInput.setByOffset(plane, adsk.core.ValueInput.createByReal(planeOffset))
     baseConstructionPlane = targetComponent.constructionPlanes.add(baseConstructionPlaneInput)
+    baseConstructionPlane.name = f'{name} plane'
     cylinderBaseSketch: adsk.fusion.Sketch = targetComponent.sketches.add(baseConstructionPlane)
-    cylinderBaseSketch.name = "Simple cylinder sketch"
+    cylinderBaseSketch.name = f'{name} sketch'
     dimensions: adsk.fusion.SketchDimensions = cylinderBaseSketch.sketchDimensions
     constraints: adsk.fusion.GeometricConstraints = cylinderBaseSketch.geometricConstraints
     centerOnSketch = cylinderBaseSketch.modelToSketchSpace(centerBottom)
@@ -58,9 +62,11 @@ def simpleCylinder(
         adsk.fusion.ExtentDirections.PositiveExtentDirection,
         [],
         targetComponent,
+        name=name,
     )
-    cylinderExtrude.name = "Simple cylinder extrude"
-    return cylinderExtrude.bodies.item(0)
+    cylinderBody = cylinderExtrude.bodies.item(0)
+    cylinderBody.name = name
+    return cylinderBody
 
 def simpleBox(
     plane: adsk.core.Base,
@@ -70,7 +76,10 @@ def simpleBox(
     height: float,
     originPoint: adsk.core.Point3D,
     targetComponent: adsk.fusion.Component,
+    *,
+    name: str,
 ):
+    """Plane, sketch, extrude and body are named after the box"""
     features: adsk.fusion.Features = targetComponent.features
     extrudeFeatures: adsk.fusion.ExtrudeFeatures = features.extrudeFeatures
     boxPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
@@ -79,9 +88,10 @@ def simpleBox(
         adsk.core.ValueInput.createByReal(planeOffset)
     )
     boxConstructionPlane = targetComponent.constructionPlanes.add(boxPlaneInput)
+    boxConstructionPlane.name = f'{name} plane'
     sketches: adsk.fusion.Sketches = targetComponent.sketches
     recSketch: adsk.fusion.Sketch = sketches.add(boxConstructionPlane)
-    recSketch.name = "Simple box sketch"
+    recSketch.name = f'{name} sketch'
     startPointOnSketch = recSketch.modelToSketchSpace(originPoint)
     startPointOnSketch.z = 0
     sketchUtils.createRectangle(width, length, startPointOnSketch, recSketch)
@@ -90,5 +100,7 @@ def simpleBox(
     extrude = extrudeFeatures.addSimple(recSketch.profiles.item(0),
         adsk.core.ValueInput.createByReal(height),
         adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
-    extrude.name = "Simple box extrude"
-    return extrude.bodies.item(0)
+    extrude.name = name
+    boxBody = extrude.bodies.item(0)
+    boxBody.name = name
+    return boxBody

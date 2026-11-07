@@ -1101,7 +1101,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
         if bin_generate_body.value and bin_generate_base.value:
             toolBodies = commonUtils.objectCollectionFromList(baseBodies)
             combineFeatureInput = combineFeatures.createInput(binBody, toolBodies)
-            combineFeatures.add(combineFeatureInput)
+            combineFeatures.add(combineFeatureInput).name = 'Bin body and feet join'
             binBody.name = binName
 
         if bin_generate_body.value or bin_generate_base.value:
@@ -1134,17 +1134,20 @@ def generateBin(args: adsk.core.CommandEventArgs):
                     True
                 )
                 splitBodies = splitBodyFeatures.add(splitBodyInput)
+                splitBodies.name = 'Shell split at lip'
                 bottomBody = min(splitBodies.bodies, key=lambda x: x.boundingBox.minPoint.z)
                 topBody = max(splitBodies.bodies, key=lambda x: x.boundingBox.minPoint.z)
                 horizontalFaces = [face for face in bottomBody.faces if geometryUtils.isHorizontal(face)]
                 topFace = faceUtils.maxByArea(horizontalFaces)
-                shellUtils.simpleShell([topFace], binBodyInput.wallThickness - xyClearance, gridfinityBinComponent)
+                shellUtils.simpleShell([topFace], binBodyInput.wallThickness - xyClearance, gridfinityBinComponent, name='Shell')
                 toolBodies = adsk.core.ObjectCollection.create()
                 toolBodies.add(topBody)
                 combineAfterShellFeatureInput = combineFeatures.createInput(bottomBody, toolBodies)
-                binBody = combineFeatures.add(combineAfterShellFeatureInput).bodies.item(0)
+                combineAfterShellFeature = combineFeatures.add(combineAfterShellFeatureInput)
+                combineAfterShellFeature.name = 'Shell and lip join'
+                binBody = combineAfterShellFeature.bodies.item(0)
             else:
-                shellUtils.simpleShell([topFace], binBodyInput.wallThickness - xyClearance, gridfinityBinComponent)
+                shellUtils.simpleShell([topFace], binBodyInput.wallThickness - xyClearance, gridfinityBinComponent, name='Shell')
 
             if hasTabInput.value:
                 compartmentTabInput = BinBodyTabGeneratorInput()
@@ -1163,7 +1166,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
                 compartmentTabInput.width = binBodyInput.tabWidth
                 compartmentTabInput.overhangAngle = binBodyInput.tabOverhangAngle
                 compartmentTabInput.topClearance = const.BIN_TAB_TOP_CLEARANCE
-                tabBody = createGridfinityBinBodyTab(compartmentTabInput, gridfinityBinComponent)
+                tabBody = createGridfinityBinBodyTab(compartmentTabInput, gridfinityBinComponent, name='Label tab')
 
                 # trim the tab to the shell interior, its ends would otherwise poke out past the rounded outer corners,
                 # intersecting leaves a single body, so nothing has to be picked out of the pieces
@@ -1183,19 +1186,19 @@ def generateBin(args: adsk.core.CommandEventArgs):
                     0,
                     False,
                     gridfinityBinComponent,
+                    name='Shell interior',
                 )
-                shellInterior.name = 'Shell interior'
                 intersectTabInput = combineFeatures.createInput(tabBody, commonUtils.objectCollectionFromList([shellInterior]))
                 intersectTabInput.operation = adsk.fusion.FeatureOperations.IntersectFeatureOperation
                 intersectTabInput.isKeepToolBodies = False
                 intersectTabFeature = combineFeatures.add(intersectTabInput)
-                intersectTabFeature.name = 'Label tab trim to shell interior'
-                combineUtils.joinBodies(binBody, commonUtils.objectCollectionFromList(intersectTabFeature.bodies), gridfinityBinComponent)
+                intersectTabFeature.name = 'Label tab trim'
+                combineUtils.joinBodies(binBody, commonUtils.objectCollectionFromList(intersectTabFeature.bodies), gridfinityBinComponent, name='Label tab join')
 
         if bin_generate_body.value or bin_generate_base.value:
             generatedBodies = [binBody] if bin_generate_body.value else baseBodies
             if binPlacement != (0, 0):
-                placementUtils.moveBodies(generatedBodies, *binPlacement, gridfinityBinComponent).name = 'Bin placement'
+                placementUtils.moveBodies(generatedBodies, *binPlacement, gridfinityBinComponent, name='Bin placement')
             # mark generated geometry so later bins can tell it apart from the rest of the design
             for body in generatedBodies:
                 tagUtils.tagBody(body, tagUtils.TAG_BIN)

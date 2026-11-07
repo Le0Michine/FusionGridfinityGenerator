@@ -33,8 +33,8 @@ def patternCompartments(entities, input, spacingX, spacingY, targetComponent, na
         (spacingX, spacingY),
         targetComponent,
         computeOption,
+        name=name,
     )
-    pattern.name = name
     return pattern
 
 def patternCompartmentBodies(bodies, input, spacingX, spacingY, targetComponent, name):
@@ -68,6 +68,7 @@ def createGridfinityBinBody(
         binBodyTotalHeight,
         targetComponent,
         targetComponent.xYConstructionPlane,
+        name='Bin body',
     )
     binBody = binBodyExtrude.bodies.item(0)
     binBody.name = 'Bin body'
@@ -81,7 +82,8 @@ def createGridfinityBinBody(
         input.binCornerFilletRadius,
         binBodyTotalHeight.value,
         targetComponent,
-    ).name = 'Bin body corner fillets'
+        name='Bin body corner fillets',
+    )
 
     if input.hasLip:
         lipOriginPoint = adsk.core.Point3D.create(0, 0, binBodyTotalHeight.value)
@@ -110,13 +112,14 @@ def createGridfinityBinBody(
                     lipOriginPoint.z,
                 ),
                 binBodyTotalHeight,
+                name='Lip bottom chamfer box',
             )
-            lipBottomChamferExtrude.name = 'Lip bottom chamfer extrude'
             filletUtils.filletEdgesByLength(
                 lipBottomChamferExtrude.faces,
                 lipBottomChamferSize,
                 lipBottomChamferSize,
                 targetComponent,
+                name='Lip bottom chamfer box fillets',
             )
             lipBottomChamferExtrudeTopFace = faceUtils.getTopFace(lipBottomChamferExtrude.bodies.item(0))
             scoopSideEdge = min([edge for edge in lipBottomChamferExtrudeTopFace.edges if geometryUtils.isCollinearToX(edge)], key=lambda x: x.boundingBox.minPoint.y)
@@ -129,8 +132,8 @@ def createGridfinityBinBody(
                 bottomLipChamferEdges,
                 adsk.core.ValueInput.createByReal(lipBottomChamferSize),
                 False)
-            chamferFeatures.add(bottomLipChamferInput)
-            combineUtils.cutBody(lipBody, commonUtils.objectCollectionFromList(lipBottomChamferExtrude.bodies), targetComponent)
+            chamferFeatures.add(bottomLipChamferInput).name = 'Lip bottom chamfer'
+            combineUtils.cutBody(lipBody, commonUtils.objectCollectionFromList(lipBottomChamferExtrude.bodies), targetComponent, name='Lip bottom chamfer cut')
 
         bodiesToMerge.append(lipBody)
 
@@ -148,7 +151,8 @@ def createGridfinityBinBody(
 
         useCompartmentPattern = input.isUniformCompartments and len(input.compartments) > 1
         compartmentsToBuild = input.compartments[:1] if useCompartmentPattern else input.compartments
-        for compartment in compartmentsToBuild:
+        for compartmentIndex, compartment in enumerate(compartmentsToBuild):
+            compartmentName = 'Compartment' if len(compartmentsToBuild) == 1 else f'Compartment {compartmentIndex + 1}'
             compartmentX = compartmentsMinX + (compartmentWidthUnit + wall) * compartment.positionX
             compartmentY = compartmentsMinY + (compartmentLengthUnit + wall) * compartment.positionY
             compartmentWidth = compartmentWidthUnit * compartment.width + wall * (compartment.width - 1)
@@ -183,6 +187,7 @@ def createGridfinityBinBody(
                 input.hasTab,
                 compartmentTabInput,
                 targetComponent,
+                name=compartmentName,
             )
             if useCompartmentPattern:
                 # These cavities are identical and disjoint, so copy their cut faces instead
@@ -191,13 +196,12 @@ def createGridfinityBinBody(
                 # revisit if uniform compartments ever stop being identical.
                 # Patterning a cut feature requires design history, which entry.py enforces.
                 seedCut = combineUtils.cutBody(
-                    binBody, commonUtils.objectCollectionFromList(compartmentCuts), targetComponent)
-                seedCut.name = 'Seed compartment cut'
+                    binBody, commonUtils.objectCollectionFromList(compartmentCuts), targetComponent, name='Compartment cut')
                 patternCompartments(
                     [seedCut], input,
                     compartmentWidthUnit + wall,
                     compartmentLengthUnit + wall,
-                    targetComponent, 'Uniform compartment cuts',
+                    targetComponent, 'Compartment cuts pattern',
                     adsk.fusion.PatternComputeOptions.OptimizedPatternCompute,
                 )
                 compartmentCuts = []
@@ -205,7 +209,7 @@ def createGridfinityBinBody(
                     compartmentMerges, input,
                     compartmentWidthUnit + wall,
                     compartmentLengthUnit + wall,
-                    targetComponent, 'Uniform compartment label tabs',
+                    targetComponent, 'Label tabs pattern',
                 )
             bodiesToSubtract.extend(compartmentCuts)
             bodiesToMerge.extend(compartmentMerges)
@@ -224,6 +228,7 @@ def createGridfinityBinBody(
                 0,
                 False,
                 targetComponent,
+                name='Compartments top clearance',
             )
             bodiesToSubtract.append(compartmentsTopClearance)
 
@@ -231,13 +236,15 @@ def createGridfinityBinBody(
         combineUtils.cutBody(
             binBody,
             commonUtils.objectCollectionFromList(bodiesToSubtract),
-            targetComponent
+            targetComponent,
+            name='Bin body cutouts cut',
         )
     if len(bodiesToMerge) > 0:
         combineUtils.joinBodies(
             binBody,
             commonUtils.objectCollectionFromList(bodiesToMerge),
-            targetComponent
+            targetComponent,
+            name='Bin body lip and tabs join',
         )
 
     return binBody
@@ -256,6 +263,8 @@ def createCompartmentCutout(
         scoopMaxRadius: float,
         hasBottomFillet: bool,
         targetComponent: adsk.fusion.Component,
+        *,
+        name: str,
     ) -> adsk.fusion.BRepBody:
 
     innerCutoutFilletRadius = max(const.BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS, cornerFilletRadius)
@@ -272,7 +281,7 @@ def createCompartmentCutout(
     innerCutoutInput.filletRadius = innerCutoutFilletRadius
     innerCutoutInput.hasBottomFillet = hasBottomFillet
 
-    return createGridfinityBinBodyCutout(innerCutoutInput, targetComponent)
+    return createGridfinityBinBodyCutout(innerCutoutInput, targetComponent, name=name)
 
 def createCompartment(
         wallThickness: float,
@@ -288,6 +297,8 @@ def createCompartment(
         hasTab: bool,
         tabInput: BinBodyTabGeneratorInput,
         targetComponent: adsk.fusion.Component,
+        *,
+        name: str,
     ) -> tuple[list[adsk.fusion.BRepBody], list[adsk.fusion.BRepBody]]:
 
     bodiesToMerge: list[adsk.fusion.BRepBody] = []
@@ -306,12 +317,13 @@ def createCompartment(
         scoopMaxRadius,
         True,
         targetComponent,
+        name=f'{name} cavity',
     )
     bodiesToSubtract.append(innerCutoutBody)
 
     # label tab
     if hasTab:
-        tabBody = createGridfinityBinBodyTab(tabInput, targetComponent)
+        tabBody = createGridfinityBinBodyTab(tabInput, targetComponent, name=f'{name} label tab')
 
         intersectTabInput = targetComponent.features.combineFeatures.createInput(
             tabBody,
@@ -320,5 +332,6 @@ def createCompartment(
         intersectTabInput.operation = adsk.fusion.FeatureOperations.IntersectFeatureOperation
         intersectTabInput.isKeepToolBodies = True
         intersectTabFeature = targetComponent.features.combineFeatures.add(intersectTabInput)
+        intersectTabFeature.name = f'{name} label tab trim'
         bodiesToMerge = bodiesToMerge + [body for body in list(intersectTabFeature.bodies) if not body.revisionId == innerCutoutBody.revisionId]
     return (bodiesToMerge, bodiesToSubtract)

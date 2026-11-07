@@ -27,6 +27,7 @@ def createGridfinityBinBodyLip(
         targetComponent,
         input.origin,
         input.originZ,
+        name='Lip body',
     )
     lipBody = lipBodyExtrude.bodies.item(0)
     lipBody.name = 'Lip body'
@@ -39,7 +40,8 @@ def createGridfinityBinBodyLip(
         input.binCornerFilletRadius,
         lipBodyHeight,
         targetComponent,
-    ).name = 'Lip body corner fillets'
+        name='Lip body corner fillets',
+    )
 
     lipCutoutBodies: list[adsk.fusion.BRepBody] = []
     lipCutoutPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
@@ -62,8 +64,7 @@ def createGridfinityBinBodyLip(
         lipCutoutInput.xyClearance = input.xyClearance
         lipCutoutInput.hasBottomChamfer = False
         lipCutoutInput.cornerFilletRadius = input.binCornerFilletRadius + input.xyClearance * 2
-        lipCutout = baseGenerator.createSingleGridfinityBaseBody(lipCutoutInput, targetComponent)
-        lipCutout.name = "Lip cutout"
+        lipCutout = baseGenerator.createSingleGridfinityBaseBody(lipCutoutInput, targetComponent, name='Lip notch cutout')
         lipCutoutBodies.append(lipCutout)
 
         patternInputBodies = adsk.core.ObjectCollection.create()
@@ -77,6 +78,7 @@ def createGridfinityBinBodyLip(
         patternInput.quantityTwo = adsk.core.ValueInput.createByReal(input.binLength)
         patternInput.distanceTwo = valueInput(input.baseLength)
         rectangularPattern = features.rectangularPatternFeatures.add(patternInput)
+        rectangularPattern.name = 'Lip notch cutouts pattern'
         lipCutoutBodies = lipCutoutBodies + list(rectangularPattern.bodies)
 
         lipMiddleCutoutOrigin = geometryUtils.createOffsetPoint(
@@ -91,13 +93,14 @@ def createGridfinityBinBodyLip(
             targetComponent,
             lipMiddleCutoutOrigin,
             input.originZ,
+            name='Lip middle cutout',
         )
-        lipMidCutout.name = 'Lip middle cutout'
         filletUtils.filletEdgesByLength(
             lipMidCutout.faces,
             input.binCornerFilletRadius - input.wallThickness + input.xyClearance,
             lipBodyHeight,
             targetComponent,
+            name='Lip middle cutout fillets',
         )
         bodiesToSubtract.append(lipMidCutout.bodies.item(0))
 
@@ -115,15 +118,14 @@ def createGridfinityBinBodyLip(
         lipCutoutInput.xyClearance = input.xyClearance
         lipCutoutInput.hasBottomChamfer = False
         lipCutoutInput.cornerFilletRadius = input.binCornerFilletRadius + input.xyClearance * 2
-        lipCutout = baseGenerator.createSingleGridfinityBaseBody(lipCutoutInput, targetComponent)
-        lipCutout.name = 'Lip cutout'
+        lipCutout = baseGenerator.createSingleGridfinityBaseBody(lipCutoutInput, targetComponent, name='Lip cutout')
         lipCutoutBodies.append(lipCutout)
 
     if const.BIN_LIP_TOP_RECESS_HEIGHT > const.DEFAULT_FILTER_TOLERANCE:
         lipCutoutConstructionPlane = targetComponent.constructionPlanes.add(lipCutoutPlaneInput)
-        lipCutoutConstructionPlane.name = "top lip edge plane"
+        lipCutoutConstructionPlane.name = 'Lip top chamfer plane'
         topChamferSketch: adsk.fusion.Sketch = targetComponent.sketches.add(lipCutoutConstructionPlane)
-        topChamferSketch.name = "Lip top chamfer"
+        topChamferSketch.name = 'Lip top chamfer sketch'
         sketchUtils.createRectangle(
             actualLipBodyWidth,
             actualLipBodyLength,
@@ -137,15 +139,16 @@ def createGridfinityBinBodyLip(
             adsk.fusion.ExtentDirections.NegativeExtentDirection,
             [],
             targetComponent,
+            name='Lip top chamfer',
         )
-        topChamferNegativeVolume.name = "Lip top chamfer cut"
         bodiesToSubtract.append(topChamferNegativeVolume.bodies.item(0))
     bodiesToSubtract = bodiesToSubtract + lipCutoutBodies
 
     combineUtils.cutBody(
         lipBody,
         commonUtils.objectCollectionFromList(bodiesToSubtract),
-        targetComponent
+        targetComponent,
+        name='Lip cutouts cut',
     )
 
     return lipBody

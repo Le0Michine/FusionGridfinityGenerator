@@ -11,6 +11,8 @@ def recPattern(
     quantities: Tuple[Dim | int, Dim | int],
     targetComponent: adsk.fusion.Component,
     computeOption=None,
+    *,
+    name: str,
     ):
     rectangularPatternFeatures: adsk.fusion.RectangularPatternFeatures = targetComponent.features.rectangularPatternFeatures
     patternInput = rectangularPatternFeatures.createInput(inputEntities,
@@ -23,7 +25,9 @@ def recPattern(
     patternInput.distanceTwo = valueInput(distances[1])
     if computeOption is not None:
         patternInput.patternComputeOption = computeOption
-    return rectangularPatternFeatures.add(patternInput)
+    pattern = rectangularPatternFeatures.add(patternInput)
+    pattern.name = name
+    return pattern
 
 def recPatternGrid(
     inputEntities: adsk.core.ObjectCollection,
@@ -31,6 +35,8 @@ def recPatternGrid(
     distances: Tuple[Dim | float, Dim | float],
     targetComponent: adsk.fusion.Component,
     computeOption=None,
+    *,
+    name: str,
     ):
     directions = (targetComponent.xConstructionAxis, targetComponent.yConstructionAxis)
     if valueOf(quantities[0]) == 1:
@@ -38,15 +44,19 @@ def recPatternGrid(
         directions = directions[::-1]
         quantities = quantities[::-1]
         distances = distances[::-1]
-    return recPattern(inputEntities, directions, distances, quantities, targetComponent, computeOption)
+    return recPattern(inputEntities, directions, distances, quantities, targetComponent, computeOption, name=name)
 
 def circPattern(
     inputEntities: adsk.core.ObjectCollection,
     axis: adsk.core.Base,
     quantity: int,
     targetComponent: adsk.fusion.Component,
+    *,
+    name: str,
     ):
     circularPatternFeatures = targetComponent.features.circularPatternFeatures
     patternInput = circularPatternFeatures.createInput(inputEntities, axis)
     patternInput.quantity = adsk.core.ValueInput.createByReal(quantity)
-    return circularPatternFeatures.add(patternInput)
+    pattern = circularPatternFeatures.add(patternInput)
+    pattern.name = name
+    return pattern
