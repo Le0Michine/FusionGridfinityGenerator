@@ -2,6 +2,7 @@ import adsk.core, adsk.fusion, traceback
 import os
 
 from . import extrudeUtils, sketchUtils
+from .dim import Dim
 
 app = adsk.core.Application.get()
 ui = app.userInterface
@@ -71,15 +72,17 @@ def simpleCylinder(
 def simpleBox(
     plane: adsk.core.Base,
     planeOffset: float,
-    width: float,
-    length: float,
+    width: Dim | float,
+    length: Dim | float,
     height: float,
     originPoint: adsk.core.Point3D,
     targetComponent: adsk.fusion.Component,
+    originX: Dim = None,
+    originY: Dim = None,
     *,
     name: str,
 ):
-    """Plane, sketch, extrude and body are named after the box"""
+    """Plane, sketch, extrude and body are named after the box, the optional origin dims drive the corner position"""
     features: adsk.fusion.Features = targetComponent.features
     extrudeFeatures: adsk.fusion.ExtrudeFeatures = features.extrudeFeatures
     boxPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
@@ -94,7 +97,7 @@ def simpleBox(
     recSketch.name = f'{name} sketch'
     startPointOnSketch = recSketch.modelToSketchSpace(originPoint)
     startPointOnSketch.z = 0
-    sketchUtils.createRectangle(width, length, startPointOnSketch, recSketch)
+    sketchUtils.createRectangle(width, length, startPointOnSketch, recSketch, originX, originY)
         
     # extrude
     extrude = extrudeFeatures.addSimple(recSketch.profiles.item(0),

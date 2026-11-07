@@ -1,6 +1,7 @@
 import adsk.core, adsk.fusion, traceback
 
 from . import const
+from .dim import Dim
 
 class BaseplateGeneratorInput():
     def __init__(self):
@@ -18,20 +19,20 @@ class BaseplateGeneratorInput():
         self.cornerFilletRadius = const.BIN_CORNER_FILLET_RADIUS
 
     @property
-    def baseWidth(self) -> float:
+    def baseWidth(self) -> Dim:
         return self._baseWidth
 
     @baseWidth.setter
-    def baseWidth(self, value: float):
-        self._baseWidth = value
+    def baseWidth(self, value: Dim | float):
+        self._baseWidth = Dim.asLength(value)
 
     @property
-    def baseLength(self) -> float:
+    def baseLength(self) -> Dim:
         return self._baseLength
 
     @baseLength.setter
-    def baseLength(self, value: float):
-        self._baseLength = value
+    def baseLength(self, value: Dim | float):
+        self._baseLength = Dim.asLength(value)
 
     @property
     def baseplateWidth(self) -> float:
@@ -114,36 +115,36 @@ class BaseplateGeneratorInput():
         self._hasPadding = value
 
     @property
-    def paddingLeft(self) -> float:
+    def paddingLeft(self) -> Dim:
         return self._paddingLeft
 
     @paddingLeft.setter
-    def paddingLeft(self, value: float):
-        self._paddingLeft = value
+    def paddingLeft(self, value: Dim | float):
+        self._paddingLeft = Dim.asLength(value)
 
     @property
-    def paddingTop(self) -> float:
+    def paddingTop(self) -> Dim:
         return self._paddingTop
 
     @paddingTop.setter
-    def paddingTop(self, value: float):
-        self._paddingTop = value
+    def paddingTop(self, value: Dim | float):
+        self._paddingTop = Dim.asLength(value)
 
     @property
-    def paddingRight(self) -> float:
+    def paddingRight(self) -> Dim:
         return self._paddingRight
 
     @paddingRight.setter
-    def paddingRight(self, value: float):
-        self._paddingRight = value
+    def paddingRight(self, value: Dim | float):
+        self._paddingRight = Dim.asLength(value)
 
     @property
-    def paddingBottom(self) -> float:
+    def paddingBottom(self) -> Dim:
         return self._paddingBottom
 
     @paddingBottom.setter
-    def paddingBottom(self, value: float):
-        self._paddingBottom = value
+    def paddingBottom(self, value: Dim | float):
+        self._paddingBottom = Dim.asLength(value)
 
     @property
     def hasConnectionHoles(self) -> bool:

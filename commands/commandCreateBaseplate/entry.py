@@ -13,6 +13,10 @@ from ...lib.gridfinityUtils.const import DIMENSION_DEFAULT_WIDTH_UNIT
 from ...lib.gridfinityUtils.baseplateGenerator import createGridfinityBaseplate
 from ...lib.gridfinityUtils.baseplateGeneratorInput import BaseplateGeneratorInput
 from ...lib.gridfinityUtils import const
+from ...lib.gridfinityUtils import commonUtils
+from ...lib.gridfinityUtils import parameterUtils
+from ...lib.gridfinityUtils import sharedParameters
+from ...lib.gridfinityUtils.dim import Dim
 from .inputState import InputState
 from ...lib.ui.commandUiState import CommandUiState
 from ...lib.ui.unsupportedDesignTypeException import UnsupportedDesignTypeException
@@ -28,6 +32,21 @@ CMD_Description = 'Create gridfinity baseplate'
 
 # default name of baseplates generated before tagging, keep as is even if the naming changes
 BASEPLATE_LEGACY_NAME_PREFIX = 'Gridfinity baseplate '
+
+# User parameter names are stored in user documents, keep these literal
+BASEPLATE_PARAMETER_BASE_NAME = 'gfPlate'
+BASEPLATE_PADDING_LEFT_PARAMETER = 'paddingLeft'
+BASEPLATE_PADDING_TOP_PARAMETER = 'paddingTop'
+BASEPLATE_PADDING_RIGHT_PARAMETER = 'paddingRight'
+BASEPLATE_PADDING_BOTTOM_PARAMETER = 'paddingBottom'
+BASEPLATE_PARAMETERS = [
+    sharedParameters.BASE_WIDTH_FALLBACK_PARAMETER,
+    sharedParameters.BASE_LENGTH_FALLBACK_PARAMETER,
+    BASEPLATE_PADDING_LEFT_PARAMETER,
+    BASEPLATE_PADDING_TOP_PARAMETER,
+    BASEPLATE_PADDING_RIGHT_PARAMETER,
+    BASEPLATE_PADDING_BOTTOM_PARAMETER,
+]
 
 uiState = CommandUiState(CMD_NAME)
 # Specify that the command will be promoted to the panel.
@@ -176,12 +195,27 @@ def stop():
 
 # Function that is called when a user clicks the corresponding button in the UI.
 # This defines the contents of the command dialog and connects to the command related events.
+def applySharedParameterDefaults():
+    """Usable shared units of the design replace the remembered inputs, so new baseplates match the existing bins by default"""
+    design = adsk.fusion.Design.cast(app.activeProduct)
+    if design is None:
+        return
+    (baseWidth, baseLength) = sharedParameters.usableSharedBaseUnits(design)
+    for (inputId, value) in [
+        (BASEPLATE_BASE_UNIT_WIDTH_INPUT, baseWidth),
+        (BASEPLATE_BASE_UNIT_LENGTH_INPUT, baseLength),
+    ]:
+        if value is not None:
+            uiState.initValue(inputId, value, adsk.core.ValueCommandInput.classType())
+            commonUtils.debugLog(f'{CMD_NAME} dialog default {inputId} = {value} from the shared parameter')
+
 def command_created(args: adsk.core.CommandCreatedEventArgs):
     # General logging for debug.
     futil.log(f'{CMD_NAME} Command Created Event')
     global uiState
 
     args.command.setDialogInitialSize(400, 500)
+    applySharedParameterDefaults()
 
     # https://help.autodesk.com/view/fusion360/ENU/?contextId=CommandInputs
     inputs = args.command.commandInputs
@@ -197,11 +231,11 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     basicSizesGroup.isExpanded = uiState.getState(BASIC_SIZES_GROUP)
     uiState.registerCommandInput(basicSizesGroup)
     baseWidthUnitInput = basicSizesGroup.children.addValueInput(BASEPLATE_BASE_UNIT_WIDTH_INPUT, 'Base width unit, X (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BASEPLATE_BASE_UNIT_WIDTH_INPUT)))
-    baseWidthUnitInput.minimumValue = 1
+    baseWidthUnitInput.minimumValue = sharedParameters.BASE_UNIT_MIN
     baseWidthUnitInput.isMinimumInclusive = True
     uiState.registerCommandInput(baseWidthUnitInput)
     baseLengthUnitInput = basicSizesGroup.children.addValueInput(BASEPLATE_BASE_UNIT_LENGTH_INPUT, 'Base length unit, Y (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BASEPLATE_BASE_UNIT_LENGTH_INPUT)))
-    baseLengthUnitInput.minimumValue = 1
+    baseLengthUnitInput.minimumValue = sharedParameters.BASE_UNIT_MIN
     baseLengthUnitInput.isMinimumInclusive = True
     uiState.registerCommandInput(baseLengthUnitInput)
 
@@ -398,8 +432,8 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
     inputsState = getInputsState()
     
     # Verify the validity of the input values. This controls if the OK button is enabled or not.
-    INPUTS_VALID = inputsState.baseWidth >= 1 \
-        and inputsState.baseLength >= 1 \
+    INPUTS_VALID = inputsState.baseWidth >= sharedParameters.BASE_UNIT_MIN \
+        and inputsState.baseLength >= sharedParameters.BASE_UNIT_MIN \
         and inputsState.xyClearance >= 0.01 \
         and inputsState.xyClearance <= 0.05 \
         and inputsState.plateWidth > 0 \
@@ -445,8 +479,6 @@ def generateBaseplate(args: adsk.core.CommandEventArgs):
             gridfinityBaseplateComponent: adsk.fusion.Component = des.rootComponent
         baseplateGeneratorInput = BaseplateGeneratorInput()
 
-        baseplateGeneratorInput.baseWidth = inputsState.baseWidth
-        baseplateGeneratorInput.baseLength = inputsState.baseLength
         baseplateGeneratorInput.xyClearance = inputsState.xyClearance
         baseplateGeneratorInput.baseplateWidth = inputsState.plateWidth
         baseplateGeneratorInput.baseplateLength = inputsState.plateLength
@@ -459,10 +491,6 @@ def generateBaseplate(args: adsk.core.CommandEventArgs):
         baseplateGeneratorInput.screwHolesDiameter = inputsState.screwHoleSize
         baseplateGeneratorInput.screwHeadCutoutDiameter = inputsState.screwHeadSize
         baseplateGeneratorInput.hasPadding = inputsState.hasPadding
-        baseplateGeneratorInput.paddingLeft = inputsState.paddingLeft
-        baseplateGeneratorInput.paddingTop = inputsState.paddingTop
-        baseplateGeneratorInput.paddingRight = inputsState.paddingRight
-        baseplateGeneratorInput.paddingBottom = inputsState.paddingBottom
         baseplateGeneratorInput.bottomExtensionHeight = inputsState.extraBottomThickness
         baseplateGeneratorInput.binZClearance = inputsState.verticalClearance
         baseplateGeneratorInput.hasConnectionHoles = inputsState.hasConnectionHoles
@@ -470,20 +498,47 @@ def generateBaseplate(args: adsk.core.CommandEventArgs):
         baseplateGeneratorInput.cornerFilletRadius = const.BIN_CORNER_FILLET_RADIUS
 
         # pick the spot before generating, so none of this baseplate's geometry can count as an obstacle
-        paddingInput = baseplateGeneratorInput if baseplateGeneratorInput.hasPadding else None
+        hasPadding = inputsState.hasPadding
         baseplatePlacement = placementUtils.findPlacement(
             des,
             tagUtils.TAG_BASEPLATE,
             BASEPLATE_LEGACY_NAME_PREFIX,
             (
-                -paddingInput.paddingLeft if paddingInput else 0,
-                -paddingInput.paddingBottom if paddingInput else 0,
-                baseplateGeneratorInput.baseplateWidth * baseplateGeneratorInput.baseWidth - baseplateGeneratorInput.xyClearance * 2 + (paddingInput.paddingRight if paddingInput else 0),
-                baseplateGeneratorInput.baseplateLength * baseplateGeneratorInput.baseLength - baseplateGeneratorInput.xyClearance * 2 + (paddingInput.paddingTop if paddingInput else 0),
+                -inputsState.paddingLeft if hasPadding else 0,
+                -inputsState.paddingBottom if hasPadding else 0,
+                inputsState.plateWidth * inputsState.baseWidth - inputsState.xyClearance * 2 + (inputsState.paddingRight if hasPadding else 0),
+                inputsState.plateLength * inputsState.baseLength - inputsState.xyClearance * 2 + (inputsState.paddingTop if hasPadding else 0),
             ),
-            baseplateGeneratorInput.baseWidth,
-            baseplateGeneratorInput.baseLength,
+            inputsState.baseWidth,
+            inputsState.baseLength,
         )
+
+        plateParameterPrefix = parameterUtils.nextFreePrefix(des, BASEPLATE_PARAMETER_BASE_NAME, BASEPLATE_PARAMETERS)
+        (baseWidthParameter, baseLengthParameter) = sharedParameters.findOrCreateBaseUnitParameters(
+            des,
+            inputsState.baseWidth,
+            inputsState.baseLength,
+            plateParameterPrefix,
+            'baseplate',
+            CMD_NAME,
+        )
+        baseplateGeneratorInput.baseWidth = Dim.parameter(baseWidthParameter)
+        baseplateGeneratorInput.baseLength = Dim.parameter(baseLengthParameter)
+
+        def paddingDim(name: str, label: str, value: float) -> Dim:
+            """Unused sides stay plain values, so no parameter is left around that drives nothing"""
+            if not hasPadding or value <= 0:
+                return Dim.length(value)
+            return Dim.parameter(parameterUtils.addLengthParameter(
+                des,
+                parameterUtils.parameterName(plateParameterPrefix, name),
+                value,
+                f'Gridfinity baseplate {label} padding',
+            ))
+        baseplateGeneratorInput.paddingLeft = paddingDim(BASEPLATE_PADDING_LEFT_PARAMETER, 'left', inputsState.paddingLeft)
+        baseplateGeneratorInput.paddingTop = paddingDim(BASEPLATE_PADDING_TOP_PARAMETER, 'top', inputsState.paddingTop)
+        baseplateGeneratorInput.paddingRight = paddingDim(BASEPLATE_PADDING_RIGHT_PARAMETER, 'right', inputsState.paddingRight)
+        baseplateGeneratorInput.paddingBottom = paddingDim(BASEPLATE_PADDING_BOTTOM_PARAMETER, 'bottom', inputsState.paddingBottom)
 
         baseplateBody = createGridfinityBaseplate(baseplateGeneratorInput, gridfinityBaseplateComponent)
         baseplateBody.name = baseplateName

@@ -541,11 +541,13 @@ def cutOutsideRoundedRectangle(
     filletRadius: float,
     targetBodies: list[adsk.fusion.BRepBody],
     targetComponent: adsk.fusion.Component,
+    cornerX: Dim = None,
+    cornerY: Dim = None,
     *,
     name: str,
 ) -> adsk.fusion.ExtrudeFeature:
     """Cuts everything outside a rounded rectangle from the target bodies, through their full height.
-    Plane, sketch and cut are named after the given name"""
+    The optional corner dims drive the corner position. Plane, sketch and cut are named after the given name"""
     features = targetComponent.features
     cutConstructionPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
     cutConstructionPlaneInput.setByOffset(targetComponent.xYConstructionPlane, adsk.core.ValueInput.createByReal(cornerPoint.z))
@@ -558,7 +560,9 @@ def cutOutsideRoundedRectangle(
         width,
         length,
         cornerPoint,
-        cutSketch
+        cutSketch,
+        cornerX,
+        cornerY,
     )
     sketchArcs = cutSketch.sketchCurves.sketchArcs
     geometricConstraints = cutSketch.geometricConstraints

@@ -5,10 +5,12 @@ import os
 from . import const, commonUtils, filletUtils, combineUtils, faceUtils, extrudeUtils, sketchUtils, baseGenerator, patternUtils, shapeUtils, geometryUtils, edgeUtils
 from .baseGeneratorInput import BaseGeneratorInput
 from .baseplateGeneratorInput import BaseplateGeneratorInput
+from .dim import Dim, applyTo, valueInput
 
 def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: adsk.fusion.Component):
     timer = commonUtils.StepTimer('Baseplate {}x{}'.format(int(input.baseplateWidth), int(input.baseplateLength)))
     features = targetComponent.features
+    clearance = Dim.length(input.xyClearance)
     cutoutInput = BaseGeneratorInput()
     cutoutInput.xyClearance = input.xyClearance
     cutoutInput.originPoint = geometryUtils.createOffsetPoint(
@@ -16,8 +18,8 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
         byX=-cutoutInput.xyClearance * 2,
         byY=-cutoutInput.xyClearance * 2,
     )
-    cutoutInput.baseWidth = input.baseWidth + cutoutInput.xyClearance * 2
-    cutoutInput.baseLength = input.baseLength + cutoutInput.xyClearance * 2
+    cutoutInput.baseWidth = input.baseWidth + Dim.length(cutoutInput.xyClearance * 2)
+    cutoutInput.baseLength = input.baseLength + Dim.length(cutoutInput.xyClearance * 2)
     cutoutInput.cornerFilletRadius = input.cornerFilletRadius + cutoutInput.xyClearance
     baseBody = baseGenerator.createSingleGridfinityBaseBody(cutoutInput, targetComponent, name='Socket')
 
@@ -58,8 +60,15 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
         verticalEdgeLine = min([line for line in sketchLines if sketchUtils.isVertical(line)], key=lambda x: abs(x.startSketchPoint.geometry.x))
         horizontalEdgeLine = min([line for line in sketchLines if sketchUtils.isHorizontal(line)], key=lambda x: abs(x.startSketchPoint.geometry.y))
 
-        baseCenterOffsetX = input.baseWidth / 2 - input.xyClearance
-        baseCenterOffsetY = input.baseLength / 2 - input.xyClearance
+        # the cutout corner sits at the cell center, measured from the screw hole center which stays put.
+        # Face sketch axes can be flipped but stay aligned with the model axes
+        cellCenterOffsetX = input.baseWidth / 2 - Dim.length(const.DIMENSION_SCREW_HOLES_OFFSET)
+        cellCenterOffsetY = input.baseLength / 2 - Dim.length(const.DIMENSION_SCREW_HOLES_OFFSET)
+        if abs(centerCutoutSketch.xDirection.x) < 0.5:
+            (cellCenterOffsetX, cellCenterOffsetY) = (cellCenterOffsetY, cellCenterOffsetX)
+        holeCenter = screwHoleCircle.centerSketchPoint.geometry
+        baseCenterOffsetX = cellCenterOffsetX.value - holeCenter.x
+        baseCenterOffsetY = cellCenterOffsetY.value + holeCenter.y
         line1 = sketchLines.addByTwoPoints(arc.startSketchPoint, adsk.core.Point3D.create(verticalEdgeLine.startSketchPoint.geometry.x, arc.startSketchPoint.geometry.y, 0))
         line2 = sketchLines.addByTwoPoints(line1.endSketchPoint, adsk.core.Point3D.create(line1.endSketchPoint.geometry.x, baseCenterOffsetY, 0))
         line3 = sketchLines.addByTwoPoints(line2.endSketchPoint, adsk.core.Point3D.create(-baseCenterOffsetX, baseCenterOffsetY, 0))
@@ -77,15 +86,20 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
         constraints.addPerpendicular(line4, line5)
         constraints.addPerpendicular(line5, line6)
         constraints.addTangent(arc, line1)
-        constraints.addEqual(line1, line6)
-        constraints.addEqual(line2, line5)
+        constraints.addTangent(arc, line6)
         dimensions.addRadialDimension(arc, arc.endSketchPoint.geometry, True)
-        dimensions.addDistanceDimension(
-            arc.endSketchPoint,
+        applyTo(dimensions.addDistanceDimension(
+            screwHoleCircle.centerSketchPoint,
             line3.endSketchPoint,
             adsk.fusion.DimensionOrientations.HorizontalDimensionOrientation,
             line2.endSketchPoint.geometry
-            )
+            ).parameter, cellCenterOffsetX)
+        applyTo(dimensions.addDistanceDimension(
+            screwHoleCircle.centerSketchPoint,
+            line3.endSketchPoint,
+            adsk.fusion.DimensionOrientations.VerticalDimensionOrientation,
+            line4.endSketchPoint.geometry
+            ).parameter, cellCenterOffsetY)
 
         centerCutoutExtrudeFeature = extrudeUtils.simpleDistanceExtrude(
             centerCutoutSketch.profiles.item(0),
@@ -96,34 +110,37 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
             targetComponent,
             name='Skeleton cutout',
         )
-
-        constructionAxisInput: adsk.fusion.ConstructionAxisInput = targetComponent.constructionAxes.createInput()
-        constructionAxisInput.setByNormalToFaceAtPoint(
-            faceUtils.getBottomFace(baseBody),
-            line3.endSketchPoint,
-        )
-        constructionAxis = targetComponent.constructionAxes.add(constructionAxisInput)
-        constructionAxis.name = 'Skeleton cutout axis'
-        constructionAxis.isLightBulbOn = False
-
-        centerCutoutPattern = patternUtils.circPattern(
-            commonUtils.objectCollectionFromList(centerCutoutExtrudeFeature.bodies),
-            constructionAxis,
-            4,
-            targetComponent,
-            name='Skeleton cutouts pattern',
-        )
         centerCutoutBody = centerCutoutExtrudeFeature.bodies.item(0)
+
+        # mirroring instead of a circular pattern keeps the cutouts in the cell corners of non square bases
+        cellXZMidPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
+        cellXZMidPlaneInput.setByOffset(targetComponent.xZConstructionPlane, valueInput(input.baseLength / 2 - clearance))
+        cellXZMidPlane = targetComponent.constructionPlanes.add(cellXZMidPlaneInput)
+        cellXZMidPlane.name = 'Skeleton cutout XZ mid plane'
+        cellXZMidPlane.isLightBulbOn = False
+        cellYZMidPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
+        cellYZMidPlaneInput.setByOffset(targetComponent.yZConstructionPlane, valueInput(input.baseWidth / 2 - clearance))
+        cellYZMidPlane = targetComponent.constructionPlanes.add(cellYZMidPlaneInput)
+        cellYZMidPlane.name = 'Skeleton cutout YZ mid plane'
+        cellYZMidPlane.isLightBulbOn = False
+        mirrorXInput = features.mirrorFeatures.createInput(commonUtils.objectCollectionFromList([centerCutoutBody]), cellYZMidPlane)
+        mirrorXFeature = features.mirrorFeatures.add(mirrorXInput)
+        mirrorXFeature.name = 'Skeleton cutouts mirror X'
+        halfCutoutBodies = commonUtils.objectCollectionFromList([centerCutoutBody], mirrorXFeature.bodies)
+        mirrorYInput = features.mirrorFeatures.createInput(halfCutoutBodies, cellXZMidPlane)
+        mirrorYFeature = features.mirrorFeatures.add(mirrorYInput)
+        mirrorYFeature.name = 'Skeleton cutouts mirror Y'
+        # mirror results can include their sources, which a combine rejects as its own tool
         combineUtils.joinBodies(
             centerCutoutBody,
-            commonUtils.objectCollectionFromList([body for body in list(centerCutoutPattern.bodies) if not body.name == centerCutoutBody.name]),
+            commonUtils.objectCollectionFromList([body for body in list(halfCutoutBodies) + list(mirrorYFeature.bodies) if body != centerCutoutBody]),
             targetComponent,
             name='Skeleton cutouts join',
         )
         extraCutoutBodies.append(centerCutoutBody)
         if input.hasConnectionHoles:
             connectionHoleFaceY = min([face for face in centerCutoutBody.faces if faceUtils.isYNormal(face)], key=lambda x: x.boundingBox.minPoint.y)
-            connectionHoleYTool = createConnectionHoleTool(connectionHoleFaceY, input.connectionScrewHolesDiameter / 2, input.baseWidth / 2, targetComponent, name='Connection hole Y')
+            connectionHoleYTool = createConnectionHoleTool(connectionHoleFaceY, input.connectionScrewHolesDiameter / 2, input.baseLength / 2, targetComponent, name='Connection hole Y')
             connectionHoleFaceX = min([face for face in centerCutoutBody.faces if faceUtils.isXNormal(face)], key=lambda x: x.boundingBox.minPoint.x)
             connectionHoleXTool = createConnectionHoleTool(connectionHoleFaceX, input.connectionScrewHolesDiameter / 2, input.baseWidth / 2, targetComponent, name='Connection hole X')
 
@@ -172,8 +189,8 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
         holeCuttingBodies.append(screwHeadBody)
 
     if len(holeCuttingBodies) > 0:
-        patternSpacingX = input.baseWidth - const.DIMENSION_SCREW_HOLES_OFFSET * 2
-        patternSpacingY = input.baseLength - const.DIMENSION_SCREW_HOLES_OFFSET * 2
+        patternSpacingX = input.baseWidth - Dim.length(const.DIMENSION_SCREW_HOLES_OFFSET * 2)
+        patternSpacingY = input.baseLength - Dim.length(const.DIMENSION_SCREW_HOLES_OFFSET * 2)
         magnetScrewCutoutsPattern = patternUtils.recPattern(
             commonUtils.objectCollectionFromList(holeCuttingBodies),
             (targetComponent.xConstructionAxis, targetComponent.yConstructionAxis),
@@ -194,8 +211,8 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
 
     timer.step('seed socket')
 
-    baseplateTrueWidth = input.baseplateWidth * input.baseWidth - input.xyClearance * 2
-    baseplateTrueLength = input.baseplateLength * input.baseLength - input.xyClearance * 2
+    baseplateTrueWidth = input.baseWidth * input.baseplateWidth - Dim.length(input.xyClearance * 2)
+    baseplateTrueLength = input.baseLength * input.baseplateLength - Dim.length(input.xyClearance * 2)
 
     if not connectionHoleYTool is None and not connectionHoleXTool is None:
         holeToolsXFeature = patternUtils.recPattern(
@@ -211,7 +228,7 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
         holeToolsYFeature = patternUtils.recPattern(
             commonUtils.objectCollectionFromList(connectionHoleYTool.bodies),
             (targetComponent.xConstructionAxis, targetComponent.yConstructionAxis),
-            (input.baseLength, input.baseLength),
+            (input.baseWidth, input.baseLength),
             (input.baseplateWidth, 1),
             targetComponent,
             name='Connection holes Y pattern',
@@ -219,13 +236,13 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
         connectionHoleYToolList = list(connectionHoleYTool.bodies) + list(holeToolsYFeature.bodies)
 
         constructionPlaneXZInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
-        constructionPlaneXZInput.setByOffset(targetComponent.xZConstructionPlane, adsk.core.ValueInput.createByReal(input.baseplateLength * input.baseLength / 2 - input.xyClearance))
+        constructionPlaneXZInput.setByOffset(targetComponent.xZConstructionPlane, valueInput(input.baseLength * input.baseplateLength / 2 - clearance))
         constructionPlaneXZ = targetComponent.constructionPlanes.add(constructionPlaneXZInput)
         constructionPlaneXZ.name = 'Plate XZ mid plane'
         constructionPlaneXZ.isLightBulbOn = False
 
         constructionPlaneYZInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
-        constructionPlaneYZInput.setByOffset(targetComponent.yZConstructionPlane, adsk.core.ValueInput.createByReal(input.baseplateWidth * input.baseWidth / 2 - input.xyClearance))
+        constructionPlaneYZInput.setByOffset(targetComponent.yZConstructionPlane, valueInput(input.baseWidth * input.baseplateWidth / 2 - clearance))
         constructionPlaneYZ = targetComponent.constructionPlanes.add(constructionPlaneYZInput)
         constructionPlaneYZ.name = 'Plate YZ mid plane'
         constructionPlaneYZ.isLightBulbOn = False
@@ -246,21 +263,22 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
     gridHeight = const.BIN_BASE_HEIGHT + (input.bottomExtensionHeight if input.hasExtendedBottom else 0)
     # cells start below the top clearance, the same as cutting it from the whole plate
     gridTop = -max(0, input.binZClearance)
-    paddingLeft = input.paddingLeft if input.hasPadding else 0
-    paddingTop = input.paddingTop if input.hasPadding else 0
-    paddingRight = input.paddingRight if input.hasPadding else 0
-    paddingBottom = input.paddingBottom if input.hasPadding else 0
+    noPadding = Dim.length(0)
+    paddingLeft = input.paddingLeft if input.hasPadding else noPadding
+    paddingTop = input.paddingTop if input.hasPadding else noPadding
+    paddingRight = input.paddingRight if input.hasPadding else noPadding
+    paddingBottom = input.paddingBottom if input.hasPadding else noPadding
     baseplateBody = createSocketCellGrid(input, baseBody, gridTop, gridHeight, targetComponent, timer)
 
     # padding past the cells. Sockets overhang their cells by the xy clearance, but only within the top
     # xy clearance depth, which the top clearance removes anyway unless it is set smaller
-    cellsMinX = -input.xyClearance
-    cellsMaxX = input.baseplateWidth * input.baseWidth - input.xyClearance
-    cellsMinY = -input.xyClearance
-    cellsMaxY = input.baseplateLength * input.baseLength - input.xyClearance
-    outlineMinX = -paddingLeft
+    cellsMinX = clearance * -1
+    cellsMaxX = input.baseWidth * input.baseplateWidth - clearance
+    cellsMinY = clearance * -1
+    cellsMaxY = input.baseLength * input.baseplateLength - clearance
+    outlineMinX = paddingLeft * -1
     outlineMaxX = baseplateTrueWidth + paddingRight
-    outlineMinY = -paddingBottom
+    outlineMinY = paddingBottom * -1
     outlineMaxY = baseplateTrueLength + paddingTop
     paddingStrips = [
         ("Padding left", outlineMinX, outlineMinY, cellsMinX, outlineMaxY),
@@ -270,15 +288,17 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
     ]
     paddingBodies: list[adsk.fusion.BRepBody] = []
     for (name, minX, minY, maxX, maxY) in paddingStrips:
-        if maxX - minX > const.DEFAULT_FILTER_TOLERANCE and maxY - minY > const.DEFAULT_FILTER_TOLERANCE:
+        if (maxX - minX).value > const.DEFAULT_FILTER_TOLERANCE and (maxY - minY).value > const.DEFAULT_FILTER_TOLERANCE:
             paddingBody = shapeUtils.simpleBox(
                 targetComponent.xYConstructionPlane,
                 gridTop,
                 maxX - minX,
                 maxY - minY,
                 -(gridHeight + gridTop),
-                adsk.core.Point3D.create(minX, minY, 0),
+                adsk.core.Point3D.create(minX.value, minY.value, 0),
                 targetComponent,
+                minX,
+                minY,
                 name=name,
             )
             paddingBodies.append(paddingBody)
@@ -293,12 +313,14 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
 
     # trims cells overhanging the plate edge and rounds the outer corners
     baseGenerator.cutOutsideRoundedRectangle(
-        adsk.core.Point3D.create(outlineMinX, outlineMinY, 0),
+        adsk.core.Point3D.create(outlineMinX.value, outlineMinY.value, 0),
         outlineMaxX - outlineMinX,
         outlineMaxY - outlineMinY,
         input.cornerFilletRadius - input.xyClearance,
         [baseplateBody],
         targetComponent,
+        outlineMinX,
+        outlineMinY,
         name='Plate outline trim',
     )
     timer.step('trim to outline')
@@ -317,7 +339,7 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
     bottomChamferEdges = [
         edge for edge in edgeUtils.selectEdgesByLength(
             [bottomFace],
-            outlineMaxY - outlineMinY,
+            (outlineMaxY - outlineMinY).value,
             const.BIN_CORNER_FILLET_RADIUS * 3,
         )
         if isOnOutline(edge)
@@ -395,7 +417,7 @@ def createSocketCellGrid(
         timer.step('join socket cells')
     return cellBody
 
-def createConnectionHoleTool(connectionHoleFace: adsk.fusion.BRepFace, diameter: float, depth: float, targetComponent: adsk.fusion.Component, *, name: str):
+def createConnectionHoleTool(connectionHoleFace: adsk.fusion.BRepFace, diameter: float, depth: Dim | float, targetComponent: adsk.fusion.Component, *, name: str):
     connectionHoleSketch: adsk.fusion.Sketch = targetComponent.sketches.add(connectionHoleFace)
     connectionHoleSketch.name = f'{name} sketch'
     sketchCurves = connectionHoleSketch.sketchCurves
