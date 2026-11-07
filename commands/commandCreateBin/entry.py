@@ -16,6 +16,7 @@ from ...lib.gridfinityUtils import shellUtils
 from ...lib.gridfinityUtils import commonUtils
 from ...lib.gridfinityUtils import const
 from ...lib.gridfinityUtils import parameterUtils
+from ...lib.gridfinityUtils import sharedParameters
 from ...lib.gridfinityUtils.dim import Dim
 from ...lib.gridfinityUtils.baseGenerator import createSingleGridfinityBaseBody, createBaseBodyPattern, cutBaseClearance, cutWallJunctionPockets
 from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
@@ -127,18 +128,9 @@ BIN_LEGACY_NAME_PREFIX = 'Gridfinity bin '
 # User parameter names are stored in user documents, keep these literal
 BIN_PARAMETER_BASE_NAME = 'gfBin'
 BIN_HEIGHT_PARAMETER = 'heightU'
-# per bin fallbacks for the shared units
+# per bin fallback for the shared height unit
 BIN_HEIGHT_UNIT_PARAMETER = 'heightUnit'
-BIN_BASE_WIDTH_PARAMETER = 'baseWidth'
-BIN_BASE_LENGTH_PARAMETER = 'baseLength'
-BIN_PARAMETERS = [BIN_HEIGHT_PARAMETER, BIN_HEIGHT_UNIT_PARAMETER, BIN_BASE_WIDTH_PARAMETER, BIN_BASE_LENGTH_PARAMETER]
-# shared by all bins of the design, so changing one rescales every bin built from it
-HEIGHT_UNIT_PARAMETER = 'gfHeightUnit'
-BASE_WIDTH_PARAMETER = 'gfBaseWidth'
-BASE_LENGTH_PARAMETER = 'gfBaseLength'
-# smallest units the dialog accepts, an existing parameter has to meet them too
-BIN_HEIGHT_UNIT_MIN = 0.5
-BIN_BASE_UNIT_MIN = 1
+BIN_PARAMETERS = [BIN_HEIGHT_PARAMETER, BIN_HEIGHT_UNIT_PARAMETER, sharedParameters.BASE_WIDTH_FALLBACK_PARAMETER, sharedParameters.BASE_LENGTH_FALLBACK_PARAMETER]
 BIN_TYPE_SOLID = 'Solid'
 
 INPUT_CHANGES_SAVE_DEFAULTS = 'input_changes_buttons_save_new_defaults'
@@ -159,44 +151,20 @@ def infoText():
     version = tagUtils.getGeneratorVersion()
     return f"{INFO_TEXT}<br><span style=\"color:#808080; font-size:small\">Version {version}</span>" if version else INFO_TEXT
 
-def isUsableLengthParameter(design: adsk.fusion.Design, parameter: adsk.fusion.UserParameter, minimum: float) -> bool:
-    """Has to be a length within the range the dialog accepts"""
-    isLength = parameter.unit != '' and design.unitsManager.isValidExpression(f'1 {parameter.unit}', 'mm')
-    return isLength and parameter.value >= minimum
-
-def findOrCreateSharedLengthParameter(
-    design: adsk.fusion.Design,
-    tagName: str,
-    name: str,
-    label: str,
-    minimum: float,
-    value: float,
-    binParameterName: str,
-) -> adsk.fusion.UserParameter:
-    """The tagged parameter wins, an untagged one with the same name is reused as is, otherwise a new one is created and tagged.
-    An existing one that isn't usable or differs from the dialog value is left alone and the bin gets its own parameter instead"""
-    taggedParameters = tagUtils.findTaggedParameters(design, tagName)
-    if len(taggedParameters) > 0:
-        parameter = taggedParameters[0][0]
-        source = 'tagged'
-    else:
-        parameter = design.userParameters.itemByName(name)
-        source = 'untagged, found by name'
-    if parameter is None:
-        parameter = parameterUtils.addLengthParameter(design, name, value, f'Gridfinity {label}, shared by all bins')
-        tagUtils.tagParameter(parameter, tagName)
-        commonUtils.debugLog(f'{CMD_NAME} {label}: created shared parameter {parameter.name} = {parameter.expression}')
-        return parameter
-    if not isUsableLengthParameter(design, parameter, minimum):
-        reason = 'is not a usable length'
-    elif not math.isclose(parameter.value, value, abs_tol=const.DEFAULT_FILTER_TOLERANCE):
-        reason = 'differs from the dialog value'
-    else:
-        commonUtils.debugLog(f'{CMD_NAME} {label}: using existing shared parameter {parameter.name} = {parameter.expression} ({source})')
-        return parameter
-    binParameter = parameterUtils.addLengthParameter(design, binParameterName, value, f'Gridfinity bin {label}')
-    commonUtils.debugLog(f'{CMD_NAME} {label}: existing parameter {parameter.name} = {parameter.expression} ({source}) {reason}, created {binParameter.name} = {binParameter.expression} for this bin')
-    return binParameter
+def applySharedParameterDefaults():
+    """Usable shared units of the design replace the remembered inputs, so new bins match the existing ones by default"""
+    design = adsk.fusion.Design.cast(app.activeProduct)
+    if design is None:
+        return
+    (baseWidth, baseLength) = sharedParameters.usableSharedBaseUnits(design)
+    for (inputId, value) in [
+        (BIN_BASE_WIDTH_UNIT_INPUT_ID, baseWidth),
+        (BIN_BASE_LENGTH_UNIT_INPUT_ID, baseLength),
+        (BIN_HEIGHT_UNIT_INPUT_ID, sharedParameters.usableSharedHeightUnit(design)),
+    ]:
+        if value is not None:
+            commandUIState.initValue(inputId, value, adsk.core.ValueCommandInput.classType())
+            commonUtils.debugLog(f'{CMD_NAME} dialog default {inputId} = {value} from the shared parameter')
 
 def refreshUi():
     global commandUIState
@@ -572,6 +540,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     global actualDimensionsTableUiState
 
     args.command.setDialogInitialSize(400, 500)
+    applySharedParameterDefaults()
 
     # https://help.autodesk.com/view/fusion360/ENU/?contextId=CommandInputs
     inputs = args.command.commandInputs
@@ -587,15 +556,15 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     basicSizesGroup.isExpanded = commandUIState.getState(BIN_BASIC_SIZES_GROUP)
     commandUIState.registerCommandInput(basicSizesGroup)
     baseWidthUnitInput = basicSizesGroup.children.addValueInput(BIN_BASE_WIDTH_UNIT_INPUT_ID, 'Base width unit (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_BASE_WIDTH_UNIT_INPUT_ID)))
-    baseWidthUnitInput.minimumValue = BIN_BASE_UNIT_MIN
+    baseWidthUnitInput.minimumValue = sharedParameters.BASE_UNIT_MIN
     baseWidthUnitInput.isMinimumInclusive = True
     commandUIState.registerCommandInput(baseWidthUnitInput)
     baseLengthUnitInput = basicSizesGroup.children.addValueInput(BIN_BASE_LENGTH_UNIT_INPUT_ID, 'Base length unit (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_BASE_LENGTH_UNIT_INPUT_ID)))
-    baseLengthUnitInput.minimumValue = BIN_BASE_UNIT_MIN
+    baseLengthUnitInput.minimumValue = sharedParameters.BASE_UNIT_MIN
     baseLengthUnitInput.isMinimumInclusive = True
     commandUIState.registerCommandInput(baseLengthUnitInput)
     binHeightUnitInput = basicSizesGroup.children.addValueInput(BIN_HEIGHT_UNIT_INPUT_ID, 'Bin height unit (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_HEIGHT_UNIT_INPUT_ID)))
-    binHeightUnitInput.minimumValue = BIN_HEIGHT_UNIT_MIN
+    binHeightUnitInput.minimumValue = sharedParameters.HEIGHT_UNIT_MIN
     binHeightUnitInput.isMinimumInclusive = True
     commandUIState.registerCommandInput(binHeightUnitInput)
     xyClearanceInput = basicSizesGroup.children.addValueInput(BIN_XY_CLEARANCE_INPUT_ID, 'Bin xy clearance (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_XY_CLEARANCE_INPUT_ID)))
@@ -991,24 +960,16 @@ def generateBin(args: adsk.core.CommandEventArgs):
         )
 
         binParameterPrefix = parameterUtils.nextFreePrefix(des, BIN_PARAMETER_BASE_NAME, BIN_PARAMETERS)
-        baseWidth = Dim.parameter(findOrCreateSharedLengthParameter(
+        (baseWidthParameter, baseLengthParameter) = sharedParameters.findOrCreateBaseUnitParameters(
             des,
-            tagUtils.TAG_BASE_WIDTH_PARAMETER,
-            BASE_WIDTH_PARAMETER,
-            'base width unit',
-            BIN_BASE_UNIT_MIN,
             base_width_unit.value,
-            parameterUtils.parameterName(binParameterPrefix, BIN_BASE_WIDTH_PARAMETER),
-        ))
-        baseLength = Dim.parameter(findOrCreateSharedLengthParameter(
-            des,
-            tagUtils.TAG_BASE_LENGTH_PARAMETER,
-            BASE_LENGTH_PARAMETER,
-            'base length unit',
-            BIN_BASE_UNIT_MIN,
             base_length_unit.value,
-            parameterUtils.parameterName(binParameterPrefix, BIN_BASE_LENGTH_PARAMETER),
-        ))
+            binParameterPrefix,
+            'bin',
+            CMD_NAME,
+        )
+        baseWidth = Dim.parameter(baseWidthParameter)
+        baseLength = Dim.parameter(baseLengthParameter)
 
         # create base interface
         baseGeneratorInput = BaseGeneratorInput()
@@ -1082,14 +1043,16 @@ def generateBin(args: adsk.core.CommandEventArgs):
                 bin_height.value,
                 'Gridfinity bin height, in height units',
             ))
-            binBodyInput.heightUnit = Dim.parameter(findOrCreateSharedLengthParameter(
+            binBodyInput.heightUnit = Dim.parameter(sharedParameters.findOrCreateSharedLengthParameter(
                 des,
                 tagUtils.TAG_HEIGHT_UNIT_PARAMETER,
-                HEIGHT_UNIT_PARAMETER,
+                sharedParameters.HEIGHT_UNIT_PARAMETER,
                 'height unit',
-                BIN_HEIGHT_UNIT_MIN,
+                sharedParameters.HEIGHT_UNIT_MIN,
                 height_unit.value,
                 parameterUtils.parameterName(binParameterPrefix, BIN_HEIGHT_UNIT_PARAMETER),
+                'bin',
+                CMD_NAME,
             ))
             binBody = createGridfinityBinBody(
                 binBodyInput,
