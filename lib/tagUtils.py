@@ -6,6 +6,9 @@ import os
 TAG_GROUP = 'LevMishin.GridfinityGenerator'
 TAG_BIN = 'bin'
 TAG_BASEPLATE = 'baseplate'
+TAG_HEIGHT_UNIT_PARAMETER = 'heightUnitParameter'
+TAG_BASE_WIDTH_PARAMETER = 'baseWidthParameter'
+TAG_BASE_LENGTH_PARAMETER = 'baseLengthParameter'
 
 # Bump only on incompatible changes to the tag value, readers ignore fields they don't know
 TAG_SCHEMA_VERSION = 1
@@ -49,3 +52,15 @@ def findTaggedBodies(design: adsk.fusion.Design, tagName: str) -> list[tuple[ads
         if body is not None:
             taggedBodies.append((body, parseTagValue(attribute.value)))
     return taggedBodies
+
+def tagParameter(parameter: adsk.fusion.UserParameter, tagName: str):
+    parameter.attributes.add(TAG_GROUP, tagName, createTagValue(getGeneratorVersion()))
+
+def findTaggedParameters(design: adsk.fusion.Design, tagName: str) -> list[tuple[adsk.fusion.UserParameter, dict]]:
+    """Found by tag rather than by name, so a renamed parameter is still recognized"""
+    taggedParameters = []
+    for attribute in design.findAttributes(TAG_GROUP, tagName):
+        parameter = adsk.fusion.UserParameter.cast(attribute.parent)
+        if parameter is not None:
+            taggedParameters.append((parameter, parseTagValue(attribute.value)))
+    return taggedParameters

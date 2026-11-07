@@ -6,6 +6,7 @@ from ...lib import fusion360utils as futil
 from . import const, combineUtils, faceUtils, commonUtils, sketchUtils, extrudeUtils, baseGenerator, edgeUtils, filletUtils, geometryUtils
 from .baseGeneratorInput import BaseGeneratorInput
 from .binBodyLipGeneratorInput import BinBodyLipGeneratorInput
+from .dim import Dim, valueInput
 
 app = adsk.core.Application.get()
 ui = app.userInterface
@@ -14,8 +15,8 @@ def createGridfinityBinBodyLip(
     input: BinBodyLipGeneratorInput,
     targetComponent: adsk.fusion.Component,
 ):
-    actualLipBodyWidth = (input.baseWidth * input.binWidth) - input.xyClearance * 2.0
-    actualLipBodyLength = (input.baseLength * input.binLength) - input.xyClearance * 2.0
+    actualLipBodyWidth = input.baseWidth * input.binWidth - Dim.length(input.xyClearance * 2)
+    actualLipBodyLength = input.baseLength * input.binLength - Dim.length(input.xyClearance * 2)
     lipBodyHeight = const.BIN_LIP_EXTRA_HEIGHT
     features: adsk.fusion.Features = targetComponent.features
 
@@ -24,7 +25,8 @@ def createGridfinityBinBodyLip(
         actualLipBodyLength,
         lipBodyHeight,
         targetComponent,
-        input.origin
+        input.origin,
+        input.originZ,
     )
     lipBody = lipBodyExtrude.bodies.item(0)
     lipBody.name = 'Lip body'
@@ -54,8 +56,9 @@ def createGridfinityBinBodyLip(
             byY=-input.xyClearance * 2,
             byZ=const.BIN_BASE_HEIGHT
         )
-        lipCutoutInput.baseWidth = input.baseWidth + input.xyClearance * 2
-        lipCutoutInput.baseLength = input.baseLength + input.xyClearance * 2
+        lipCutoutInput.originZ = input.originZ + Dim.length(const.BIN_BASE_HEIGHT)
+        lipCutoutInput.baseWidth = input.baseWidth + Dim.length(input.xyClearance * 2)
+        lipCutoutInput.baseLength = input.baseLength + Dim.length(input.xyClearance * 2)
         lipCutoutInput.xyClearance = input.xyClearance
         lipCutoutInput.hasBottomChamfer = False
         lipCutoutInput.cornerFilletRadius = input.binCornerFilletRadius + input.xyClearance * 2
@@ -68,11 +71,11 @@ def createGridfinityBinBodyLip(
         patternInput = features.rectangularPatternFeatures.createInput(patternInputBodies,
             targetComponent.xConstructionAxis,
             adsk.core.ValueInput.createByReal(input.binWidth),
-            adsk.core.ValueInput.createByReal(input.baseWidth),
+            valueInput(input.baseWidth),
             adsk.fusion.PatternDistanceType.SpacingPatternDistanceType)
         patternInput.directionTwoEntity = targetComponent.yConstructionAxis
         patternInput.quantityTwo = adsk.core.ValueInput.createByReal(input.binLength)
-        patternInput.distanceTwo = adsk.core.ValueInput.createByReal(input.baseLength)
+        patternInput.distanceTwo = valueInput(input.baseLength)
         rectangularPattern = features.rectangularPatternFeatures.add(patternInput)
         lipCutoutBodies = lipCutoutBodies + list(rectangularPattern.bodies)
 
@@ -82,11 +85,12 @@ def createGridfinityBinBodyLip(
             byY=input.wallThickness - input.xyClearance,
         )
         lipMidCutout = extrudeUtils.createBoxAtPoint(
-            actualLipBodyWidth - input.wallThickness * 2 + input.xyClearance * 2,
-            actualLipBodyLength - input.wallThickness * 2 + input.xyClearance * 2,
+            actualLipBodyWidth - Dim.length(input.wallThickness * 2 - input.xyClearance * 2),
+            actualLipBodyLength - Dim.length(input.wallThickness * 2 - input.xyClearance * 2),
             lipBodyHeight,
             targetComponent,
             lipMiddleCutoutOrigin,
+            input.originZ,
         )
         lipMidCutout.name = 'Lip middle cutout'
         filletUtils.filletEdgesByLength(
@@ -105,8 +109,9 @@ def createGridfinityBinBodyLip(
             byY=-input.xyClearance * 2,
             byZ=const.BIN_BASE_HEIGHT
         )
-        lipCutoutInput.baseWidth = input.baseWidth * input.binWidth + input.xyClearance * 2
-        lipCutoutInput.baseLength = input.baseLength * input.binLength + input.xyClearance * 2
+        lipCutoutInput.originZ = input.originZ + Dim.length(const.BIN_BASE_HEIGHT)
+        lipCutoutInput.baseWidth = input.baseWidth * input.binWidth + Dim.length(input.xyClearance * 2)
+        lipCutoutInput.baseLength = input.baseLength * input.binLength + Dim.length(input.xyClearance * 2)
         lipCutoutInput.xyClearance = input.xyClearance
         lipCutoutInput.hasBottomChamfer = False
         lipCutoutInput.cornerFilletRadius = input.binCornerFilletRadius + input.xyClearance * 2

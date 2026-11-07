@@ -8,6 +8,12 @@ import time
 from ...lib import fusion360utils as futil
 from ... import config
 
+def debugLog(message: str):
+    """Text command window in debug mode, and the Fusion log file too, so it survives a restart"""
+    futil.log(message)
+    if config.DEBUG:
+        adsk.core.Application.get().log(message, adsk.core.LogLevels.InfoLogLevel, adsk.core.LogTypes.FileLogType)
+
 class StepTimer():
     """Logs how long each step of a generator took, in debug mode also to the Fusion log file"""
     def __init__(self, name: str):
@@ -16,9 +22,7 @@ class StepTimer():
         self.lastTime = self.startTime
 
     def log(self, message: str):
-        futil.log(message)
-        if config.DEBUG:
-            adsk.core.Application.get().log(message, adsk.core.LogLevels.InfoLogLevel, adsk.core.LogTypes.FileLogType)
+        debugLog(message)
 
     def step(self, label: str):
         now = time.perf_counter()

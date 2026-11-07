@@ -11,6 +11,7 @@ from ...lib.gridfinityUtils import filletUtils
 from . import const, combineUtils, faceUtils, commonUtils, sketchUtils, extrudeUtils, baseGenerator, edgeUtils
 from .baseGeneratorInput import BaseGeneratorInput
 from .binBodyTabGeneratorInput import BinBodyTabGeneratorInput
+from .dim import Dim, valueInput, applyTo
 from ... import config
 
 app = adsk.core.Application.get()
@@ -24,7 +25,7 @@ def createGridfinityBinBodyTab(
     tabProfilePlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
     tabProfilePlaneInput.setByOffset(
         targetComponent.yZConstructionPlane,
-        adsk.core.ValueInput.createByReal(input.origin.x)
+        valueInput(input.originX)
         )
     tabProfilePlane = targetComponent.constructionPlanes.add(tabProfilePlaneInput)
     tabSketch: adsk.fusion.Sketch = targetComponent.sketches.add(tabProfilePlane)
@@ -57,21 +58,22 @@ def createGridfinityBinBodyTab(
         constraints.addCoincident(line2.endSketchPoint, line3.endSketchPoint)
         constraints.addCoincident(line1.endSketchPoint, line3.startSketchPoint)
 
-        dimensions.addDistanceDimension(
+        # on the YZ plane sketch vertical runs along the model y and sketch horizontal along the model z
+        applyTo(dimensions.addDistanceDimension(
             tabSketch.originPoint,
             line1.startSketchPoint,
             adsk.fusion.DimensionOrientations.VerticalDimensionOrientation,
             line1.startSketchPoint.geometry,
             True
-            )
+            ).parameter, input.originY)
 
-        dimensions.addDistanceDimension(
+        applyTo(dimensions.addDistanceDimension(
             tabSketch.originPoint,
             line1.startSketchPoint,
             adsk.fusion.DimensionOrientations.HorizontalDimensionOrientation,
             line1.startSketchPoint.geometry,
             True
-            )
+            ).parameter, input.originZ - Dim.length(input.topClearance))
 
         dimensions.addDistanceDimension(
             line2.startSketchPoint,

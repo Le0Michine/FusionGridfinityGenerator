@@ -13,6 +13,7 @@ from .binBodyTabGeneratorInput import BinBodyTabGeneratorInput
 from .binBodyTabGenerator import createGridfinityBinBodyTab
 from .binBodyLipGeneratorInput import BinBodyLipGeneratorInput
 from .binBodyLipGenerator import createGridfinityBinBodyLip
+from .dim import Dim
 from ... import config
 
 app = adsk.core.Application.get()
@@ -43,22 +44,30 @@ def patternCompartmentBodies(bodies, input, spacingX, spacingY, targetComponent,
     return bodies + list(pattern.bodies)
 
 
+def binBodyTopHeight(input: BinBodyGeneratorInput) -> Dim:
+    """Height of the body top above the base top"""
+    if input.heightUnit.value >= const.BIN_BASE_HEIGHT:
+        # the first unit holds the base, only its part above the base height belongs to the body
+        return input.binHeight * input.heightUnit - Dim.length(const.BIN_BASE_HEIGHT)
+    return (input.binHeight - Dim.number(1)) * input.heightUnit
+
 def createGridfinityBinBody(
     input: BinBodyGeneratorInput,
     targetComponent: adsk.fusion.Component,
 ) -> tuple[adsk.fusion.BRepBody, adsk.fusion.BRepBody]:
 
-    actualBodyWidth = (input.baseWidth * input.binWidth) - input.xyClearance * 2.0
-    actualBodyLength = (input.baseLength * input.binLength) - input.xyClearance * 2.0
-    binHeightWithoutBase = input.binHeight - 1
-    binBodyTotalHeight = binHeightWithoutBase * input.heightUnit + max(0, input.heightUnit - const.BIN_BASE_HEIGHT)
+    bodyWidth = input.baseWidth * input.binWidth - Dim.length(input.xyClearance * 2)
+    bodyLength = input.baseLength * input.binLength - Dim.length(input.xyClearance * 2)
+    wall = Dim.length(input.wallThickness)
+    # everything sitting on the bin top uses this dim, so it follows the height parameters
+    binBodyTotalHeight = binBodyTopHeight(input)
     features: adsk.fusion.Features = targetComponent.features
     binBodyExtrude = extrudeUtils.createBox(
-        actualBodyWidth,
-        actualBodyLength,
+        bodyWidth,
+        bodyLength,
         binBodyTotalHeight,
         targetComponent,
-        targetComponent.xYConstructionPlane
+        targetComponent.xYConstructionPlane,
     )
     binBody = binBodyExtrude.bodies.item(0)
     binBody.name = 'Bin body'
@@ -70,16 +79,12 @@ def createGridfinityBinBody(
     filletUtils.filletEdgesByLength(
         binBodyExtrude.faces,
         input.binCornerFilletRadius,
-        binBodyTotalHeight,
+        binBodyTotalHeight.value,
         targetComponent,
     ).name = 'Bin body corner fillets'
 
     if input.hasLip:
-        lipOriginPoint = adsk.core.Point3D.create(
-            0,
-            0,
-            binHeightWithoutBase * input.heightUnit + max(0, input.heightUnit - const.BIN_BASE_HEIGHT)
-        )
+        lipOriginPoint = adsk.core.Point3D.create(0, 0, binBodyTotalHeight.value)
         lipInput = BinBodyLipGeneratorInput()
         lipInput.baseLength = input.baseLength
         lipInput.baseWidth = input.baseWidth
@@ -89,20 +94,22 @@ def createGridfinityBinBody(
         lipInput.xyClearance = input.xyClearance
         lipInput.binCornerFilletRadius = input.binCornerFilletRadius
         lipInput.origin = lipOriginPoint
+        lipInput.originZ = binBodyTotalHeight
         lipBody = createGridfinityBinBodyLip(lipInput, targetComponent)
 
         if input.wallThickness < const.BIN_LIP_WALL_THICKNESS:
             lipBottomChamferSize = max(const.BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS, input.binCornerFilletRadius - input.wallThickness)
             lipBottomChamferExtrude = extrudeUtils.createBoxAtPoint(
-                actualBodyWidth - input.wallThickness * 2,
-                (actualBodyLength - input.wallThickness - const.BIN_LIP_WALL_THICKNESS + input.xyClearance) if input.hasScoop else (actualBodyLength - input.wallThickness * 2),
+                bodyWidth - wall * 2,
+                (bodyLength - wall - Dim.length(const.BIN_LIP_WALL_THICKNESS - input.xyClearance)) if input.hasScoop else (bodyLength - wall * 2),
                 lipBottomChamferSize,
                 targetComponent,
                 adsk.core.Point3D.create(
                     input.wallThickness,
                     (const.BIN_LIP_WALL_THICKNESS - input.xyClearance) if input.hasScoop else input.wallThickness,
                     lipOriginPoint.z,
-                )
+                ),
+                binBodyTotalHeight,
             )
             lipBottomChamferExtrude.name = 'Lip bottom chamfer extrude'
             filletUtils.filletEdgesByLength(
@@ -128,46 +135,45 @@ def createGridfinityBinBody(
         bodiesToMerge.append(lipBody)
 
     if not input.isSolid:
-        compartmentsMinX = input.wallThickness
-        compartmentsMaxX = actualBodyWidth - input.wallThickness
-        compartmentsMinY = (const.BIN_LIP_WALL_THICKNESS - input.xyClearance) if input.hasLip and input.hasScoop else input.wallThickness
-        compartmentsMaxY = actualBodyLength - input.wallThickness
+        compartmentsMinX = wall
+        compartmentsMaxX = bodyWidth - wall
+        compartmentsMinY = Dim.length(const.BIN_LIP_WALL_THICKNESS - input.xyClearance) if input.hasLip and input.hasScoop else wall
+        compartmentsMaxY = bodyLength - wall
 
         totalCompartmentsWidth = compartmentsMaxX - compartmentsMinX
         totalCompartmentsLength = compartmentsMaxY - compartmentsMinY
-        
-        compartmentWidthUnit = (totalCompartmentsWidth - (input.compartmentsByX - 1) * input.wallThickness) / input.compartmentsByX
-        compartmentLengthUnit = (totalCompartmentsLength - (input.compartmentsByY - 1) * input.wallThickness) / input.compartmentsByY
+
+        compartmentWidthUnit = (totalCompartmentsWidth - wall * (input.compartmentsByX - 1)) / input.compartmentsByX
+        compartmentLengthUnit = (totalCompartmentsLength - wall * (input.compartmentsByY - 1)) / input.compartmentsByY
 
         useCompartmentPattern = input.isUniformCompartments and len(input.compartments) > 1
         compartmentsToBuild = input.compartments[:1] if useCompartmentPattern else input.compartments
         for compartment in compartmentsToBuild:
-            compartmentX = compartmentsMinX + compartment.positionX * (compartmentWidthUnit + input.wallThickness)
-            compartmentY = compartmentsMinY + compartment.positionY * (compartmentLengthUnit + input.wallThickness)
-            compartmentOriginPoint = adsk.core.Point3D.create(
-                compartmentX,
-                compartmentY,
-                binBodyTotalHeight
-            )
-            compartmentWidth = compartmentWidthUnit * compartment.width + (compartment.width - 1) * input.wallThickness
-            compartmentLength = compartmentLengthUnit * compartment.length + (compartment.length - 1) * input.wallThickness
-            compartmentDepth = min(binBodyTotalHeight - const.BIN_COMPARTMENT_BOTTOM_THICKNESS, compartment.depth)
+            compartmentX = compartmentsMinX + (compartmentWidthUnit + wall) * compartment.positionX
+            compartmentY = compartmentsMinY + (compartmentLengthUnit + wall) * compartment.positionY
+            compartmentWidth = compartmentWidthUnit * compartment.width + wall * (compartment.width - 1)
+            compartmentLength = compartmentLengthUnit * compartment.length + wall * (compartment.length - 1)
+            # full depth compartments keep their floor thickness, shallower ones keep their depth from the top
+            fullCompartmentDepth = binBodyTotalHeight - Dim.length(const.BIN_COMPARTMENT_BOTTOM_THICKNESS)
+            compartmentDepth = fullCompartmentDepth if compartment.depth >= fullCompartmentDepth.value else compartment.depth
 
             compartmentTabInput = BinBodyTabGeneratorInput()
-            tabOriginPoint = adsk.core.Point3D.create(
-                compartmentOriginPoint.x + max(0, min(input.tabPosition, input.binWidth - input.tabLength)) * input.baseWidth,
-                compartmentOriginPoint.y + compartmentLength,
-                compartmentOriginPoint.z,
-            )
-            compartmentTabInput.origin = tabOriginPoint
-            compartmentTabInput.length = max(0, min(input.tabLength, input.binWidth)) * input.baseWidth
+            tabOriginX = compartmentX + input.baseWidth * max(0, min(input.tabPosition, input.binWidth - input.tabLength))
+            tabOriginY = compartmentY + compartmentLength
+            compartmentTabInput.origin = adsk.core.Point3D.create(tabOriginX.value, tabOriginY.value, binBodyTotalHeight.value)
+            compartmentTabInput.originX = tabOriginX
+            compartmentTabInput.originY = tabOriginY
+            compartmentTabInput.originZ = binBodyTotalHeight
+            compartmentTabInput.length = input.baseWidth * max(0, min(input.tabLength, input.binWidth))
             compartmentTabInput.width = input.tabWidth
             compartmentTabInput.overhangAngle = input.tabOverhangAngle
             compartmentTabInput.topClearance = const.BIN_TAB_TOP_CLEARANCE
 
             [compartmentMerges, compartmentCuts] = createCompartment(
                 input.wallThickness,
-                compartmentOriginPoint,
+                compartmentX,
+                compartmentY,
+                binBodyTotalHeight,
                 compartmentWidth,
                 compartmentLength,
                 compartmentDepth,
@@ -189,16 +195,16 @@ def createGridfinityBinBody(
                 seedCut.name = 'Seed compartment cut'
                 patternCompartments(
                     [seedCut], input,
-                    compartmentWidthUnit + input.wallThickness,
-                    compartmentLengthUnit + input.wallThickness,
+                    compartmentWidthUnit + wall,
+                    compartmentLengthUnit + wall,
                     targetComponent, 'Uniform compartment cuts',
                     adsk.fusion.PatternComputeOptions.OptimizedPatternCompute,
                 )
                 compartmentCuts = []
                 compartmentMerges = patternCompartmentBodies(
                     compartmentMerges, input,
-                    compartmentWidthUnit + input.wallThickness,
-                    compartmentLengthUnit + input.wallThickness,
+                    compartmentWidthUnit + wall,
+                    compartmentLengthUnit + wall,
                     targetComponent, 'Uniform compartment label tabs',
                 )
             bodiesToSubtract.extend(compartmentCuts)
@@ -207,13 +213,11 @@ def createGridfinityBinBody(
         if len(input.compartments) > 1:
             compartmentsTopClearance = createCompartmentCutout(
                 input.wallThickness,
-                adsk.core.Point3D.create(
-                    compartmentsMinX,
-                    compartmentsMinY,
-                    binBodyTotalHeight
-                ),
-                actualBodyWidth - input.wallThickness * 2,
-                actualBodyLength - input.wallThickness - compartmentsMinY,
+                compartmentsMinX,
+                compartmentsMinY,
+                binBodyTotalHeight,
+                bodyWidth - wall * 2,
+                bodyLength - wall - compartmentsMinY,
                 const.BIN_TAB_TOP_CLEARANCE,
                 input.binCornerFilletRadius - input.wallThickness,
                 False,
@@ -241,10 +245,12 @@ def createGridfinityBinBody(
 
 def createCompartmentCutout(
         wallThickness: float,
-        originPoint: adsk.core.Point3D,
-        width: float,
-        length: float,
-        depth: float,
+        originX: Dim,
+        originY: Dim,
+        originZ: Dim,
+        width: Dim,
+        length: Dim,
+        depth: Dim | float,
         cornerFilletRadius: float,
         hasScoop: bool,
         scoopMaxRadius: float,
@@ -254,7 +260,10 @@ def createCompartmentCutout(
 
     innerCutoutFilletRadius = max(const.BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS, cornerFilletRadius)
     innerCutoutInput = BinBodyCutoutGeneratorInput()
-    innerCutoutInput.origin = originPoint
+    innerCutoutInput.origin = adsk.core.Point3D.create(originX.value, originY.value, originZ.value)
+    innerCutoutInput.originX = originX
+    innerCutoutInput.originY = originY
+    innerCutoutInput.originZ = originZ
     innerCutoutInput.width = width
     innerCutoutInput.length = length
     innerCutoutInput.height = depth
@@ -267,10 +276,12 @@ def createCompartmentCutout(
 
 def createCompartment(
         wallThickness: float,
-        originPoint: adsk.core.Point3D,
-        width: float,
-        length: float,
-        depth: float,
+        originX: Dim,
+        originY: Dim,
+        originZ: Dim,
+        width: Dim,
+        length: Dim,
+        depth: Dim | float,
         cornerFilletRadius: float,
         hasScoop: bool,
         scoopMaxRadius: float,
@@ -284,7 +295,9 @@ def createCompartment(
 
     innerCutoutBody = createCompartmentCutout(
         wallThickness,
-        originPoint,
+        originX,
+        originY,
+        originZ,
         width,
         length,
         depth,

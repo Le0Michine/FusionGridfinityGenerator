@@ -1,6 +1,7 @@
 import adsk.core, adsk.fusion, traceback
 
 from . import const
+from .dim import Dim
 
 class BinBodyCompartmentDefinition():
     def __init__(self, positionX=0, positionY=0, width=1, length=1, depth=9999999999999):
@@ -70,27 +71,27 @@ class BinBodyGeneratorInput():
         self.binCornerFilletRadius = const.BIN_CORNER_FILLET_RADIUS
 
     @property
-    def baseWidth(self) -> float:
+    def baseWidth(self) -> Dim:
         return self._baseWidth
 
     @baseWidth.setter
-    def baseWidth(self, value: float):
-        self._baseWidth = value
+    def baseWidth(self, value: Dim | float):
+        self._baseWidth = Dim.asLength(value)
 
     @property
-    def baseLength(self) -> float:
+    def baseLength(self) -> Dim:
         return self._baseLength
 
     @baseLength.setter
-    def baseLength(self, value: float):
-        self._baseLength = value
+    def baseLength(self, value: Dim | float):
+        self._baseLength = Dim.asLength(value)
 
     @property
-    def heightUnit(self) -> float:
+    def heightUnit(self) -> Dim:
         return self._heightUnit
 
     @heightUnit.setter
-    def heightUnit(self, value: float):
+    def heightUnit(self, value: Dim):
         self._heightUnit = value
 
     @property
@@ -118,11 +119,11 @@ class BinBodyGeneratorInput():
         self._binLength = value
 
     @property
-    def binHeight(self) -> float:
+    def binHeight(self) -> Dim:
         return self._binHeight
 
     @binHeight.setter
-    def binHeight(self, value: float):
+    def binHeight(self, value: Dim):
         self._binHeight = value
 
     @property

@@ -1,6 +1,7 @@
 import adsk.core, adsk.fusion, traceback
 
 from . import const
+from .dim import Dim
 
 class BinBodyCutoutGeneratorInput():
     def __init__(self):
@@ -11,6 +12,9 @@ class BinBodyCutoutGeneratorInput():
         self.tabLength = 1
         self.tabWidth = const.BIN_TAB_WIDTH
         self.hasBottomFillet = True
+        self.originX = None
+        self.originY = None
+        self.originZ = None
 
 
     @property
@@ -118,3 +122,30 @@ class BinBodyCutoutGeneratorInput():
         self._tabOverhangAngle = value
 
     
+
+    @property
+    def originZ(self) -> Dim:
+        """Drives the origin height for Fusion, falls back to the origin point when not set"""
+        return Dim.length(self.origin.z) if self._originZ is None else self._originZ
+
+    @originZ.setter
+    def originZ(self, value: Dim):
+        self._originZ = value
+
+    @property
+    def originX(self) -> Dim:
+        """Drives the origin x for Fusion, falls back to the origin point when not set"""
+        return Dim.length(self.origin.x) if self._originX is None else self._originX
+
+    @originX.setter
+    def originX(self, value: Dim):
+        self._originX = value
+
+    @property
+    def originY(self) -> Dim:
+        """Drives the origin y for Fusion, falls back to the origin point when not set"""
+        return Dim.length(self.origin.y) if self._originY is None else self._originY
+
+    @originY.setter
+    def originY(self, value: Dim):
+        self._originY = value

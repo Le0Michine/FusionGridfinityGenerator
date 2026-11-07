@@ -8,6 +8,7 @@ from ...lib.gridfinityUtils import filletUtils
 from . import const, combineUtils, faceUtils, commonUtils, sketchUtils, extrudeUtils, baseGenerator, edgeUtils
 from .baseGeneratorInput import BaseGeneratorInput
 from .binBodyCutoutGeneratorInput import BinBodyCutoutGeneratorInput
+from .dim import valueInput, valueOf
 from ... import config
 
 app = adsk.core.Application.get()
@@ -26,7 +27,7 @@ def createGridfinityBinBodyCutout(
     cutoutPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
     cutoutPlaneInput.setByOffset(
         targetComponent.xYConstructionPlane,
-        adsk.core.ValueInput.createByReal(input.origin.z)
+        valueInput(input.originZ)
     )
     cutoutConstructionPlane = targetComponent.constructionPlanes.add(cutoutPlaneInput)
     innerCutoutSketch: adsk.fusion.Sketch = targetComponent.sketches.add(cutoutConstructionPlane)
@@ -36,6 +37,8 @@ def createGridfinityBinBodyCutout(
         input.length,
         adsk.core.Point3D.create(input.origin.x, input.origin.y, 0),
         innerCutoutSketch,
+        startX=input.originX,
+        startY=input.originY,
     )
 
     innerCutout = extrudeUtils.simpleDistanceExtrude(
@@ -54,7 +57,8 @@ def createGridfinityBinBodyCutout(
     if input.hasScoop:
         [innerCutoutScoopFace, innerCutoputScoopOppositeFace] = getInnerCutoutScoopFace(innerCutoutBody)
         scoopEdge = faceUtils.getBottomHorizontalEdge(innerCutoutScoopFace.edges)
-        scoopMaxRadius = min(input.scoopMaxRadius, input.height) if min(input.scoopMaxRadius, input.height) >= input.filletRadius else input.filletRadius
+        cutoutHeight = valueOf(input.height)
+        scoopMaxRadius = min(input.scoopMaxRadius, cutoutHeight) if min(input.scoopMaxRadius, cutoutHeight) >= input.filletRadius else input.filletRadius
         filletUtils.createFillet(
             [scoopEdge],
             scoopMaxRadius,

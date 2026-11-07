@@ -1,6 +1,7 @@
 import adsk.core, adsk.fusion, traceback
 
 from .const import DIMENSION_MAGNET_CUTOUT_DEPTH, DIMENSION_MAGNET_CUTOUT_DIAMETER, DIMENSION_SCREW_HOLE_DIAMETER, BIN_CORNER_FILLET_RADIUS
+from .dim import Dim
 
 class BaseGeneratorInput():
     def __init__(self):
@@ -11,6 +12,7 @@ class BaseGeneratorInput():
         self.magnetCutoutsDiameter = DIMENSION_MAGNET_CUTOUT_DIAMETER
         self.magnetCutoutsDepth = DIMENSION_MAGNET_CUTOUT_DEPTH
         self.cornerFilletRadius = BIN_CORNER_FILLET_RADIUS
+        self.originZ = None
 
     @property
     def originPoint(self) -> adsk.core.Point3D:
@@ -21,20 +23,20 @@ class BaseGeneratorInput():
         self._originPoint = value
 
     @property
-    def baseWidth(self) -> float:
+    def baseWidth(self) -> Dim:
         return self._baseWidth
 
     @baseWidth.setter
-    def baseWidth(self, value: float):
-        self._baseWidth = value
+    def baseWidth(self, value: Dim | float):
+        self._baseWidth = Dim.asLength(value)
 
     @property
-    def baseLength(self) -> float:
+    def baseLength(self) -> Dim:
         return self._baseLength
 
     @baseLength.setter
-    def baseLength(self, value: float):
-        self._baseLength = value
+    def baseLength(self, value: Dim | float):
+        self._baseLength = Dim.asLength(value)
 
     @property
     def cornerFilletRadius(self) -> float:
@@ -99,3 +101,12 @@ class BaseGeneratorInput():
     @magnetCutoutsDepth.setter
     def magnetCutoutsDepth(self, value: float):
         self._magnetCutoutsDepth = value
+
+    @property
+    def originZ(self) -> Dim:
+        """Drives the origin height for Fusion, falls back to the origin point when not set"""
+        return Dim.length(self.originPoint.z) if self._originZ is None else self._originZ
+
+    @originZ.setter
+    def originZ(self, value: Dim):
+        self._originZ = value

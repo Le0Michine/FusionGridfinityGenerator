@@ -2,11 +2,12 @@ import adsk.core, adsk.fusion, traceback
 import os
 
 from . import sketchUtils
+from .dim import Dim, valueInput
 
 def simpleDistanceExtrude(
     profile: adsk.core.Base,
     operation: adsk.fusion.FeatureOperations,
-    distance: float,
+    distance: Dim | float,
     direction: adsk.fusion.ExtentDirections,
     participantBodies: list[adsk.fusion.BRepBody],
     targetComponent: adsk.fusion.Component,
@@ -15,7 +16,7 @@ def simpleDistanceExtrude(
     extrudeFeatures: adsk.fusion.ExtrudeFeatures = features.extrudeFeatures
     extrudeInput = extrudeFeatures.createInput(profile, operation)
     extrudeInput.participantBodies = participantBodies
-    extrudeExtent = adsk.fusion.DistanceExtentDefinition.create(adsk.core.ValueInput.createByReal(distance))
+    extrudeExtent = adsk.fusion.DistanceExtentDefinition.create(valueInput(distance))
     extrudeInput.setOneSideExtent(
         extrudeExtent,
         direction,
@@ -25,9 +26,9 @@ def simpleDistanceExtrude(
     return extrudeFeature
 
 def createBox(
-    width: float,
-    length: float,
-    height: float,
+    width: Dim | float,
+    length: Dim | float,
+    height: Dim | float,
     targetComponent: adsk.fusion.Component,
     targetPlane: adsk.core.Base,
     ):
@@ -40,24 +41,26 @@ def createBox(
 
     # extrude
     extrude = extrudeFeatures.addSimple(recSketch.profiles.item(0),
-        adsk.core.ValueInput.createByReal(height),
+        valueInput(height),
         adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
     extrude.name = 'Simple box extrude'
     return extrude
 
 def createBoxAtPoint(
-    width: float,
-    length: float,
+    width: Dim | float,
+    length: Dim | float,
     height: float,
     targetComponent: adsk.fusion.Component,
     originPoint: adsk.core.Point3D,
+    originZ: Dim | float = None,
     ):
+    """Box with its bottom corner at the origin point, the optional origin z drives the height of its plane"""
     features: adsk.fusion.Features = targetComponent.features
     extrudeFeatures: adsk.fusion.ExtrudeFeatures = features.extrudeFeatures
     boxPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
     boxPlaneInput.setByOffset(
         targetComponent.xYConstructionPlane,
-        adsk.core.ValueInput.createByReal(originPoint.z)
+        valueInput(originPoint.z if originZ is None else originZ)
     )
     boxConstructionPlane = targetComponent.constructionPlanes.add(boxPlaneInput)
     boxConstructionPlane.name = 'Simple box at point construction plane'

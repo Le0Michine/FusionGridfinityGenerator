@@ -4,6 +4,7 @@ import adsk.core, adsk.fusion, traceback
 import os
 
 from . import const
+from .dim import Dim, valueOf, applyTo
 
 def isVertical(line: adsk.fusion.SketchLine):
     return math.isclose(line.startSketchPoint.geometry.x, line.endSketchPoint.geometry.x, abs_tol=const.DEFAULT_FILTER_TOLERANCE)
@@ -23,19 +24,17 @@ def deferSketchCompute(sketch):
 
 
 def createRectangle(
-    width: float,
-    length: float,
+    width: Dim | float,
+    length: Dim | float,
     startPoint: adsk.core.Point3D,
     sketch: adsk.fusion.Sketch,
-    widthExpr: str = None,
-    lengthExpr: str = None,
-    startXExpr: str = None,
-    startYExpr: str = None,
+    startX: Dim = None,
+    startY: Dim = None,
 ):
-    """Constrained rectangle, the optional expressions drive its dimensions instead of plain values"""
-    def applyExpression(dimension: adsk.fusion.SketchDimension, expression: str):
-        if expression is not None:
-            dimension.parameter.expression = expression
+    """Constrained rectangle, the optional start dims drive its distance from the sketch origin"""
+    def applyDim(dimension: adsk.fusion.SketchDimension, value: Dim | float):
+        if value is not None:
+            applyTo(dimension.parameter, value)
 
     with deferSketchCompute(sketch):
         constraints: adsk.fusion.GeometricConstraints = sketch.geometricConstraints
@@ -43,7 +42,7 @@ def createRectangle(
         lines: adsk.fusion.SketchLines = sketch.sketchCurves.sketchLines
         rectangleLines = lines.addTwoPointRectangle(
             startPoint,
-            adsk.core.Point3D.create(startPoint.x + width, startPoint.y + length, 0)
+            adsk.core.Point3D.create(startPoint.x + valueOf(width), startPoint.y + valueOf(length), 0)
         )
         constraints.addHorizontal(rectangleLines.item(0))
         constraints.addVertical(rectangleLines.item(1))
@@ -53,37 +52,30 @@ def createRectangle(
             constraints.addCoincident(sketch.originPoint, rectangleLines.item(3))
             constraints.addCoincident(sketch.originPoint, rectangleLines.item(0))
         else:
-            applyExpression(dimensions.addDistanceDimension(
+            # sketch distance dimensions are unsigned, coordinates left or below the origin need the magnitude
+            applyDim(dimensions.addDistanceDimension(
                 sketch.originPoint,
                 rectangleLines.item(0).startSketchPoint,
                 adsk.fusion.DimensionOrientations.VerticalDimensionOrientation,
                 rectangleLines.item(0).startSketchPoint.geometry,
                 True,
-            ), startYExpr)
-            applyExpression(dimensions.addDistanceDimension(
+            ), startY.abs() if startY is not None else None)
+            applyDim(dimensions.addDistanceDimension(
                 sketch.originPoint,
                 rectangleLines.item(3).startSketchPoint,
                 adsk.fusion.DimensionOrientations.HorizontalDimensionOrientation,
                 rectangleLines.item(3).startSketchPoint.geometry,
                 True,
-            ), startXExpr)
-        applyExpression(dimensions.addDistanceDimension(rectangleLines.item(0).startSketchPoint,
+            ), startX.abs() if startX is not None else None)
+        applyDim(dimensions.addDistanceDimension(rectangleLines.item(0).startSketchPoint,
             rectangleLines.item(0).endSketchPoint,
             adsk.fusion.DimensionOrientations.HorizontalDimensionOrientation,
-            rectangleLines.item(0).endSketchPoint.geometry), widthExpr)
-        applyExpression(dimensions.addDistanceDimension(rectangleLines.item(1).startSketchPoint,
+            rectangleLines.item(0).endSketchPoint.geometry), width)
+        applyDim(dimensions.addDistanceDimension(rectangleLines.item(1).startSketchPoint,
             rectangleLines.item(1).endSketchPoint,
             adsk.fusion.DimensionOrientations.VerticalDimensionOrientation,
-            rectangleLines.item(1).endSketchPoint.geometry), lengthExpr)
+            rectangleLines.item(1).endSketchPoint.geometry), length)
         return rectangleLines
-
-def lengthExpression(value: float) -> str:
-    """Internal length in cm as a millimeter literal for parameter expressions"""
-    return f'{round(value * 10, 6):g} mm'
-
-def distanceExpression(expression: str) -> str:
-    """Sketch distance dimensions are unsigned, coordinates left or below the origin need the magnitude"""
-    return f'abs({expression})'
 
 def filterCirclesByRadius(
     radius: float,

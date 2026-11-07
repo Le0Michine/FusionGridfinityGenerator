@@ -1,12 +1,16 @@
 import adsk.core, adsk.fusion, traceback
 
 from . import const
+from .dim import Dim
 
 class BinBodyTabGeneratorInput():
     def __init__(self):
         self.overhangAngle = const.BIN_TAB_OVERHANG_ANGLE
         self.labelAngle = const.BIN_TAB_LABEL_ANGLE
         self.position = 0
+        self.originX = None
+        self.originY = None
+        self.originZ = None
 
     @property
     def topClearance(self) -> float:
@@ -25,11 +29,11 @@ class BinBodyTabGeneratorInput():
         self._baseWidth = value
 
     @property
-    def length(self) -> float:
+    def length(self) -> Dim | float:
         return self._baseLength
 
     @length.setter
-    def length(self, value: float):
+    def length(self, value: Dim | float):
         self._baseLength = value
 
     @property
@@ -57,3 +61,30 @@ class BinBodyTabGeneratorInput():
         self._tablabelAngle = value
 
     
+
+    @property
+    def originX(self) -> Dim:
+        """Drives the origin x for Fusion, falls back to the origin point when not set"""
+        return Dim.length(self.origin.x) if self._originX is None else self._originX
+
+    @originX.setter
+    def originX(self, value: Dim):
+        self._originX = value
+
+    @property
+    def originY(self) -> Dim:
+        """Drives the origin y for Fusion, falls back to the origin point when not set"""
+        return Dim.length(self.origin.y) if self._originY is None else self._originY
+
+    @originY.setter
+    def originY(self, value: Dim):
+        self._originY = value
+
+    @property
+    def originZ(self) -> Dim:
+        """Drives the origin z for Fusion, falls back to the origin point when not set"""
+        return Dim.length(self.origin.z) if self._originZ is None else self._originZ
+
+    @originZ.setter
+    def originZ(self, value: Dim):
+        self._originZ = value

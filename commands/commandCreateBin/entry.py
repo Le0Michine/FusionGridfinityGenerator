@@ -15,9 +15,11 @@ from ...lib.gridfinityUtils import faceUtils
 from ...lib.gridfinityUtils import shellUtils
 from ...lib.gridfinityUtils import commonUtils
 from ...lib.gridfinityUtils import const
+from ...lib.gridfinityUtils import parameterUtils
+from ...lib.gridfinityUtils.dim import Dim
 from ...lib.gridfinityUtils.baseGenerator import createSingleGridfinityBaseBody, createBaseBodyPattern, cutBaseClearance, cutWallJunctionPockets
 from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
-from ...lib.gridfinityUtils.binBodyGenerator import createGridfinityBinBody, uniformCompartments
+from ...lib.gridfinityUtils.binBodyGenerator import createGridfinityBinBody, uniformCompartments, binBodyTopHeight, createCompartmentCutout
 from ...lib.gridfinityUtils.binBodyGeneratorInput import BinBodyGeneratorInput, BinBodyCompartmentDefinition
 from ...lib.gridfinityUtils.binBodyTabGeneratorInput import BinBodyTabGeneratorInput
 from ...lib.gridfinityUtils.binBodyTabGenerator import createGridfinityBinBodyTab
@@ -121,6 +123,22 @@ BIN_TYPE_SHELLED = 'Shelled'
 
 # default name of bins generated before tagging, keep as is even if the naming changes
 BIN_LEGACY_NAME_PREFIX = 'Gridfinity bin '
+
+# User parameter names are stored in user documents, keep these literal
+BIN_PARAMETER_BASE_NAME = 'gfBin'
+BIN_HEIGHT_PARAMETER = 'heightU'
+# per bin fallbacks for the shared units
+BIN_HEIGHT_UNIT_PARAMETER = 'heightUnit'
+BIN_BASE_WIDTH_PARAMETER = 'baseWidth'
+BIN_BASE_LENGTH_PARAMETER = 'baseLength'
+BIN_PARAMETERS = [BIN_HEIGHT_PARAMETER, BIN_HEIGHT_UNIT_PARAMETER, BIN_BASE_WIDTH_PARAMETER, BIN_BASE_LENGTH_PARAMETER]
+# shared by all bins of the design, so changing one rescales every bin built from it
+HEIGHT_UNIT_PARAMETER = 'gfHeightUnit'
+BASE_WIDTH_PARAMETER = 'gfBaseWidth'
+BASE_LENGTH_PARAMETER = 'gfBaseLength'
+# smallest units the dialog accepts, an existing parameter has to meet them too
+BIN_HEIGHT_UNIT_MIN = 0.5
+BIN_BASE_UNIT_MIN = 1
 BIN_TYPE_SOLID = 'Solid'
 
 INPUT_CHANGES_SAVE_DEFAULTS = 'input_changes_buttons_save_new_defaults'
@@ -140,6 +158,45 @@ INFO_TEXT = ("<b>Help:</b> Info for inputs can be found "
 def infoText():
     version = tagUtils.getGeneratorVersion()
     return f"{INFO_TEXT}<br><span style=\"color:#808080; font-size:small\">Version {version}</span>" if version else INFO_TEXT
+
+def isUsableLengthParameter(design: adsk.fusion.Design, parameter: adsk.fusion.UserParameter, minimum: float) -> bool:
+    """Has to be a length within the range the dialog accepts"""
+    isLength = parameter.unit != '' and design.unitsManager.isValidExpression(f'1 {parameter.unit}', 'mm')
+    return isLength and parameter.value >= minimum
+
+def findOrCreateSharedLengthParameter(
+    design: adsk.fusion.Design,
+    tagName: str,
+    name: str,
+    label: str,
+    minimum: float,
+    value: float,
+    binParameterName: str,
+) -> adsk.fusion.UserParameter:
+    """The tagged parameter wins, an untagged one with the same name is reused as is, otherwise a new one is created and tagged.
+    An existing one that isn't usable or differs from the dialog value is left alone and the bin gets its own parameter instead"""
+    taggedParameters = tagUtils.findTaggedParameters(design, tagName)
+    if len(taggedParameters) > 0:
+        parameter = taggedParameters[0][0]
+        source = 'tagged'
+    else:
+        parameter = design.userParameters.itemByName(name)
+        source = 'untagged, found by name'
+    if parameter is None:
+        parameter = parameterUtils.addLengthParameter(design, name, value, f'Gridfinity {label}, shared by all bins')
+        tagUtils.tagParameter(parameter, tagName)
+        commonUtils.debugLog(f'{CMD_NAME} {label}: created shared parameter {parameter.name} = {parameter.expression}')
+        return parameter
+    if not isUsableLengthParameter(design, parameter, minimum):
+        reason = 'is not a usable length'
+    elif not math.isclose(parameter.value, value, abs_tol=const.DEFAULT_FILTER_TOLERANCE):
+        reason = 'differs from the dialog value'
+    else:
+        commonUtils.debugLog(f'{CMD_NAME} {label}: using existing shared parameter {parameter.name} = {parameter.expression} ({source})')
+        return parameter
+    binParameter = parameterUtils.addLengthParameter(design, binParameterName, value, f'Gridfinity bin {label}')
+    commonUtils.debugLog(f'{CMD_NAME} {label}: existing parameter {parameter.name} = {parameter.expression} ({source}) {reason}, created {binParameter.name} = {binParameter.expression} for this bin')
+    return binParameter
 
 def refreshUi():
     global commandUIState
@@ -530,15 +587,15 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     basicSizesGroup.isExpanded = commandUIState.getState(BIN_BASIC_SIZES_GROUP)
     commandUIState.registerCommandInput(basicSizesGroup)
     baseWidthUnitInput = basicSizesGroup.children.addValueInput(BIN_BASE_WIDTH_UNIT_INPUT_ID, 'Base width unit (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_BASE_WIDTH_UNIT_INPUT_ID)))
-    baseWidthUnitInput.minimumValue = 1
+    baseWidthUnitInput.minimumValue = BIN_BASE_UNIT_MIN
     baseWidthUnitInput.isMinimumInclusive = True
     commandUIState.registerCommandInput(baseWidthUnitInput)
     baseLengthUnitInput = basicSizesGroup.children.addValueInput(BIN_BASE_LENGTH_UNIT_INPUT_ID, 'Base length unit (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_BASE_LENGTH_UNIT_INPUT_ID)))
-    baseLengthUnitInput.minimumValue = 1
+    baseLengthUnitInput.minimumValue = BIN_BASE_UNIT_MIN
     baseLengthUnitInput.isMinimumInclusive = True
     commandUIState.registerCommandInput(baseLengthUnitInput)
     binHeightUnitInput = basicSizesGroup.children.addValueInput(BIN_HEIGHT_UNIT_INPUT_ID, 'Bin height unit (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_HEIGHT_UNIT_INPUT_ID)))
-    binHeightUnitInput.minimumValue = 0.5
+    binHeightUnitInput.minimumValue = BIN_HEIGHT_UNIT_MIN
     binHeightUnitInput.isMinimumInclusive = True
     commandUIState.registerCommandInput(binHeightUnitInput)
     xyClearanceInput = basicSizesGroup.children.addValueInput(BIN_XY_CLEARANCE_INPUT_ID, 'Bin xy clearance (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_XY_CLEARANCE_INPUT_ID)))
@@ -933,6 +990,26 @@ def generateBin(args: adsk.core.CommandEventArgs):
             base_length_unit.value,
         )
 
+        binParameterPrefix = parameterUtils.nextFreePrefix(des, BIN_PARAMETER_BASE_NAME, BIN_PARAMETERS)
+        baseWidth = Dim.parameter(findOrCreateSharedLengthParameter(
+            des,
+            tagUtils.TAG_BASE_WIDTH_PARAMETER,
+            BASE_WIDTH_PARAMETER,
+            'base width unit',
+            BIN_BASE_UNIT_MIN,
+            base_width_unit.value,
+            parameterUtils.parameterName(binParameterPrefix, BIN_BASE_WIDTH_PARAMETER),
+        ))
+        baseLength = Dim.parameter(findOrCreateSharedLengthParameter(
+            des,
+            tagUtils.TAG_BASE_LENGTH_PARAMETER,
+            BASE_LENGTH_PARAMETER,
+            'base length unit',
+            BIN_BASE_UNIT_MIN,
+            base_length_unit.value,
+            parameterUtils.parameterName(binParameterPrefix, BIN_BASE_LENGTH_PARAMETER),
+        ))
+
         # create base interface
         baseGeneratorInput = BaseGeneratorInput()
         baseGeneratorInput.originPoint = geometryUtils.createOffsetPoint(
@@ -940,8 +1017,8 @@ def generateBin(args: adsk.core.CommandEventArgs):
             byX=-xyClearance,
             byY=-xyClearance,
         )
-        baseGeneratorInput.baseWidth = base_width_unit.value
-        baseGeneratorInput.baseLength = base_length_unit.value
+        baseGeneratorInput.baseWidth = baseWidth
+        baseGeneratorInput.baseLength = baseLength
         baseGeneratorInput.xyClearance = xyClearance
         baseGeneratorInput.hasScrewHoles = bin_screw_holes.value and not isShelled
         baseGeneratorInput.hasMagnetCutouts = bin_magnet_cutouts.value and not isShelled
@@ -965,10 +1042,10 @@ def generateBin(args: adsk.core.CommandEventArgs):
         binBodyInput.hasLipNotches = with_lip_notches.value
         binBodyInput.binWidth = bin_width.value
         binBodyInput.binLength = bin_length.value
-        binBodyInput.binHeight = bin_height.value
-        binBodyInput.baseWidth = base_width_unit.value
-        binBodyInput.baseLength = base_length_unit.value
-        binBodyInput.heightUnit = height_unit.value
+        binBodyInput.binHeight = Dim.number(bin_height.value)
+        binBodyInput.baseWidth = baseWidth
+        binBodyInput.baseLength = baseLength
+        binBodyInput.heightUnit = Dim.length(height_unit.value)
         binBodyInput.xyClearance = xyClearance
         binBodyInput.binCornerFilletRadius = const.BIN_CORNER_FILLET_RADIUS - xyClearance
         binBodyInput.isSolid = isSolid or isShelled
@@ -999,6 +1076,21 @@ def generateBin(args: adsk.core.CommandEventArgs):
         binBody: adsk.fusion.BRepBody
 
         if bin_generate_body.value:
+            binBodyInput.binHeight = Dim.parameter(parameterUtils.addUnitlessParameter(
+                des,
+                parameterUtils.parameterName(binParameterPrefix, BIN_HEIGHT_PARAMETER),
+                bin_height.value,
+                'Gridfinity bin height, in height units',
+            ))
+            binBodyInput.heightUnit = Dim.parameter(findOrCreateSharedLengthParameter(
+                des,
+                tagUtils.TAG_HEIGHT_UNIT_PARAMETER,
+                HEIGHT_UNIT_PARAMETER,
+                'height unit',
+                BIN_HEIGHT_UNIT_MIN,
+                height_unit.value,
+                parameterUtils.parameterName(binParameterPrefix, BIN_HEIGHT_UNIT_PARAMETER),
+            ))
             binBody = createGridfinityBinBody(
                 binBodyInput,
                 gridfinityBinComponent,
@@ -1056,27 +1148,49 @@ def generateBin(args: adsk.core.CommandEventArgs):
 
             if hasTabInput.value:
                 compartmentTabInput = BinBodyTabGeneratorInput()
-                tabOriginPoint = adsk.core.Point3D.create(
-                    binBodyInput.wallThickness + max(0, min(binBodyInput.tabPosition, binBodyInput.binWidth - binBodyInput.tabLength)) * binBodyInput.baseWidth,
-                    const.BIN_LIP_WALL_THICKNESS if binBodyInput.hasLip and binBodyInput.hasScoop else binBodyInput.wallThickness + binBodyInput.binLength * binBodyInput.baseLength - binBodyInput.wallThickness - binBodyInput.xyClearance * 2,
-                    (binBodyInput.binHeight - 1) * binBodyInput.heightUnit + max(0, binBodyInput.heightUnit - const.BIN_BASE_HEIGHT),
-                )
-                compartmentTabInput.origin = tabOriginPoint
-                compartmentTabInput.length = max(0, min(binBodyInput.tabLength, binBodyInput.binWidth)) * binBodyInput.baseWidth - binBodyInput.wallThickness * 2 - binBodyInput.xyClearance * 2
+                tabOriginX = Dim.length(binBodyInput.wallThickness) + binBodyInput.baseWidth * max(0, min(binBodyInput.tabPosition, binBodyInput.binWidth - binBodyInput.tabLength))
+                if binBodyInput.hasLip and binBodyInput.hasScoop:
+                    tabOriginY = Dim.length(const.BIN_LIP_WALL_THICKNESS)
+                else:
+                    # back wall, the shell keeps the outer size
+                    tabOriginY = binBodyInput.baseLength * binBodyInput.binLength - Dim.length(binBodyInput.xyClearance * 2)
+                tabOriginZ = binBodyTopHeight(binBodyInput)
+                compartmentTabInput.origin = adsk.core.Point3D.create(tabOriginX.value, tabOriginY.value, tabOriginZ.value)
+                compartmentTabInput.originX = tabOriginX
+                compartmentTabInput.originY = tabOriginY
+                compartmentTabInput.originZ = tabOriginZ
+                compartmentTabInput.length = binBodyInput.baseWidth * max(0, min(binBodyInput.tabLength, binBodyInput.binWidth)) - Dim.length(binBodyInput.wallThickness * 2 + binBodyInput.xyClearance * 2)
                 compartmentTabInput.width = binBodyInput.tabWidth
                 compartmentTabInput.overhangAngle = binBodyInput.tabOverhangAngle
                 compartmentTabInput.topClearance = const.BIN_TAB_TOP_CLEARANCE
                 tabBody = createGridfinityBinBodyTab(compartmentTabInput, gridfinityBinComponent)
-                combineInput = combineFeatures.createInput(tabBody, commonUtils.objectCollectionFromList([binBody]))
-                combineInput.operation = adsk.fusion.FeatureOperations.CutFeatureOperation
-                combineInput.isKeepToolBodies = True
-                combineFeature = combineFeatures.add(combineInput)
-                tabBodies = [body for body in combineFeature.bodies if body.faces != binBody.faces]
-                tabMainBody = max([body for body in tabBodies], key=lambda x: x.edges.count)
-                bodiesToRemove = [body for body in tabBodies if body is not tabMainBody]
-                for body in bodiesToRemove:
-                    gridfinityBinComponent.features.removeFeatures.add(body)
-                combineUtils.joinBodies(binBody, commonUtils.objectCollectionFromList([tabMainBody]), gridfinityBinComponent)
+
+                # trim the tab to the shell interior, its ends would otherwise poke out past the rounded outer corners,
+                # intersecting leaves a single body, so nothing has to be picked out of the pieces
+                shellThickness = Dim.length(binBodyInput.wallThickness - xyClearance)
+                bodyWidth = binBodyInput.baseWidth * binBodyInput.binWidth - Dim.length(xyClearance * 2)
+                bodyLength = binBodyInput.baseLength * binBodyInput.binLength - Dim.length(xyClearance * 2)
+                shellInterior = createCompartmentCutout(
+                    binBodyInput.wallThickness,
+                    shellThickness,
+                    shellThickness,
+                    tabOriginZ,
+                    bodyWidth - shellThickness * 2,
+                    bodyLength - shellThickness * 2,
+                    tabOriginZ,
+                    binBodyInput.binCornerFilletRadius - (binBodyInput.wallThickness - xyClearance),
+                    False,
+                    0,
+                    False,
+                    gridfinityBinComponent,
+                )
+                shellInterior.name = 'Shell interior'
+                intersectTabInput = combineFeatures.createInput(tabBody, commonUtils.objectCollectionFromList([shellInterior]))
+                intersectTabInput.operation = adsk.fusion.FeatureOperations.IntersectFeatureOperation
+                intersectTabInput.isKeepToolBodies = False
+                intersectTabFeature = combineFeatures.add(intersectTabInput)
+                intersectTabFeature.name = 'Label tab trim to shell interior'
+                combineUtils.joinBodies(binBody, commonUtils.objectCollectionFromList(intersectTabFeature.bodies), gridfinityBinComponent)
 
         if bin_generate_body.value or bin_generate_base.value:
             generatedBodies = [binBody] if bin_generate_body.value else baseBodies

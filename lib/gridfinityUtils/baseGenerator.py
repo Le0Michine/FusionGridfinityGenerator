@@ -3,6 +3,7 @@ import os
 
 from .sketchUtils import createRectangle
 from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
+from .dim import Dim, valueInput, applyTo
 from . import sketchUtils, const, edgeUtils, commonUtils, combineUtils, faceUtils, extrudeUtils, shapeUtils, geometryUtils, patternUtils
 from ...lib import fusion360utils as futil
 from ... import config
@@ -118,7 +119,7 @@ def createSingleGridfinityBaseBody(
     features: adsk.fusion.Features = targetComponent.features
     extrudeFeatures: adsk.fusion.ExtrudeFeatures = features.extrudeFeatures
     baseConstructionPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
-    baseConstructionPlaneInput.setByOffset(targetComponent.xYConstructionPlane, adsk.core.ValueInput.createByReal(input.originPoint.z))
+    baseConstructionPlaneInput.setByOffset(targetComponent.xYConstructionPlane, valueInput(input.originZ))
     baseConstructionPlane = targetComponent.constructionPlanes.add(baseConstructionPlaneInput)
     baseConstructionPlane.name = 'Base plate construction plane'
     # create rectangle for the base
@@ -180,7 +181,6 @@ def createSingleGridfinityBaseBody(
         chamferFeatures.add(chamferInput)
     
     # screw holes
-    circularPatternFeatures = features.circularPatternFeatures
     cutoutBodies = adsk.core.ObjectCollection.create()
 
     baseBottomPlane = baseBottomExtrude.endFaces.item(0)
@@ -282,30 +282,26 @@ def createSingleGridfinityBaseBody(
             cutoutBodies = commonUtils.objectCollectionFromList(joinFeature.bodies)
 
         baseXZMidPlaneInput = targetComponent.constructionPlanes.createInput()
-        baseXZMidPlaneInput.setByOffset(targetComponent.xZConstructionPlane, adsk.core.ValueInput.createByReal(input.baseLength / 2 - input.xyClearance))
+        baseXZMidPlaneInput.setByOffset(targetComponent.xZConstructionPlane, valueInput(input.baseLength / 2 - Dim.length(input.xyClearance)))
         baseXZMidPlane = targetComponent.constructionPlanes.add(baseXZMidPlaneInput)
         baseXZMidPlane.name = "Base XZ mid plane"
         baseXZMidPlane.isLightBulbOn = False
         baseYZMidPlaneInput = targetComponent.constructionPlanes.createInput()
-        baseYZMidPlaneInput.setByOffset(targetComponent.yZConstructionPlane, adsk.core.ValueInput.createByReal(input.baseWidth / 2 - input.xyClearance))
+        baseYZMidPlaneInput.setByOffset(targetComponent.yZConstructionPlane, valueInput(input.baseWidth / 2 - Dim.length(input.xyClearance)))
         baseYZMidPlane = targetComponent.constructionPlanes.add(baseYZMidPlaneInput)
         baseYZMidPlane.name = "Base YZ mid plane"
         baseYZMidPlane.isLightBulbOn = False
-        patternAxisInput = targetComponent.constructionAxes.createInput()
-        patternAxisInput.setByTwoPlanes(
-            baseXZMidPlane,
-            baseYZMidPlane
-        )
-        baseCenterAxis = targetComponent.constructionAxes.add(patternAxisInput)
-        baseCenterAxis.name = "Base center axis"
-        baseCenterAxis.isLightBulbOn = False
-        patternInput = circularPatternFeatures.createInput(
-            cutoutBodies,
-            baseCenterAxis,
-        )
-        patternInput.quantity = adsk.core.ValueInput.createByString("4")
-        patternFeature = circularPatternFeatures.add(patternInput)
-        combineUtils.cutBody(baseBody, commonUtils.objectCollectionFromList(list(cutoutBodies) + list(patternFeature.bodies)), targetComponent)
+        # mirroring instead of a circular pattern keeps the holes in the corners of non square bases,
+        # and the tabs and grooves still face the base center
+        mirrorXInput = features.mirrorFeatures.createInput(cutoutBodies, baseYZMidPlane)
+        mirrorXFeature = features.mirrorFeatures.add(mirrorXInput)
+        mirrorXFeature.name = "Base holes mirror X"
+        holeBodies = commonUtils.objectCollectionFromList(cutoutBodies, mirrorXFeature.bodies)
+        mirrorYInput = features.mirrorFeatures.createInput(holeBodies, baseXZMidPlane)
+        mirrorYFeature = features.mirrorFeatures.add(mirrorYInput)
+        mirrorYFeature.name = "Base holes mirror Y"
+        # the collection skips bodies listed twice, in case mirror results include their sources
+        combineUtils.cutBody(baseBody, commonUtils.objectCollectionFromList(holeBodies, mirrorYFeature.bodies), targetComponent)
 
     return baseBody
 
@@ -376,8 +372,8 @@ def createSingleBaseBodyWithClearance(input: BaseGeneratorInput, targetComponent
 
 def createBaseBodyPattern(
     baseConfiguration: BaseGeneratorInput,
-    basesXCount,
-    basesYCount,
+    basesXCount: Dim | int,
+    basesYCount: Dim | int,
     targetComponent: adsk.fusion.Component,
 ):
     baseBody = createSingleGridfinityBaseBody(baseConfiguration, targetComponent)
@@ -388,13 +384,14 @@ def createBaseBodyPattern(
     patternInputBodies.add(baseBody)
     patternInput = rectangularPatternFeatures.createInput(patternInputBodies,
         targetComponent.xConstructionAxis,
-        adsk.core.ValueInput.createByReal(basesXCount),
-        adsk.core.ValueInput.createByReal(baseConfiguration.baseWidth),
+        valueInput(basesXCount),
+        valueInput(baseConfiguration.baseWidth),
         adsk.fusion.PatternDistanceType.SpacingPatternDistanceType)
     patternInput.directionTwoEntity = targetComponent.yConstructionAxis
-    patternInput.quantityTwo = adsk.core.ValueInput.createByReal(basesYCount)
-    patternInput.distanceTwo = adsk.core.ValueInput.createByReal(baseConfiguration.baseLength)
+    patternInput.quantityTwo = valueInput(basesYCount)
+    patternInput.distanceTwo = valueInput(baseConfiguration.baseLength)
     rectangularPattern = rectangularPatternFeatures.add(patternInput)
+    rectangularPattern.name = 'Base pattern'
     return list(rectangularPattern.bodies) + [baseBody]
 
 def cutBaseClearance(
@@ -404,8 +401,8 @@ def cutBaseClearance(
     targetBodies: list[adsk.fusion.BRepBody],
     targetComponent: adsk.fusion.Component,
 ):
-    actual_base_width = baseConfiguration.baseWidth * basesXCount - baseConfiguration.xyClearance * 2
-    actual_base_length = baseConfiguration.baseLength * basesYCount - baseConfiguration.xyClearance * 2
+    actual_base_width = baseConfiguration.baseWidth * basesXCount - Dim.length(baseConfiguration.xyClearance * 2)
+    actual_base_length = baseConfiguration.baseLength * basesYCount - Dim.length(baseConfiguration.xyClearance * 2)
     clearanceCutExtrude = cutOutsideRoundedRectangle(
         adsk.core.Point3D.create(
             baseConfiguration.originPoint.x + baseConfiguration.xyClearance,
@@ -421,7 +418,9 @@ def cutBaseClearance(
     clearanceCutExtrude.name = "Base side clearance cut"
 
 def createWallJunctionPocketCutter(
-    junctionPoint: adsk.core.Point3D,
+    junctionX: Dim,
+    junctionY: Dim,
+    junctionZ: float,
     cornerRadius: float,
     xyClearance: float,
     targetComponent: adsk.fusion.Component,
@@ -430,35 +429,30 @@ def createWallJunctionPocketCutter(
     chamfers of the foot corners above their top until they close the gap. The cones are concentric with the
     foot corners and start where the clearance trim meets the chamfer, a clearance below the feet top"""
     features = targetComponent.features
-    cornerCenterOffset = cornerRadius
-    coneSketchHeight = junctionPoint.z - xyClearance
-    coneSketchRadius = cornerRadius - xyClearance
-    offsetExpr = sketchUtils.lengthExpression(cornerRadius)
-    clearanceExpr = sketchUtils.lengthExpression(xyClearance)
-    radiusExpr = f'({offsetExpr} - {clearanceExpr})'
+    # fed as expressions, so the formulas stay readable in the model
+    cornerCenterOffset = Dim.length(cornerRadius).asExpression()
+    clearance = Dim.length(xyClearance).asExpression()
+    coneSketchRadius = cornerCenterOffset - clearance
     # cones around the corner centers meet above the junction once they reach offset * sqrt(2)
-    pocketRise = cornerCenterOffset * math.sqrt(2) - coneSketchRadius
-    pocketRiseExpr = f'({offsetExpr} * sqrt(2) - {radiusExpr})'
+    pocketRise = cornerCenterOffset * Dim.number(math.sqrt(2), 'sqrt(2)') - coneSketchRadius
+    coneSketchHeight = Dim.length(junctionZ) - clearance
     # first foot corner center, the box corner and the source cone of the pattern
-    cornerCenterXExpr = f'{sketchUtils.lengthExpression(junctionPoint.x)} - {offsetExpr}'
-    cornerCenterYExpr = f'{sketchUtils.lengthExpression(junctionPoint.y)} - {offsetExpr}'
+    cornerCenterX = junctionX - cornerCenterOffset
+    cornerCenterY = junctionY - cornerCenterOffset
 
     # box and cones share the plane, starting with the cones keeps them apart at the bottom, at the feet top
     # neighbouring cones touch in a point which combine can't handle
     pocketPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
-    pocketPlaneInput.setByOffset(
-        targetComponent.xYConstructionPlane,
-        adsk.core.ValueInput.createByString(f'{sketchUtils.lengthExpression(junctionPoint.z)} - {clearanceExpr}'),
-    )
+    pocketPlaneInput.setByOffset(targetComponent.xYConstructionPlane, valueInput(coneSketchHeight))
     pocketPlane = targetComponent.constructionPlanes.add(pocketPlaneInput)
     pocketPlane.name = 'Wall junction pocket plane'
 
     boxSketch: adsk.fusion.Sketch = targetComponent.sketches.add(pocketPlane)
     boxSketch.name = 'Wall junction pocket sketch'
     boxCornerOnSketch = boxSketch.modelToSketchSpace(adsk.core.Point3D.create(
-        junctionPoint.x - cornerCenterOffset,
-        junctionPoint.y - cornerCenterOffset,
-        coneSketchHeight,
+        cornerCenterX.value,
+        cornerCenterY.value,
+        coneSketchHeight.value,
     ))
     boxCornerOnSketch.z = 0
     sketchUtils.createRectangle(
@@ -466,15 +460,13 @@ def createWallJunctionPocketCutter(
         cornerCenterOffset * 2,
         boxCornerOnSketch,
         boxSketch,
-        widthExpr=f'2 * {offsetExpr}',
-        lengthExpr=f'2 * {offsetExpr}',
-        startXExpr=sketchUtils.distanceExpression(cornerCenterXExpr),
-        startYExpr=sketchUtils.distanceExpression(cornerCenterYExpr),
+        startX=cornerCenterX,
+        startY=cornerCenterY,
     )
     # taller than the pocket, so its top closes inside the box instead of touching the box top in a point
     boxExtrude = features.extrudeFeatures.addSimple(
         boxSketch.profiles.item(0),
-        adsk.core.ValueInput.createByString(f'{pocketRiseExpr} * 1.5'),
+        valueInput(pocketRise * 1.5),
         adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
     )
     boxExtrude.name = 'Wall junction pocket box'
@@ -486,29 +478,30 @@ def createWallJunctionPocketCutter(
     coneSketch.name = 'Wall junction pocket cone sketch'
     with sketchUtils.deferSketchCompute(coneSketch):
         dimensions: adsk.fusion.SketchDimensions = coneSketch.sketchDimensions
-        coneCircle = coneSketch.sketchCurves.sketchCircles.addByCenterRadius(boxCornerOnSketch, coneSketchRadius)
-        dimensions.addDiameterDimension(
+        coneCircle = coneSketch.sketchCurves.sketchCircles.addByCenterRadius(boxCornerOnSketch, coneSketchRadius.value)
+        applyTo(dimensions.addDiameterDimension(
             coneCircle,
-            adsk.core.Point3D.create(boxCornerOnSketch.x + coneSketchRadius, boxCornerOnSketch.y + coneSketchRadius, 0),
-        ).parameter.expression = f'2 * {radiusExpr}'
-        dimensions.addDistanceDimension(
+            adsk.core.Point3D.create(boxCornerOnSketch.x + coneSketchRadius.value, boxCornerOnSketch.y + coneSketchRadius.value, 0),
+        ).parameter, coneSketchRadius * 2)
+        # sketch distance dimensions are unsigned, coordinates left or below the origin need the magnitude
+        applyTo(dimensions.addDistanceDimension(
             coneSketch.originPoint,
             coneCircle.centerSketchPoint,
             adsk.fusion.DimensionOrientations.HorizontalDimensionOrientation,
             adsk.core.Point3D.create(boxCornerOnSketch.x, 0, 0),
-        ).parameter.expression = sketchUtils.distanceExpression(cornerCenterXExpr)
-        dimensions.addDistanceDimension(
+        ).parameter, cornerCenterX.abs())
+        applyTo(dimensions.addDistanceDimension(
             coneSketch.originPoint,
             coneCircle.centerSketchPoint,
             adsk.fusion.DimensionOrientations.VerticalDimensionOrientation,
             adsk.core.Point3D.create(0, boxCornerOnSketch.y, 0),
-        ).parameter.expression = sketchUtils.distanceExpression(cornerCenterYExpr)
+        ).parameter, cornerCenterY.abs())
 
     # past the box top, so the cone fully covers it
     coneHeight = pocketRise * 2.5
     coneExtrudeInput = features.extrudeFeatures.createInput(coneSketch.profiles.item(0), adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
     coneExtrudeInput.setOneSideExtent(
-        adsk.fusion.DistanceExtentDefinition.create(adsk.core.ValueInput.createByString(f'{pocketRiseExpr} * 2.5')),
+        adsk.fusion.DistanceExtentDefinition.create(valueInput(coneHeight)),
         adsk.fusion.ExtentDirections.PositiveExtentDirection,
         adsk.core.ValueInput.createByString('45 deg'),
     )
@@ -516,7 +509,7 @@ def createWallJunctionPocketCutter(
     coneExtrude.name = 'Wall junction pocket cone'
     coneBody = coneExtrude.bodies.item(0)
     coneBox = coneBody.boundingBox
-    if coneBox.maxPoint.x - coneBox.minPoint.x < coneSketchRadius * 2 + coneHeight:
+    if coneBox.maxPoint.x - coneBox.minPoint.x < coneSketchRadius.value * 2 + coneHeight.value:
         # taper went inwards, flip it so the cone widens upwards like the chamfer it continues
         coneExtrude.taperAngleOne.expression = '-45 deg'
 
@@ -525,7 +518,6 @@ def createWallJunctionPocketCutter(
         (2, 2),
         (cornerCenterOffset * 2, cornerCenterOffset * 2),
         targetComponent,
-        distanceExpressions=(f'2 * {offsetExpr}', f'2 * {offsetExpr}'),
     )
     conePattern.name = 'Wall junction pocket cones pattern'
     # pattern bodies include the source cone, the collection skips the duplicate
@@ -543,20 +535,19 @@ def cutWallJunctionPockets(
 ) -> adsk.fusion.CombineFeature:
     """Curves up the gaps between feet along all outer walls instead of leaving flat overhangs there"""
     origin = baseConfiguration.originPoint
-    baseWidthExpr = sketchUtils.lengthExpression(baseConfiguration.baseWidth)
-    baseLengthExpr = sketchUtils.lengthExpression(baseConfiguration.baseLength)
-
-    def createCutter(junctionPoint: adsk.core.Point3D):
-        return createWallJunctionPocketCutter(
-            junctionPoint,
-            baseConfiguration.cornerFilletRadius,
-            baseConfiguration.xyClearance,
-            targetComponent,
-        )
+    baseWidth = baseConfiguration.baseWidth.asExpression()
+    baseLength = baseConfiguration.baseLength.asExpression()
 
     # cutters are symmetric, so one row of them serves both opposite walls
     cutters: list[adsk.fusion.BRepBody] = []
-    frontCutter = createCutter(geometryUtils.createOffsetPoint(origin, byX=baseConfiguration.baseWidth))
+    frontCutter = createWallJunctionPocketCutter(
+        Dim.length(origin.x) + baseWidth,
+        Dim.length(origin.y),
+        origin.z,
+        baseConfiguration.cornerFilletRadius,
+        baseConfiguration.xyClearance,
+        targetComponent,
+    )
     if basesYCount > 1:
         # the first left wall junction is always one base back and up from the first front one
         if basesXCount > 1:
@@ -567,18 +558,17 @@ def cutWallJunctionPockets(
             sideCutter = frontCutter
         moveInput = targetComponent.features.moveFeatures.createInput2(commonUtils.objectCollectionFromList([sideCutter]))
         moveInput.defineAsTranslateXYZ(
-            adsk.core.ValueInput.createByString(f'-{baseWidthExpr}'),
-            adsk.core.ValueInput.createByString(baseLengthExpr),
-            adsk.core.ValueInput.createByReal(0),
+            valueInput(baseWidth * -1),
+            valueInput(baseLength),
+            valueInput(0),
             True,
         )
         targetComponent.features.moveFeatures.add(moveInput).name = 'Wall junction pocket move to left wall'
         pattern = patternUtils.recPatternGrid(
             commonUtils.objectCollectionFromList([sideCutter]),
             (2, basesYCount - 1),
-            (baseConfiguration.baseWidth * basesXCount, baseConfiguration.baseLength),
+            (baseWidth * basesXCount, baseLength),
             targetComponent,
-            distanceExpressions=(f'{basesXCount} * {baseWidthExpr}', baseLengthExpr),
         )
         pattern.name = 'Wall junction pockets left and right pattern'
         # pattern bodies include the source cutter, the collection skips the duplicate
@@ -587,9 +577,8 @@ def cutWallJunctionPockets(
         pattern = patternUtils.recPatternGrid(
             commonUtils.objectCollectionFromList([frontCutter]),
             (basesXCount - 1, 2),
-            (baseConfiguration.baseWidth, baseConfiguration.baseLength * basesYCount),
+            (baseWidth, baseLength * basesYCount),
             targetComponent,
-            distanceExpressions=(baseWidthExpr, f'{basesYCount} * {baseLengthExpr}'),
         )
         pattern.name = 'Wall junction pockets front and back pattern'
         cutters += list(pattern.bodies) + [frontCutter]
@@ -600,8 +589,8 @@ def cutWallJunctionPockets(
 
 def cutOutsideRoundedRectangle(
     cornerPoint: adsk.core.Point3D,
-    width: float,
-    length: float,
+    width: Dim | float,
+    length: Dim | float,
     filletRadius: float,
     targetBodies: list[adsk.fusion.BRepBody],
     targetComponent: adsk.fusion.Component,

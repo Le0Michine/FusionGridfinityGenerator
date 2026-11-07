@@ -1,6 +1,7 @@
 import adsk.core, adsk.fusion, traceback
 
 from . import const
+from .dim import Dim
 
 class BinBodyLipGeneratorInput():
     def __init__(self):
@@ -8,22 +9,23 @@ class BinBodyLipGeneratorInput():
         self.hasLip = False
         self.hasLipNotches = False
         self.binCornerFilletRadius = const.BIN_CORNER_FILLET_RADIUS
+        self.originZ = None
 
     @property
-    def baseWidth(self) -> float:
+    def baseWidth(self) -> Dim:
         return self._baseWidth
 
     @baseWidth.setter
-    def baseWidth(self, value: float):
-        self._baseWidth = value
+    def baseWidth(self, value: Dim | float):
+        self._baseWidth = Dim.asLength(value)
 
     @property
-    def baseLength(self) -> float:
+    def baseLength(self) -> Dim:
         return self._baseLength
 
     @baseLength.setter
-    def baseLength(self, value: float):
-        self._baseLength = value
+    def baseLength(self, value: Dim | float):
+        self._baseLength = Dim.asLength(value)
 
     @property
     def binWidth(self) -> float:
@@ -80,3 +82,12 @@ class BinBodyLipGeneratorInput():
     @origin.setter
     def origin(self, value: adsk.core.Point3D):
         self._originUnit = value
+
+    @property
+    def originZ(self) -> Dim:
+        """Drives the origin height for Fusion, falls back to the origin point when not set"""
+        return Dim.length(self.origin.z) if self._originZ is None else self._originZ
+
+    @originZ.setter
+    def originZ(self, value: Dim):
+        self._originZ = value

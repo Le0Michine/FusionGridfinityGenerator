@@ -13,7 +13,7 @@ import pytest
 def _load_tag_utils():
     # The module annotates with adsk.fusion types, so they only need to exist
     fusion = sys.modules.get("adsk.fusion") or types.ModuleType("adsk.fusion")
-    for name in ("BRepBody", "Design"):
+    for name in ("BRepBody", "Design", "UserParameter"):
         if not hasattr(fusion, name):
             setattr(fusion, name, type(name, (), {}))
     sys.modules["adsk.fusion"] = fusion
