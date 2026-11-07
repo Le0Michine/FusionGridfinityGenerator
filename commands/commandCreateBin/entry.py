@@ -15,7 +15,7 @@ from ...lib.gridfinityUtils import faceUtils
 from ...lib.gridfinityUtils import shellUtils
 from ...lib.gridfinityUtils import commonUtils
 from ...lib.gridfinityUtils import const
-from ...lib.gridfinityUtils.baseGenerator import createSingleGridfinityBaseBody, createBaseBodyPattern, cutBaseClearance
+from ...lib.gridfinityUtils.baseGenerator import createSingleGridfinityBaseBody, createBaseBodyPattern, cutBaseClearance, cutWallJunctionPockets
 from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
 from ...lib.gridfinityUtils.binBodyGenerator import createGridfinityBinBody, uniformCompartments
 from ...lib.gridfinityUtils.binBodyGeneratorInput import BinBodyGeneratorInput, BinBodyCompartmentDefinition
@@ -1017,6 +1017,12 @@ def generateBin(args: adsk.core.CommandEventArgs):
                 [binBody] if bin_generate_body.value else baseBodies,
                 gridfinityBinComponent,
             )
+
+        binBasesXCount = int(round(bin_width.value))
+        binBasesYCount = int(round(bin_length.value))
+        if bin_generate_body.value and bin_generate_base.value and not isShelled and (binBasesXCount > 1 or binBasesYCount > 1):
+            # curve up the gaps between feet along the walls instead of leaving flat overhangs
+            cutWallJunctionPockets(baseGeneratorInput, binBasesXCount, binBasesYCount, binBody, gridfinityBinComponent)
 
         if isShelled and bin_generate_body.value:
             # face.boundingBox.maxPoint.z ~ face.boundingBox.minPoint.z => face horizontal

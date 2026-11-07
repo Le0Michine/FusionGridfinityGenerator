@@ -27,7 +27,16 @@ def createRectangle(
     length: float,
     startPoint: adsk.core.Point3D,
     sketch: adsk.fusion.Sketch,
+    widthExpr: str = None,
+    lengthExpr: str = None,
+    startXExpr: str = None,
+    startYExpr: str = None,
 ):
+    """Constrained rectangle, the optional expressions drive its dimensions instead of plain values"""
+    def applyExpression(dimension: adsk.fusion.SketchDimension, expression: str):
+        if expression is not None:
+            dimension.parameter.expression = expression
+
     with deferSketchCompute(sketch):
         constraints: adsk.fusion.GeometricConstraints = sketch.geometricConstraints
         dimensions: adsk.fusion.SketchDimensions = sketch.sketchDimensions
@@ -44,29 +53,37 @@ def createRectangle(
             constraints.addCoincident(sketch.originPoint, rectangleLines.item(3))
             constraints.addCoincident(sketch.originPoint, rectangleLines.item(0))
         else:
-            dimensions.addDistanceDimension(
+            applyExpression(dimensions.addDistanceDimension(
                 sketch.originPoint,
                 rectangleLines.item(0).startSketchPoint,
                 adsk.fusion.DimensionOrientations.VerticalDimensionOrientation,
                 rectangleLines.item(0).startSketchPoint.geometry,
                 True,
-            )
-            dimensions.addDistanceDimension(
+            ), startYExpr)
+            applyExpression(dimensions.addDistanceDimension(
                 sketch.originPoint,
                 rectangleLines.item(3).startSketchPoint,
                 adsk.fusion.DimensionOrientations.HorizontalDimensionOrientation,
                 rectangleLines.item(3).startSketchPoint.geometry,
                 True,
-            )
-        dimensions.addDistanceDimension(rectangleLines.item(0).startSketchPoint,
+            ), startXExpr)
+        applyExpression(dimensions.addDistanceDimension(rectangleLines.item(0).startSketchPoint,
             rectangleLines.item(0).endSketchPoint,
             adsk.fusion.DimensionOrientations.HorizontalDimensionOrientation,
-            rectangleLines.item(0).endSketchPoint.geometry)
-        dimensions.addDistanceDimension(rectangleLines.item(1).startSketchPoint,
+            rectangleLines.item(0).endSketchPoint.geometry), widthExpr)
+        applyExpression(dimensions.addDistanceDimension(rectangleLines.item(1).startSketchPoint,
             rectangleLines.item(1).endSketchPoint,
             adsk.fusion.DimensionOrientations.VerticalDimensionOrientation,
-            rectangleLines.item(1).endSketchPoint.geometry)
+            rectangleLines.item(1).endSketchPoint.geometry), lengthExpr)
         return rectangleLines
+
+def lengthExpression(value: float) -> str:
+    """Internal length in cm as a millimeter literal for parameter expressions"""
+    return f'{round(value * 10, 6):g} mm'
+
+def distanceExpression(expression: str) -> str:
+    """Sketch distance dimensions are unsigned, coordinates left or below the origin need the magnitude"""
+    return f'abs({expression})'
 
 def filterCirclesByRadius(
     radius: float,

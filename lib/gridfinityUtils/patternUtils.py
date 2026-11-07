@@ -29,14 +29,22 @@ def recPatternGrid(
     distances: Tuple[float, float],
     targetComponent: adsk.fusion.Component,
     computeOption=None,
+    distanceExpressions: Tuple[str, str] = None,
     ):
+    """X/Y pattern, the optional expressions drive the spacing instead of plain values"""
     directions = (targetComponent.xConstructionAxis, targetComponent.yConstructionAxis)
     if quantities[0] == 1:
         # Use the populated direction as the primary axis for a single-column grid.
         directions = directions[::-1]
         quantities = quantities[::-1]
         distances = distances[::-1]
-    return recPattern(inputEntities, directions, distances, quantities, targetComponent, computeOption)
+        if distanceExpressions is not None:
+            distanceExpressions = distanceExpressions[::-1]
+    pattern = recPattern(inputEntities, directions, distances, quantities, targetComponent, computeOption)
+    if distanceExpressions is not None:
+        pattern.distanceOne.expression = distanceExpressions[0]
+        pattern.distanceTwo.expression = distanceExpressions[1]
+    return pattern
 
 def circPattern(
     inputEntities: adsk.core.ObjectCollection,
