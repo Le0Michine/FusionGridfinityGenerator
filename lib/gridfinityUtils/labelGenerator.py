@@ -67,6 +67,8 @@ class BinLabelInput():
         self.originZ: Dim = None
         self.width: float = 0
         self.length: float = 0
+        # turns the label down towards the front about its back edge, for tilted tab tops
+        self.tiltAngle: float = 0
 
 def _curveBounds(curves) -> tuple[float, float, float, float] | None:
     """Min and max x and y over sampled points of the given geometry curves"""
@@ -171,11 +173,13 @@ def createLabel(
     name: str,
 ) -> adsk.fusion.BRepBody:
     """Icon at the left as tall as the letters of the text after it, standing on their bottom, text alone is centered. Built as a separate body at the current label spot and
-    moved by how far the parametric spot is from it, then cut from or joined to the target body.
+    moved by how far the parametric spot is from it, then cut from or joined to the target body. A tilted label is laid out flat
+    and turned about its back edge before that move, so the move also takes its height.
     Planes, sketches and features are named after the given name"""
     features = targetComponent.features
+    isTilted = input.tiltAngle != 0
     labelPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
-    labelPlaneInput.setByOffset(targetComponent.xYConstructionPlane, valueInput(input.originZ))
+    labelPlaneInput.setByOffset(targetComponent.xYConstructionPlane, valueInput(Dim.length(input.originZ.value) if isTilted else input.originZ))
     labelPlane = targetComponent.constructionPlanes.add(labelPlaneInput)
     labelPlane.name = f'{name} plane'
     labelPlane.isLightBulbOn = False
@@ -275,12 +279,26 @@ def createLabel(
     for body in labelBodies:
         body.name = name
 
+    if isTilted:
+        # turning about +x takes the front edge down
+        tilt = adsk.core.Matrix3D.create()
+        tilt.setToRotation(
+            input.tiltAngle,
+            adsk.core.Vector3D.create(1, 0, 0),
+            adsk.core.Point3D.create(0, input.originY.value + input.length, input.originZ.value),
+        )
+        tiltInput = features.moveFeatures.createInput2(commonUtils.objectCollectionFromList(labelBodies))
+        tiltInput.defineAsFreeMove(tilt)
+        tiltFeature = features.moveFeatures.add(tiltInput)
+        tiltFeature.name = f'{name} tilt'
+
     # the label is laid out at the current spot, the move follows the parameters from there
     shiftX = input.originX - Dim.length(input.originX.value)
     shiftY = input.originY - Dim.length(input.originY.value)
-    if shiftX.isExpression or shiftY.isExpression:
+    shiftZ = input.originZ - Dim.length(input.originZ.value) if isTilted else Dim.length(0)
+    if shiftX.isExpression or shiftY.isExpression or shiftZ.isExpression:
         moveInput = features.moveFeatures.createInput2(commonUtils.objectCollectionFromList(labelBodies))
-        moveInput.defineAsTranslateXYZ(valueInput(shiftX), valueInput(shiftY), adsk.core.ValueInput.createByReal(0), True)
+        moveInput.defineAsTranslateXYZ(valueInput(shiftX), valueInput(shiftY), valueInput(shiftZ), True)
         moveFeature = features.moveFeatures.add(moveInput)
         moveFeature.name = f'{name} placement'
 

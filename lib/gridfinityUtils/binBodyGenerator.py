@@ -10,11 +10,11 @@ from .binBodyCutoutGeneratorInput import BinBodyCutoutGeneratorInput
 from .baseGeneratorInput import BaseGeneratorInput
 from .binBodyGeneratorInput import BinBodyGeneratorInput, BinBodyCompartmentDefinition
 from .binBodyTabGeneratorInput import BinBodyTabGeneratorInput
-from .binBodyTabGenerator import createGridfinityBinBodyTab
-from .labelGenerator import BinLabelDefinition, BinLabelInput, createLabel, LABEL_STYLE_EMBOSSED
+from .binBodyTabGenerator import createGridfinityBinBodyTab, createTabHollowCuts, TabCavity, TabWallOpenings, TabHollowCuts
+from .labelGenerator import BinLabelDefinition, BinLabelInput, createLabel, LABEL_STYLE_EMBOSSED, LABEL_STYLE_ENGRAVED
 from .binBodyLipGeneratorInput import BinBodyLipGeneratorInput
 from .binBodyLipGenerator import createGridfinityBinBodyLip
-from .dim import Dim
+from .dim import Dim, valueInput
 from ... import config
 
 app = adsk.core.Application.get()
@@ -44,6 +44,37 @@ def patternCompartmentBodies(bodies, input, spacingX, spacingY, targetComponent,
     pattern = patternCompartments(bodies, input, spacingX, spacingY, targetComponent, name)
     return bodies + list(pattern.bodies)
 
+
+def patternWallCuts(cuts, input, spacingX, spacingY, targetComponent, toLastColumn: bool, toLastRow: bool, name: str, isAlongWall: bool = True):
+    """Takes the wall cuts of the front left pattern seed to the outer wall they open, the back one along the last row
+    and the sides along the first or last column, then along that wall unless they only open a corner"""
+    if not cuts:
+        return cuts
+    features = targetComponent.features
+    moveX = spacingX * (input.compartmentsByX - 1) if toLastColumn and input.compartmentsByX > 1 else None
+    moveY = spacingY * (input.compartmentsByY - 1) if toLastRow and input.compartmentsByY > 1 else None
+    if moveX is not None or moveY is not None:
+        moveInput = features.moveFeatures.createInput2(commonUtils.objectCollectionFromList(cuts))
+        moveInput.defineAsTranslateXYZ(
+            valueInput(moveX if moveX is not None else Dim.length(0)),
+            valueInput(moveY if moveY is not None else Dim.length(0)),
+            adsk.core.ValueInput.createByReal(0),
+            True,
+        )
+        moveFeature = features.moveFeatures.add(moveInput)
+        moveFeature.name = f'{name} to the wall'
+    # the back wall runs along x, the sides along y
+    counts = (input.compartmentsByX, 1) if toLastRow else (1, input.compartmentsByY)
+    if counts == (1, 1) or not isAlongWall:
+        return cuts
+    pattern = patternUtils.recPatternGrid(
+        commonUtils.objectCollectionFromList(cuts),
+        counts,
+        (spacingX, spacingY),
+        targetComponent,
+        name=f'{name} pattern',
+    )
+    return cuts + [body for body in pattern.bodies if body not in cuts]
 
 def binBodyTopHeight(input: BinBodyGeneratorInput) -> Dim:
     """Height of the body top above the base top"""
@@ -76,6 +107,8 @@ def createGridfinityBinBody(
 
     bodiesToMerge: list[adsk.fusion.BRepBody] = []
     bodiesToSubtract: list[adsk.fusion.BRepBody] = []
+    # hollow tabs are cut once joined, the walls behind them close the hollows
+    tabHollowCuts: list[adsk.fusion.BRepBody] = []
 
     # round corners
     filletUtils.filletEdgesByLength(
@@ -185,9 +218,19 @@ def createGridfinityBinBody(
             compartmentTabInput.length = tabLength
             compartmentTabInput.width = input.tabWidth
             compartmentTabInput.overhangAngle = input.tabOverhangAngle
+            compartmentTabInput.labelAngle = input.tabTopAngle
             compartmentTabInput.topClearance = tabTopClearance(input.labelStyle)
+            # hollow tabs are opened through the outer walls of the bin they meet, the pattern seed gets cuts to move there
+            tabOpenings = None
+            if input.isTabHollow:
+                tabOpenings = TabWallOpenings(
+                    input.wallThickness * 2,
+                    back=useCompartmentPattern or compartment.positionY + compartment.length >= input.compartmentsByY,
+                    minXSide=input.isTabOpenThroughSides and (useCompartmentPattern or compartment.positionX == 0),
+                    maxXSide=input.isTabOpenThroughSides and (useCompartmentPattern or compartment.positionX + compartment.width >= input.compartmentsByX),
+                )
 
-            [compartmentMerges, compartmentCuts] = createCompartment(
+            [compartmentMerges, compartmentCuts, compartmentHollowCuts] = createCompartment(
                 input.wallThickness,
                 compartmentX,
                 compartmentY,
@@ -200,6 +243,8 @@ def createGridfinityBinBody(
                 input.scoopMaxRadius,
                 input.hasTab,
                 compartmentTabInput,
+                hollowTabWallThickness(input.wallThickness, input.labelStyle) if input.isTabHollow else None,
+                tabOpenings,
                 targetComponent,
                 name=compartmentName,
             )
@@ -225,7 +270,17 @@ def createGridfinityBinBody(
                     compartmentLengthUnit + wall,
                     targetComponent, 'Label tabs pattern',
                 )
+                spacing = (compartmentWidthUnit + wall, compartmentLengthUnit + wall)
+                compartmentHollowCuts = TabHollowCuts(
+                    hollow=patternCompartmentBodies(compartmentHollowCuts.hollow, input, *spacing, targetComponent, 'Label tab hollows pattern'),
+                    back=patternWallCuts(compartmentHollowCuts.back, input, *spacing, targetComponent, False, True, 'Label tab back openings'),
+                    minXSide=patternWallCuts(compartmentHollowCuts.minXSide, input, *spacing, targetComponent, False, False, 'Label tab left openings'),
+                    maxXSide=patternWallCuts(compartmentHollowCuts.maxXSide, input, *spacing, targetComponent, True, False, 'Label tab right openings'),
+                    minXCorner=patternWallCuts(compartmentHollowCuts.minXCorner, input, *spacing, targetComponent, False, True, 'Label tab left corner opening', isAlongWall=False),
+                    maxXCorner=patternWallCuts(compartmentHollowCuts.maxXCorner, input, *spacing, targetComponent, True, True, 'Label tab right corner opening', isAlongWall=False),
+                )
             bodiesToSubtract.extend(compartmentCuts)
+            tabHollowCuts.extend(compartmentHollowCuts.all())
             bodiesToMerge.extend(compartmentMerges)
 
         if len(input.compartments) > 1:
@@ -260,6 +315,13 @@ def createGridfinityBinBody(
             targetComponent,
             name='Bin body lip and tabs join',
         )
+    if len(tabHollowCuts) > 0:
+        combineUtils.cutBody(
+            binBody,
+            commonUtils.objectCollectionFromList(tabHollowCuts),
+            targetComponent,
+            name='Label tab hollows cut',
+        )
 
     if not input.isSolid and input.hasTab:
         # every compartment gets its own label, also where the tabs come from a pattern
@@ -284,6 +346,7 @@ def createGridfinityBinBody(
                 binBodyTotalHeight,
                 binBody,
                 targetComponent,
+                input.tabTopAngle,
                 name='Label' if len(input.compartments) == 1 else f'Compartment {compartmentIndex + 1} label',
             )
 
@@ -292,6 +355,12 @@ def createGridfinityBinBody(
 def tabTopClearance(labelStyle: str) -> float:
     """Embossed labels stand on a tab lowered by their depth, so they keep the tab's clearance"""
     return const.BIN_TAB_TOP_CLEARANCE + (const.BIN_LABEL_DEPTH if labelStyle == LABEL_STYLE_EMBOSSED else 0)
+
+def hollowTabWallThickness(wallThickness: float, labelStyle: str) -> float:
+    """Hollow tabs take the wall thickness, thick enough for an engraved label not to cut through"""
+    if labelStyle == LABEL_STYLE_ENGRAVED:
+        return max(wallThickness, const.BIN_LABEL_DEPTH + const.BIN_TAB_HOLLOW_MIN_SKIN)
+    return wallThickness
 
 def createTabLabel(
         definition: BinLabelDefinition,
@@ -304,21 +373,28 @@ def createTabLabel(
         tabOriginZ: Dim,
         targetBody: adsk.fusion.BRepBody,
         targetComponent: adsk.fusion.Component,
+        tabTopAngle: float = 0,
         *,
         name: str,
     ):
-    """Label on the top face of a tab with its back top corner at the tab origin y and z, between the given x"""
+    """Label on the top face of a tab with its back top corner at the tab origin y and z, between the given x.
+    On a tilted top the label is as long as the slope, so it still covers the tab width once turned down"""
+    labelLength = tabWidth / math.cos(tabTopAngle)
     labelInput = BinLabelInput()
     labelInput.style = style
     labelInput.isBold = isBold
     labelInput.definition = definition
     labelInput.originX = minX
-    labelInput.originY = tabOriginY - Dim.length(tabWidth)
+    labelInput.originY = tabOriginY - Dim.length(labelLength)
     labelInput.originZ = tabOriginZ - Dim.length(tabTopClearance(style))
     labelInput.width = (maxX - minX).value
-    labelInput.length = tabWidth
+    labelInput.length = labelLength
+    labelInput.tiltAngle = tabTopAngle
     return createLabel(labelInput, targetBody, targetComponent, name=name)
 
+
+def compartmentCutoutFilletRadius(cornerFilletRadius: float) -> float:
+    return max(const.BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS, cornerFilletRadius)
 
 def createCompartmentCutout(
         wallThickness: float,
@@ -337,7 +413,7 @@ def createCompartmentCutout(
         name: str,
     ) -> adsk.fusion.BRepBody:
 
-    innerCutoutFilletRadius = max(const.BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS, cornerFilletRadius)
+    innerCutoutFilletRadius = compartmentCutoutFilletRadius(cornerFilletRadius)
     innerCutoutInput = BinBodyCutoutGeneratorInput()
     innerCutoutInput.origin = adsk.core.Point3D.create(originX.value, originY.value, originZ.value)
     innerCutoutInput.originX = originX
@@ -366,13 +442,18 @@ def createCompartment(
         scoopMaxRadius: float,
         hasTab: bool,
         tabInput: BinBodyTabGeneratorInput,
+        tabHollowWallThickness: float | None,
+        tabOpenings: TabWallOpenings | None,
         targetComponent: adsk.fusion.Component,
         *,
         name: str,
-    ) -> tuple[list[adsk.fusion.BRepBody], list[adsk.fusion.BRepBody]]:
+    ) -> tuple[list[adsk.fusion.BRepBody], list[adsk.fusion.BRepBody], TabHollowCuts]:
+    """Bodies to join, bodies to cut, then with a hollow wall thickness, bodies hollowing out the tab once joined
+    and opening it through the walls given"""
 
     bodiesToMerge: list[adsk.fusion.BRepBody] = []
     bodiesToSubtract: list[adsk.fusion.BRepBody] = []
+    hollowCuts = TabHollowCuts()
 
     innerCutoutBody = createCompartmentCutout(
         wallThickness,
@@ -403,5 +484,23 @@ def createCompartment(
         intersectTabInput.isKeepToolBodies = True
         intersectTabFeature = targetComponent.features.combineFeatures.add(intersectTabInput)
         intersectTabFeature.name = f'{name} label tab trim'
-        bodiesToMerge = bodiesToMerge + [body for body in list(intersectTabFeature.bodies) if not body.revisionId == innerCutoutBody.revisionId]
-    return (bodiesToMerge, bodiesToSubtract)
+        tabBodies = [body for body in list(intersectTabFeature.bodies) if not body.revisionId == innerCutoutBody.revisionId]
+        if tabHollowWallThickness is not None and len(tabBodies) > 0:
+            # the tab is trimmed to the compartment
+            tabMinX = tabInput.originX if tabInput.originX.value >= originX.value else originX
+            tabMaxX = tabInput.originX + tabInput.length
+            maxX = originX + width
+            tabMaxX = tabMaxX if tabMaxX.value <= maxX.value else maxX
+            hollowCuts = createTabHollowCuts(
+                tabInput,
+                tabMinX,
+                tabMaxX,
+                tabHollowWallThickness,
+                innerCutoutBody,
+                TabCavity(originX, maxX, originY + length, compartmentCutoutFilletRadius(cornerFilletRadius)),
+                tabOpenings,
+                targetComponent,
+                name=f'{name} label tab',
+            )
+        bodiesToMerge = bodiesToMerge + tabBodies
+    return (bodiesToMerge, bodiesToSubtract, hollowCuts)

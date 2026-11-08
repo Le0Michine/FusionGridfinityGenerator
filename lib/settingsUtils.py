@@ -63,6 +63,15 @@ def snapshotInputs(inputs: adsk.core.CommandInputs, ignoreIds: list[str], title:
     collect(inputs, title)
     return [section for section in sections if len(section['items']) > 0]
 
+def settingsText(settings: list[dict]) -> str:
+    """Settings as plain text, a line per item under its section title, for the log"""
+    lines = []
+    for section in settings:
+        lines.append(f'[{section.get("title", "")}]')
+        for (label, value) in section.get('items', []):
+            lines.append(f'  {label}: {value}')
+    return '\n'.join(lines)
+
 def settingsHtml(tag: dict, parameterExpression=None) -> str:
     """Tag settings for a read only text box, with the user parameters the body is tied to
     and their current expressions looked up by name, none when one is gone"""

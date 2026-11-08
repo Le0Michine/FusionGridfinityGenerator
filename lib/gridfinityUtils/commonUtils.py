@@ -8,6 +8,11 @@ import time
 from ...lib import fusion360utils as futil
 from ... import config
 
+def fileLog(message: str):
+    """Text command window in debug mode, and always the Fusion log file, for what a bug report needs"""
+    futil.log(message)
+    adsk.core.Application.get().log(message, adsk.core.LogLevels.InfoLogLevel, adsk.core.LogTypes.FileLogType)
+
 def debugLog(message: str):
     """Text command window in debug mode, and the Fusion log file too, so it survives a restart"""
     futil.log(message)

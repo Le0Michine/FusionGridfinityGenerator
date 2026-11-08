@@ -60,10 +60,12 @@ def createBoxAtPoint(
     originPoint: adsk.core.Point3D,
     originZ: Dim | float = None,
     *,
+    originX: Dim = None,
+    originY: Dim = None,
     name: str,
     ):
-    """Box with its bottom corner at the origin point, the optional origin z drives the height of its plane.
-    Plane, sketch and extrude are named after the box"""
+    """Box with its bottom corner at the origin point, the optional origin dims drive the height of its plane
+    and its place on it. Plane, sketch and extrude are named after the box"""
     features: adsk.fusion.Features = targetComponent.features
     extrudeFeatures: adsk.fusion.ExtrudeFeatures = features.extrudeFeatures
     boxPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
@@ -76,7 +78,7 @@ def createBoxAtPoint(
     sketches: adsk.fusion.Sketches = targetComponent.sketches
     recSketch: adsk.fusion.Sketch = sketches.add(boxConstructionPlane)
     recSketch.name = f'{name} sketch'
-    sketchUtils.createRectangle(width, length, recSketch.modelToSketchSpace(originPoint), recSketch)
+    sketchUtils.createRectangle(width, length, recSketch.modelToSketchSpace(originPoint), recSketch, startX=originX, startY=originY)
         
     # extrude
     extrude = extrudeFeatures.addSimple(recSketch.profiles.item(0),

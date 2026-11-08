@@ -67,6 +67,9 @@ class BinBodyGeneratorInput():
         self.tabPosition = 0
         self.tabLength = 1
         self.tabWidth = const.BIN_TAB_WIDTH
+        self.isTabHollow = False
+        self.isTabOpenThroughSides = False
+        self.tabTopAngle = const.BIN_TAB_LABEL_ANGLE
         self.labelStyle = LABEL_STYLE_OUTLINE
         self.isLabelBold = True
         self.compartments = [BinBodyCompartmentDefinition()]
@@ -211,6 +214,31 @@ class BinBodyGeneratorInput():
     @hasTab.setter
     def hasTab(self, value: bool):
         self._hasTab = value
+
+    @property
+    def tabTopAngle(self) -> float:
+        """How far the tab top runs down from the wall towards the front"""
+        return self._tabTopAngle
+
+    @tabTopAngle.setter
+    def tabTopAngle(self, value: float):
+        self._tabTopAngle = value
+
+    @property
+    def isTabHollow(self) -> bool:
+        return self._isTabHollow
+
+    @isTabHollow.setter
+    def isTabHollow(self, value: bool):
+        self._isTabHollow = value
+
+    @property
+    def isTabOpenThroughSides(self) -> bool:
+        return self._isTabOpenThroughSides
+
+    @isTabOpenThroughSides.setter
+    def isTabOpenThroughSides(self, value: bool):
+        self._isTabOpenThroughSides = value
 
     @property
     def tabWidth(self) -> float:

@@ -788,7 +788,7 @@ def snapshotSettings(inputs: adsk.core.CommandInputs) -> list[dict]:
 def generateBaseplate(args: adsk.core.CommandEventArgs, isPreview: bool = False):
     startTime = time.perf_counter()
     # the settings come first, so a failing build can be reproduced from the log
-    futil.log(f'{CMD_NAME} Generating baseplate{" preview" if isPreview else ""} with settings:\n{settingsUtils.settingsText(snapshotSettings(args.command.commandInputs))}')
+    commonUtils.fileLog(f'{CMD_NAME} Generating baseplate{" preview" if isPreview else ""} with settings:\n{settingsUtils.settingsText(snapshotSettings(args.command.commandInputs))}')
     inputsState = getInputsState()
 
     try:

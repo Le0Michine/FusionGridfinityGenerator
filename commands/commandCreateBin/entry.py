@@ -21,11 +21,11 @@ from ...lib.gridfinityUtils import sharedParameters
 from ...lib.gridfinityUtils.dim import Dim
 from ...lib.gridfinityUtils.baseGenerator import createSingleGridfinityBaseBody, createBaseBodyPattern, cutBaseClearance, cutWallJunctionPockets, cellCenters, createCellJointOrigins
 from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
-from ...lib.gridfinityUtils.binBodyGenerator import createGridfinityBinBody, uniformCompartments, binBodyTopHeight, createCompartmentCutout, tabTopClearance, createTabLabel
+from ...lib.gridfinityUtils.binBodyGenerator import createGridfinityBinBody, uniformCompartments, binBodyTopHeight, createCompartmentCutout, compartmentCutoutFilletRadius, tabTopClearance, createTabLabel, hollowTabWallThickness
 from ...lib.gridfinityUtils import labelGenerator
 from ...lib.gridfinityUtils.binBodyGeneratorInput import BinBodyGeneratorInput, BinBodyCompartmentDefinition
 from ...lib.gridfinityUtils.binBodyTabGeneratorInput import BinBodyTabGeneratorInput
-from ...lib.gridfinityUtils.binBodyTabGenerator import createGridfinityBinBodyTab
+from ...lib.gridfinityUtils.binBodyTabGenerator import createGridfinityBinBodyTab, createTabHollowCuts, TabCavity, TabWallOpenings
 from ...lib.ui.commandUiState import CommandUiState
 from ...lib.ui.unsupportedDesignTypeException import UnsupportedDesignTypeException
 
@@ -104,6 +104,9 @@ BIN_TAB_LENGTH_INPUT_ID = 'bin_tab_length'
 BIN_TAB_WIDTH_INPUT_ID = 'bin_tab_width'
 BIN_TAB_POSITION_INPUT_ID = 'bin_tab_position'
 BIN_TAB_ANGLE_INPUT_ID = 'bin_tab_angle'
+BIN_TAB_HOLLOW_INPUT_ID = 'bin_tab_hollow'
+BIN_TAB_HOLLOW_SIDES_INPUT_ID = 'bin_tab_hollow_sides'
+BIN_TAB_TOP_ANGLE_INPUT_ID = 'bin_tab_top_angle'
 BIN_TAB_LABEL_TEXT_INPUT_ID = 'bin_tab_label_text'
 BIN_TAB_LABEL_ICON_INPUT_ID = 'bin_tab_label_icon'
 BIN_TAB_LABEL_STYLE_INPUT_ID = 'bin_tab_label_style'
@@ -244,6 +247,10 @@ def initDefaultUiState():
     commandUIState.initValue(BIN_TAB_WIDTH_INPUT_ID, const.BIN_TAB_WIDTH, adsk.core.ValueCommandInput.classType())
     commandUIState.initValue(BIN_TAB_POSITION_INPUT_ID, 0, adsk.core.ValueCommandInput.classType())
     commandUIState.initValue(BIN_TAB_ANGLE_INPUT_ID, '45 deg', adsk.core.ValueCommandInput.classType())
+    # follows the bin type when it changes, shelled bins get hollow tabs
+    commandUIState.initValue(BIN_TAB_HOLLOW_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
+    commandUIState.initValue(BIN_TAB_HOLLOW_SIDES_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
+    commandUIState.initValue(BIN_TAB_TOP_ANGLE_INPUT_ID, '0 deg', adsk.core.ValueCommandInput.classType())
     commandUIState.initValue(BIN_TAB_LABEL_TEXT_INPUT_ID, '', adsk.core.StringValueCommandInput.classType())
     commandUIState.initValue(BIN_TAB_LABEL_ICON_INPUT_ID, labelGenerator.LABEL_ICON_NONE, adsk.core.DropDownCommandInput.classType())
     commandUIState.initValue(BIN_TAB_LABEL_STYLE_INPUT_ID, labelGenerator.LABEL_STYLE_OUTLINE, adsk.core.DropDownCommandInput.classType())
@@ -581,6 +588,8 @@ def is_all_input_valid(inputs: adsk.core.CommandInputs):
             result = result and binTabWidth.value > 0
             result = result and binTabPosition.value >= 0
             result = result and binTabAngle.value >= math.radians(30) and binTabAngle.value <= math.radians(65)
+            binTabTopAngle: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_TOP_ANGLE_INPUT_ID)
+            result = result and binTabTopAngle.value >= 0 and binTabTopAngle.value <= math.radians(45)
         if binCompartmentGridTypeDropdownInput.selectedItem.name == BIN_COMPARTMENTS_GRID_TYPE_CUSTOM:
             for i in range(1, binCompartmentsTable.rowCount):
                 posX: adsk.core.IntegerSpinnerCommandInput = binCompartmentsTable.getInputAtPosition(i, 0)
@@ -721,6 +730,19 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     tabObverhangAngleInput.maximumValue = math.radians(65)
     tabObverhangAngleInput.isMaximumInclusive = True
     commandUIState.registerCommandInput(tabObverhangAngleInput)
+    tabTopAngleInput = binTabFeaturesGroup.children.addValueInput(BIN_TAB_TOP_ANGLE_INPUT_ID, 'Tab top angle', 'deg', adsk.core.ValueInput.createByString(str(commandUIState.getState(BIN_TAB_TOP_ANGLE_INPUT_ID))))
+    tabTopAngleInput.tooltip = 'Tilts the tab top down towards the front, so the label faces the front of the bin'
+    tabTopAngleInput.minimumValue = 0
+    tabTopAngleInput.isMinimumInclusive = True
+    tabTopAngleInput.maximumValue = math.radians(45)
+    tabTopAngleInput.isMaximumInclusive = True
+    commandUIState.registerCommandInput(tabTopAngleInput)
+    tabHollowInput = binTabFeaturesGroup.children.addBoolValueInput(BIN_TAB_HOLLOW_INPUT_ID, 'Hollow tab', True, '', commandUIState.getState(BIN_TAB_HOLLOW_INPUT_ID))
+    tabHollowInput.tooltip = 'Shells the tab with the wall thickness, open towards the wall it sits on. On by default for shelled bins'
+    commandUIState.registerCommandInput(tabHollowInput)
+    tabHollowSidesInput = binTabFeaturesGroup.children.addBoolValueInput(BIN_TAB_HOLLOW_SIDES_INPUT_ID, 'Open through side walls', True, '', commandUIState.getState(BIN_TAB_HOLLOW_SIDES_INPUT_ID))
+    tabHollowSidesInput.tooltip = 'Also opens a hollow tab through the outer side walls of the bin where it runs into them, not only through the back wall'
+    commandUIState.registerCommandInput(tabHollowSidesInput)
     labelTextInput = binTabFeaturesGroup.children.addStringValueInput(BIN_TAB_LABEL_TEXT_INPUT_ID, 'Label text', commandUIState.getState(BIN_TAB_LABEL_TEXT_INPUT_ID))
     labelTextInput.tooltip = 'Text on every compartment label, compartments in a custom grid can have their own. Each label gets a text parameter to edit it later'
     commandUIState.registerCommandInput(labelTextInput)
@@ -737,6 +759,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     for input in binTabFeaturesGroup.children:
         if not input.id == BIN_HAS_TAB_INPUT_ID:
             input.isEnabled = commandUIState.getState(BIN_HAS_TAB_INPUT_ID)
+    tabHollowSidesInput.isEnabled = commandUIState.getState(BIN_HAS_TAB_INPUT_ID) and commandUIState.getState(BIN_TAB_HOLLOW_INPUT_ID)
 
     baseFeaturesGroup = inputs.addGroupCommandInput(BIN_BASE_FEATURES_GROUP_ID, 'Base interface features')
     baseFeaturesGroup.isExpanded = commandUIState.getState(BIN_BASE_FEATURES_GROUP_ID)
@@ -848,6 +871,8 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
         cache_compartments_table_state(inputs)
     else:
         commandUIState.onInputUpdate(changed_input)
+        if changed_input.id == BIN_TYPE_DROPDOWN_ID:
+            commandUIState.updateValue(BIN_TAB_HOLLOW_INPUT_ID, commandUIState.getState(BIN_TYPE_DROPDOWN_ID) == BIN_TYPE_SHELLED)
         refreshUi()
 
     if isinstance(changed_input, adsk.core.GroupCommandInput) and changed_input.isExpanded == True:
@@ -938,6 +963,7 @@ def onChangeValidate():
     for input in commandUIState.getInput(BIN_TAB_FEATURES_GROUP_ID).children:
         if not input.id == BIN_HAS_TAB_INPUT_ID:
             input.isEnabled = generateBody and generateTab
+    commandUIState.getInput(BIN_TAB_HOLLOW_SIDES_INPUT_ID).isEnabled = generateBody and generateTab and commandUIState.getState(BIN_TAB_HOLLOW_INPUT_ID)
 
     generateLip: bool = commandUIState.getState(BIN_WITH_LIP_INPUT_ID)
     commandUIState.getInput(BIN_WITH_LIP_NOTCHES_INPUT_ID).isEnabled = generateLip
@@ -968,9 +994,18 @@ def saveUIInputsAsDefaults():
     else:
         futil.log(f'{CMD_NAME} UI state failed to save')
 
+def snapshotSettings(inputs: adsk.core.CommandInputs) -> list[dict]:
+    return settingsUtils.snapshotInputs(
+        inputs,
+        [INFO_GROUP, USER_CHANGES_GROUP_ID, PREVIEW_GROUP_ID, BIN_REAL_DIMENSIONS_TABLE, BIN_COMPARTMENT_REAL_DIMENSIONS_TABLE],
+        CMD_NAME,
+    )
+
 def generateBin(args: adsk.core.CommandEventArgs):
     startTime = time.perf_counter()
     inputs = args.command.commandInputs
+    # the settings come first, so a failing build can be reproduced from the log
+    commonUtils.fileLog(f'{CMD_NAME} generating with settings:\n{settingsUtils.settingsText(snapshotSettings(inputs))}')
     base_width_unit: adsk.core.ValueCommandInput = inputs.itemById(BIN_BASE_WIDTH_UNIT_INPUT_ID)
     base_length_unit: adsk.core.ValueCommandInput = inputs.itemById(BIN_BASE_LENGTH_UNIT_INPUT_ID)
     height_unit: adsk.core.ValueCommandInput = inputs.itemById(BIN_HEIGHT_UNIT_INPUT_ID)
@@ -996,6 +1031,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
     binTabWidth: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_WIDTH_INPUT_ID)
     binTabPosition: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_POSITION_INPUT_ID)
     binTabAngle: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_ANGLE_INPUT_ID)
+    binTabHollow: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_TAB_HOLLOW_INPUT_ID)
     labelTextInput: adsk.core.StringValueCommandInput = inputs.itemById(BIN_TAB_LABEL_TEXT_INPUT_ID)
     labelIconInput: adsk.core.DropDownCommandInput = inputs.itemById(BIN_TAB_LABEL_ICON_INPUT_ID)
     labelStyleInput: adsk.core.DropDownCommandInput = inputs.itemById(BIN_TAB_LABEL_STYLE_INPUT_ID)
@@ -1106,6 +1142,9 @@ def generateBin(args: adsk.core.CommandEventArgs):
         binBodyInput.tabWidth = binTabWidth.value
         binBodyInput.tabPosition = binTabPosition.value
         binBodyInput.tabOverhangAngle = binTabAngle.value
+        binBodyInput.isTabHollow = binTabHollow.value
+        binBodyInput.isTabOpenThroughSides = inputs.itemById(BIN_TAB_HOLLOW_SIDES_INPUT_ID).value
+        binBodyInput.tabTopAngle = inputs.itemById(BIN_TAB_TOP_ANGLE_INPUT_ID).value
         binBodyInput.labelStyle = labelStyleInput.selectedItem.name
         binBodyInput.isLabelBold = labelBoldInput.value
         binBodyInput.compartmentsByX = compartmentsX.value
@@ -1197,6 +1236,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
             cutWallJunctionPockets(baseGeneratorInput, binBasesXCount, binBasesYCount, binBody, gridfinityBinComponent)
 
         if isShelled and bin_generate_body.value:
+            # the body already stands the xy clearance in from the cell border, so the walls take the full thickness
             # face.boundingBox.maxPoint.z ~ face.boundingBox.minPoint.z => face horizontal
             # largest horizontal face
             horizontalFaces = [face for face in binBody.faces if geometryUtils.isHorizontal(face)]
@@ -1215,7 +1255,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
                 topBody = max(splitBodies.bodies, key=lambda x: x.boundingBox.minPoint.z)
                 horizontalFaces = [face for face in bottomBody.faces if geometryUtils.isHorizontal(face)]
                 topFace = faceUtils.maxByArea(horizontalFaces)
-                shellUtils.simpleShell([topFace], binBodyInput.wallThickness - xyClearance, gridfinityBinComponent, name='Shell')
+                shellUtils.simpleShell([topFace], binBodyInput.wallThickness, gridfinityBinComponent, name='Shell')
                 toolBodies = adsk.core.ObjectCollection.create()
                 toolBodies.add(topBody)
                 combineAfterShellFeatureInput = combineFeatures.createInput(bottomBody, toolBodies)
@@ -1223,7 +1263,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
                 combineAfterShellFeature.name = 'Shell and lip join'
                 binBody = combineAfterShellFeature.bodies.item(0)
             else:
-                shellUtils.simpleShell([topFace], binBodyInput.wallThickness - xyClearance, gridfinityBinComponent, name='Shell')
+                shellUtils.simpleShell([topFace], binBodyInput.wallThickness, gridfinityBinComponent, name='Shell')
 
             if hasTabInput.value:
                 compartmentTabInput = BinBodyTabGeneratorInput()
@@ -1241,12 +1281,14 @@ def generateBin(args: adsk.core.CommandEventArgs):
                 compartmentTabInput.length = binBodyInput.baseWidth * max(0, min(binBodyInput.tabLength, binBodyInput.binWidth)) - Dim.length(binBodyInput.wallThickness * 2 + binBodyInput.xyClearance * 2)
                 compartmentTabInput.width = binBodyInput.tabWidth
                 compartmentTabInput.overhangAngle = binBodyInput.tabOverhangAngle
+                compartmentTabInput.labelAngle = binBodyInput.tabTopAngle
                 compartmentTabInput.topClearance = tabTopClearance(binBodyInput.labelStyle)
                 tabBody = createGridfinityBinBodyTab(compartmentTabInput, gridfinityBinComponent, name='Label tab')
 
                 # trim the tab to the shell interior, its ends would otherwise poke out past the rounded outer corners,
                 # intersecting leaves a single body, so nothing has to be picked out of the pieces
-                shellThickness = Dim.length(binBodyInput.wallThickness - xyClearance)
+                shellThickness = Dim.length(binBodyInput.wallThickness)
+                shellInteriorCornerFilletRadius = binBodyInput.binCornerFilletRadius - binBodyInput.wallThickness
                 bodyWidth = binBodyInput.baseWidth * binBodyInput.binWidth - Dim.length(xyClearance * 2)
                 bodyLength = binBodyInput.baseLength * binBodyInput.binLength - Dim.length(xyClearance * 2)
                 shellInterior = createCompartmentCutout(
@@ -1257,7 +1299,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
                     bodyWidth - shellThickness * 2,
                     bodyLength - shellThickness * 2,
                     tabOriginZ,
-                    binBodyInput.binCornerFilletRadius - (binBodyInput.wallThickness - xyClearance),
+                    shellInteriorCornerFilletRadius,
                     False,
                     0,
                     False,
@@ -1266,10 +1308,35 @@ def generateBin(args: adsk.core.CommandEventArgs):
                 )
                 intersectTabInput = combineFeatures.createInput(tabBody, commonUtils.objectCollectionFromList([shellInterior]))
                 intersectTabInput.operation = adsk.fusion.FeatureOperations.IntersectFeatureOperation
-                intersectTabInput.isKeepToolBodies = False
+                intersectTabInput.isKeepToolBodies = True
                 intersectTabFeature = combineFeatures.add(intersectTabInput)
                 intersectTabFeature.name = 'Label tab trim'
-                combineUtils.joinBodies(binBody, commonUtils.objectCollectionFromList(intersectTabFeature.bodies), gridfinityBinComponent, name='Label tab join')
+                trimmedTabBodies = [body for body in list(intersectTabFeature.bodies) if not body.revisionId == shellInterior.revisionId]
+                tabHollowCuts: list[adsk.fusion.BRepBody] = []
+                if binBodyInput.isTabHollow:
+                    # the tab sits on the back wall, opened through it so the hollow isn't sealed
+                    shellInteriorMaxX = bodyWidth - shellThickness
+                    tabMaxX = tabOriginX + compartmentTabInput.length
+                    tabHollowCuts = createTabHollowCuts(
+                        compartmentTabInput,
+                        tabOriginX if tabOriginX.value >= shellThickness.value else shellThickness,
+                        tabMaxX if tabMaxX.value <= shellInteriorMaxX.value else shellInteriorMaxX,
+                        hollowTabWallThickness(shellThickness.value, binBodyInput.labelStyle),
+                        shellInterior,
+                        TabCavity(shellThickness, shellInteriorMaxX, bodyLength - shellThickness, compartmentCutoutFilletRadius(shellInteriorCornerFilletRadius)),
+                        TabWallOpenings(
+                            shellThickness.value * 2,
+                            back=True,
+                            minXSide=binBodyInput.isTabOpenThroughSides,
+                            maxXSide=binBodyInput.isTabOpenThroughSides,
+                        ),
+                        gridfinityBinComponent,
+                        name='Label tab',
+                    ).all()
+                gridfinityBinComponent.features.removeFeatures.add(shellInterior).name = 'Shell interior remove'
+                combineUtils.joinBodies(binBody, commonUtils.objectCollectionFromList(trimmedTabBodies), gridfinityBinComponent, name='Label tab join')
+                if len(tabHollowCuts) > 0:
+                    combineUtils.cutBody(binBody, commonUtils.objectCollectionFromList(tabHollowCuts), gridfinityBinComponent, name='Label tab hollow cut')
 
                 shelledLabel = createLabelDefinition(des, binParameterPrefix, BIN_LABEL_PARAMETER, labelTextInput.value, labelIconInput.selectedItem.name)
                 if shelledLabel is not None and shelledLabel.textParameter is not None:
@@ -1286,6 +1353,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
                         tabOriginZ,
                         binBody,
                         gridfinityBinComponent,
+                        binBodyInput.tabTopAngle,
                         name='Label',
                     )
 
@@ -1295,11 +1363,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
                 placementUtils.moveBodies(generatedBodies, *binPlacement, gridfinityBinComponent, name='Bin placement')
             # mark generated geometry so later bins can tell it apart from the rest of the design,
             # with the settings it was generated with to show later
-            binSettings = settingsUtils.snapshotInputs(
-                inputs,
-                [INFO_GROUP, USER_CHANGES_GROUP_ID, PREVIEW_GROUP_ID, BIN_REAL_DIMENSIONS_TABLE, BIN_COMPARTMENT_REAL_DIMENSIONS_TABLE],
-                CMD_NAME,
-            )
+            binSettings = snapshotSettings(inputs)
             for body in generatedBodies:
                 tagUtils.tagBody(body, tagUtils.TAG_BIN, binSettings, binParameters)
 

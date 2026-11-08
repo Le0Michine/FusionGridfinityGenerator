@@ -23,6 +23,8 @@ BIN_TAB_LABEL_ANGLE = 0
 BIN_TAB_EDGE_FILLET_RADIUS = 0.06
 BIN_TAB_TOP_CLEARANCE = 0.05
 BIN_LABEL_DEPTH = 0.05
+# what an engraved label leaves of a hollow tab's top
+BIN_TAB_HOLLOW_MIN_SKIN = 0.04
 # outline walls are only there to split the tab face into regions a slicer can color
 BIN_LABEL_OUTLINE_THICKNESS = 0.0001
 BIN_LABEL_MARGIN = 0.1

@@ -51,3 +51,11 @@ def test_parameters_show_their_current_expression():
     assert "<b>Parameters</b>" in text
     assert "Bin height (u): gfBin1_heightU = 6" in text
     assert "Label: gfBin1_label = " in text and "missing" in text
+
+
+def test_settings_text_lists_items_under_their_sections():
+    text = settingsUtils.settingsText([
+        {"title": "Basic sizes", "items": [["Bin width (u)", "2"], ["Bin height unit (mm)", "7 mm"]]},
+        {"title": "Label tab", "items": [["Hollow tab", "Yes"]]},
+    ])
+    assert text == "[Basic sizes]\n  Bin width (u): 2\n  Bin height unit (mm): 7 mm\n[Label tab]\n  Hollow tab: Yes"
