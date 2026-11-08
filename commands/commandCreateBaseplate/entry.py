@@ -26,6 +26,7 @@ from ...lib.gridfinityUtils.dim import Dim
 from .inputState import InputState
 from . import printBeds
 from ...lib.ui.commandUiState import CommandUiState
+from ...lib.ui.defaultsButtons import addDefaultsButtonRow, handleDefaultsButtons, DEFAULTS_SAVE, DEFAULTS_FACTORY_RESET
 from ...lib.ui.unsupportedDesignTypeException import UnsupportedDesignTypeException
 
 app = adsk.core.Application.get()
@@ -147,9 +148,7 @@ BASEPLATE_HAS_CONNECTION_HOLE_INPUT = 'has_connection_hole'
 BASEPLATE_JOINT_ORIGINS_INPUT = 'has_joint_origins'
 BASEPLATE_CONNECTION_HOLE_DIAMETER_INPUT = 'connection_hole_diameter'
 
-INPUT_CHANGES_SAVE_DEFAULTS = 'input_changes_buttons_save_new_defaults'
-INPUT_CHANGES_RESET_TO_DEFAULTS = 'input_changes_button_reset_to_defaults'
-INPUT_CHANGES_RESET_TO_FACTORY = 'input_changes_button_factory_reset'
+INPUT_CHANGES_BUTTONS_BROWSER = 'input_changes_buttons'
 
 SHOW_PREVIEW_INPUT = 'show_preview'
 
@@ -459,12 +458,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     inputChangesGroup = inputs.addGroupCommandInput(INPUT_CHANGES_GROUP, 'Inputs')
     inputChangesGroup.isExpanded = uiState.getState(INPUT_CHANGES_GROUP)
     uiState.registerCommandInput(inputChangesGroup)
-    saveAsDefaultsButtonInput = inputChangesGroup.children.addBoolValueInput(INPUT_CHANGES_SAVE_DEFAULTS, 'Save as new defaults', False, '', False)
-    saveAsDefaultsButtonInput.text = 'Save'
-    resetToDefaultsButtonInput = inputChangesGroup.children.addBoolValueInput(INPUT_CHANGES_RESET_TO_DEFAULTS, 'Reset to defaults', False, '', False)
-    resetToDefaultsButtonInput.text = 'Reset'
-    factoryResetButtonInput = inputChangesGroup.children.addBoolValueInput(INPUT_CHANGES_RESET_TO_FACTORY, 'Wipe saved settings', False, '', False)
-    factoryResetButtonInput.text = 'Factory reset'
+    addDefaultsButtonRow(inputChangesGroup.children, INPUT_CHANGES_BUTTONS_BROWSER)
 
     previewGroup = inputs.addGroupCommandInput(PREVIEW_GROUP, 'Preview')
     uiState.registerCommandInput(previewGroup)
@@ -510,17 +504,7 @@ def command_preview(args: adsk.core.CommandEventArgs):
 def command_input_changed(args: adsk.core.InputChangedEventArgs):
     changed_input = args.input
     global uiState
-    if changed_input.id == INPUT_CHANGES_SAVE_DEFAULTS:
-        saveUIInputsAsDefaults()
-    elif changed_input.id == INPUT_CHANGES_RESET_TO_DEFAULTS:
-        initUiState()
-        uiState.forceUIRefresh()
-    elif changed_input.id == INPUT_CHANGES_RESET_TO_FACTORY:
-        configUtils.deleteConfigFile(UI_INPUT_DEFAULTS_CONFIG_PATH)
-        initUiState()
-        uiState.forceUIRefresh()
-    else:
-        uiState.onInputUpdate(changed_input)
+    uiState.onInputUpdate(changed_input)
 
     global isApplyingBedPreset
     if changed_input.id == PRINT_BED_PRESET_DROPDOWN:
@@ -581,6 +565,19 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
 
 # This event handler is called when the layout drawing asks for its data once loaded.
 def command_incoming_from_html(args: adsk.core.HTMLEventArgs):
+    if args.browserCommandInput.id == INPUT_CHANGES_BUTTONS_BROWSER:
+        action = handleDefaultsButtons(args)
+        if action == DEFAULTS_SAVE:
+            saveUIInputsAsDefaults()
+        elif action is not None:
+            if action == DEFAULTS_FACTORY_RESET:
+                configUtils.deleteConfigFile(UI_INPUT_DEFAULTS_CONFIG_PATH)
+            initUiState()
+            uiState.forceUIRefresh()
+            updateSizingModeInputs(args.browserCommandInput.parentCommand.commandInputs)
+            if uiState.getInput(SHOW_PREVIEW_INPUT).value:
+                args.browserCommandInput.parentCommand.doExecutePreview()
+        return
     if args.action == 'ready':
         args.returnData = json.dumps(layoutData(getInputsState()))
 

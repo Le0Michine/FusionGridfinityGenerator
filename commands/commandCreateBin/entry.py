@@ -27,6 +27,7 @@ from ...lib.gridfinityUtils.binBodyGeneratorInput import BinBodyGeneratorInput, 
 from ...lib.gridfinityUtils.binBodyTabGeneratorInput import BinBodyTabGeneratorInput
 from ...lib.gridfinityUtils.binBodyTabGenerator import createGridfinityBinBodyTab, createTabHollowCuts, TabCavity, TabWallOpenings
 from ...lib.ui.commandUiState import CommandUiState
+from ...lib.ui.defaultsButtons import addDefaultsButtonRow, handleDefaultsButtons, DEFAULTS_SAVE, DEFAULTS_FACTORY_RESET
 from ...lib.ui.unsupportedDesignTypeException import UnsupportedDesignTypeException
 
 app = adsk.core.Application.get()
@@ -146,9 +147,7 @@ BIN_HEIGHT_UNIT_PARAMETER = 'heightUnit'
 BIN_PARAMETERS = [BIN_HEIGHT_PARAMETER, BIN_HEIGHT_UNIT_PARAMETER, sharedParameters.BASE_WIDTH_FALLBACK_PARAMETER, sharedParameters.BASE_LENGTH_FALLBACK_PARAMETER]
 BIN_TYPE_SOLID = 'Solid'
 
-INPUT_CHANGES_SAVE_DEFAULTS = 'input_changes_buttons_save_new_defaults'
-INPUT_CHANGES_RESET_TO_DEFAULTS = 'input_changes_button_reset_to_defaults'
-INPUT_CHANGES_RESET_TO_FACTORY = 'input_changes_button_factory_reset'
+INPUT_CHANGES_BUTTONS_BROWSER = 'input_changes_buttons'
 PRESERVE_CHAGES_RADIO_GROUP = 'preserve_changes'
 PRESERVE_CHAGES_RADIO_GROUP_PRESERVE = 'Preserve inputs'
 PRESERVE_CHAGES_RADIO_GROUP_RESET = 'Reset inputs after creation'
@@ -805,12 +804,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     userChangesGroup = inputs.addGroupCommandInput(USER_CHANGES_GROUP_ID, 'Changes')
     userChangesGroup.isExpanded = commandUIState.getState(USER_CHANGES_GROUP_ID)
     commandUIState.registerCommandInput(userChangesGroup)
-    saveAsDefaultsButtonInput = userChangesGroup.children.addBoolValueInput(INPUT_CHANGES_SAVE_DEFAULTS, 'Save as new defaults', False, '', False)
-    saveAsDefaultsButtonInput.text = 'Save'
-    resetToDefaultsButtonInput = userChangesGroup.children.addBoolValueInput(INPUT_CHANGES_RESET_TO_DEFAULTS, 'Reset to defaults', False, '', False)
-    resetToDefaultsButtonInput.text = 'Reset'
-    factoryResetButtonInput = userChangesGroup.children.addBoolValueInput(INPUT_CHANGES_RESET_TO_FACTORY, 'Wipe saved settings', False, '', False)
-    factoryResetButtonInput.text = 'Factory reset'
+    addDefaultsButtonRow(userChangesGroup.children, INPUT_CHANGES_BUTTONS_BROWSER)
 
     previewGroup = inputs.addGroupCommandInput(PREVIEW_GROUP_ID, 'Preview')
     previewGroup.isExpanded = commandUIState.getState(PREVIEW_GROUP_ID)
@@ -828,6 +822,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     futil.add_handler(args.command.executePreview, command_preview, local_handlers=local_handlers)
     futil.add_handler(args.command.validateInputs, command_validate_input, local_handlers=local_handlers)
     futil.add_handler(args.command.destroy, command_destroy, local_handlers=local_handlers)
+    futil.add_handler(args.command.incomingFromHTML, command_incoming_from_html, local_handlers=local_handlers)
 
 
 # This event handler is called when the user clicks the OK button in the command dialog or
@@ -868,16 +863,7 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
     inputs = args.inputs
     global commandUIState
     futil.log(f'{CMD_NAME} Input Changed Event fired from a change to {changed_input.id}')
-    if changed_input.id == INPUT_CHANGES_SAVE_DEFAULTS:
-        saveUIInputsAsDefaults()
-    elif changed_input.id == INPUT_CHANGES_RESET_TO_DEFAULTS:
-        initDefaultUiState()
-        refreshUi()
-    elif changed_input.id == INPUT_CHANGES_RESET_TO_FACTORY:
-        configUtils.deleteConfigFile(UI_INPUT_DEFAULTS_CONFIG_PATH)
-        initDefaultUiState()
-        refreshUi()
-    elif changed_input.parentCommandInput and changed_input.parentCommandInput.id == BIN_COMPARTMENTS_TABLE_ID:
+    if changed_input.parentCommandInput and changed_input.parentCommandInput.id == BIN_COMPARTMENTS_TABLE_ID:
         cache_compartments_table_state(inputs)
     else:
         commandUIState.onInputUpdate(changed_input)
@@ -931,6 +917,20 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
     args.areInputsValid = is_all_input_valid(inputs)
     futil.log(f'{CMD_NAME} Inputs are {"valid" if args.areInputsValid else "invalid"}')
 
+
+# This event handler is called when a page in the dialog sends something.
+def command_incoming_from_html(args: adsk.core.HTMLEventArgs):
+    if args.browserCommandInput.id == INPUT_CHANGES_BUTTONS_BROWSER:
+        action = handleDefaultsButtons(args)
+        if action == DEFAULTS_SAVE:
+            saveUIInputsAsDefaults()
+        elif action is not None:
+            if action == DEFAULTS_FACTORY_RESET:
+                configUtils.deleteConfigFile(UI_INPUT_DEFAULTS_CONFIG_PATH)
+            initDefaultUiState()
+            refreshUi()
+            if commandUIState.getInput(SHOW_PREVIEW_INPUT).value:
+                args.browserCommandInput.parentCommand.doExecutePreview()
 
 # This event handler is called when the command terminates.
 def command_destroy(args: adsk.core.CommandEventArgs):

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+    :root {
+        --text: #3c3c3c;
+        /* as Fusion draws its buttons, it darkens them on hover */
+        --button: #f7f7f7;
+        --button-border: #c4c4c4;
+        --button-hover: #dddddd;
+        --button-hover-border: #a6a6a6;
+        --button-pressed: #cfcfcf;
+    }
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --text: #e2e2e2;
+            --button: #474747;
+            --button-border: #626262;
+            --button-hover: #555555;
+            --button-hover-border: #7a7a7a;
+            --button-pressed: #5f5f5f;
+        }
+    }
+    * {
+        box-sizing: border-box;
+    }
+    html, body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        background: transparent;
+        overflow: hidden;
+    }
+    body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 0 4px;
+        /* the dialog's font, loaded from the Fusion install once the dialog sends it */
+        font: 13px "Fusion Artifakt Element", "Artifakt Element", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    }
+    button {
+        flex: 0 1 auto;
+        min-width: 0;
+        height: 26px;
+        padding: 0 6px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font: inherit;
+        color: var(--text);
+        background: var(--button);
+        border: 1px solid var(--button-border);
+        border-radius: 3px;
+    }
+    button:hover {
+        background: var(--button-hover);
+        border-color: var(--button-hover-border);
+    }
+    button:active {
+        background: var(--button-pressed);
+    }
+</style>
+</head>
+<body>
+    <button data-action="save" title="Save the current inputs as new defaults for this dialog">Save as defaults</button>
+    <button data-action="reset" title="Set the inputs back to the saved defaults">Reset to defaults</button>
+    <button data-action="factoryReset" title="Wipe the saved defaults and set the inputs back to the original ones">Clear defaults</button>
+<script>
+    for (const button of document.querySelectorAll('button')) {
+        button.addEventListener('click', () => {
+            if (window.adsk && adsk.fusionSendData) {
+                adsk.fusionSendData('defaults', button.dataset.action);
+            }
+        });
+    }
+
+    function loadFont(json) {
+        const data = json ? JSON.parse(json) : {};
+        if (data.fontUrl) {
+            const style = document.createElement('style');
+            style.textContent = `@font-face { font-family: "Fusion Artifakt Element"; src: url("${data.fontUrl}"); }`;
+            document.head.appendChild(style);
+        }
+    }
+
+    window.fusionJavaScriptHandler = {
+        handle: function () {
+            return 'OK';
+        },
+    };
+
+    // the bridge is injected after the page starts loading, older Fusion versions return the data directly
+    function requestInitialData() {
+        if (!window.adsk || !adsk.fusionSendData) {
+            setTimeout(requestInitialData, 100);
+            return;
+        }
+        const result = adsk.fusionSendData('ready', '');
+        if (result && typeof result.then === 'function') {
+            result.then(loadFont);
+        } else {
+            loadFont(result);
+        }
+    }
+    requestInitialData();
+</script>
+</body>
+</html>
