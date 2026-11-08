@@ -73,7 +73,7 @@ ICON_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resource
 CONFIG_FOLDER_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'commandConfig')
 UI_INPUT_DEFAULTS_CONFIG_PATH = os.path.join(CONFIG_FOLDER_PATH, "ui_input_defaults.json")
 
-FILL_LAYOUT_HTML_URL = pathlib.Path(os.path.dirname(os.path.abspath(__file__)), 'html', 'fillLayout.html').as_uri()
+LAYOUT_HTML_URL = pathlib.Path(os.path.dirname(os.path.abspath(__file__)), 'html', 'layout.html').as_uri()
 
 # Local list of event handlers used to maintain a reference so
 # they are not released and garbage collected.
@@ -116,11 +116,12 @@ PRINT_BED_PRESET_DROPDOWN = 'print_bed_preset_dropdown'
 PRINT_BED_WIDTH_INPUT = 'print_bed_width'
 PRINT_BED_LENGTH_INPUT = 'print_bed_length'
 PRINT_BED_MARGIN_INPUT = 'print_bed_margin'
-FILL_LAYOUT_BROWSER = 'fill_layout_browser'
+# drawing of the plate or of the fill pieces, shown in both sizing modes
+LAYOUT_BROWSER = 'layout_browser'
 
 # inputs only one of the sizing modes uses
 GRID_UNITS_MODE_INPUTS = [BASEPLATE_WIDTH_INPUT, BASEPLATE_LENGTH_INPUT, SIDE_PADDING_GROUP]
-FILL_AREA_MODE_INPUTS = [FILL_AREA_WIDTH_INPUT, FILL_AREA_LENGTH_INPUT, FILL_FIT_TOLERANCE_INPUT, FILL_ALIGN_X_DROPDOWN, FILL_ALIGN_Y_DROPDOWN, FILL_HALF_CELLS_INPUT, PRINT_BED_GROUP, FILL_LAYOUT_BROWSER]
+FILL_AREA_MODE_INPUTS = [FILL_AREA_WIDTH_INPUT, FILL_AREA_LENGTH_INPUT, FILL_FIT_TOLERANCE_INPUT, FILL_ALIGN_X_DROPDOWN, FILL_ALIGN_Y_DROPDOWN, FILL_HALF_CELLS_INPUT, PRINT_BED_GROUP]
 
 BASEPLATE_TYPE_LIGHT = 'Light'
 BASEPLATE_TYPE_FULL = 'Full'
@@ -346,7 +347,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     uiState.registerCommandInput(printBedMarginInput)
 
     # not registered, as it holds no value to save with the defaults
-    mainDimensionsGroup.children.addBrowserCommandInput(FILL_LAYOUT_BROWSER, 'Result', FILL_LAYOUT_HTML_URL, 220, 220)
+    mainDimensionsGroup.children.addBrowserCommandInput(LAYOUT_BROWSER, 'Result', LAYOUT_HTML_URL, 220, 220)
 
     plateFeaturesGroup = inputs.addGroupCommandInput(PLATE_FEATURES_GROUP, 'Features')
     plateFeaturesGroup.isExpanded = uiState.getState(PLATE_FEATURES_GROUP)
@@ -568,10 +569,10 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
     args.areInputsValid = INPUTS_VALID
         
 
-# This event handler is called when the fill layout drawing asks for its data once loaded.
+# This event handler is called when the layout drawing asks for its data once loaded.
 def command_incoming_from_html(args: adsk.core.HTMLEventArgs):
     if args.action == 'ready':
-        args.returnData = json.dumps(fillLayoutData(getInputsState()))
+        args.returnData = json.dumps(layoutData(getInputsState()))
 
 
 # This event handler is called when the command terminates.
@@ -607,6 +608,53 @@ def fillLayoutError(inputsState: InputState) -> str | None:
     except baseplateLayout.FillLayoutError as err:
         return str(err)
 
+def socketDrawingData(inputsState: InputState) -> dict:
+    """How the drawing shows a socket from above, in mm from its cell corner, after the plate type"""
+    xyClearance = inputsState.xyClearance
+    isLight = inputsState.plateType == BASEPLATE_TYPE_LIGHT
+    isSkeletonized = inputsState.plateType == BASEPLATE_TYPE_SKELETONIZED
+    # the socket reaches a clearance past its cell and narrows by both chamfers towards its bottom
+    socketNarrowing = const.BIN_BASE_TOP_SECTION_HEIGH + const.BIN_BASE_BOTTOM_SECTION_HEIGH
+    hasMagnets = not isLight and inputsState.hasMagnetSockets
+    hasScrews = not isLight and inputsState.hasScrewHoles
+    return {
+        'type': inputsState.plateType.lower(),
+        'inset': (socketNarrowing - xyClearance) * 10,
+        'radius': max(const.BIN_CORNER_FILLET_RADIUS + xyClearance - socketNarrowing, 0.01) * 10,
+        'holeOffset': const.DIMENSION_SCREW_HOLES_OFFSET * 10,
+        'magnetRadius': inputsState.magnetSocketSize / 2 * 10 if hasMagnets else None,
+        'screwRadius': inputsState.screwHoleSize / 2 * 10 if hasScrews else None,
+        'screwHeadRadius': inputsState.screwHeadSize / 2 * 10 if hasScrews else None,
+        # the skeleton cutout keeps a pad around the holes in every corner, the same as the generator
+        'padRadius': (max(inputsState.magnetSocketSize, inputsState.screwHeadSize) / 2 + 0.1) * 10 if isSkeletonized else None,
+    }
+
+def cellRects(
+    inputsState: InputState,
+    columnStart: int,
+    columns: int,
+    rowStart: int,
+    rows: int,
+    halfCells: tuple[bool, bool, bool, bool] = (False, False, False, False),
+) -> list[tuple[float, float, float, float, bool]]:
+    """Extents (minX, minY, maxX, maxY, isWhole) of the cells of a block of whole cells, in the generator
+    coordinates, with half cells past the sides asked for (left, right, bottom, top). Cells start a clearance before
+    the origin, only whole cells have holes"""
+    (baseWidth, baseLength, xyClearance) = (inputsState.baseWidth, inputsState.baseLength, inputsState.xyClearance)
+    def spans(start: int, count: int, baseUnit: float, halfStart: bool, halfEnd: bool) -> list[tuple[float, float, bool]]:
+        result = [((start + i) * baseUnit - xyClearance, (start + i + 1) * baseUnit - xyClearance, True) for i in range(count)]
+        if halfStart:
+            result.insert(0, (start * baseUnit - xyClearance - baseUnit / 2, start * baseUnit - xyClearance, False))
+        if halfEnd:
+            result.append(((start + count) * baseUnit - xyClearance, (start + count + 0.5) * baseUnit - xyClearance, False))
+        return result
+    (halfLeft, halfRight, halfBottom, halfTop) = halfCells
+    return [
+        (minX, minY, maxX, maxY, isWholeX and isWholeY)
+        for (minX, maxX, isWholeX) in spans(columnStart, columns, baseWidth, halfLeft, halfRight)
+        for (minY, maxY, isWholeY) in spans(rowStart, rows, baseLength, halfBottom, halfTop)
+    ]
+
 def fillLayoutData(inputsState: InputState) -> dict:
     """What the fill layout drawing shows, sizes in mm with the area corner at the origin"""
     error = fillLayoutError(inputsState)
@@ -626,22 +674,17 @@ def fillLayoutData(inputsState: InputState) -> dict:
         if shape not in shapes:
             shapes.append(shape)
         (minX, minY, maxX, maxY) = baseplateLayout.pieceOutline(layout, piece, baseWidth, baseLength, xyClearance)
-        # whole cells of the piece, half cells sit right past them
-        cellsMinX = piece.cellOffsetX * baseWidth - xyClearance
-        cellsMaxX = (piece.cellOffsetX + piece.cellsX) * baseWidth - xyClearance
-        cellsMinY = piece.cellOffsetY * baseLength - xyClearance
-        cellsMaxY = (piece.cellOffsetY + piece.cellsY) * baseLength - xyClearance
-        halfCells = []
-        # columns take the corners, rows only run along the whole cells
-        if piece.isLeftEdge and layout.x.hasHalfCellsStart:
-            halfCells.append(rect(minX, minY, cellsMinX, maxY))
-        if piece.isRightEdge and layout.x.hasHalfCellsEnd:
-            halfCells.append(rect(cellsMaxX, minY, maxX, maxY))
-        if piece.isBottomEdge and layout.y.hasHalfCellsStart:
-            halfCells.append(rect(max(minX, cellsMinX), minY, min(maxX, cellsMaxX), cellsMinY))
-        if piece.isTopEdge and layout.y.hasHalfCellsEnd:
-            halfCells.append(rect(max(minX, cellsMinX), cellsMaxY, min(maxX, cellsMaxX), maxY))
-        pieces.append({**rect(minX, minY, maxX, maxY), 'label': f'{piece.cellsX}x{piece.cellsY}', 'halfCells': halfCells})
+        cells = cellRects(inputsState, piece.cellOffsetX, piece.cellsX, piece.cellOffsetY, piece.cellsY, (
+            piece.isLeftEdge and layout.x.hasHalfCellsStart,
+            piece.isRightEdge and layout.x.hasHalfCellsEnd,
+            piece.isBottomEdge and layout.y.hasHalfCellsStart,
+            piece.isTopEdge and layout.y.hasHalfCellsEnd,
+        ))
+        pieces.append({
+            **rect(minX, minY, maxX, maxY),
+            'label': f'{piece.cellsX}x{piece.cellsY}',
+            'cells': [{**rect(*cell[:4]), 'holes': cell[4]} for cell in cells],
+        })
     pieceCount = f'{len(layout.pieces)} piece' + ('s' if len(layout.pieces) > 1 else '')
     uniqueCount = f', {len(shapes)} unique' if len(shapes) < len(layout.pieces) else ''
     halfCellSides = [side for (hasHalfCells, side) in [
@@ -655,35 +698,90 @@ def fillLayoutData(inputsState: InputState) -> dict:
         return f'{axis.paddingStart * 10:.1f} + {axis.paddingEnd * 10:.1f}'
     return {
         'area': [inputsState.areaWidth * 10, inputsState.areaLength * 10],
+        'socket': socketDrawingData(inputsState),
         'pieces': pieces,
         'caption': [
-            f'{layout.x.cells} x {layout.y.cells} u{halfCellsNote}, {pieceCount}{uniqueCount}',
+            f'{inputsState.plateType} {layout.x.cells} x {layout.y.cells} u{halfCellsNote}, {pieceCount}{uniqueCount}',
             f'padding X {padding(layout.x)} mm, Y {padding(layout.y)} mm'
             + (', turned 90° on the bed' if layout.isBedRotated else ''),
         ],
     }
 
+def gridPlateExtent(inputsState: InputState) -> tuple[float, float, float, float]:
+    """XY extent (minX, minY, maxX, maxY) of a grid units plate, where a plate without padding starts at the origin"""
+    hasPadding = inputsState.hasPadding
+    return (
+        -inputsState.paddingLeft if hasPadding else 0,
+        -inputsState.paddingBottom if hasPadding else 0,
+        inputsState.plateWidth * inputsState.baseWidth - inputsState.xyClearance * 2 + (inputsState.paddingRight if hasPadding else 0),
+        inputsState.plateLength * inputsState.baseLength - inputsState.xyClearance * 2 + (inputsState.paddingTop if hasPadding else 0),
+    )
+
+def gridLayoutData(inputsState: InputState) -> dict:
+    """What the plate drawing shows in grid units mode, the same shape as the fill layout data with the plate as the only piece"""
+    if inputsState.baseWidth <= 0 or inputsState.baseLength <= 0:
+        return {'error': 'Base units must be greater than 0'}
+    if inputsState.plateWidth <= 0 or inputsState.plateLength <= 0:
+        return {'error': 'Plate size must be at least 1 x 1 u'}
+    (columns, rows) = (int(inputsState.plateWidth), int(inputsState.plateLength))
+    (minX, minY, maxX, maxY) = gridPlateExtent(inputsState)
+    def rect(rectMinX: float, rectMinY: float, rectMaxX: float, rectMaxY: float) -> dict:
+        return {'x': (rectMinX - minX) * 10, 'y': (rectMinY - minY) * 10, 'width': (rectMaxX - rectMinX) * 10, 'length': (rectMaxY - rectMinY) * 10}
+    paddingSides = [
+        f'{side} {value * 10:.1f}'
+        for (side, value) in [
+            ('left', inputsState.paddingLeft),
+            ('top', inputsState.paddingTop),
+            ('right', inputsState.paddingRight),
+            ('bottom', inputsState.paddingBottom),
+        ]
+        if inputsState.hasPadding and value > 0
+    ]
+    return {
+        'area': [(maxX - minX) * 10, (maxY - minY) * 10],
+        'showArea': False,
+        'socket': socketDrawingData(inputsState),
+        'pieces': [{
+            **rect(minX, minY, maxX, maxY),
+            'label': f'{columns}x{rows}',
+            'cells': [{**rect(*cell[:4]), 'holes': cell[4]} for cell in cellRects(inputsState, 0, columns, 0, rows)],
+        }],
+        'caption': [
+            f'{inputsState.plateType} {columns} x {rows} u',
+            f'{(maxX - minX) * 10:.1f} x {(maxY - minY) * 10:.1f} mm',
+            f'padding {", ".join(paddingSides)} mm' if len(paddingSides) > 0 else 'no padding',
+        ],
+    }
+
+def layoutData(inputsState: InputState) -> dict:
+    if inputsState.sizingMode == SIZING_MODE_FILL_AREA:
+        return fillLayoutData(inputsState)
+    return gridLayoutData(inputsState)
+
 def updateSizingModeInputs(inputs: adsk.core.CommandInputs):
-    """Shows the inputs of the selected sizing mode and refreshes the fill summary"""
+    """Shows the inputs of the selected sizing mode and refreshes the layout drawing"""
     isFillArea = uiState.getState(SIZING_MODE_DROPDOWN) == SIZING_MODE_FILL_AREA
     for inputId in GRID_UNITS_MODE_INPUTS:
         inputs.itemById(inputId).isVisible = not isFillArea
     for inputId in FILL_AREA_MODE_INPUTS:
         inputs.itemById(inputId).isVisible = isFillArea
-    if isFillArea:
-        browserInput: adsk.core.BrowserCommandInput = inputs.itemById(FILL_LAYOUT_BROWSER)
-        try:
-            browserInput.sendInfoToHTML('update', json.dumps(fillLayoutData(getInputsState())))
-        except Exception as err:
-            # the page asks for the data itself once it has loaded
-            futil.log(f'{CMD_NAME} Fill layout drawing not ready yet, {err}')
+    browserInput: adsk.core.BrowserCommandInput = inputs.itemById(LAYOUT_BROWSER)
+    try:
+        browserInput.sendInfoToHTML('update', json.dumps(layoutData(getInputsState())))
+    except Exception as err:
+        # the page asks for the data itself once it has loaded
+        futil.log(f'{CMD_NAME} Layout drawing not ready yet, {err}')
 
 def baseplateDisplayName(plateWidth: int, plateLength: int) -> str:
     return 'Gridfinity baseplate {}x{}'.format(int(plateLength), int(plateWidth))
 
+def snapshotSettings(inputs: adsk.core.CommandInputs) -> list[dict]:
+    return settingsUtils.snapshotInputs(inputs, [INFO_GROUP, INPUT_CHANGES_GROUP, PREVIEW_GROUP], CMD_NAME)
+
 def generateBaseplate(args: adsk.core.CommandEventArgs, isPreview: bool = False):
     startTime = time.perf_counter()
-    futil.log(f'{CMD_NAME} Generating baseplate')
+    # the settings come first, so a failing build can be reproduced from the log
+    futil.log(f'{CMD_NAME} Generating baseplate{" preview" if isPreview else ""} with settings:\n{settingsUtils.settingsText(snapshotSettings(args.command.commandInputs))}')
     inputsState = getInputsState()
 
     try:
@@ -706,12 +804,7 @@ def generateBaseplate(args: adsk.core.CommandEventArgs, isPreview: bool = False)
             hasPadding = inputsState.hasPadding
             (paddingLeft, paddingTop, paddingRight, paddingBottom) = (inputsState.paddingLeft, inputsState.paddingTop, inputsState.paddingRight, inputsState.paddingBottom)
             baseplateName = baseplateDisplayName(plateWidth, plateLength)
-            plateExtent = (
-                -paddingLeft if hasPadding else 0,
-                -paddingBottom if hasPadding else 0,
-                plateWidth * inputsState.baseWidth - inputsState.xyClearance * 2 + (paddingRight if hasPadding else 0),
-                plateLength * inputsState.baseLength - inputsState.xyClearance * 2 + (paddingTop if hasPadding else 0),
-            )
+            plateExtent = gridPlateExtent(inputsState)
 
         originalTimelineCount = des.timeline.count
         if des.designIntent == adsk.fusion.DesignIntentTypes.HybridDesignIntentType:
@@ -837,11 +930,7 @@ def generateBaseplate(args: adsk.core.CommandEventArgs, isPreview: bool = False)
             )
         # mark generated geometry so it can be told apart from the rest of the design
         for baseplateBody in baseplateBodies:
-            tagUtils.tagBody(baseplateBody, tagUtils.TAG_BASEPLATE, settingsUtils.snapshotInputs(
-                args.command.commandInputs,
-                [INFO_GROUP, INPUT_CHANGES_GROUP, PREVIEW_GROUP],
-                CMD_NAME,
-            ), baseplateParameters)
+            tagUtils.tagBody(baseplateBody, tagUtils.TAG_BASEPLATE, snapshotSettings(args.command.commandInputs), baseplateParameters)
 
         if des.designType == adsk.fusion.DesignTypes.ParametricDesignType:
             # group features in timeline

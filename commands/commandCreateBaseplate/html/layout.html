@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+    :root {
+        --text: #4a4a4a;
+        --muted: #8a8a8a;
+        --area: #9a9a9a;
+        --error: #d0021b;
+        --piece: #4e79a7;
+        --floor: #3d6690;
+        --hole: #2a4766;
+        --label-background: #1f344d;
+        --piece-outline: #1f344d;
+    }
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --text: #d6d6d6;
+            --muted: #9a9a9a;
+            --area: #7a7a7a;
+            --error: #ff6b6b;
+            --piece: #5b8cc0;
+            --floor: #46729f;
+            --hole: #2c4a6a;
+            --label-background: #1b2d42;
+            --piece-outline: #a9c6e8;
+        }
+    }
+    html, body {
+        margin: 0;
+        padding: 0;
+        background: transparent;
+        overflow: hidden;
+        font: 11px -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+        color: var(--text);
+    }
+    #drawing svg {
+        display: block;
+        margin: 0 auto;
+        /* the panel can show less than the page reports, the drawing then shrinks to it, keeping its shape */
+        max-width: 100%;
+        height: auto;
+    }
+    .area {
+        fill: none;
+        stroke: var(--area);
+        stroke-dasharray: 3 2;
+    }
+    .piece {
+        fill: var(--piece);
+    }
+    .floor {
+        fill: var(--floor);
+    }
+    .countersink {
+        fill: var(--hole);
+    }
+    .magnet {
+        fill: none;
+        stroke: #ffffff;
+        stroke-opacity: 0.7;
+        stroke-dasharray: 2 1.5;
+        vector-effect: non-scaling-stroke;
+    }
+    .label {
+        fill: #ffffff;
+        font-size: 10px;
+        font-weight: 600;
+        text-anchor: middle;
+        dominant-baseline: central;
+    }
+    /* behind the label, so it reads over the sockets */
+    /* around every piece, so the seams stand out from the walls between sockets */
+    .piece-outline {
+        fill: none;
+        stroke: var(--piece-outline);
+        stroke-width: 1.5px;
+    }
+    .label-background {
+        fill: var(--label-background);
+    }
+    #caption {
+        margin-top: 6px;
+        text-align: center;
+        line-height: 1.5;
+    }
+    #caption .muted {
+        color: var(--muted);
+    }
+    .error {
+        color: var(--error);
+        text-align: center;
+        padding-top: 8px;
+    }
+</style>
+</head>
+<body>
+<div id="drawing"></div>
+<div id="caption"></div>
+<script>
+    // spare room below the caption, so its last line isn't cut off by rounding
+    const CAPTION_SPACING = 4;
+    // pieces are drawn a bit apart, the real seam gap is too thin to see at this scale
+    const SEAM_INSET = 1.5;
+    const LABEL_PADDING_X = 4;
+    const LABEL_PADDING_Y = 1;
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+
+    function svgElement(name, attributes) {
+        const element = document.createElementNS(SVG_NS, name);
+        for (const [key, value] of Object.entries(attributes)) {
+            element.setAttribute(key, value);
+        }
+        return element;
+    }
+
+    // a socket seen from above, drawn in mm from its cell corner with Y up
+    function drawSocket(cell, socket, scale, height, group, mask) {
+        const transform = `translate(${cell.x * scale} ${height - cell.y * scale}) scale(${scale} ${-scale})`;
+        const visible = svgElement('g', { transform: transform });
+        const cuts = svgElement('g', { transform: transform });
+        const inset = socket.inset || 0;
+        const opening = () => svgElement('rect', {
+            x: inset, y: inset, width: Math.max(cell.width - inset * 2, 0), height: Math.max(cell.length - inset * 2, 0), rx: socket.radius || 0,
+        });
+        const corners = [
+            '',
+            `translate(${cell.width} 0) scale(-1 1)`,
+            `translate(0 ${cell.length}) scale(1 -1)`,
+            `translate(${cell.width} ${cell.length}) scale(-1 -1)`,
+        ];
+        const holeOffset = socket.holeOffset || 0;
+        if (socket.type === 'light') {
+            const cut = opening();
+            cut.setAttribute('fill', '#000000');
+            cuts.appendChild(cut);
+        } else {
+            const floor = opening();
+            floor.setAttribute('class', 'floor');
+            visible.appendChild(floor);
+            if (socket.type === 'skeletonized' && cell.holes && socket.padRadius) {
+                // the cutout is the floor less a rounded pad around the holes in every corner
+                const cut = opening();
+                cut.setAttribute('fill', '#000000');
+                cuts.appendChild(cut);
+                const reach = holeOffset + socket.padRadius;
+                for (const corner of corners) {
+                    cuts.appendChild(svgElement('path', {
+                        d: `M${inset},${inset} L${reach},${inset} L${reach},${holeOffset} A${socket.padRadius},${socket.padRadius} 0 0 1 ${holeOffset},${reach} L${inset},${reach} Z`,
+                        transform: corner,
+                        fill: '#ffffff',
+                    }));
+                }
+            }
+            if (cell.holes) {
+                for (const corner of corners) {
+                    if (socket.screwHeadRadius) {
+                        visible.appendChild(svgElement('circle', { class: 'countersink', cx: holeOffset, cy: holeOffset, r: socket.screwHeadRadius, transform: corner }));
+                    }
+                    if (socket.screwRadius) {
+                        cuts.appendChild(svgElement('circle', { cx: holeOffset, cy: holeOffset, r: socket.screwRadius, transform: corner, fill: '#000000' }));
+                    }
+                    // magnets go in from below, shown as hidden edges
+                    if (socket.magnetRadius) {
+                        visible.appendChild(svgElement('circle', { class: 'magnet', cx: holeOffset, cy: holeOffset, r: socket.magnetRadius, transform: corner }));
+                    }
+                }
+            }
+        }
+        group.appendChild(visible);
+        mask.appendChild(cuts);
+    }
+
+    function render(data) {
+        const drawing = document.getElementById('drawing');
+        const caption = document.getElementById('caption');
+        drawing.replaceChildren();
+        caption.replaceChildren();
+        if (data.error) {
+            const error = document.createElement('div');
+            error.className = 'error';
+            error.textContent = data.error;
+            caption.appendChild(error);
+            return;
+        }
+
+        // the caption goes first, the drawing takes the height it leaves, long lines may wrap
+        data.caption.forEach((line, index) => {
+            const row = document.createElement('div');
+            if (index > 0) {
+                row.className = 'muted';
+            }
+            row.textContent = line;
+            caption.appendChild(row);
+        });
+        const captionStyle = window.getComputedStyle(caption);
+        const captionHeight = caption.offsetHeight + parseFloat(captionStyle.marginTop) + CAPTION_SPACING;
+
+        // data is in mm with Y pointing up, the drawing is scaled to fit and flipped
+        const [areaWidth, areaLength] = data.area;
+        const maxWidth = Math.max(document.documentElement.clientWidth - 4, 40);
+        // the svg is a pixel larger on every side than the drawing, for the outline stroke
+        const maxHeight = Math.max(document.documentElement.clientHeight - captionHeight - 2, 40);
+        const scale = Math.min(maxWidth / areaWidth, maxHeight / areaLength);
+        const width = areaWidth * scale;
+        const height = areaLength * scale;
+        const svg = svgElement('svg', { width: width + 2, height: height + 2, viewBox: `-1 -1 ${width + 2} ${height + 2}` });
+        // in the page from the start, labels measure their text
+        drawing.appendChild(svg);
+        // grid units plates have no area around them, the plate fills the drawing
+        if (data.showArea !== false) {
+            svg.appendChild(svgElement('rect', { class: 'area', x: 0, y: 0, width: width, height: height }));
+        }
+
+        const socket = data.socket || {};
+        data.pieces.forEach((piece, pieceIndex) => {
+            // a single plate has no seams, an inset would only eat into its thin outer walls
+            const inset = data.pieces.length > 1 ? SEAM_INSET : 0;
+            const x = piece.x * scale + inset;
+            const y = height - (piece.y + piece.length) * scale + inset;
+            const pieceWidth = Math.max(piece.width * scale - inset * 2, 1);
+            const pieceHeight = Math.max(piece.length * scale - inset * 2, 1);
+            // through cuts are black in the mask, so the page shows through them
+            const maskId = `piece-mask-${pieceIndex}`;
+            const mask = svgElement('mask', { id: maskId, maskUnits: 'userSpaceOnUse' });
+            mask.appendChild(svgElement('rect', { x: x, y: y, width: pieceWidth, height: pieceHeight, rx: 2, fill: '#ffffff' }));
+            const group = svgElement('g', { mask: `url(#${maskId})` });
+            const rect = svgElement('rect', { class: 'piece', x: x, y: y, width: pieceWidth, height: pieceHeight, rx: 2 });
+            const title = svgElement('title', {});
+            title.textContent = `${piece.label} u, ${piece.width.toFixed(1)} x ${piece.length.toFixed(1)} mm`;
+            rect.appendChild(title);
+            group.appendChild(rect);
+            for (const cell of piece.cells || []) {
+                drawSocket(cell, socket, scale, height, group, mask);
+            }
+            svg.appendChild(mask);
+            svg.appendChild(group);
+            // a single plate's edge needs no outline, the pieces of a fill do
+            if (data.pieces.length > 1) {
+                svg.appendChild(svgElement('rect', { class: 'piece-outline', x: x, y: y, width: pieceWidth, height: pieceHeight, rx: 2 }));
+            }
+            if (pieceWidth >= 26 && pieceHeight >= 14) {
+                const label = svgElement('text', { class: 'label', x: x + pieceWidth / 2, y: y + pieceHeight / 2 });
+                label.textContent = piece.label;
+                svg.appendChild(label);
+                // sized after the text is laid out
+                const bounds = label.getBBox();
+                const background = svgElement('rect', {
+                    class: 'label-background',
+                    x: bounds.x - LABEL_PADDING_X,
+                    y: bounds.y - LABEL_PADDING_Y,
+                    width: bounds.width + LABEL_PADDING_X * 2,
+                    height: bounds.height + LABEL_PADDING_Y * 2,
+                    rx: 3,
+                });
+                svg.insertBefore(background, label);
+            }
+        });
+
+    }
+
+    let lastData = null;
+    function update(json) {
+        if (!json) {
+            return;
+        }
+        lastData = JSON.parse(json);
+        render(lastData);
+    }
+
+    window.addEventListener('resize', () => {
+        if (lastData) {
+            render(lastData);
+        }
+    });
+
+    window.fusionJavaScriptHandler = {
+        handle: function (action, data) {
+            if (action === 'update') {
+                update(data);
+            }
+            return 'OK';
+        },
+    };
+
+    // the bridge is injected after the page starts loading, older Fusion versions return the data directly
+    function requestInitialData() {
+        if (!window.adsk || !adsk.fusionSendData) {
+            setTimeout(requestInitialData, 100);
+            return;
+        }
+        const result = adsk.fusionSendData('ready', '');
+        if (result && typeof result.then === 'function') {
+            result.then(update);
+        } else {
+            update(result);
+        }
+    }
+    requestInitialData();
+</script>
+</body>
+</html>
