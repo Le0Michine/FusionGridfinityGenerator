@@ -30,3 +30,14 @@ class InputState:
 
     hasConnectionHoles: bool
     connectionHoleSize: float
+
+    sizingMode: str
+    areaWidth: float
+    areaLength: float
+    fitTolerance: float
+    bedWidth: float
+    bedLength: float
+    bedMargin: float
+    alignmentX: str
+    alignmentY: str
+    useHalfCells: bool

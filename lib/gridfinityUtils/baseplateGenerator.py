@@ -2,7 +2,7 @@ import math
 import adsk.core, adsk.fusion, traceback
 import os
 
-from . import const, commonUtils, filletUtils, combineUtils, faceUtils, extrudeUtils, sketchUtils, baseGenerator, patternUtils, shapeUtils, geometryUtils, edgeUtils
+from . import const, commonUtils, filletUtils, combineUtils, faceUtils, extrudeUtils, sketchUtils, baseGenerator, patternUtils, shapeUtils, geometryUtils, edgeUtils, baseplateLayout
 from .baseGeneratorInput import BaseGeneratorInput
 from .baseplateGeneratorInput import BaseplateGeneratorInput
 from .dim import Dim, applyTo, valueInput
@@ -255,7 +255,22 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
         mirrorConnectionHolesXZ = features.mirrorFeatures.add(mirrorConnectionHolesXZInput)
         mirrorConnectionHolesXZ.name = 'Connection holes Y mirror'
 
-        cuttingTools = cuttingTools + list(mirrorConnectionHolesYZ.bodies) + list(mirrorConnectionHolesXZ.bodies) + connectionHoleYToolList + connectionHoleXToolList
+        # mirror and pattern results can include their sources
+        connectionHoleRightToolList = [body for body in mirrorConnectionHolesYZ.bodies if body not in connectionHoleXToolList]
+        connectionHoleTopToolList = [body for body in mirrorConnectionHolesXZ.bodies if body not in connectionHoleYToolList]
+        # holes on a side with half cells would end up inside the plate, between the half cells and the whole ones
+        unusedConnectionHoleTools: list[adsk.fusion.BRepBody] = []
+        for (hasHalfCells, tools) in [
+            (input.hasHalfCellsLeft, connectionHoleXToolList),
+            (input.hasHalfCellsRight, connectionHoleRightToolList),
+            (input.hasHalfCellsBottom, connectionHoleYToolList),
+            (input.hasHalfCellsTop, connectionHoleTopToolList),
+        ]:
+            sideTools = unusedConnectionHoleTools if hasHalfCells else cuttingTools
+            sideTools.extend(body for body in tools if body not in sideTools)
+        for body in unusedConnectionHoleTools:
+            removeFeature = features.removeFeatures.add(body)
+            removeFeature.name = 'Unused connection hole remove'
     timer.step('connection holes')
 
     # the plate is built from socket cells each cut once by the seed socket, then patterned and joined,
@@ -269,17 +284,31 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
     paddingRight = input.paddingRight if input.hasPadding else noPadding
     paddingBottom = input.paddingBottom if input.hasPadding else noPadding
     baseplateBody = createSocketCellGrid(input, baseBody, gridTop, gridHeight, targetComponent, timer)
+    halfCellBodies = createHalfCellStrips(input, gridTop, gridHeight, targetComponent)
+    if len(halfCellBodies) > 0:
+        combineUtils.joinBodies(
+            baseplateBody,
+            commonUtils.objectCollectionFromList(halfCellBodies),
+            targetComponent,
+            name='Half cells join',
+        )
+        timer.step(f'half cells ({len(halfCellBodies)} cells)')
+    noHalfCells = Dim.length(0)
+    halfCellsLeft = input.baseWidth / 2 if input.hasHalfCellsLeft else noHalfCells
+    halfCellsRight = input.baseWidth / 2 if input.hasHalfCellsRight else noHalfCells
+    halfCellsBottom = input.baseLength / 2 if input.hasHalfCellsBottom else noHalfCells
+    halfCellsTop = input.baseLength / 2 if input.hasHalfCellsTop else noHalfCells
 
     # padding past the cells. Sockets overhang their cells by the xy clearance, but only within the top
     # xy clearance depth, which the top clearance removes anyway unless it is set smaller
-    cellsMinX = clearance * -1
-    cellsMaxX = input.baseWidth * input.baseplateWidth - clearance
-    cellsMinY = clearance * -1
-    cellsMaxY = input.baseLength * input.baseplateLength - clearance
-    outlineMinX = paddingLeft * -1
-    outlineMaxX = baseplateTrueWidth + paddingRight
-    outlineMinY = paddingBottom * -1
-    outlineMaxY = baseplateTrueLength + paddingTop
+    cellsMinX = clearance * -1 - halfCellsLeft
+    cellsMaxX = input.baseWidth * input.baseplateWidth - clearance + halfCellsRight
+    cellsMinY = clearance * -1 - halfCellsBottom
+    cellsMaxY = input.baseLength * input.baseplateLength - clearance + halfCellsTop
+    outlineMinX = (paddingLeft + halfCellsLeft) * -1
+    outlineMaxX = baseplateTrueWidth + halfCellsRight + paddingRight
+    outlineMinY = (paddingBottom + halfCellsBottom) * -1
+    outlineMaxY = baseplateTrueLength + halfCellsTop + paddingTop
     paddingStrips = [
         ("Padding left", outlineMinX, outlineMinY, cellsMinX, outlineMaxY),
         ("Padding right", cellsMaxX, outlineMinY, outlineMaxX, outlineMaxY),
@@ -365,6 +394,185 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
     timer.total()
 
     return baseplateBody
+
+def createGridfinityBaseplateFill(
+    input: BaseplateGeneratorInput,
+    layout: baseplateLayout.FillLayout,
+    targetComponent: adsk.fusion.Component,
+    pieceGap: float = 0,
+) -> list[tuple[baseplateLayout.FillPiece, adsk.fusion.BRepBody]]:
+    """
+    Baseplate pieces of a fill layout, assembled in place. The input padding goes on the outer sides,
+    inner sides have none, so each piece is cut the xy clearance short of the cell border on the seams.
+    Pieces of the same size and edges are generated once and copied.
+    The piece gap spreads the pieces further apart, e.g. to tell them apart in the preview.
+    """
+    seamPadding = Dim.length(0)
+    (outerLeft, outerTop, outerRight, outerBottom) = (input.paddingLeft, input.paddingTop, input.paddingRight, input.paddingBottom)
+    (outerHalfLeft, outerHalfTop, outerHalfRight, outerHalfBottom) = (input.hasHalfCellsLeft, input.hasHalfCellsTop, input.hasHalfCellsRight, input.hasHalfCellsBottom)
+    input.hasPadding = True
+    sourcePieces: dict[tuple, tuple[baseplateLayout.FillPiece, adsk.fusion.BRepBody]] = {}
+    result: list[tuple[baseplateLayout.FillPiece, adsk.fusion.BRepBody]] = []
+    for piece in layout.pieces:
+        pieceName = f'Piece {piece.column + 1}-{piece.row + 1}'
+        key = baseplateLayout.pieceShapeKey(piece)
+        if key in sourcePieces:
+            (sourcePiece, sourceBody) = sourcePieces[key]
+            copyFeature = targetComponent.features.copyPasteBodies.add(sourceBody)
+            copyFeature.name = f'{pieceName} copy'
+            body = copyFeature.bodies.item(0)
+            (fromX, fromY) = (sourcePiece.cellOffsetX, sourcePiece.cellOffsetY)
+            (fromColumn, fromRow) = (sourcePiece.column, sourcePiece.row)
+        else:
+            input.baseplateWidth = piece.cellsX
+            input.baseplateLength = piece.cellsY
+            input.paddingLeft = outerLeft if piece.isLeftEdge else seamPadding
+            input.paddingRight = outerRight if piece.isRightEdge else seamPadding
+            input.paddingBottom = outerBottom if piece.isBottomEdge else seamPadding
+            input.paddingTop = outerTop if piece.isTopEdge else seamPadding
+            input.hasHalfCellsLeft = outerHalfLeft and piece.isLeftEdge
+            input.hasHalfCellsRight = outerHalfRight and piece.isRightEdge
+            input.hasHalfCellsBottom = outerHalfBottom and piece.isBottomEdge
+            input.hasHalfCellsTop = outerHalfTop and piece.isTopEdge
+            body = createGridfinityBaseplate(input, targetComponent)
+            sourcePieces[key] = (piece, body)
+            (fromX, fromY) = (0, 0)
+            (fromColumn, fromRow) = (0, 0)
+        (cellsByX, cellsByY) = (piece.cellOffsetX - fromX, piece.cellOffsetY - fromY)
+        (gapsByX, gapsByY) = (piece.column - fromColumn, piece.row - fromRow)
+        if cellsByX != 0 or cellsByY != 0:
+            offsetX = input.baseWidth * Dim.number(cellsByX, f'({cellsByX})')
+            offsetY = input.baseLength * Dim.number(cellsByY, f'({cellsByY})')
+            if pieceGap > 0:
+                (offsetX, offsetY) = (offsetX + Dim.length(pieceGap * gapsByX), offsetY + Dim.length(pieceGap * gapsByY))
+            # offsets follow the base unit parameters, so pieces stay together when the units change
+            moveBodiesBy([body], offsetX, offsetY, targetComponent, name=f'{pieceName} placement')
+        result.append((piece, body))
+    return result
+
+def moveBodiesBy(
+    bodies: list[adsk.fusion.BRepBody],
+    offsetX: Dim,
+    offsetY: Dim,
+    targetComponent: adsk.fusion.Component,
+    *,
+    name: str,
+) -> adsk.fusion.MoveFeature:
+    moveFeatures = targetComponent.features.moveFeatures
+    moveInput = moveFeatures.createInput2(commonUtils.objectCollectionFromList(bodies))
+    moveInput.defineAsTranslateXYZ(
+        valueInput(offsetX),
+        valueInput(offsetY),
+        adsk.core.ValueInput.createByReal(0),
+        True,
+    )
+    moveFeature = moveFeatures.add(moveInput)
+    moveFeature.name = name
+    return moveFeature
+
+def createHalfCellStrips(
+    input: BaseplateGeneratorInput,
+    gridTop: float,
+    gridHeight: float,
+    targetComponent: adsk.fusion.Component,
+) -> list[adsk.fusion.BRepBody]:
+    """
+    Rows of half cells along the sides asked for. Cells are only halved across the row, so they line up with
+    the whole cells and take bins half a unit wide as well as half size ones, only the corners are halved both ways.
+    Half cells have no magnet or screw holes, there is no room for them in the standard spots.
+    """
+    halfWidth = input.baseWidth / 2
+    halfLength = input.baseLength / 2
+    noOffset = Dim.length(0)
+    columnCell = (halfWidth, input.baseLength)
+    rowCell = (input.baseWidth, halfLength)
+    cornerCell = (halfWidth, halfLength)
+    leftX = halfWidth * -1
+    rightX = input.baseWidth * input.baseplateWidth
+    bottomY = halfLength * -1
+    topY = input.baseLength * input.baseplateLength
+    strips = [
+        (name, cellSize, originX, originY, countX, countY)
+        for (hasHalfCells, name, cellSize, originX, originY, countX, countY) in [
+            (input.hasHalfCellsLeft, 'Half cells left', columnCell, leftX, noOffset, 1, input.baseplateLength),
+            (input.hasHalfCellsRight, 'Half cells right', columnCell, rightX, noOffset, 1, input.baseplateLength),
+            (input.hasHalfCellsBottom, 'Half cells bottom', rowCell, noOffset, bottomY, input.baseplateWidth, 1),
+            (input.hasHalfCellsTop, 'Half cells top', rowCell, noOffset, topY, input.baseplateWidth, 1),
+            (input.hasHalfCellsLeft and input.hasHalfCellsBottom, 'Half cell bottom left', cornerCell, leftX, bottomY, 1, 1),
+            (input.hasHalfCellsRight and input.hasHalfCellsBottom, 'Half cell bottom right', cornerCell, rightX, bottomY, 1, 1),
+            (input.hasHalfCellsLeft and input.hasHalfCellsTop, 'Half cell top left', cornerCell, leftX, topY, 1, 1),
+            (input.hasHalfCellsRight and input.hasHalfCellsTop, 'Half cell top right', cornerCell, rightX, topY, 1, 1),
+        ]
+        if hasHalfCells
+    ]
+
+    stripBodies: list[adsk.fusion.BRepBody] = []
+    for (shapeName, cellSize) in [('Half width', columnCell), ('Half length', rowCell), ('Half corner', cornerCell)]:
+        shapeStrips = [strip for strip in strips if strip[1] is cellSize]
+        if len(shapeStrips) == 0:
+            continue
+        cellBody = createSocketCellSeed(input, cellSize[0], cellSize[1], gridTop, gridHeight, targetComponent, name=f'{shapeName} socket')
+        for (index, (name, _, originX, originY, countX, countY)) in enumerate(shapeStrips):
+            # copies are taken while the seed cell is still at the origin, the last strip moves the seed itself
+            if index < len(shapeStrips) - 1:
+                copyFeature = targetComponent.features.copyPasteBodies.add(cellBody)
+                copyFeature.name = f'{name} cell copy'
+                stripCell = copyFeature.bodies.item(0)
+            else:
+                stripCell = cellBody
+            moveBodiesBy([stripCell], originX, originY, targetComponent, name=f'{name} placement')
+            stripBodies.append(stripCell)
+            if countX * countY > 1:
+                stripPattern = patternUtils.recPatternGrid(
+                    commonUtils.objectCollectionFromList([stripCell]),
+                    (countX, countY),
+                    cellSize,
+                    targetComponent,
+                    name=f'{name} pattern',
+                )
+                # pattern bodies include the source body, which a combine rejects as its own tool
+                stripBodies.extend(body for body in stripPattern.bodies if body != stripCell)
+    return stripBodies
+
+def createSocketCellSeed(
+    input: BaseplateGeneratorInput,
+    cellWidth: Dim,
+    cellLength: Dim,
+    gridTop: float,
+    gridHeight: float,
+    targetComponent: adsk.fusion.Component,
+    *,
+    name: str,
+) -> adsk.fusion.BRepBody:
+    """A plain socket cell of the given size at the origin, cell and socket named after the given name"""
+    socketInput = BaseGeneratorInput()
+    socketInput.xyClearance = input.xyClearance
+    socketInput.originPoint = geometryUtils.createOffsetPoint(
+        targetComponent.originConstructionPoint.geometry,
+        byX=-input.xyClearance * 2,
+        byY=-input.xyClearance * 2,
+    )
+    socketInput.baseWidth = cellWidth + Dim.length(input.xyClearance * 2)
+    socketInput.baseLength = cellLength + Dim.length(input.xyClearance * 2)
+    socketInput.cornerFilletRadius = input.cornerFilletRadius + input.xyClearance
+    socketBody = baseGenerator.createSingleGridfinityBaseBody(socketInput, targetComponent, name=name)
+    cellBody = shapeUtils.simpleBox(
+        targetComponent.xYConstructionPlane,
+        gridTop,
+        cellWidth,
+        cellLength,
+        -(gridHeight + gridTop),
+        adsk.core.Point3D.create(-input.xyClearance, -input.xyClearance, 0),
+        targetComponent,
+        name=f'{name} cell',
+    )
+    combineUtils.cutBody(
+        cellBody,
+        commonUtils.objectCollectionFromList([socketBody]),
+        targetComponent,
+        name=f'{name} cell cut',
+    )
+    return cellBody
 
 def createSocketCellGrid(
     input: BaseplateGeneratorInput,

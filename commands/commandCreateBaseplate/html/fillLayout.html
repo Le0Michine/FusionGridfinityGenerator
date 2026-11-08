@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+    :root {
+        --text: #4a4a4a;
+        --muted: #8a8a8a;
+        --area: #9a9a9a;
+        --error: #d0021b;
+        --piece: #4e79a7;
+    }
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --text: #d6d6d6;
+            --muted: #9a9a9a;
+            --area: #7a7a7a;
+            --error: #ff6b6b;
+            --piece: #5b8cc0;
+        }
+    }
+    html, body {
+        margin: 0;
+        padding: 0;
+        background: transparent;
+        overflow: hidden;
+        font: 11px -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+        color: var(--text);
+    }
+    #drawing svg {
+        display: block;
+        margin: 0 auto;
+    }
+    .area {
+        fill: none;
+        stroke: var(--area);
+        stroke-dasharray: 3 2;
+    }
+    .piece {
+        fill: var(--piece);
+    }
+    .half {
+        fill: #ffffff;
+        fill-opacity: 0.35;
+    }
+    .label {
+        fill: #ffffff;
+        font-size: 10px;
+        font-weight: 600;
+        text-anchor: middle;
+        dominant-baseline: central;
+    }
+    #caption {
+        margin-top: 6px;
+        text-align: center;
+        line-height: 1.5;
+    }
+    #caption .muted {
+        color: var(--muted);
+    }
+    .error {
+        color: var(--error);
+        text-align: center;
+        padding-top: 8px;
+    }
+</style>
+</head>
+<body>
+<div id="drawing"></div>
+<div id="caption"></div>
+<script>
+    // room left for the caption below the drawing
+    const CAPTION_HEIGHT = 40;
+    // pieces are drawn a bit apart, the real seam gap is too thin to see at this scale
+    const SEAM_INSET = 1;
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+
+    function svgElement(name, attributes) {
+        const element = document.createElementNS(SVG_NS, name);
+        for (const [key, value] of Object.entries(attributes)) {
+            element.setAttribute(key, value);
+        }
+        return element;
+    }
+
+    function render(data) {
+        const drawing = document.getElementById('drawing');
+        const caption = document.getElementById('caption');
+        drawing.replaceChildren();
+        caption.replaceChildren();
+        if (data.error) {
+            const error = document.createElement('div');
+            error.className = 'error';
+            error.textContent = data.error;
+            caption.appendChild(error);
+            return;
+        }
+
+        // data is in mm with Y pointing up, the drawing is scaled to fit and flipped
+        const [areaWidth, areaLength] = data.area;
+        const maxWidth = Math.max(window.innerWidth - 4, 40);
+        const maxHeight = Math.max(window.innerHeight - CAPTION_HEIGHT, 40);
+        const scale = Math.min(maxWidth / areaWidth, maxHeight / areaLength);
+        const width = areaWidth * scale;
+        const height = areaLength * scale;
+        const svg = svgElement('svg', { width: width + 2, height: height + 2, viewBox: `-1 -1 ${width + 2} ${height + 2}` });
+        svg.appendChild(svgElement('rect', { class: 'area', x: 0, y: 0, width: width, height: height }));
+
+        for (const piece of data.pieces) {
+            const x = piece.x * scale + SEAM_INSET;
+            const y = height - (piece.y + piece.length) * scale + SEAM_INSET;
+            const pieceWidth = Math.max(piece.width * scale - SEAM_INSET * 2, 1);
+            const pieceHeight = Math.max(piece.length * scale - SEAM_INSET * 2, 1);
+            const rect = svgElement('rect', {
+                class: 'piece',
+                x: x,
+                y: y,
+                width: pieceWidth,
+                height: pieceHeight,
+                rx: 2,
+            });
+            const title = svgElement('title', {});
+            title.textContent = `${piece.label} u, ${piece.width.toFixed(1)} x ${piece.length.toFixed(1)} mm`;
+            rect.appendChild(title);
+            svg.appendChild(rect);
+            // half cells are drawn within the piece, so they keep its gap to the neighbours
+            for (const half of piece.halfCells || []) {
+                const halfX = Math.max(half.x * scale, x);
+                const halfY = Math.max(height - (half.y + half.length) * scale, y);
+                const halfRight = Math.min((half.x + half.width) * scale, x + pieceWidth);
+                const halfBottom = Math.min(height - half.y * scale, y + pieceHeight);
+                if (halfRight > halfX && halfBottom > halfY) {
+                    svg.appendChild(svgElement('rect', { class: 'half', x: halfX, y: halfY, width: halfRight - halfX, height: halfBottom - halfY }));
+                }
+            }
+            if (pieceWidth >= 26 && pieceHeight >= 14) {
+                const label = svgElement('text', { class: 'label', x: x + pieceWidth / 2, y: y + pieceHeight / 2 });
+                label.textContent = piece.label;
+                svg.appendChild(label);
+            }
+        }
+        drawing.appendChild(svg);
+
+        data.caption.forEach((line, index) => {
+            const row = document.createElement('div');
+            if (index > 0) {
+                row.className = 'muted';
+            }
+            row.textContent = line;
+            caption.appendChild(row);
+        });
+    }
+
+    let lastData = null;
+    function update(json) {
+        if (!json) {
+            return;
+        }
+        lastData = JSON.parse(json);
+        render(lastData);
+    }
+
+    window.addEventListener('resize', () => {
+        if (lastData) {
+            render(lastData);
+        }
+    });
+
+    window.fusionJavaScriptHandler = {
+        handle: function (action, data) {
+            if (action === 'update') {
+                update(data);
+            }
+            return 'OK';
+        },
+    };
+
+    // the bridge is injected after the page starts loading, older Fusion versions return the data directly
+    function requestInitialData() {
+        if (!window.adsk || !adsk.fusionSendData) {
+            setTimeout(requestInitialData, 100);
+            return;
+        }
+        const result = adsk.fusionSendData('ready', '');
+        if (result && typeof result.then === 'function') {
+            result.then(update);
+        } else {
+            update(result);
+        }
+    }
+    requestInitialData();
+</script>
+</body>
+</html>

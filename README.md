@@ -13,6 +13,7 @@ Bin options | Baseplate options
 
 ### Baseplates
 - accepts amount of bases X and Y directions
+- fill area mode takes the size of an area, e.g. a drawer, and a print bed, picked from popular printers or entered by hand, fits a grid into the area and splits it into pieces fitting the bed. The grid can be centered or pushed to a side, and space left past it can take a row of half cells instead of solid padding
 - base measurement can be changed, default is 42mm
 - there are options to generate thick plate with magnet or/and screw holes
 - thick plate can be skeletonized to reduce weight, it also allows room for connection holes which can be customized to fit certain screw size or glue in pin

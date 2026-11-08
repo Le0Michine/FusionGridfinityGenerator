@@ -17,6 +17,10 @@ class BaseplateGeneratorInput():
         self.binZClearance = const.BASEPLATE_BIN_Z_CLEARANCE
         self.connectionScrewHolesDiameter = const.DIMENSION_PLATE_CONNECTION_SCREW_HOLE_DIAMETER
         self.cornerFilletRadius = const.BIN_CORNER_FILLET_RADIUS
+        self.hasHalfCellsLeft = False
+        self.hasHalfCellsTop = False
+        self.hasHalfCellsRight = False
+        self.hasHalfCellsBottom = False
 
     @property
     def baseWidth(self) -> Dim:
@@ -145,6 +149,38 @@ class BaseplateGeneratorInput():
     @paddingBottom.setter
     def paddingBottom(self, value: Dim | float):
         self._paddingBottom = Dim.asLength(value)
+
+    @property
+    def hasHalfCellsLeft(self) -> bool:
+        return self._hasHalfCellsLeft
+
+    @hasHalfCellsLeft.setter
+    def hasHalfCellsLeft(self, value: bool):
+        self._hasHalfCellsLeft = value
+
+    @property
+    def hasHalfCellsTop(self) -> bool:
+        return self._hasHalfCellsTop
+
+    @hasHalfCellsTop.setter
+    def hasHalfCellsTop(self, value: bool):
+        self._hasHalfCellsTop = value
+
+    @property
+    def hasHalfCellsRight(self) -> bool:
+        return self._hasHalfCellsRight
+
+    @hasHalfCellsRight.setter
+    def hasHalfCellsRight(self, value: bool):
+        self._hasHalfCellsRight = value
+
+    @property
+    def hasHalfCellsBottom(self) -> bool:
+        return self._hasHalfCellsBottom
+
+    @hasHalfCellsBottom.setter
+    def hasHalfCellsBottom(self, value: bool):
+        self._hasHalfCellsBottom = value
 
     @property
     def hasConnectionHoles(self) -> bool:

@@ -1,5 +1,8 @@
 import adsk.core, adsk.fusion, traceback
+import json
+import math
 import os
+import pathlib
 import time
 
 
@@ -10,7 +13,8 @@ from ...lib import placementUtils
 from ...lib import fusion360utils as futil
 from ... import config
 from ...lib.gridfinityUtils.const import DIMENSION_DEFAULT_WIDTH_UNIT
-from ...lib.gridfinityUtils.baseplateGenerator import createGridfinityBaseplate
+from ...lib.gridfinityUtils.baseplateGenerator import createGridfinityBaseplate, createGridfinityBaseplateFill
+from ...lib.gridfinityUtils import baseplateLayout
 from ...lib.gridfinityUtils.baseplateGeneratorInput import BaseplateGeneratorInput
 from ...lib.gridfinityUtils import const
 from ...lib.gridfinityUtils import commonUtils
@@ -18,6 +22,7 @@ from ...lib.gridfinityUtils import parameterUtils
 from ...lib.gridfinityUtils import sharedParameters
 from ...lib.gridfinityUtils.dim import Dim
 from .inputState import InputState
+from . import printBeds
 from ...lib.ui.commandUiState import CommandUiState
 from ...lib.ui.unsupportedDesignTypeException import UnsupportedDesignTypeException
 
@@ -66,6 +71,8 @@ ICON_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resource
 CONFIG_FOLDER_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'commandConfig')
 UI_INPUT_DEFAULTS_CONFIG_PATH = os.path.join(CONFIG_FOLDER_PATH, "ui_input_defaults.json")
 
+FILL_LAYOUT_HTML_URL = pathlib.Path(os.path.dirname(os.path.abspath(__file__)), 'html', 'fillLayout.html').as_uri()
+
 # Local list of event handlers used to maintain a reference so
 # they are not released and garbage collected.
 local_handlers = []
@@ -88,6 +95,30 @@ BIN_XY_CLEARANCE_INPUT_ID = 'bin_xy_clearance'
 BASEPLATE_WIDTH_INPUT = 'plate_width'
 BASEPLATE_LENGTH_INPUT = 'plate_length'
 BASEPLATE_TYPE_DROPDOWN = 'plate_type_dropdown'
+
+SIZING_MODE_DROPDOWN = 'sizing_mode_dropdown'
+SIZING_MODE_GRID_UNITS = 'Grid units'
+SIZING_MODE_FILL_AREA = 'Fill area'
+
+FILL_AREA_WIDTH_INPUT = 'fill_area_width'
+FILL_AREA_LENGTH_INPUT = 'fill_area_length'
+FILL_FIT_TOLERANCE_INPUT = 'fill_fit_tolerance'
+FILL_HALF_CELLS_INPUT = 'fill_half_cells'
+FILL_ALIGN_X_DROPDOWN = 'fill_align_x'
+FILL_ALIGN_Y_DROPDOWN = 'fill_align_y'
+# where the grid goes, the padding takes the rest of the space
+FILL_ALIGN_X_OPTIONS = {'Left': baseplateLayout.ALIGN_START, 'Center': baseplateLayout.ALIGN_CENTER, 'Right': baseplateLayout.ALIGN_END}
+FILL_ALIGN_Y_OPTIONS = {'Front': baseplateLayout.ALIGN_START, 'Center': baseplateLayout.ALIGN_CENTER, 'Back': baseplateLayout.ALIGN_END}
+PRINT_BED_GROUP = 'print_bed_group'
+PRINT_BED_PRESET_DROPDOWN = 'print_bed_preset_dropdown'
+PRINT_BED_WIDTH_INPUT = 'print_bed_width'
+PRINT_BED_LENGTH_INPUT = 'print_bed_length'
+PRINT_BED_MARGIN_INPUT = 'print_bed_margin'
+FILL_LAYOUT_BROWSER = 'fill_layout_browser'
+
+# inputs only one of the sizing modes uses
+GRID_UNITS_MODE_INPUTS = [BASEPLATE_WIDTH_INPUT, BASEPLATE_LENGTH_INPUT, SIDE_PADDING_GROUP]
+FILL_AREA_MODE_INPUTS = [FILL_AREA_WIDTH_INPUT, FILL_AREA_LENGTH_INPUT, FILL_FIT_TOLERANCE_INPUT, FILL_ALIGN_X_DROPDOWN, FILL_ALIGN_Y_DROPDOWN, FILL_HALF_CELLS_INPUT, PRINT_BED_GROUP, FILL_LAYOUT_BROWSER]
 
 BASEPLATE_TYPE_LIGHT = 'Light'
 BASEPLATE_TYPE_FULL = 'Full'
@@ -127,6 +158,9 @@ def infoText():
     return f"{INFO_TEXT}<br><span style=\"color:#808080; font-size:small\">Version {version}</span>" if version else INFO_TEXT
 
 INPUTS_VALID = True
+# fill pieces are spread apart in the preview to show where the plate is split
+FILL_PREVIEW_PIECE_GAP = 0.5
+isApplyingBedPreset = False
 
 def getErrorMessage(text = "An unknown error occurred, please validate your inputs and try again"):
     stackTrace = traceback.format_exc()
@@ -250,10 +284,66 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     mainDimensionsGroup = inputs.addGroupCommandInput(XY_DIMENSIONS_GROUP, 'Main dimensions')
     mainDimensionsGroup.isExpanded = uiState.getState(XY_DIMENSIONS_GROUP)
     uiState.registerCommandInput(mainDimensionsGroup)
+    sizingModeDropdown = mainDimensionsGroup.children.addDropDownCommandInput(SIZING_MODE_DROPDOWN, 'Sizing mode', adsk.core.DropDownStyles.TextListDropDownStyle)
+    sizingModeDropdown.tooltip = "Fill area generates the grid for a whole area, e.g. a drawer, split into pieces fitting the print bed"
+    for sizingMode in [SIZING_MODE_GRID_UNITS, SIZING_MODE_FILL_AREA]:
+        sizingModeDropdown.listItems.add(sizingMode, uiState.getState(SIZING_MODE_DROPDOWN) == sizingMode)
+    uiState.registerCommandInput(sizingModeDropdown)
+
     baseplateWidthInput = mainDimensionsGroup.children.addIntegerSpinnerCommandInput(BASEPLATE_WIDTH_INPUT, 'Plate width, X (u)', 1, 100, 1, uiState.getState(BASEPLATE_WIDTH_INPUT))
     uiState.registerCommandInput(baseplateWidthInput)
     baseplateLengthInput = mainDimensionsGroup.children.addIntegerSpinnerCommandInput(BASEPLATE_LENGTH_INPUT, 'Plate length, Y (u)', 1, 100, 1, uiState.getState(BASEPLATE_LENGTH_INPUT))
     uiState.registerCommandInput(baseplateLengthInput)
+
+    fillAreaWidthInput = mainDimensionsGroup.children.addValueInput(FILL_AREA_WIDTH_INPUT, 'Area width, X', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(FILL_AREA_WIDTH_INPUT)))
+    fillAreaWidthInput.minimumValue = 0
+    fillAreaWidthInput.isMinimumInclusive = False
+    uiState.registerCommandInput(fillAreaWidthInput)
+    fillAreaLengthInput = mainDimensionsGroup.children.addValueInput(FILL_AREA_LENGTH_INPUT, 'Area length, Y', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(FILL_AREA_LENGTH_INPUT)))
+    fillAreaLengthInput.minimumValue = 0
+    fillAreaLengthInput.isMinimumInclusive = False
+    uiState.registerCommandInput(fillAreaLengthInput)
+    fillFitToleranceInput = mainDimensionsGroup.children.addValueInput(FILL_FIT_TOLERANCE_INPUT, 'Fit tolerance', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(FILL_FIT_TOLERANCE_INPUT)))
+    fillFitToleranceInput.minimumValue = 0
+    fillFitToleranceInput.isMinimumInclusive = True
+    fillFitToleranceInput.tooltip = "Total gap left between the plate and the area walls on each axis"
+    uiState.registerCommandInput(fillFitToleranceInput)
+    for (inputId, label, options) in [
+        (FILL_ALIGN_X_DROPDOWN, 'Grid position, X', FILL_ALIGN_X_OPTIONS),
+        (FILL_ALIGN_Y_DROPDOWN, 'Grid position, Y', FILL_ALIGN_Y_OPTIONS),
+    ]:
+        alignDropdown = mainDimensionsGroup.children.addDropDownCommandInput(inputId, label, adsk.core.DropDownStyles.TextListDropDownStyle)
+        alignDropdown.tooltip = "Side the grid is pushed to, the padding fills the rest of the space"
+        for option in options.keys():
+            alignDropdown.listItems.add(option, uiState.getState(inputId) == option)
+        uiState.registerCommandInput(alignDropdown)
+    fillHalfCellsInput = mainDimensionsGroup.children.addBoolValueInput(FILL_HALF_CELLS_INPUT, 'Fill gaps with half cells', True, '', uiState.getState(FILL_HALF_CELLS_INPUT))
+    fillHalfCellsInput.tooltip = "Where the space left past the grid fits a row of half size sockets, adds one instead of solid padding"
+    uiState.registerCommandInput(fillHalfCellsInput)
+
+    printBedGroup = mainDimensionsGroup.children.addGroupCommandInput(PRINT_BED_GROUP, 'Print bed')
+    printBedGroup.isExpanded = uiState.getState(PRINT_BED_GROUP)
+    uiState.registerCommandInput(printBedGroup)
+    printBedPresetDropdown = printBedGroup.children.addDropDownCommandInput(PRINT_BED_PRESET_DROPDOWN, 'Printer', adsk.core.DropDownStyles.TextListDropDownStyle)
+    for presetName in [printBeds.PRINT_BED_CUSTOM] + list(printBeds.PRINT_BED_PRESETS.keys()):
+        printBedPresetDropdown.listItems.add(presetName, uiState.getState(PRINT_BED_PRESET_DROPDOWN) == presetName)
+    uiState.registerCommandInput(printBedPresetDropdown)
+    printBedWidthInput = printBedGroup.children.addValueInput(PRINT_BED_WIDTH_INPUT, 'Bed width, X', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(PRINT_BED_WIDTH_INPUT)))
+    printBedWidthInput.minimumValue = 0
+    printBedWidthInput.isMinimumInclusive = False
+    uiState.registerCommandInput(printBedWidthInput)
+    printBedLengthInput = printBedGroup.children.addValueInput(PRINT_BED_LENGTH_INPUT, 'Bed length, Y', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(PRINT_BED_LENGTH_INPUT)))
+    printBedLengthInput.minimumValue = 0
+    printBedLengthInput.isMinimumInclusive = False
+    uiState.registerCommandInput(printBedLengthInput)
+    printBedMarginInput = printBedGroup.children.addValueInput(PRINT_BED_MARGIN_INPUT, 'Bed margin', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(PRINT_BED_MARGIN_INPUT)))
+    printBedMarginInput.minimumValue = 0
+    printBedMarginInput.isMinimumInclusive = True
+    printBedMarginInput.tooltip = "Space kept clear on every side of the bed"
+    uiState.registerCommandInput(printBedMarginInput)
+
+    # not registered, as it holds no value to save with the defaults
+    mainDimensionsGroup.children.addBrowserCommandInput(FILL_LAYOUT_BROWSER, 'Result', FILL_LAYOUT_HTML_URL, 220, 220)
 
     plateFeaturesGroup = inputs.addGroupCommandInput(PLATE_FEATURES_GROUP, 'Features')
     plateFeaturesGroup.isExpanded = uiState.getState(PLATE_FEATURES_GROUP)
@@ -365,11 +455,14 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     showLivePreview = previewGroup.children.addBoolValueInput(SHOW_PREVIEW_INPUT, 'Show preview (slow)', True, '', uiState.getState(SHOW_PREVIEW_INPUT))
     uiState.registerCommandInput(showLivePreview)
 
+    updateSizingModeInputs(inputs)
+
     futil.add_handler(args.command.execute, command_execute, local_handlers=local_handlers)
     futil.add_handler(args.command.inputChanged, command_input_changed, local_handlers=local_handlers)
     futil.add_handler(args.command.executePreview, command_preview, local_handlers=local_handlers)
     futil.add_handler(args.command.validateInputs, command_validate_input, local_handlers=local_handlers)
     futil.add_handler(args.command.destroy, command_destroy, local_handlers=local_handlers)
+    futil.add_handler(args.command.incomingFromHTML, command_incoming_from_html, local_handlers=local_handlers)
 
 
 # This event handler is called when the user clicks the OK button in the command dialog or 
@@ -389,7 +482,7 @@ def command_preview(args: adsk.core.CommandEventArgs):
     showPreview: adsk.core.BoolValueCommandInput = inputs.itemById(SHOW_PREVIEW_INPUT)
     if showPreview.value:
         if INPUTS_VALID:
-            generateBaseplate(args)
+            generateBaseplate(args, isPreview=True)
         else:
             args.executeFailed = True
             args.executeFailedMessage = "Some inputs are invalid, unable to generate preview"
@@ -412,10 +505,31 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
     else:
         uiState.onInputUpdate(changed_input)
 
+    global isApplyingBedPreset
+    if changed_input.id == PRINT_BED_PRESET_DROPDOWN:
+        presetBedSize = printBeds.presetBedSize(uiState.getState(PRINT_BED_PRESET_DROPDOWN))
+        if presetBedSize is not None:
+            # the width alone doesn't match the preset yet, so its change mustn't switch to custom
+            isApplyingBedPreset = True
+            try:
+                uiState.updateValue(PRINT_BED_WIDTH_INPUT, presetBedSize[0])
+                uiState.updateValue(PRINT_BED_LENGTH_INPUT, presetBedSize[1])
+            finally:
+                isApplyingBedPreset = False
+    elif changed_input.id in [PRINT_BED_WIDTH_INPUT, PRINT_BED_LENGTH_INPUT] and not isApplyingBedPreset:
+        # a bed size edited by hand no longer is the preset's
+        presetBedSize = printBeds.presetBedSize(uiState.getState(PRINT_BED_PRESET_DROPDOWN))
+        bedSize = (uiState.getState(PRINT_BED_WIDTH_INPUT), uiState.getState(PRINT_BED_LENGTH_INPUT))
+        if presetBedSize is not None and not all(math.isclose(a, b, abs_tol=const.DEFAULT_FILTER_TOLERANCE) for (a, b) in zip(presetBedSize, bedSize)):
+            uiState.updateValue(PRINT_BED_PRESET_DROPDOWN, printBeds.PRINT_BED_CUSTOM)
+
     if isinstance(changed_input, adsk.core.GroupCommandInput) and changed_input.isExpanded == True:
         for input in changed_input.children:
             uiState.registerCommandInput(input)
         uiState.forceUIRefresh()
+
+    # args.inputs only holds the siblings of the changed input, the dialog inputs are on the command
+    updateSizingModeInputs(changed_input.parentCommand.commandInputs)
 
     inputs = args.inputs
 
@@ -441,11 +555,18 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
         and (not inputsState.hasMagnetSockets or (inputsState.magnetSocketSize <= 1 and inputsState.magnetSocketSize > 0 and inputsState.magnetSocketDepth > 0)) \
         and (not inputsState.hasScrewHoles or (inputsState.screwHoleSize > 0 and inputsState.screwHoleSize <= 1 and inputsState.screwHeadSize > inputsState.screwHoleSize and inputsState.screwHeadSize <= 1.5)) \
         and (not inputsState.hasConnectionHoles or (inputsState.connectionHoleSize > 0 and inputsState.connectionHoleSize <= 0.5)) \
-        and (inputsState.extraBottomThickness > 0)
+        and (inputsState.extraBottomThickness > 0) \
+        and (inputsState.sizingMode != SIZING_MODE_FILL_AREA or fillLayoutError(inputsState) is None)
 
 
     args.areInputsValid = INPUTS_VALID
         
+
+# This event handler is called when the fill layout drawing asks for its data once loaded.
+def command_incoming_from_html(args: adsk.core.HTMLEventArgs):
+    if args.action == 'ready':
+        args.returnData = json.dumps(fillLayoutData(getInputsState()))
+
 
 # This event handler is called when the command terminates.
 def command_destroy(args: adsk.core.CommandEventArgs):
@@ -455,7 +576,106 @@ def command_destroy(args: adsk.core.CommandEventArgs):
     global uiState
 
 
-def generateBaseplate(args: adsk.core.CommandEventArgs):
+def computeFillLayout(inputsState: InputState) -> baseplateLayout.FillLayout:
+    return baseplateLayout.computeFillLayout(
+        inputsState.areaWidth,
+        inputsState.areaLength,
+        inputsState.fitTolerance,
+        inputsState.bedWidth,
+        inputsState.bedLength,
+        inputsState.bedMargin,
+        inputsState.baseWidth,
+        inputsState.baseLength,
+        inputsState.xyClearance,
+        FILL_ALIGN_X_OPTIONS.get(inputsState.alignmentX, baseplateLayout.ALIGN_CENTER),
+        FILL_ALIGN_Y_OPTIONS.get(inputsState.alignmentY, baseplateLayout.ALIGN_CENTER),
+        inputsState.useHalfCells,
+    )
+
+def fillLayoutError(inputsState: InputState) -> str | None:
+    if inputsState.baseWidth <= 0 or inputsState.baseLength <= 0:
+        return 'Base units must be greater than 0'
+    try:
+        computeFillLayout(inputsState)
+        return None
+    except baseplateLayout.FillLayoutError as err:
+        return str(err)
+
+def fillLayoutData(inputsState: InputState) -> dict:
+    """What the fill layout drawing shows, sizes in mm with the area corner at the origin"""
+    error = fillLayoutError(inputsState)
+    if error is not None:
+        return {'error': error}
+    layout = computeFillLayout(inputsState)
+    (baseWidth, baseLength, xyClearance) = (inputsState.baseWidth, inputsState.baseLength, inputsState.xyClearance)
+    # the plate reaches past the origin, the fit tolerance is left around it
+    originX = layout.x.startExtent(baseWidth) + inputsState.fitTolerance / 2
+    originY = layout.y.startExtent(baseLength) + inputsState.fitTolerance / 2
+    def rect(minX: float, minY: float, maxX: float, maxY: float) -> dict:
+        return {'x': (minX + originX) * 10, 'y': (minY + originY) * 10, 'width': (maxX - minX) * 10, 'length': (maxY - minY) * 10}
+    shapes: list[tuple] = []
+    pieces = []
+    for piece in layout.pieces:
+        shape = baseplateLayout.pieceShapeKey(piece)
+        if shape not in shapes:
+            shapes.append(shape)
+        (minX, minY, maxX, maxY) = baseplateLayout.pieceOutline(layout, piece, baseWidth, baseLength, xyClearance)
+        # whole cells of the piece, half cells sit right past them
+        cellsMinX = piece.cellOffsetX * baseWidth - xyClearance
+        cellsMaxX = (piece.cellOffsetX + piece.cellsX) * baseWidth - xyClearance
+        cellsMinY = piece.cellOffsetY * baseLength - xyClearance
+        cellsMaxY = (piece.cellOffsetY + piece.cellsY) * baseLength - xyClearance
+        halfCells = []
+        # columns take the corners, rows only run along the whole cells
+        if piece.isLeftEdge and layout.x.hasHalfCellsStart:
+            halfCells.append(rect(minX, minY, cellsMinX, maxY))
+        if piece.isRightEdge and layout.x.hasHalfCellsEnd:
+            halfCells.append(rect(cellsMaxX, minY, maxX, maxY))
+        if piece.isBottomEdge and layout.y.hasHalfCellsStart:
+            halfCells.append(rect(max(minX, cellsMinX), minY, min(maxX, cellsMaxX), cellsMinY))
+        if piece.isTopEdge and layout.y.hasHalfCellsEnd:
+            halfCells.append(rect(max(minX, cellsMinX), cellsMaxY, min(maxX, cellsMaxX), maxY))
+        pieces.append({**rect(minX, minY, maxX, maxY), 'label': f'{piece.cellsX}x{piece.cellsY}', 'halfCells': halfCells})
+    pieceCount = f'{len(layout.pieces)} piece' + ('s' if len(layout.pieces) > 1 else '')
+    uniqueCount = f', {len(shapes)} unique' if len(shapes) < len(layout.pieces) else ''
+    halfCellSides = [side for (hasHalfCells, side) in [
+        (layout.x.hasHalfCellsStart, 'left'),
+        (layout.x.hasHalfCellsEnd, 'right'),
+        (layout.y.hasHalfCellsStart, 'front'),
+        (layout.y.hasHalfCellsEnd, 'back'),
+    ] if hasHalfCells]
+    halfCellsNote = f' + half cells {", ".join(halfCellSides)}' if len(halfCellSides) > 0 else ''
+    def padding(axis: baseplateLayout.AxisLayout) -> str:
+        return f'{axis.paddingStart * 10:.1f} + {axis.paddingEnd * 10:.1f}'
+    return {
+        'area': [inputsState.areaWidth * 10, inputsState.areaLength * 10],
+        'pieces': pieces,
+        'caption': [
+            f'{layout.x.cells} x {layout.y.cells} u{halfCellsNote}, {pieceCount}{uniqueCount}',
+            f'padding X {padding(layout.x)} mm, Y {padding(layout.y)} mm'
+            + (', turned 90° on the bed' if layout.isBedRotated else ''),
+        ],
+    }
+
+def updateSizingModeInputs(inputs: adsk.core.CommandInputs):
+    """Shows the inputs of the selected sizing mode and refreshes the fill summary"""
+    isFillArea = uiState.getState(SIZING_MODE_DROPDOWN) == SIZING_MODE_FILL_AREA
+    for inputId in GRID_UNITS_MODE_INPUTS:
+        inputs.itemById(inputId).isVisible = not isFillArea
+    for inputId in FILL_AREA_MODE_INPUTS:
+        inputs.itemById(inputId).isVisible = isFillArea
+    if isFillArea:
+        browserInput: adsk.core.BrowserCommandInput = inputs.itemById(FILL_LAYOUT_BROWSER)
+        try:
+            browserInput.sendInfoToHTML('update', json.dumps(fillLayoutData(getInputsState())))
+        except Exception as err:
+            # the page asks for the data itself once it has loaded
+            futil.log(f'{CMD_NAME} Fill layout drawing not ready yet, {err}')
+
+def baseplateDisplayName(plateWidth: int, plateLength: int) -> str:
+    return 'Gridfinity baseplate {}x{}'.format(int(plateLength), int(plateWidth))
+
+def generateBaseplate(args: adsk.core.CommandEventArgs, isPreview: bool = False):
     startTime = time.perf_counter()
     futil.log(f'{CMD_NAME} Generating baseplate')
     inputsState = getInputsState()
@@ -465,7 +685,27 @@ def generateBaseplate(args: adsk.core.CommandEventArgs):
         if des.designType == 0:
             raise UnsupportedDesignTypeException('Timeline must be enabled for the generator to work, projects with disabled design history currently are not supported')
         root = adsk.fusion.Component.cast(des.rootComponent)
-        baseplateName = 'Gridfinity baseplate {}x{}'.format(int(inputsState.plateLength), int(inputsState.plateWidth))
+
+        # a fill is laid out as one plate of the whole grid with the centering padding, then split into pieces
+        isFillArea = inputsState.sizingMode == SIZING_MODE_FILL_AREA
+        if isFillArea:
+            fillLayout = computeFillLayout(inputsState)
+            (plateWidth, plateLength) = (fillLayout.x.cells, fillLayout.y.cells)
+            hasPadding = True
+            (paddingLeft, paddingTop, paddingRight, paddingBottom) = (fillLayout.x.paddingStart, fillLayout.y.paddingEnd, fillLayout.x.paddingEnd, fillLayout.y.paddingStart)
+            plateExtent = baseplateLayout.layoutOutline(fillLayout, inputsState.baseWidth, inputsState.baseLength, inputsState.xyClearance)
+            baseplateName = 'Gridfinity baseplate fill {:g}x{:g} mm'.format(round(inputsState.areaLength * 10, 1), round(inputsState.areaWidth * 10, 1))
+        else:
+            (plateWidth, plateLength) = (inputsState.plateWidth, inputsState.plateLength)
+            hasPadding = inputsState.hasPadding
+            (paddingLeft, paddingTop, paddingRight, paddingBottom) = (inputsState.paddingLeft, inputsState.paddingTop, inputsState.paddingRight, inputsState.paddingBottom)
+            baseplateName = baseplateDisplayName(plateWidth, plateLength)
+            plateExtent = (
+                -paddingLeft if hasPadding else 0,
+                -paddingBottom if hasPadding else 0,
+                plateWidth * inputsState.baseWidth - inputsState.xyClearance * 2 + (paddingRight if hasPadding else 0),
+                plateLength * inputsState.baseLength - inputsState.xyClearance * 2 + (paddingTop if hasPadding else 0),
+            )
 
         originalTimelineCount = des.timeline.count
         if des.designIntent == adsk.fusion.DesignIntentTypes.HybridDesignIntentType:
@@ -480,8 +720,8 @@ def generateBaseplate(args: adsk.core.CommandEventArgs):
         baseplateGeneratorInput = BaseplateGeneratorInput()
 
         baseplateGeneratorInput.xyClearance = inputsState.xyClearance
-        baseplateGeneratorInput.baseplateWidth = inputsState.plateWidth
-        baseplateGeneratorInput.baseplateLength = inputsState.plateLength
+        baseplateGeneratorInput.baseplateWidth = plateWidth
+        baseplateGeneratorInput.baseplateLength = plateLength
         baseplateGeneratorInput.hasExtendedBottom = not inputsState.plateType == BASEPLATE_TYPE_LIGHT
         baseplateGeneratorInput.hasSkeletonizedBottom = inputsState.plateType == BASEPLATE_TYPE_SKELETONIZED
         baseplateGeneratorInput.hasMagnetCutouts = inputsState.hasMagnetSockets
@@ -490,25 +730,24 @@ def generateBaseplate(args: adsk.core.CommandEventArgs):
         baseplateGeneratorInput.hasScrewHoles = inputsState.hasScrewHoles
         baseplateGeneratorInput.screwHolesDiameter = inputsState.screwHoleSize
         baseplateGeneratorInput.screwHeadCutoutDiameter = inputsState.screwHeadSize
-        baseplateGeneratorInput.hasPadding = inputsState.hasPadding
+        baseplateGeneratorInput.hasPadding = hasPadding
         baseplateGeneratorInput.bottomExtensionHeight = inputsState.extraBottomThickness
         baseplateGeneratorInput.binZClearance = inputsState.verticalClearance
         baseplateGeneratorInput.hasConnectionHoles = inputsState.hasConnectionHoles
         baseplateGeneratorInput.connectionScrewHolesDiameter = inputsState.connectionHoleSize
         baseplateGeneratorInput.cornerFilletRadius = const.BIN_CORNER_FILLET_RADIUS
+        if isFillArea:
+            baseplateGeneratorInput.hasHalfCellsLeft = fillLayout.x.hasHalfCellsStart
+            baseplateGeneratorInput.hasHalfCellsRight = fillLayout.x.hasHalfCellsEnd
+            baseplateGeneratorInput.hasHalfCellsBottom = fillLayout.y.hasHalfCellsStart
+            baseplateGeneratorInput.hasHalfCellsTop = fillLayout.y.hasHalfCellsEnd
 
         # pick the spot before generating, so none of this baseplate's geometry can count as an obstacle
-        hasPadding = inputsState.hasPadding
         baseplatePlacement = placementUtils.findPlacement(
             des,
             tagUtils.TAG_BASEPLATE,
             BASEPLATE_LEGACY_NAME_PREFIX,
-            (
-                -inputsState.paddingLeft if hasPadding else 0,
-                -inputsState.paddingBottom if hasPadding else 0,
-                inputsState.plateWidth * inputsState.baseWidth - inputsState.xyClearance * 2 + (inputsState.paddingRight if hasPadding else 0),
-                inputsState.plateLength * inputsState.baseLength - inputsState.xyClearance * 2 + (inputsState.paddingTop if hasPadding else 0),
-            ),
+            plateExtent,
             inputsState.baseWidth,
             inputsState.baseLength,
         )
@@ -535,17 +774,30 @@ def generateBaseplate(args: adsk.core.CommandEventArgs):
                 value,
                 f'Gridfinity baseplate {label} padding',
             ))
-        baseplateGeneratorInput.paddingLeft = paddingDim(BASEPLATE_PADDING_LEFT_PARAMETER, 'left', inputsState.paddingLeft)
-        baseplateGeneratorInput.paddingTop = paddingDim(BASEPLATE_PADDING_TOP_PARAMETER, 'top', inputsState.paddingTop)
-        baseplateGeneratorInput.paddingRight = paddingDim(BASEPLATE_PADDING_RIGHT_PARAMETER, 'right', inputsState.paddingRight)
-        baseplateGeneratorInput.paddingBottom = paddingDim(BASEPLATE_PADDING_BOTTOM_PARAMETER, 'bottom', inputsState.paddingBottom)
+        baseplateGeneratorInput.paddingLeft = paddingDim(BASEPLATE_PADDING_LEFT_PARAMETER, 'left', paddingLeft)
+        baseplateGeneratorInput.paddingTop = paddingDim(BASEPLATE_PADDING_TOP_PARAMETER, 'top', paddingTop)
+        baseplateGeneratorInput.paddingRight = paddingDim(BASEPLATE_PADDING_RIGHT_PARAMETER, 'right', paddingRight)
+        baseplateGeneratorInput.paddingBottom = paddingDim(BASEPLATE_PADDING_BOTTOM_PARAMETER, 'bottom', paddingBottom)
 
-        baseplateBody = createGridfinityBaseplate(baseplateGeneratorInput, gridfinityBaseplateComponent)
-        baseplateBody.name = baseplateName
+        if isFillArea:
+            baseplateBodies = []
+            for (piece, pieceBody) in createGridfinityBaseplateFill(
+                baseplateGeneratorInput,
+                fillLayout,
+                gridfinityBaseplateComponent,
+                pieceGap=FILL_PREVIEW_PIECE_GAP if isPreview else 0,
+            ):
+                pieceBody.name = f'{baseplateDisplayName(piece.cellsX, piece.cellsY)} ({piece.column + 1}-{piece.row + 1})'
+                baseplateBodies.append(pieceBody)
+        else:
+            baseplateBody = createGridfinityBaseplate(baseplateGeneratorInput, gridfinityBaseplateComponent)
+            baseplateBody.name = baseplateName
+            baseplateBodies = [baseplateBody]
         if baseplatePlacement != (0, 0):
-            placementUtils.moveBodies([baseplateBody], *baseplatePlacement, gridfinityBaseplateComponent, name='Baseplate placement')
+            placementUtils.moveBodies(baseplateBodies, *baseplatePlacement, gridfinityBaseplateComponent, name='Baseplate placement')
         # mark generated geometry so it can be told apart from the rest of the design
-        tagUtils.tagBody(baseplateBody, tagUtils.TAG_BASEPLATE)
+        for baseplateBody in baseplateBodies:
+            tagUtils.tagBody(baseplateBody, tagUtils.TAG_BASEPLATE)
 
         if des.designType == adsk.fusion.DesignTypes.ParametricDesignType:
             # group features in timeline
@@ -581,6 +833,21 @@ def initUiState():
     uiState.initValue(BASEPLATE_WIDTH_INPUT, 2, adsk.core.IntegerSpinnerCommandInput.classType())
     uiState.initValue(BASEPLATE_LENGTH_INPUT, 3, adsk.core.IntegerSpinnerCommandInput.classType())
     uiState.initValue(BASEPLATE_TYPE_DROPDOWN, BASEPLATE_TYPE_LIGHT, adsk.core.DropDownCommandInput.classType())
+
+    uiState.initValue(SIZING_MODE_DROPDOWN, SIZING_MODE_GRID_UNITS, adsk.core.DropDownCommandInput.classType())
+    uiState.initValue(FILL_AREA_WIDTH_INPUT, 40, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(FILL_AREA_LENGTH_INPUT, 30, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(FILL_FIT_TOLERANCE_INPUT, 0.1, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(FILL_ALIGN_X_DROPDOWN, 'Center', adsk.core.DropDownCommandInput.classType())
+    uiState.initValue(FILL_ALIGN_Y_DROPDOWN, 'Center', adsk.core.DropDownCommandInput.classType())
+    uiState.initValue(FILL_HALF_CELLS_INPUT, True, adsk.core.BoolValueCommandInput.classType())
+    uiState.initValue(PRINT_BED_GROUP, True, adsk.core.GroupCommandInput.classType())
+    defaultPrinter = printBeds.presetLabel('Bambu Lab A1, P1, X1')
+    (defaultBedWidth, defaultBedLength) = printBeds.presetBedSize(defaultPrinter)
+    uiState.initValue(PRINT_BED_PRESET_DROPDOWN, defaultPrinter, adsk.core.DropDownCommandInput.classType())
+    uiState.initValue(PRINT_BED_WIDTH_INPUT, defaultBedWidth, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(PRINT_BED_LENGTH_INPUT, defaultBedLength, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(PRINT_BED_MARGIN_INPUT, 0.5, adsk.core.ValueCommandInput.classType())
 
     uiState.initValue(BASEPLATE_WITH_MAGNETS_INPUT, True, adsk.core.BoolValueCommandInput.classType())
 
@@ -649,4 +916,14 @@ def getInputsState():
         uiState.getState(BASEPLATE_BIN_Z_CLEARANCE_INPUT),
         uiState.getState(BASEPLATE_HAS_CONNECTION_HOLE_INPUT),
         uiState.getState(BASEPLATE_CONNECTION_HOLE_DIAMETER_INPUT),
+        uiState.getState(SIZING_MODE_DROPDOWN),
+        uiState.getState(FILL_AREA_WIDTH_INPUT),
+        uiState.getState(FILL_AREA_LENGTH_INPUT),
+        uiState.getState(FILL_FIT_TOLERANCE_INPUT),
+        uiState.getState(PRINT_BED_WIDTH_INPUT),
+        uiState.getState(PRINT_BED_LENGTH_INPUT),
+        uiState.getState(PRINT_BED_MARGIN_INPUT),
+        uiState.getState(FILL_ALIGN_X_DROPDOWN),
+        uiState.getState(FILL_ALIGN_Y_DROPDOWN),
+        uiState.getState(FILL_HALF_CELLS_INPUT),
     )
