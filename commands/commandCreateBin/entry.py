@@ -154,6 +154,7 @@ PRESERVE_CHAGES_RADIO_GROUP_RESET = 'Reset inputs after creation'
 RESET_CHAGES_INPUT = 'reset_changes'
 SHOW_PREVIEW_INPUT = 'show_preview'
 SHOW_PREVIEW_MANUAL_INPUT = 'show_preview_manual'
+PREVIEW_TIME_INPUT = 'preview_time'
 
 INFO_TEXT = ("<b>Help:</b> Info for inputs can be found "
              "<a href=\"https://github.com/Le0Michine/FusionGridfinityGenerator/wiki/Bin-generator-options\">"
@@ -814,6 +815,8 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     showPreviewManual = previewGroup.children.addBoolValueInput(SHOW_PREVIEW_MANUAL_INPUT, 'Update preview once', False, '', False)
     showPreviewManual.isFullWidth = True
     commandUIState.registerCommandInput(showPreviewManual)
+    # not registered with the dialog state, it's neither remembered nor part of the generated settings
+    previewGroup.children.addTextBoxCommandInput(PREVIEW_TIME_INPUT, 'Last preview', 'None yet', 1, True)
 
     refreshUi()
 
@@ -839,7 +842,9 @@ def command_preview(args: adsk.core.CommandEventArgs):
         showPreview: adsk.core.BoolValueCommandInput = inputs.itemById(SHOW_PREVIEW_INPUT)
         showPreviewManual: adsk.core.BoolValueCommandInput = inputs.itemById(SHOW_PREVIEW_MANUAL_INPUT)
         if showPreview.value or showPreviewManual.value:
+            startTime = time.perf_counter()
             args.isValidResult = generateBin(args)
+            showPreviewTime(inputs, time.perf_counter() - startTime, args.isValidResult)
             showPreviewManual.value = False
             commandUIState.onInputUpdate(showPreviewManual)
     else:
@@ -858,11 +863,17 @@ def cache_compartments_table_state(inputs: adsk.core.CommandInputs):
             commandCompartmentsTableUIState[-1].initValue(input.id, value, input.objectType)
             commandCompartmentsTableUIState[-1].registerCommandInput(input)
 
+def showPreviewTime(inputs: adsk.core.CommandInputs, seconds: float, isValid: bool):
+    inputs.itemById(PREVIEW_TIME_INPUT).text = f'{seconds:.2f} s' if isValid else f'failed after {seconds:.2f} s'
+
 def command_input_changed(args: adsk.core.InputChangedEventArgs):
     changed_input = args.input
     inputs = args.inputs
     global commandUIState
     futil.log(f'{CMD_NAME} Input Changed Event fired from a change to {changed_input.id}')
+    # the preview time is only shown, nothing follows from it
+    if changed_input.id == PREVIEW_TIME_INPUT:
+        return
     if changed_input.parentCommandInput and changed_input.parentCommandInput.id == BIN_COMPARTMENTS_TABLE_ID:
         cache_compartments_table_state(inputs)
     else:

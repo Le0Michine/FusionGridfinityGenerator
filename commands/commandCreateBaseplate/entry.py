@@ -151,6 +151,7 @@ BASEPLATE_CONNECTION_HOLE_DIAMETER_INPUT = 'connection_hole_diameter'
 INPUT_CHANGES_BUTTONS_BROWSER = 'input_changes_buttons'
 
 SHOW_PREVIEW_INPUT = 'show_preview'
+PREVIEW_TIME_INPUT = 'preview_time'
 
 INFO_TEXT = ("<b>Help:</b> Info for inputs can be found "
              "<a href=\"https://github.com/Le0Michine/FusionGridfinityGenerator/wiki/Baseplate-generator-options\">"
@@ -465,6 +466,8 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     previewGroup.isExpanded = uiState.getState(PREVIEW_GROUP)
     showLivePreview = previewGroup.children.addBoolValueInput(SHOW_PREVIEW_INPUT, 'Show preview (slow)', True, '', uiState.getState(SHOW_PREVIEW_INPUT))
     uiState.registerCommandInput(showLivePreview)
+    # not registered with the dialog state, it's neither remembered nor part of the generated settings
+    previewGroup.children.addTextBoxCommandInput(PREVIEW_TIME_INPUT, 'Last preview', 'None yet', 1, True)
 
     updateSizingModeInputs(inputs)
 
@@ -493,7 +496,10 @@ def command_preview(args: adsk.core.CommandEventArgs):
     showPreview: adsk.core.BoolValueCommandInput = inputs.itemById(SHOW_PREVIEW_INPUT)
     if showPreview.value:
         if INPUTS_VALID:
-            generateBaseplate(args, isPreview=True)
+            startTime = time.perf_counter()
+            isGenerated = generateBaseplate(args, isPreview=True) is not False
+            seconds = time.perf_counter() - startTime
+            inputs.itemById(PREVIEW_TIME_INPUT).text = f'{seconds:.2f} s' if isGenerated else f'failed after {seconds:.2f} s'
         else:
             args.executeFailed = True
             args.executeFailedMessage = "Some inputs are invalid, unable to generate preview"
@@ -503,6 +509,9 @@ def command_preview(args: adsk.core.CommandEventArgs):
 # allowing you to modify values of other inputs based on that change.
 def command_input_changed(args: adsk.core.InputChangedEventArgs):
     changed_input = args.input
+    # the preview time is only shown, nothing follows from it
+    if changed_input.id == PREVIEW_TIME_INPUT:
+        return
     global uiState
     uiState.onInputUpdate(changed_input)
 
