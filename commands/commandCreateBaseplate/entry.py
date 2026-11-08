@@ -16,6 +16,7 @@ from ... import config
 from ...lib.gridfinityUtils.const import DIMENSION_DEFAULT_WIDTH_UNIT
 from ...lib.gridfinityUtils.baseplateGenerator import createGridfinityBaseplate, createGridfinityBaseplateFill
 from ...lib.gridfinityUtils import baseplateLayout
+from ...lib.gridfinityUtils.baseGenerator import cellCenters, createCellJointOrigins
 from ...lib.gridfinityUtils.baseplateGeneratorInput import BaseplateGeneratorInput
 from ...lib.gridfinityUtils import const
 from ...lib.gridfinityUtils import commonUtils
@@ -142,6 +143,7 @@ BASEPLATE_SIDE_PADDING_BOTTOM_INPUT = 'side_padding_bottom'
 BASEPLATE_EXTRA_THICKNESS_INPUT = 'extra_bottom_thickness'
 BASEPLATE_BIN_Z_CLEARANCE_INPUT = 'bin_z_clearance'
 BASEPLATE_HAS_CONNECTION_HOLE_INPUT = 'has_connection_hole'
+BASEPLATE_JOINT_ORIGINS_INPUT = 'has_joint_origins'
 BASEPLATE_CONNECTION_HOLE_DIAMETER_INPUT = 'connection_hole_diameter'
 
 INPUT_CHANGES_SAVE_DEFAULTS = 'input_changes_buttons_save_new_defaults'
@@ -355,6 +357,9 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     plateTypeDropdown.listItems.add(BASEPLATE_TYPE_SKELETONIZED, plateTypeDropdownInitialState == BASEPLATE_TYPE_SKELETONIZED)
     plateTypeDropdown.listItems.add(BASEPLATE_TYPE_FULL, plateTypeDropdownInitialState == BASEPLATE_TYPE_FULL)
     uiState.registerCommandInput(plateTypeDropdown)
+    jointOriginsInput = plateFeaturesGroup.children.addBoolValueInput(BASEPLATE_JOINT_ORIGINS_INPUT, 'Add joint origins', True, '', uiState.getState(BASEPLATE_JOINT_ORIGINS_INPUT))
+    jointOriginsInput.tooltip = 'A joint origin at the bottom center of every socket, to joint bins into it'
+    uiState.registerCommandInput(jointOriginsInput)
 
     magnetCutoutGroup = plateFeaturesGroup.children.addGroupCommandInput(MAGNET_SOCKET_GROUP, 'Magnet cutouts')
     magnetCutoutGroup.isExpanded = uiState.getState(MAGNET_SOCKET_GROUP)
@@ -790,6 +795,8 @@ def generateBaseplate(args: adsk.core.CommandEventArgs, isPreview: bool = False)
             if padding.isExpression:
                 baseplateParameters.append([label, padding.expression])
 
+        # whole cells as (first column, first row, columns, rows), half cells take no bin foot of their own
+        cellBlocks = []
         if isFillArea:
             baseplateBodies = []
             for (piece, pieceBody) in createGridfinityBaseplateFill(
@@ -800,12 +807,34 @@ def generateBaseplate(args: adsk.core.CommandEventArgs, isPreview: bool = False)
             ):
                 pieceBody.name = f'{baseplateDisplayName(piece.cellsX, piece.cellsY)} ({piece.column + 1}-{piece.row + 1})'
                 baseplateBodies.append(pieceBody)
+                cellBlocks.append((piece.cellOffsetX, piece.cellOffsetY, piece.cellsX, piece.cellsY))
         else:
             baseplateBody = createGridfinityBaseplate(baseplateGeneratorInput, gridfinityBaseplateComponent)
             baseplateBody.name = baseplateName
             baseplateBodies = [baseplateBody]
+            cellBlocks.append((0, 0, int(baseplateGeneratorInput.baseplateWidth), int(baseplateGeneratorInput.baseplateLength)))
         if baseplatePlacement != (0, 0):
             placementUtils.moveBodies(baseplateBodies, *baseplatePlacement, gridfinityBaseplateComponent, name='Baseplate placement')
+        # last, after the placement, joint origins sit on sketches which don't follow body moves.
+        # The preview spreads fill pieces apart and only shows the shape, it goes without them
+        if not isPreview and inputsState.hasJointOrigins:
+            createCellJointOrigins(
+                [
+                    center
+                    for (firstColumn, firstRow, columns, rows) in cellBlocks
+                    for center in cellCenters(
+                        baseplateGeneratorInput.baseWidth,
+                        baseplateGeneratorInput.baseLength,
+                        baseplateGeneratorInput.xyClearance,
+                        range(firstColumn, firstColumn + columns),
+                        range(firstRow, firstRow + rows),
+                        Dim.length(baseplatePlacement[0]) if baseplatePlacement[0] != 0 else None,
+                        Dim.length(baseplatePlacement[1]) if baseplatePlacement[1] != 0 else None,
+                    )
+                ],
+                gridfinityBaseplateComponent,
+                name='Socket joint origin',
+            )
         # mark generated geometry so it can be told apart from the rest of the design
         for baseplateBody in baseplateBodies:
             tagUtils.tagBody(baseplateBody, tagUtils.TAG_BASEPLATE, settingsUtils.snapshotInputs(
@@ -882,6 +911,7 @@ def initUiState():
 
     uiState.initValue(BASEPLATE_BIN_Z_CLEARANCE_INPUT, const.BASEPLATE_BIN_Z_CLEARANCE, adsk.core.ValueCommandInput.classType())
     uiState.initValue(BASEPLATE_HAS_CONNECTION_HOLE_INPUT, False, adsk.core.BoolValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_JOINT_ORIGINS_INPUT, False, adsk.core.BoolValueCommandInput.classType())
     uiState.initValue(BASEPLATE_CONNECTION_HOLE_DIAMETER_INPUT, const.DIMENSION_PLATE_CONNECTION_SCREW_HOLE_DIAMETER, adsk.core.ValueCommandInput.classType())
     uiState.initValue(SHOW_PREVIEW_INPUT, False, adsk.core.BoolValueCommandInput.classType())
 
@@ -941,4 +971,5 @@ def getInputsState():
         uiState.getState(FILL_ALIGN_X_DROPDOWN),
         uiState.getState(FILL_ALIGN_Y_DROPDOWN),
         uiState.getState(FILL_HALF_CELLS_INPUT),
+        uiState.getState(BASEPLATE_JOINT_ORIGINS_INPUT),
     )

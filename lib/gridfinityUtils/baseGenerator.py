@@ -343,6 +343,76 @@ def createBaseBodyPattern(
     rectangularPattern.name = 'Feet pattern'
     return list(rectangularPattern.bodies) + [baseBody]
 
+def cellCenters(
+    baseWidth: Dim,
+    baseLength: Dim,
+    xyClearance: float,
+    columns: range,
+    rows: range,
+    offsetX: Dim = None,
+    offsetY: Dim = None,
+) -> list[tuple[int, int, Dim, Dim]]:
+    """Column, row and XY center of grid cells. Bins and baseplates share the grid, cells start a clearance
+    before the origin, the optional offsets follow the moves placing the bodies"""
+    centers = []
+    for column in columns:
+        for row in rows:
+            x = baseWidth * (column + 0.5) - Dim.length(xyClearance)
+            y = baseLength * (row + 0.5) - Dim.length(xyClearance)
+            centers.append((
+                column,
+                row,
+                x + offsetX if offsetX is not None else x,
+                y + offsetY if offsetY is not None else y,
+            ))
+    return centers
+
+def createCellJointOrigins(
+    centers: list[tuple[int, int, Dim, Dim]],
+    targetComponent: adsk.fusion.Component,
+    *,
+    name: str,
+) -> list[adsk.fusion.JointOrigin]:
+    """
+    Joint origins at the base bottom of the given cell centers, Z up, the bottom of bin feet and of baseplate
+    sockets alike, so a joint between the two seats a bin in its socket.
+    They sit on sketch points dimensioned from the origin, so they follow the base unit parameters. Sketches
+    don't follow moves of bodies, so these are made after the bodies are placed, with the placement in the centers.
+    """
+    planeInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
+    planeInput.setByOffset(targetComponent.xYConstructionPlane, adsk.core.ValueInput.createByReal(-const.BIN_BASE_HEIGHT))
+    plane = targetComponent.constructionPlanes.add(planeInput)
+    plane.name = f'{name} plane'
+    plane.isLightBulbOn = False
+    sketch: adsk.fusion.Sketch = targetComponent.sketches.add(plane)
+    sketch.name = f'{name} sketch'
+    points: list[tuple[int, int, adsk.fusion.SketchPoint]] = []
+    with sketchUtils.deferSketchCompute(sketch):
+        dimensions = sketch.sketchDimensions
+        for (column, row, x, y) in centers:
+            pointOnSketch = sketch.modelToSketchSpace(adsk.core.Point3D.create(x.value, y.value, -const.BIN_BASE_HEIGHT))
+            pointOnSketch.z = 0
+            point = sketch.sketchPoints.add(pointOnSketch)
+            # distance dimensions are unsigned
+            for (orientation, distance, textPoint) in [
+                (adsk.fusion.DimensionOrientations.HorizontalDimensionOrientation, x, adsk.core.Point3D.create(pointOnSketch.x / 2, pointOnSketch.y, 0)),
+                (adsk.fusion.DimensionOrientations.VerticalDimensionOrientation, y, adsk.core.Point3D.create(pointOnSketch.x, pointOnSketch.y / 2, 0)),
+            ]:
+                applyTo(
+                    dimensions.addDistanceDimension(sketch.originPoint, point, orientation, textPoint, False).parameter,
+                    distance if distance.value >= 0 else distance * -1,
+                )
+            points.append((column, row, point))
+    sketch.isVisible = False
+
+    jointOrigins = []
+    for (column, row, point) in points:
+        jointOriginInput = targetComponent.jointOrigins.createInput(adsk.fusion.JointGeometry.createByPoint(point))
+        jointOrigin = targetComponent.jointOrigins.add(jointOriginInput)
+        jointOrigin.name = f'{name} {column + 1}-{row + 1}'
+        jointOrigins.append(jointOrigin)
+    return jointOrigins
+
 def cutBaseClearance(
     baseConfiguration: BaseGeneratorInput,
     basesXCount,

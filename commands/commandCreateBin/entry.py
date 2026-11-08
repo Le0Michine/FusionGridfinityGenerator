@@ -19,7 +19,7 @@ from ...lib.gridfinityUtils import const
 from ...lib.gridfinityUtils import parameterUtils
 from ...lib.gridfinityUtils import sharedParameters
 from ...lib.gridfinityUtils.dim import Dim
-from ...lib.gridfinityUtils.baseGenerator import createSingleGridfinityBaseBody, createBaseBodyPattern, cutBaseClearance, cutWallJunctionPockets
+from ...lib.gridfinityUtils.baseGenerator import createSingleGridfinityBaseBody, createBaseBodyPattern, cutBaseClearance, cutWallJunctionPockets, cellCenters, createCellJointOrigins
 from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
 from ...lib.gridfinityUtils.binBodyGenerator import createGridfinityBinBody, uniformCompartments, binBodyTopHeight, createCompartmentCutout, tabTopClearance, createTabLabel
 from ...lib.gridfinityUtils import labelGenerator
@@ -90,6 +90,7 @@ BIN_REAL_DIMENSIONS_TABLE_TOTAL_HEIGHT = "total_real_height"
 BIN_WALL_THICKNESS_INPUT_ID = 'bin_wall_thickness'
 BIN_GENERATE_BASE_INPUT_ID = 'bin_generate_base'
 BIN_GENERATE_BODY_INPUT_ID = 'bin_generate_body'
+BIN_JOINT_ORIGINS_INPUT_ID = 'bin_joint_origins'
 BIN_SCREW_HOLES_INPUT_ID = 'bin_screw_holes'
 BIN_MAGNET_CUTOUTS_INPUT_ID = 'bin_magnet_cutouts'
 BIN_MAGNET_CUTOUTS_TABS_INPUT_ID = 'bin_magnet_cutouts_tabs'
@@ -249,6 +250,7 @@ def initDefaultUiState():
     commandUIState.initValue(BIN_TAB_LABEL_BOLD_INPUT_ID, True, adsk.core.BoolValueCommandInput.classType())
 
     commandUIState.initValue(BIN_GENERATE_BASE_INPUT_ID, True, adsk.core.BoolValueCommandInput.classType())
+    commandUIState.initValue(BIN_JOINT_ORIGINS_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
     commandUIState.initValue(BIN_SCREW_HOLES_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
     commandUIState.initValue(BIN_SCREW_DIAMETER_INPUT, const.DIMENSION_SCREW_HOLE_DIAMETER, adsk.core.ValueCommandInput.classType())
     commandUIState.initValue(BIN_SCREW_DIAMETER_INPUT, const.DIMENSION_SCREW_HOLE_DIAMETER, adsk.core.ValueCommandInput.classType())
@@ -741,6 +743,9 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     commandUIState.registerCommandInput(baseFeaturesGroup)
     generateBaseCheckboxInput = baseFeaturesGroup.children.addBoolValueInput(BIN_GENERATE_BASE_INPUT_ID, 'Generate base', True, '', commandUIState.getState(BIN_GENERATE_BASE_INPUT_ID))
     commandUIState.registerCommandInput(generateBaseCheckboxInput)
+    jointOriginsCheckboxInput = baseFeaturesGroup.children.addBoolValueInput(BIN_JOINT_ORIGINS_INPUT_ID, 'Add joint origins', True, '', commandUIState.getState(BIN_JOINT_ORIGINS_INPUT_ID))
+    jointOriginsCheckboxInput.tooltip = 'A joint origin at the bottom center of every foot, to joint the bin into baseplate sockets'
+    commandUIState.registerCommandInput(jointOriginsCheckboxInput)
     generateScrewHolesCheckboxInput = baseFeaturesGroup.children.addBoolValueInput(BIN_SCREW_HOLES_INPUT_ID, 'Add screw holes', True, '', commandUIState.getState(BIN_SCREW_HOLES_INPUT_ID))
     commandUIState.registerCommandInput(generateScrewHolesCheckboxInput)
     screwSizeInput = baseFeaturesGroup.children.addValueInput(BIN_SCREW_DIAMETER_INPUT, 'Screw hole diameter', defaultLengthUnits, adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_SCREW_DIAMETER_INPUT)))
@@ -916,6 +921,7 @@ def onChangeValidate():
 
     generateBase: bool = commandUIState.getState(BIN_GENERATE_BASE_INPUT_ID)
     commandUIState.getInput(BIN_SCREW_HOLES_INPUT_ID).isEnabled = generateBase
+    commandUIState.getInput(BIN_JOINT_ORIGINS_INPUT_ID).isEnabled = generateBase
     commandUIState.getInput(BIN_MAGNET_CUTOUTS_INPUT_ID).isEnabled = generateBase
     commandUIState.getInput(BIN_MAGNET_CUTOUTS_TABS_INPUT_ID).isEnabled = generateBase
     commandUIState.getInput(BIN_MAGNET_DIAMETER_INPUT).isEnabled = generateBase
@@ -1296,6 +1302,22 @@ def generateBin(args: adsk.core.CommandEventArgs):
             )
             for body in generatedBodies:
                 tagUtils.tagBody(body, tagUtils.TAG_BIN, binSettings, binParameters)
+
+        if bin_generate_base.value and inputs.itemById(BIN_JOINT_ORIGINS_INPUT_ID).value:
+            # last, after the placement, joint origins sit on sketches which don't follow body moves
+            createCellJointOrigins(
+                cellCenters(
+                    baseWidth,
+                    baseLength,
+                    xyClearance,
+                    range(bin_width.value),
+                    range(bin_length.value),
+                    Dim.length(binPlacement[0]) if binPlacement[0] != 0 else None,
+                    Dim.length(binPlacement[1]) if binPlacement[1] != 0 else None,
+                ),
+                gridfinityBinComponent,
+                name='Foot joint origin',
+            )
 
         # group features in timeline
         binGroup = des.timeline.timelineGroups.add(originalTimelineCount, des.timeline.count - 1)

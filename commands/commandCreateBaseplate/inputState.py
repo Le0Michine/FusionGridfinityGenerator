@@ -41,3 +41,5 @@ class InputState:
     alignmentX: str
     alignmentY: str
     useHalfCells: bool
+
+    hasJointOrigins: bool
