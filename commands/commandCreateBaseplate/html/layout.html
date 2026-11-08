@@ -13,6 +13,8 @@
         --hole: #2a4766;
         --label-background: #1f344d;
         --piece-outline: #1f344d;
+        --padding: #9db8d6;
+        --padding-hatch: #4e79a7;
     }
     @media (prefers-color-scheme: dark) {
         :root {
@@ -25,6 +27,8 @@
             --hole: #2c4a6a;
             --label-background: #1b2d42;
             --piece-outline: #a9c6e8;
+            --padding: #34587d;
+            --padding-hatch: #5b8cc0;
         }
     }
     html, body {
@@ -32,7 +36,8 @@
         padding: 0;
         background: transparent;
         overflow: hidden;
-        font: 11px -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+        /* the dialog's font, loaded from the Fusion install once the dialog sends it */
+        font: 13px "Fusion Artifakt Element", "Artifakt Element", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
         color: var(--text);
     }
     #drawing svg {
@@ -65,8 +70,6 @@
     }
     .label {
         fill: #ffffff;
-        font-size: 10px;
-        font-weight: 600;
         text-anchor: middle;
         dominant-baseline: central;
     }
@@ -79,6 +82,17 @@
     }
     .label-background {
         fill: var(--label-background);
+    }
+    /* solid plate past the sockets, hatched so it reads apart from the walls between them */
+    .padding {
+        fill: var(--padding);
+    }
+    .padding-hatch {
+        stroke: var(--padding-hatch);
+        stroke-width: 1px;
+    }
+    .label, .label-background {
+        pointer-events: none;
     }
     #caption {
         margin-top: 6px;
@@ -105,6 +119,12 @@
     const SEAM_INSET = 1.5;
     const LABEL_PADDING_X = 4;
     const LABEL_PADDING_Y = 1;
+    // a thinner strip is left by rounding, not padding
+    const MIN_PADDING = 0.1;
+    // room a padding label needs along its strip, past its background
+    const PADDING_LABEL_MARGIN = 3;
+    // padding thinner than this at the drawing scale would be a sliver, it's drawn this thick, in from the plate edge
+    const MIN_PADDING_THICKNESS = 8;
     const SVG_NS = 'http://www.w3.org/2000/svg';
 
     function svgElement(name, attributes) {
@@ -172,6 +192,100 @@
         mask.appendChild(cuts);
     }
 
+    // the strips of solid plate between the piece edges and its sockets, in mm like the pieces. Cells start
+    // the clearance before a plate without padding does, so a strip is the padding less the clearance
+    function paddingStrips(piece, xyClearance) {
+        const cells = piece.cells || [];
+        if (cells.length === 0) {
+            return [];
+        }
+        const cellsMinX = Math.min(...cells.map((cell) => cell.x));
+        const cellsMinY = Math.min(...cells.map((cell) => cell.y));
+        const cellsMaxX = Math.max(...cells.map((cell) => cell.x + cell.width));
+        const cellsMaxY = Math.max(...cells.map((cell) => cell.y + cell.length));
+        const pieceMaxX = piece.x + piece.width;
+        const pieceMaxY = piece.y + piece.length;
+        // sides take the full piece length, the front and back fit between them
+        const strips = [
+            { side: 'left', x: piece.x, y: piece.y, width: cellsMinX - piece.x, length: piece.length },
+            { side: 'right', x: cellsMaxX, y: piece.y, width: pieceMaxX - cellsMaxX, length: piece.length },
+            { side: 'front', x: cellsMinX, y: piece.y, width: cellsMaxX - cellsMinX, length: cellsMinY - piece.y },
+            { side: 'back', x: cellsMinX, y: cellsMaxY, width: cellsMaxX - cellsMinX, length: pieceMaxY - cellsMaxY },
+        ];
+        return strips
+            .map((strip) => {
+                const gap = strip.side === 'left' || strip.side === 'right' ? strip.width : strip.length;
+                return { ...strip, gap: gap, size: gap + xyClearance };
+            })
+            .filter((strip) => strip.gap > MIN_PADDING);
+    }
+
+    // white text on a dark rounded background, so it reads over sockets and hatching alike
+    function drawLabel(text, x, y, svg) {
+        const group = svgElement('g', {});
+        svg.appendChild(group);
+        const label = svgElement('text', { class: 'label', x: x, y: y });
+        label.textContent = text;
+        group.appendChild(label);
+        // sized after the text is laid out
+        const bounds = label.getBBox();
+        group.insertBefore(svgElement('rect', {
+            class: 'label-background',
+            x: bounds.x - LABEL_PADDING_X,
+            y: bounds.y - LABEL_PADDING_Y,
+            width: bounds.width + LABEL_PADDING_X * 2,
+            height: bounds.height + LABEL_PADDING_Y * 2,
+            rx: 3,
+        }), label);
+        return { group: group, width: bounds.width + LABEL_PADDING_X * 2, height: bounds.height + LABEL_PADDING_Y * 2 };
+    }
+
+    function drawPadding(piece, xyClearance, scale, width, height, group, svg) {
+        for (const strip of paddingStrips(piece, xyClearance)) {
+            let x = strip.x * scale;
+            let y = height - (strip.y + strip.length) * scale;
+            let stripWidth = strip.width * scale;
+            let stripHeight = strip.length * scale;
+            // the plate edge stays, a thin strip grows in over the sockets
+            if (strip.side === 'left' || strip.side === 'right') {
+                const thickness = Math.max(stripWidth, MIN_PADDING_THICKNESS);
+                x = strip.side === 'left' ? x : x + stripWidth - thickness;
+                stripWidth = thickness;
+            } else {
+                const thickness = Math.max(stripHeight, MIN_PADDING_THICKNESS);
+                // y points down in the drawing, the front is at the bottom
+                y = strip.side === 'back' ? y : y + stripHeight - thickness;
+                stripHeight = thickness;
+            }
+            const rect = svgElement('rect', { class: 'padding', x: x, y: y, width: stripWidth, height: stripHeight });
+            const title = svgElement('title', {});
+            title.textContent = `padding ${strip.side} ${strip.size.toFixed(1)} mm`;
+            rect.appendChild(title);
+            group.appendChild(rect);
+            group.appendChild(svgElement('rect', { x: x, y: y, width: stripWidth, height: stripHeight, fill: 'url(#padding-hatch)', 'pointer-events': 'none' }));
+
+            // the value goes along the middle of the strip where it fits along it, turned on the sides,
+            // its background lets it reach past a thin strip over the sockets
+            const isSide = strip.side === 'left' || strip.side === 'right';
+            let [centerX, centerY] = [x + stripWidth / 2, y + stripHeight / 2];
+            const label = drawLabel(`${strip.size.toFixed(1)} mm`, centerX, centerY, svg);
+            if (label.width + PADDING_LABEL_MARGIN * 2 > (isSide ? stripHeight : stripWidth)) {
+                label.group.remove();
+                continue;
+            }
+            // a label reaching past the drawing edge is moved in across the strip
+            const clamp = (value, size, limit) => Math.min(Math.max(value, size / 2), limit - size / 2);
+            if (isSide) {
+                centerX = clamp(centerX, label.height, width);
+            } else {
+                centerY = clamp(centerY, label.height, height);
+            }
+            label.group.setAttribute('transform', isSide
+                ? `translate(${centerX - (x + stripWidth / 2)} 0) rotate(-90 ${x + stripWidth / 2} ${centerY})`
+                : `translate(0 ${centerY - (y + stripHeight / 2)})`);
+        }
+    }
+
     function render(data) {
         const drawing = document.getElementById('drawing');
         const caption = document.getElementById('caption');
@@ -208,6 +322,11 @@
         const svg = svgElement('svg', { width: width + 2, height: height + 2, viewBox: `-1 -1 ${width + 2} ${height + 2}` });
         // in the page from the start, labels measure their text
         drawing.appendChild(svg);
+        const defs = svgElement('defs', {});
+        const hatch = svgElement('pattern', { id: 'padding-hatch', patternUnits: 'userSpaceOnUse', width: 6, height: 6, patternTransform: 'rotate(45)' });
+        hatch.appendChild(svgElement('line', { class: 'padding-hatch', x1: 0, y1: 0, x2: 0, y2: 6 }));
+        defs.appendChild(hatch);
+        svg.appendChild(defs);
         // grid units plates have no area around them, the plate fills the drawing
         if (data.showArea !== false) {
             svg.appendChild(svgElement('rect', { class: 'area', x: 0, y: 0, width: width, height: height }));
@@ -236,36 +355,51 @@
             }
             svg.appendChild(mask);
             svg.appendChild(group);
+            // over the sockets, kept to the piece outline but not cut by the socket openings, as a thin strip
+            // drawn thicker reaches over them, the labels go above everything drawn so far
+            const clipId = `piece-clip-${pieceIndex}`;
+            const clip = svgElement('clipPath', { id: clipId });
+            clip.appendChild(svgElement('rect', { x: x, y: y, width: pieceWidth, height: pieceHeight, rx: 2 }));
+            svg.appendChild(clip);
+            const paddingGroup = svgElement('g', { 'clip-path': `url(#${clipId})` });
+            svg.appendChild(paddingGroup);
+            drawPadding(piece, data.xyClearance || 0, scale, width, height, paddingGroup, svg);
             // a single plate's edge needs no outline, the pieces of a fill do
             if (data.pieces.length > 1) {
                 svg.appendChild(svgElement('rect', { class: 'piece-outline', x: x, y: y, width: pieceWidth, height: pieceHeight, rx: 2 }));
             }
-            if (pieceWidth >= 26 && pieceHeight >= 14) {
-                const label = svgElement('text', { class: 'label', x: x + pieceWidth / 2, y: y + pieceHeight / 2 });
-                label.textContent = piece.label;
-                svg.appendChild(label);
-                // sized after the text is laid out
-                const bounds = label.getBBox();
-                const background = svgElement('rect', {
-                    class: 'label-background',
-                    x: bounds.x - LABEL_PADDING_X,
-                    y: bounds.y - LABEL_PADDING_Y,
-                    width: bounds.width + LABEL_PADDING_X * 2,
-                    height: bounds.height + LABEL_PADDING_Y * 2,
-                    rx: 3,
-                });
-                svg.insertBefore(background, label);
+            if (pieceWidth >= 34 && pieceHeight >= 18) {
+                drawLabel(piece.label, x + pieceWidth / 2, y + pieceHeight / 2, svg);
             }
         });
 
     }
 
     let lastData = null;
+    // the dialog's font comes from the Fusion install, its path changes with every update
+    let loadedFont = '';
+    function loadFont(fontUrl) {
+        if (!fontUrl || fontUrl === loadedFont) {
+            return;
+        }
+        loadedFont = fontUrl;
+        const style = document.createElement('style');
+        style.textContent = `@font-face { font-family: "Fusion Artifakt Element"; src: url("${fontUrl}"); }`;
+        document.head.appendChild(style);
+        // labels are sized from the laid out text, so they're drawn again with the font
+        document.fonts.ready.then(() => {
+            if (lastData) {
+                render(lastData);
+            }
+        });
+    }
+
     function update(json) {
         if (!json) {
             return;
         }
         lastData = JSON.parse(json);
+        loadFont(lastData.fontUrl);
         render(lastData);
     }
 

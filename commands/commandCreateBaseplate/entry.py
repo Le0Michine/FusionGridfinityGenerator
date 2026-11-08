@@ -27,6 +27,7 @@ from .inputState import InputState
 from . import printBeds
 from ...lib.ui.commandUiState import CommandUiState
 from ...lib.ui.defaultsButtons import addDefaultsButtonRow, handleDefaultsButtons, DEFAULTS_SAVE, DEFAULTS_FACTORY_RESET
+from ...lib.ui.dialogFont import dialogFontUrl
 from ...lib.ui.unsupportedDesignTypeException import UnsupportedDesignTypeException
 
 app = adsk.core.Application.get()
@@ -770,9 +771,9 @@ def gridLayoutData(inputsState: InputState) -> dict:
     }
 
 def layoutData(inputsState: InputState) -> dict:
-    if inputsState.sizingMode == SIZING_MODE_FILL_AREA:
-        return fillLayoutData(inputsState)
-    return gridLayoutData(inputsState)
+    data = fillLayoutData(inputsState) if inputsState.sizingMode == SIZING_MODE_FILL_AREA else gridLayoutData(inputsState)
+    # cells start the clearance before the plate does, the drawing adds it back to tell the padding
+    return {**data, 'fontUrl': dialogFontUrl(), 'xyClearance': inputsState.xyClearance * 10}
 
 def updateSizingModeInputs(inputs: adsk.core.CommandInputs):
     """Shows the inputs of the selected sizing mode and refreshes the layout drawing"""
