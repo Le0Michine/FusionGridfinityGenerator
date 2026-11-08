@@ -53,3 +53,10 @@ DIMENSION_PRINT_HELPER_GROOVE_DEPTH = 0.03
 
 
 DEFAULT_FILTER_TOLERANCE = 0.00001
+# walls folded in for stiffness, see wallCreases
+BIN_CREASE_DEPTH = 0.2
+# in base units, about 120 mm and 200 mm with 42 mm feet
+BIN_CREASE_MIN_LENGTH = 2.85
+BIN_CREASE_MAX_PANEL_LENGTH = 4.75
+# in height units, 70 mm with 7 mm units
+BIN_CREASE_MIN_HEIGHT = 10

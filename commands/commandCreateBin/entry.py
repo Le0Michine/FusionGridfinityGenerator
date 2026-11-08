@@ -27,6 +27,8 @@ from ...lib.gridfinityUtils.binBodyGenerator import createGridfinityBinBody, cre
 from ...lib.gridfinityUtils import labelGenerator
 from ...lib.gridfinityUtils import compartmentLayout
 from ...lib.gridfinityUtils import binShape
+from ...lib.gridfinityUtils import wallCreases
+from ...lib.gridfinityUtils.wallCreaseGenerator import createCreaseFolds
 from ...lib.gridfinityUtils.binBodyGeneratorInput import BinBodyGeneratorInput, BinBodyCompartmentDefinition
 from ...lib.gridfinityUtils.binBodyTabGeneratorInput import BinBodyTabGeneratorInput
 from ...lib.gridfinityUtils.binBodyTabGenerator import createGridfinityBinBodyTab, createTabHollowCuts, TabCavity, TabWallOpenings
@@ -123,6 +125,12 @@ BIN_TAB_LABEL_STYLE_INPUT_ID = 'bin_tab_label_style'
 BIN_TAB_LABEL_BOLD_INPUT_ID = 'bin_tab_label_bold'
 BIN_WITH_LIP_INPUT_ID = 'with_lip'
 BIN_WITH_LIP_NOTCHES_INPUT_ID = 'with_lip_notches'
+# long walls folded in to stiffen them, see wallCreases
+BIN_CREASES_INPUT_ID = 'wall_creases'
+BIN_CREASE_DEPTH_INPUT_ID = 'wall_crease_depth'
+BIN_CREASE_MIN_LENGTH_INPUT_ID = 'wall_crease_min_length'
+BIN_CREASE_MAX_PANEL_LENGTH_INPUT_ID = 'wall_crease_max_panel_length'
+BIN_CREASE_MIN_HEIGHT_INPUT_ID = 'wall_crease_min_height'
 # replaced by the drawing, still read from defaults saved before it
 LEGACY_COMPARTMENTS_GRID_TYPE_ID = 'compartments_grid_type'
 LEGACY_COMPARTMENTS_GRID_TYPE_CUSTOM = 'Custom grid'
@@ -249,6 +257,11 @@ def initDefaultUiState():
     commandUIState.initValue(BIN_WALL_THICKNESS_INPUT_ID, const.BIN_WALL_THICKNESS, adsk.core.ValueCommandInput.classType())
     commandUIState.initValue(BIN_WITH_LIP_INPUT_ID, True, adsk.core.BoolValueCommandInput.classType())
     commandUIState.initValue(BIN_WITH_LIP_NOTCHES_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
+    commandUIState.initValue(BIN_CREASES_INPUT_ID, True, adsk.core.BoolValueCommandInput.classType())
+    commandUIState.initValue(BIN_CREASE_DEPTH_INPUT_ID, const.BIN_CREASE_DEPTH, adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_CREASE_MIN_LENGTH_INPUT_ID, const.BIN_CREASE_MIN_LENGTH, adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_CREASE_MAX_PANEL_LENGTH_INPUT_ID, const.BIN_CREASE_MAX_PANEL_LENGTH, adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_CREASE_MIN_HEIGHT_INPUT_ID, const.BIN_CREASE_MIN_HEIGHT, adsk.core.ValueCommandInput.classType())
 
     commandUIState.initValue(BIN_COMPARTMENTS_GRID_BASE_WIDTH_ID, 1, adsk.core.IntegerSpinnerCommandInput.classType())
     commandUIState.initValue(BIN_COMPARTMENTS_GRID_BASE_LENGTH_ID, 1, adsk.core.IntegerSpinnerCommandInput.classType())
@@ -553,6 +566,29 @@ def shapeError() -> str | None:
         return None
     return binShape.shapeError(shapeCells())
 
+def creaseLayout() -> list[tuple[wallCreases.WallSide, int]]:
+    """
+    Creased walls of the bin with their panel count, none when it gets no creases. A creased bin has a single compartment and a solid label tab,
+    the folds would run into dividers and tab hollows
+    """
+    binType = commandUIState.getState(BIN_TYPE_DROPDOWN_ID)
+    if not commandUIState.getState(BIN_GENERATE_BODY_INPUT_ID) or not commandUIState.getState(BIN_CREASES_INPUT_ID):
+        return []
+    if binType not in [BIN_TYPE_HOLLOW, BIN_TYPE_SHELLED]:
+        return []
+    if commandUIState.getState(BIN_HEIGHT_INPUT_ID) < commandUIState.getState(BIN_CREASE_MIN_HEIGHT_INPUT_ID):
+        return []
+    # the scoop braces the front wall already
+    hasScoop = commandUIState.getState(BIN_HAS_SCOOP_INPUT_ID) and binType == BIN_TYPE_HOLLOW and not isShaped()
+    return wallCreases.creaseLayout(
+        shapeCells(),
+        commandUIState.getState(BIN_BASE_WIDTH_UNIT_INPUT_ID),
+        commandUIState.getState(BIN_BASE_LENGTH_UNIT_INPUT_ID),
+        commandUIState.getState(BIN_CREASE_MIN_LENGTH_INPUT_ID),
+        commandUIState.getState(BIN_CREASE_MAX_PANEL_LENGTH_INPUT_ID),
+        hasScoop,
+    )
+
 def shapeDrawingData() -> dict:
     return {
         'columns': commandUIState.getState(BIN_WIDTH_INPUT_ID),
@@ -615,6 +651,9 @@ def is_all_input_valid(inputs: adsk.core.CommandInputs):
         result = result and bin_magnet_cutout_depth.value > 0
 
     result = result and shapeError() is None
+    if inputs.itemById(BIN_CREASES_INPUT_ID).value:
+        result = result and inputs.itemById(BIN_CREASE_DEPTH_INPUT_ID).value > 0
+        result = result and inputs.itemById(BIN_CREASE_MAX_PANEL_LENGTH_INPUT_ID).value > 0
 
     if bin_generate_body.value and binTypeDropdownInput.selectedItem.name == BIN_TYPE_HOLLOW:
         if has_scoop.value:
@@ -720,6 +759,22 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     hasLipNotches = binFeaturesGroup.children.addBoolValueInput(BIN_WITH_LIP_NOTCHES_INPUT_ID, 'Generate lip notches', True, '', commandUIState.getState(BIN_WITH_LIP_NOTCHES_INPUT_ID))
     hasLipNotches.isEnabled = commandUIState.getState(BIN_WITH_LIP_INPUT_ID)
     commandUIState.registerCommandInput(hasLipNotches)
+    creasesInput = binFeaturesGroup.children.addBoolValueInput(BIN_CREASES_INPUT_ID, 'Fold long walls for stiffness', True, '', commandUIState.getState(BIN_CREASES_INPUT_ID))
+    creasesInput.tooltip = ('Folds walls of hollow and shelled bins in along shallow creases, origami style, so tall long walls bow less. '
+        'Bins from the min height with a wall from the min length get them. Walls are split into even panels up to the max panel length, '
+        'walls shorter than a panel of the longest one stay flat. '
+        'The scoop wall stays flat, the scoop braces it. A creased bin has a single compartment and a solid label tab')
+    commandUIState.registerCommandInput(creasesInput)
+    for (inputId, label, units, minimum) in [
+        (BIN_CREASE_DEPTH_INPUT_ID, 'Crease depth', defaultLengthUnits, 0.05),
+        (BIN_CREASE_MIN_LENGTH_INPUT_ID, 'Creased wall min length (u)', '', 1),
+        (BIN_CREASE_MAX_PANEL_LENGTH_INPUT_ID, 'Crease panel max length (u)', '', 1),
+        (BIN_CREASE_MIN_HEIGHT_INPUT_ID, 'Creased bin min height (u)', '', 1),
+    ]:
+        creaseValueInput = binFeaturesGroup.children.addValueInput(inputId, label, units, adsk.core.ValueInput.createByReal(commandUIState.getState(inputId)))
+        creaseValueInput.minimumValue = minimum
+        creaseValueInput.isMinimumInclusive = True
+        commandUIState.registerCommandInput(creaseValueInput)
 
     compartmentsGroup: adsk.core.GroupCommandInput = inputs.addGroupCommandInput(BIN_COMPARTMENTS_GROUP_ID, 'Bin compartments')
     compartmentsGroup.isExpanded = commandUIState.getState(BIN_COMPARTMENTS_GROUP_ID)
@@ -1004,10 +1059,20 @@ def onChangeValidate():
     for input in commandUIState.getInput(BIN_TAB_FEATURES_GROUP_ID).children:
         if not input.id == BIN_HAS_TAB_INPUT_ID:
             input.isEnabled = generateBody and generateTab and not shaped
+    creased = len(creaseLayout()) > 0
+    if creased:
+        # the folds would run into the hollow of the tab on the back wall
+        commandUIState.getInput(BIN_TAB_HOLLOW_INPUT_ID).isEnabled = False
+        commandUIState.updateValue(BIN_TAB_HOLLOW_INPUT_ID, False)
     updateTabHollowSidesInput(generateBody and generateTab and not shaped)
 
     generateLip: bool = commandUIState.getState(BIN_WITH_LIP_INPUT_ID)
     commandUIState.getInput(BIN_WITH_LIP_NOTCHES_INPUT_ID).isEnabled = generateLip
+
+    canCrease = generateBody and not binType == BIN_TYPE_SOLID
+    commandUIState.getInput(BIN_CREASES_INPUT_ID).isEnabled = canCrease
+    for inputId in [BIN_CREASE_DEPTH_INPUT_ID, BIN_CREASE_MIN_LENGTH_INPUT_ID, BIN_CREASE_MAX_PANEL_LENGTH_INPUT_ID, BIN_CREASE_MIN_HEIGHT_INPUT_ID]:
+        commandUIState.getInput(inputId).isEnabled = canCrease and commandUIState.getState(BIN_CREASES_INPUT_ID)
 
     generateScoop: bool = commandUIState.getState(BIN_HAS_SCOOP_INPUT_ID)
     commandUIState.getInput(BIN_SCOOP_MAX_RADIUS_INPUT_ID).isEnabled = generateScoop and not shaped
@@ -1018,10 +1083,11 @@ def onChangeValidate():
     commandUIState.getInput(BIN_TAB_ANGLE_INPUT_ID).isEnabled = generateTab and not shaped
     commandUIState.getInput(BIN_TAB_POSITION_INPUT_ID).isEnabled = generateTab and not shaped
 
-    # shaped bins have a single cavity, the compartments drawing is hidden but keeps its layout for when the shape is filled again
-    commandUIState.getInput(BIN_COMPARTMENTS_SHOW_LAYOUT_ID).isEnabled = not shaped
-    commandUIState.getInput(BIN_COMPARTMENTS_GRID_BROWSER_ID).isVisible = not shaped
-    commandUIState.getInput(BIN_COMPARTMENTS_BROWSER_ID).isVisible = commandUIState.getState(BIN_COMPARTMENTS_SHOW_LAYOUT_ID) and not shaped
+    # shaped and creased bins have a single cavity, the compartments drawing is hidden but keeps its layout for later
+    singleCavity = shaped or creased
+    commandUIState.getInput(BIN_COMPARTMENTS_SHOW_LAYOUT_ID).isEnabled = not singleCavity
+    commandUIState.getInput(BIN_COMPARTMENTS_GRID_BROWSER_ID).isVisible = not singleCavity
+    commandUIState.getInput(BIN_COMPARTMENTS_BROWSER_ID).isVisible = commandUIState.getState(BIN_COMPARTMENTS_SHOW_LAYOUT_ID) and not singleCavity
     commandUIState.getInput(BIN_SHAPE_BROWSER_ID).isVisible = commandUIState.getState(BIN_SHAPE_CUSTOM_ID)
 
     showPreview: bool = commandUIState.getInput(SHOW_PREVIEW_INPUT).value
@@ -1096,8 +1162,10 @@ def generateBin(args: adsk.core.CommandEventArgs):
     labelStyleInput: adsk.core.DropDownCommandInput = inputs.itemById(BIN_TAB_LABEL_STYLE_INPUT_ID)
     labelBoldInput: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_TAB_LABEL_BOLD_INPUT_ID)
     binTypeDropdownInput: adsk.core.DropDownCommandInput = inputs.itemById(BIN_TYPE_DROPDOWN_ID)
-    compartmentsX: int = commandUIState.getState(BIN_COMPARTMENTS_GRID_BASE_WIDTH_ID)
-    compartmentsY: int = commandUIState.getState(BIN_COMPARTMENTS_GRID_BASE_LENGTH_ID)
+    # creased bins have a single compartment and a solid tab, see creaseLayout
+    creases = creaseLayout()
+    compartmentsX: int = 1 if len(creases) > 0 else commandUIState.getState(BIN_COMPARTMENTS_GRID_BASE_WIDTH_ID)
+    compartmentsY: int = 1 if len(creases) > 0 else commandUIState.getState(BIN_COMPARTMENTS_GRID_BASE_LENGTH_ID)
 
     isHollow = binTypeDropdownInput.selectedItem.name == BIN_TYPE_HOLLOW
     isSolid = binTypeDropdownInput.selectedItem.name == BIN_TYPE_SOLID
@@ -1208,7 +1276,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
         binBodyInput.tabWidth = binTabWidth.value
         binBodyInput.tabPosition = binTabPosition.value
         binBodyInput.tabOverhangAngle = binTabAngle.value
-        binBodyInput.isTabHollow = binTabHollow.value
+        binBodyInput.isTabHollow = binTabHollow.value and len(creases) == 0
         binBodyInput.isTabOpenThroughSides = inputs.itemById(BIN_TAB_HOLLOW_SIDES_INPUT_ID).value
         binBodyInput.tabTopAngle = inputs.itemById(BIN_TAB_TOP_ANGLE_INPUT_ID).value
         binBodyInput.labelStyle = labelStyleInput.selectedItem.name
@@ -1218,7 +1286,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
 
         # label text and icon per compartment, the label tab section fills in the ones left blank
         # without the layout the grid is uniform, also for pockets saved with the layout hidden
-        pockets = compartmentLayout.normalizePockets(compartmentPockets if commandUIState.getState(BIN_COMPARTMENTS_SHOW_LAYOUT_ID) else [], compartmentsX, compartmentsY)
+        pockets = compartmentLayout.normalizePockets(compartmentPockets if commandUIState.getState(BIN_COMPARTMENTS_SHOW_LAYOUT_ID) and len(creases) == 0 else [], compartmentsX, compartmentsY)
         compartmentLabels: list[tuple[str, str]] = [(item['label'], item['icon']) for item in pockets]
         # pockets come in pattern order, single full depth cells are built once and patterned
         binBodyInput.isUniformCompartments = compartmentLayout.isUniform(pockets)
@@ -1313,6 +1381,22 @@ def generateBin(args: adsk.core.CommandEventArgs):
                 name='Cavity',
             )
             combineUtils.cutBody(binBody, commonUtils.objectCollectionFromList([cavity]), gridfinityBinComponent, name='Cavity cut')
+
+        if bin_generate_body.value and len(creases) > 0:
+            # panels from where the floor fillet ends up the inside of the wall to the body top
+            wallOffset = xyClearance + binBodyInput.wallThickness
+            creaseBottomZ = const.BIN_COMPARTMENT_BOTTOM_THICKNESS + compartmentCutoutFilletRadius(
+                binShape.cornerRadius(True, baseGeneratorInput.cornerFilletRadius, wallOffset)
+            )
+            creaseTopZ = binBodyTopHeight(binBodyInput)
+            creaseDepth = inputs.itemById(BIN_CREASE_DEPTH_INPUT_ID).value
+            if isHollow:
+                # the inside follows the dent, so the wall keeps its thickness, a shell does it by itself.
+                # Joined before the dent is cut, the dent goes deeper than the wall and would get filled back in
+                innerFolds = createCreaseFolds(creases, baseGeneratorInput, wallOffset, creaseDepth, creaseBottomZ, creaseTopZ, gridfinityBinComponent, name='Wall crease inside')
+                combineUtils.joinBodies(binBody, commonUtils.objectCollectionFromList(innerFolds), gridfinityBinComponent, name='Wall creases inside join')
+            outerFolds = createCreaseFolds(creases, baseGeneratorInput, xyClearance, creaseDepth, creaseBottomZ, creaseTopZ, gridfinityBinComponent, name='Wall crease')
+            combineUtils.cutBody(binBody, commonUtils.objectCollectionFromList(outerFolds), gridfinityBinComponent, name='Wall creases cut')
 
         if isShelled and bin_generate_body.value:
             # the body already stands the xy clearance in from the cell border, so the walls take the full thickness

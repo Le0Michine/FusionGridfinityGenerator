@@ -775,6 +775,13 @@ def keepBodiesInCells(
             targetComponent.features.removeFeatures.add(body).name = name
     return kept
 
+def cellLineDim(baseUnit: Dim, index: int, shift: float) -> Dim:
+    """Coordinate of a grid line moved by the shift, the grid line counted from the origin in base units"""
+    line = baseUnit * index if index != 1 else baseUnit
+    if abs(shift) < 1e-9:
+        return line if index != 0 else Dim.length(0)
+    return line + Dim.length(shift) if index != 0 else Dim.length(shift)
+
 def createShapeOutlineSketch(
     cells: list[tuple[int, int]],
     baseConfiguration: BaseGeneratorInput,
@@ -800,13 +807,6 @@ def createShapeOutlineSketch(
         for (x, y, isConvex) in binShape.insetOutline(gridCorners, baseConfiguration.baseWidth.value, baseConfiguration.baseLength.value, offset)
     ]
 
-    def cellLine(baseUnit: Dim, index: int, shift: float) -> Dim:
-        """Distance of a side from the origin, the cell line it follows moved by the shift"""
-        line = baseUnit * index if index != 1 else baseUnit
-        if abs(shift) < 1e-9:
-            return line if index != 0 else Dim.length(0)
-        return line + Dim.length(shift) if index != 0 else Dim.length(shift)
-
     sketch: adsk.fusion.Sketch = targetComponent.sketches.add(plane)
     sketch.name = f'{name} sketch'
     lines: list[adsk.fusion.SketchLine] = []
@@ -830,10 +830,10 @@ def createShapeOutlineSketch(
             if isHorizontal:
                 constraints.addHorizontal(line)
                 # the inside is above a side running right, a cell line plus the offset, or below one running left
-                distance = cellLine(baseLength, gridY, origin.y + (offset if nextGridX > gridX else -offset))
+                distance = cellLineDim(baseLength, gridY, origin.y + (offset if nextGridX > gridX else -offset))
             else:
                 constraints.addVertical(line)
-                distance = cellLine(baseWidth, gridX, origin.x + (offset if nextGridY < gridY else -offset))
+                distance = cellLineDim(baseWidth, gridX, origin.x + (offset if nextGridY < gridY else -offset))
             if abs(distance.value) < 1e-6:
                 constraints.addCoincident(sketch.originPoint, line)
                 continue
