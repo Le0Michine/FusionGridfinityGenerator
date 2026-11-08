@@ -329,8 +329,15 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     printBedGroup.isExpanded = uiState.getState(PRINT_BED_GROUP)
     uiState.registerCommandInput(printBedGroup)
     printBedPresetDropdown = printBedGroup.children.addDropDownCommandInput(PRINT_BED_PRESET_DROPDOWN, 'Printer', adsk.core.DropDownStyles.TextListDropDownStyle)
-    for presetName in [printBeds.PRINT_BED_CUSTOM] + list(printBeds.PRINT_BED_PRESETS.keys()):
+    presetNames = [printBeds.PRINT_BED_CUSTOM] + list(printBeds.PRINT_BED_PRESETS.keys())
+    # a preset saved with the defaults can be gone from the list since, the bed size it set stays as custom
+    if uiState.getState(PRINT_BED_PRESET_DROPDOWN) not in presetNames:
+        uiState.updateValue(PRINT_BED_PRESET_DROPDOWN, printBeds.PRINT_BED_CUSTOM)
+    for presetName in presetNames:
         printBedPresetDropdown.listItems.add(presetName, uiState.getState(PRINT_BED_PRESET_DROPDOWN) == presetName)
+    if printBedPresetDropdown.selectedItem is None:
+        printBedPresetDropdown.listItems.item(0).isSelected = True
+        uiState.updateValue(PRINT_BED_PRESET_DROPDOWN, printBeds.PRINT_BED_CUSTOM)
     uiState.registerCommandInput(printBedPresetDropdown)
     printBedWidthInput = printBedGroup.children.addValueInput(PRINT_BED_WIDTH_INPUT, 'Bed width, X', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(PRINT_BED_WIDTH_INPUT)))
     printBedWidthInput.minimumValue = 0
@@ -967,7 +974,7 @@ def initUiState():
     uiState.initValue(BASEPLATE_LENGTH_INPUT, 3, adsk.core.IntegerSpinnerCommandInput.classType())
     uiState.initValue(BASEPLATE_TYPE_DROPDOWN, BASEPLATE_TYPE_LIGHT, adsk.core.DropDownCommandInput.classType())
 
-    uiState.initValue(SIZING_MODE_DROPDOWN, SIZING_MODE_GRID_UNITS, adsk.core.DropDownCommandInput.classType())
+    uiState.initValue(SIZING_MODE_DROPDOWN, SIZING_MODE_FILL_AREA, adsk.core.DropDownCommandInput.classType())
     uiState.initValue(FILL_AREA_WIDTH_INPUT, 40, adsk.core.ValueCommandInput.classType())
     uiState.initValue(FILL_AREA_LENGTH_INPUT, 30, adsk.core.ValueCommandInput.classType())
     uiState.initValue(FILL_FIT_TOLERANCE_INPUT, 0.1, adsk.core.ValueCommandInput.classType())
@@ -975,9 +982,9 @@ def initUiState():
     uiState.initValue(FILL_ALIGN_Y_DROPDOWN, 'Center', adsk.core.DropDownCommandInput.classType())
     uiState.initValue(FILL_HALF_CELLS_INPUT, True, adsk.core.BoolValueCommandInput.classType())
     uiState.initValue(PRINT_BED_GROUP, True, adsk.core.GroupCommandInput.classType())
-    defaultPrinter = printBeds.presetLabel('Bambu Lab A1, P1, X1')
-    (defaultBedWidth, defaultBedLength) = printBeds.presetBedSize(defaultPrinter)
-    uiState.initValue(PRINT_BED_PRESET_DROPDOWN, defaultPrinter, adsk.core.DropDownCommandInput.classType())
+    # a common bed size, the dropdown starts on custom, its first option
+    (defaultBedWidth, defaultBedLength) = printBeds.presetBedSize(printBeds.presetLabel('Bambu Lab A1, P1, X1'))
+    uiState.initValue(PRINT_BED_PRESET_DROPDOWN, printBeds.PRINT_BED_CUSTOM, adsk.core.DropDownCommandInput.classType())
     uiState.initValue(PRINT_BED_WIDTH_INPUT, defaultBedWidth, adsk.core.ValueCommandInput.classType())
     uiState.initValue(PRINT_BED_LENGTH_INPUT, defaultBedLength, adsk.core.ValueCommandInput.classType())
     uiState.initValue(PRINT_BED_MARGIN_INPUT, 0.5, adsk.core.ValueCommandInput.classType())
