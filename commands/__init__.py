@@ -5,12 +5,14 @@
 # You need to use aliases (import "entry" as "my_module") assuming you have the default module named "entry".
 from .commandCreateBin import entry as commandCreateBin
 from .commandCreateBaseplate import entry as commandCreateBaseplate
+from .commandShowSettings import entry as commandShowSettings
 
 # TODO add imported modules to this list.
 # Fusion will automatically call the start() and stop() functions.
 commands = [
     commandCreateBin,
     commandCreateBaseplate,
+    commandShowSettings,
 ]
 
 

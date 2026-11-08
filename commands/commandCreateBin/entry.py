@@ -6,6 +6,7 @@ import math
 
 from ...lib import configUtils
 from ...lib import tagUtils
+from ...lib import settingsUtils
 from ...lib import placementUtils
 from ...lib import fusion360utils as futil
 from ... import config
@@ -1049,6 +1050,8 @@ def generateBin(args: adsk.core.CommandEventArgs):
         )
         baseWidth = Dim.parameter(baseWidthParameter)
         baseLength = Dim.parameter(baseLengthParameter)
+        # user parameters driving the bin, kept in its tag to show with its settings
+        binParameters = [['Base width unit', baseWidthParameter.name], ['Base length unit', baseLengthParameter.name]]
 
         # create base interface
         baseGeneratorInput = BaseGeneratorInput()
@@ -1130,6 +1133,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
                 bin_height.value,
                 'Gridfinity bin height, in height units',
             ))
+            binParameters.append(['Bin height (u)', binBodyInput.binHeight.expression])
             if binBodyInput.hasTab:
                 for compartmentIndex, compartment in enumerate(binBodyInput.compartments):
                     (compartmentText, compartmentIcon) = compartmentLabels[compartmentIndex] if compartmentIndex < len(compartmentLabels) else ('', COMPARTMENT_LABEL_ICON_DEFAULT)
@@ -1140,6 +1144,11 @@ def generateBin(args: adsk.core.CommandEventArgs):
                         compartmentText or labelTextInput.value,
                         labelIconInput.selectedItem.name if compartmentIcon == COMPARTMENT_LABEL_ICON_DEFAULT else compartmentIcon,
                     )
+                    if compartment.label is not None and compartment.label.textParameter is not None:
+                        binParameters.append([
+                            'Label' if len(binBodyInput.compartments) == 1 else f'Compartment {compartmentIndex + 1} label',
+                            compartment.label.textParameter.name,
+                        ])
             binBodyInput.heightUnit = Dim.parameter(sharedParameters.findOrCreateSharedLengthParameter(
                 des,
                 tagUtils.TAG_HEIGHT_UNIT_PARAMETER,
@@ -1151,6 +1160,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
                 'bin',
                 CMD_NAME,
             ))
+            binParameters.append(['Height unit', binBodyInput.heightUnit.expression])
             binBody = createGridfinityBinBody(
                 binBodyInput,
                 gridfinityBinComponent,
@@ -1256,6 +1266,8 @@ def generateBin(args: adsk.core.CommandEventArgs):
                 combineUtils.joinBodies(binBody, commonUtils.objectCollectionFromList(intersectTabFeature.bodies), gridfinityBinComponent, name='Label tab join')
 
                 shelledLabel = createLabelDefinition(des, binParameterPrefix, BIN_LABEL_PARAMETER, labelTextInput.value, labelIconInput.selectedItem.name)
+                if shelledLabel is not None and shelledLabel.textParameter is not None:
+                    binParameters.append(['Label', shelledLabel.textParameter.name])
                 if shelledLabel is not None:
                     createTabLabel(
                         shelledLabel,
@@ -1275,9 +1287,15 @@ def generateBin(args: adsk.core.CommandEventArgs):
             generatedBodies = [binBody] if bin_generate_body.value else baseBodies
             if binPlacement != (0, 0):
                 placementUtils.moveBodies(generatedBodies, *binPlacement, gridfinityBinComponent, name='Bin placement')
-            # mark generated geometry so later bins can tell it apart from the rest of the design
+            # mark generated geometry so later bins can tell it apart from the rest of the design,
+            # with the settings it was generated with to show later
+            binSettings = settingsUtils.snapshotInputs(
+                inputs,
+                [INFO_GROUP, USER_CHANGES_GROUP_ID, PREVIEW_GROUP_ID, BIN_REAL_DIMENSIONS_TABLE, BIN_COMPARTMENT_REAL_DIMENSIONS_TABLE],
+                CMD_NAME,
+            )
             for body in generatedBodies:
-                tagUtils.tagBody(body, tagUtils.TAG_BIN)
+                tagUtils.tagBody(body, tagUtils.TAG_BIN, binSettings, binParameters)
 
         # group features in timeline
         binGroup = des.timeline.timelineGroups.add(originalTimelineCount, des.timeline.count - 1)

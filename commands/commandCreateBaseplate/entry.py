@@ -9,6 +9,7 @@ import time
 
 from ...lib import configUtils
 from ...lib import tagUtils
+from ...lib import settingsUtils
 from ...lib import placementUtils
 from ...lib import fusion360utils as futil
 from ... import config
@@ -763,6 +764,8 @@ def generateBaseplate(args: adsk.core.CommandEventArgs, isPreview: bool = False)
         )
         baseplateGeneratorInput.baseWidth = Dim.parameter(baseWidthParameter)
         baseplateGeneratorInput.baseLength = Dim.parameter(baseLengthParameter)
+        # user parameters driving the baseplate, kept in its tag to show with its settings
+        baseplateParameters = [['Base width unit', baseWidthParameter.name], ['Base length unit', baseLengthParameter.name]]
 
         def paddingDim(name: str, label: str, value: float) -> Dim:
             """Unused sides stay plain values, so no parameter is left around that drives nothing"""
@@ -778,6 +781,14 @@ def generateBaseplate(args: adsk.core.CommandEventArgs, isPreview: bool = False)
         baseplateGeneratorInput.paddingTop = paddingDim(BASEPLATE_PADDING_TOP_PARAMETER, 'top', paddingTop)
         baseplateGeneratorInput.paddingRight = paddingDim(BASEPLATE_PADDING_RIGHT_PARAMETER, 'right', paddingRight)
         baseplateGeneratorInput.paddingBottom = paddingDim(BASEPLATE_PADDING_BOTTOM_PARAMETER, 'bottom', paddingBottom)
+        for (label, padding) in [
+            ('Padding left', baseplateGeneratorInput.paddingLeft),
+            ('Padding top', baseplateGeneratorInput.paddingTop),
+            ('Padding right', baseplateGeneratorInput.paddingRight),
+            ('Padding bottom', baseplateGeneratorInput.paddingBottom),
+        ]:
+            if padding.isExpression:
+                baseplateParameters.append([label, padding.expression])
 
         if isFillArea:
             baseplateBodies = []
@@ -797,7 +808,11 @@ def generateBaseplate(args: adsk.core.CommandEventArgs, isPreview: bool = False)
             placementUtils.moveBodies(baseplateBodies, *baseplatePlacement, gridfinityBaseplateComponent, name='Baseplate placement')
         # mark generated geometry so it can be told apart from the rest of the design
         for baseplateBody in baseplateBodies:
-            tagUtils.tagBody(baseplateBody, tagUtils.TAG_BASEPLATE)
+            tagUtils.tagBody(baseplateBody, tagUtils.TAG_BASEPLATE, settingsUtils.snapshotInputs(
+                args.command.commandInputs,
+                [INFO_GROUP, INPUT_CHANGES_GROUP, PREVIEW_GROUP],
+                CMD_NAME,
+            ), baseplateParameters)
 
         if des.designType == adsk.fusion.DesignTypes.ParametricDesignType:
             # group features in timeline

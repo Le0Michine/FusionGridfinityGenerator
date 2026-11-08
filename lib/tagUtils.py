@@ -27,11 +27,18 @@ def getGeneratorVersion() -> str:
             _generatorVersion = ''
     return _generatorVersion
 
-def createTagValue(generatorVersion: str) -> str:
-    return json.dumps({
+def createTagValue(generatorVersion: str, settings: list[dict] = None, parameters: list[list[str]] = None) -> str:
+    """Settings are the dialog inputs the body was generated with, as sections of label and value pairs,
+    parameters are label and name pairs of the user parameters driving it"""
+    value = {
         'schemaVersion': TAG_SCHEMA_VERSION,
         'generatorVersion': generatorVersion,
-    })
+    }
+    if settings is not None:
+        value['settings'] = settings
+    if parameters is not None:
+        value['parameters'] = parameters
+    return json.dumps(value)
 
 def parseTagValue(value: str) -> dict:
     """The tag's presence is what marks an entity, so an unreadable value still yields a dict"""
@@ -41,8 +48,16 @@ def parseTagValue(value: str) -> dict:
         return {}
     return data if isinstance(data, dict) else {}
 
-def tagBody(body: adsk.fusion.BRepBody, tagName: str):
-    body.attributes.add(TAG_GROUP, tagName, createTagValue(getGeneratorVersion()))
+def tagBody(body: adsk.fusion.BRepBody, tagName: str, settings: list[dict] = None, parameters: list[list[str]] = None):
+    body.attributes.add(TAG_GROUP, tagName, createTagValue(getGeneratorVersion(), settings, parameters))
+
+def readBodyTag(body: adsk.fusion.BRepBody) -> tuple[str, dict] | None:
+    """Which generator tagged the body and the tag value, none for bodies it didn't generate"""
+    for tagName in (TAG_BIN, TAG_BASEPLATE):
+        attribute = body.attributes.itemByName(TAG_GROUP, tagName)
+        if attribute is not None:
+            return (tagName, parseTagValue(attribute.value))
+    return None
 
 def findTaggedBodies(design: adsk.fusion.Design, tagName: str) -> list[tuple[adsk.fusion.BRepBody, dict]]:
     """Returns native bodies, bodies inside components still need an occurrence for their placement"""

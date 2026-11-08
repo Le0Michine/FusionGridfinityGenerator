@@ -57,3 +57,13 @@ def test_missing_manifest_gives_empty_version(monkeypatch):
     monkeypatch.setattr(tagUtils, "MANIFEST_PATH", "/nonexistent/GridfinityGenerator.manifest")
     monkeypatch.setattr(tagUtils, "_generatorVersion", None)
     assert tagUtils.getGeneratorVersion() == ""
+
+
+def test_settings_are_stored_when_given():
+    settings = [{"title": "Basic sizes", "items": [["Bin width (u)", "2"]]}]
+    tag = tagUtils.parseTagValue(tagUtils.createTagValue("1.6.0.0", settings))
+    assert tag["settings"] == settings
+
+
+def test_settings_are_left_out_when_not_given():
+    assert "settings" not in tagUtils.parseTagValue(tagUtils.createTagValue("1.6.0.0"))
