@@ -4,7 +4,7 @@ import os
 from .sketchUtils import createRectangle
 from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
 from .dim import Dim, valueInput, applyTo
-from . import sketchUtils, const, edgeUtils, commonUtils, combineUtils, faceUtils, extrudeUtils, shapeUtils, geometryUtils, patternUtils
+from . import sketchUtils, const, edgeUtils, commonUtils, combineUtils, faceUtils, extrudeUtils, shapeUtils, geometryUtils, patternUtils, binShape
 from ...lib import fusion360utils as futil
 from ... import config
 
@@ -503,10 +503,13 @@ def createWallJunctionPocketCutter(
     cornerRadius: float,
     xyClearance: float,
     targetComponent: adsk.fusion.Component,
+    openSide: tuple[int, int] = None,
 ) -> adsk.fusion.BRepBody:
     """Negative volume curving up the gap where two feet meet at an outer wall, continuing the 45 degree
     chamfers of the foot corners above their top until they close the gap. The cones are concentric with the
-    foot corners and start where the clearance trim meets the chamfer, a clearance below the feet top"""
+    foot corners and start where the clearance trim meets the chamfer, a clearance below the feet top.
+    The open side, x and y directions of an empty cell at an inner corner, has no foot to curve around. Its cone
+    would hug the rounded wall there and close the pocket right above the feet, so it's left out"""
     features = targetComponent.features
     # fed as expressions, so the formulas stay readable in the model
     cornerCenterOffset = Dim.length(cornerRadius).asExpression()
@@ -601,6 +604,15 @@ def createWallJunctionPocketCutter(
     )
     # pattern bodies include the source cone, the collection skips the duplicate
     coneBodies = list(conePattern.bodies) + [coneBody]
+    if openSide is not None:
+        def isOnOpenSide(body: adsk.fusion.BRepBody) -> bool:
+            box = body.boundingBox
+            return ((box.minPoint.x + box.maxPoint.x) / 2 - junctionX.value) * openSide[0] > 0 \
+                and ((box.minPoint.y + box.maxPoint.y) / 2 - junctionY.value) * openSide[1] > 0
+        openCones = [body for body in coneBodies if isOnOpenSide(body)]
+        for body in openCones:
+            features.removeFeatures.add(body).name = 'Wall junction pocket open side cone remove'
+        coneBodies = [body for body in coneBodies if not isOnOpenSide(body)]
 
     combineUtils.cutBody(pocketBody, commonUtils.objectCollectionFromList(coneBodies), targetComponent, name='Wall junction pocket shape')
     return pocketBody
@@ -727,3 +739,248 @@ def cutOutsideRoundedRectangle(
     cutExtrude = features.extrudeFeatures.add(cutExtrudeInput)
     cutExtrude.name = name
     return cutExtrude
+def shapeGridInput(baseWidth: Dim, baseLength: Dim, xyClearance: float) -> BaseGeneratorInput:
+    """The base grid of a bin, for shape outlines and picking cells, cells start a clearance before the origin"""
+    grid = BaseGeneratorInput()
+    grid.originPoint = adsk.core.Point3D.create(-xyClearance, -xyClearance, 0)
+    grid.baseWidth = baseWidth
+    grid.baseLength = baseLength
+    grid.xyClearance = xyClearance
+    return grid
+
+def keepBodiesInCells(
+    bodies: list[adsk.fusion.BRepBody],
+    cells: list[tuple[int, int]],
+    baseConfiguration: BaseGeneratorInput,
+    targetComponent: adsk.fusion.Component,
+    *,
+    name: str,
+) -> list[adsk.fusion.BRepBody]:
+    """Bodies centred over one of the cells, the others are removed. Cells start at the base origin point.
+    Bodies listed twice are taken once, pattern results may include their source"""
+    origin = baseConfiguration.originPoint
+    filled = set(cells)
+    kept = []
+    seen = set()
+    for body in bodies:
+        if body.revisionId in seen:
+            continue
+        seen.add(body.revisionId)
+        box = body.boundingBox
+        column = math.floor(((box.minPoint.x + box.maxPoint.x) / 2 - origin.x) / baseConfiguration.baseWidth.value)
+        row = math.floor(((box.minPoint.y + box.maxPoint.y) / 2 - origin.y) / baseConfiguration.baseLength.value)
+        if (column, row) in filled:
+            kept.append(body)
+        else:
+            targetComponent.features.removeFeatures.add(body).name = name
+    return kept
+
+def createShapeOutlineSketch(
+    cells: list[tuple[int, int]],
+    baseConfiguration: BaseGeneratorInput,
+    offset: float,
+    plane: adsk.core.Base,
+    targetComponent: adsk.fusion.Component,
+    minConvexRadius: float = 0,
+    *,
+    name: str,
+) -> tuple[adsk.fusion.Sketch, list[tuple[float, float, bool]]]:
+    """
+    Outline of the cells moved in by the offset from the cell lines, with the corners it has in model coordinates.
+    Corners are rounded around where a bin's corner is, see binShape.cornerRadius, so the outer ones match a plain
+    bin and inner ones keep an even gap to a bin filling the notch. Outer corners stay at least the given radius.
+    Sides are dimensioned with the base units, the sketch follows their parameters
+    """
+    origin = baseConfiguration.originPoint
+    baseWidth = baseConfiguration.baseWidth.asExpression()
+    baseLength = baseConfiguration.baseLength.asExpression()
+    gridCorners = binShape.outline(cells)
+    corners = [
+        (origin.x + x, origin.y + y, isConvex)
+        for (x, y, isConvex) in binShape.insetOutline(gridCorners, baseConfiguration.baseWidth.value, baseConfiguration.baseLength.value, offset)
+    ]
+
+    def cellLine(baseUnit: Dim, index: int, shift: float) -> Dim:
+        """Distance of a side from the origin, the cell line it follows moved by the shift"""
+        line = baseUnit * index if index != 1 else baseUnit
+        if abs(shift) < 1e-9:
+            return line if index != 0 else Dim.length(0)
+        return line + Dim.length(shift) if index != 0 else Dim.length(shift)
+
+    sketch: adsk.fusion.Sketch = targetComponent.sketches.add(plane)
+    sketch.name = f'{name} sketch'
+    lines: list[adsk.fusion.SketchLine] = []
+    with sketchUtils.deferSketchCompute(sketch):
+        constraints = sketch.geometricConstraints
+        dimensions = sketch.sketchDimensions
+        sketchLines = sketch.sketchCurves.sketchLines
+        points = []
+        for (x, y, _) in corners:
+            point = sketch.modelToSketchSpace(adsk.core.Point3D.create(x, y, 0))
+            point.z = 0
+            points.append(point)
+        for (index, point) in enumerate(points):
+            start = lines[-1].endSketchPoint if len(lines) > 0 else point
+            end = lines[0].startSketchPoint if index == len(points) - 1 else points[index + 1]
+            lines.append(sketchLines.addByTwoPoints(start, end))
+        for (index, line) in enumerate(lines):
+            (gridX, gridY, _) = gridCorners[index]
+            (nextGridX, nextGridY, _) = gridCorners[(index + 1) % len(gridCorners)]
+            isHorizontal = gridY == nextGridY
+            if isHorizontal:
+                constraints.addHorizontal(line)
+                # the inside is above a side running right, a cell line plus the offset, or below one running left
+                distance = cellLine(baseLength, gridY, origin.y + (offset if nextGridX > gridX else -offset))
+            else:
+                constraints.addVertical(line)
+                distance = cellLine(baseWidth, gridX, origin.x + (offset if nextGridY < gridY else -offset))
+            if abs(distance.value) < 1e-6:
+                constraints.addCoincident(sketch.originPoint, line)
+                continue
+            textPoint = line.startSketchPoint.geometry
+            # sketch distance dimensions are unsigned
+            applyTo(dimensions.addDistanceDimension(
+                sketch.originPoint,
+                line.startSketchPoint,
+                adsk.fusion.DimensionOrientations.VerticalDimensionOrientation if isHorizontal else adsk.fusion.DimensionOrientations.HorizontalDimensionOrientation,
+                adsk.core.Point3D.create(textPoint.x / 2, textPoint.y / 2, 0),
+                True,
+            ).parameter, distance if distance.value >= 0 else distance * -1)
+
+    # one radius for the outer corners and one for the inner ones
+    sketchArcs = sketch.sketchCurves.sketchArcs
+    fillets: dict[bool, list[adsk.fusion.SketchArc]] = {True: [], False: []}
+    for (index, (_, _, isConvex)) in enumerate(corners):
+        incoming = lines[index - 1]
+        outgoing = lines[index]
+        radius = binShape.cornerRadius(isConvex, baseConfiguration.cornerFilletRadius, offset)
+        fillets[isConvex].append(sketchArcs.addFillet(
+            incoming,
+            incoming.endSketchPoint.geometry,
+            outgoing,
+            outgoing.startSketchPoint.geometry,
+            max(radius, minConvexRadius) if isConvex else radius,
+        ))
+    for group in fillets.values():
+        for fillet in group[1:]:
+            sketch.geometricConstraints.addEqual(group[0], fillet)
+        if len(group) > 0:
+            sketch.sketchDimensions.addRadialDimension(group[0], group[0].startSketchPoint.geometry)
+    return (sketch, corners)
+
+def cutOutsideShape(
+    cells: list[tuple[int, int]],
+    baseConfiguration: BaseGeneratorInput,
+    targetBodies: list[adsk.fusion.BRepBody],
+    targetComponent: adsk.fusion.Component,
+    *,
+    name: str,
+) -> adsk.fusion.ExtrudeFeature:
+    """Cuts everything outside the outline of the cells, a clearance in from the cell lines, through the full height
+    of the target bodies, see createShapeOutlineSketch"""
+    features = targetComponent.features
+    (cutSketch, corners) = createShapeOutlineSketch(
+        cells,
+        baseConfiguration,
+        baseConfiguration.xyClearance,
+        targetComponent.xYConstructionPlane,
+        targetComponent,
+        name=name,
+    )
+
+    # a frame around the outline, as far again past it on every side, its region less the outline is cut
+    minX = min(x for (x, _, _) in corners)
+    minY = min(y for (_, y, _) in corners)
+    maxX = max(x for (x, _, _) in corners)
+    maxY = max(y for (_, y, _) in corners)
+    margin = max(maxX - minX, maxY - minY)
+    frameCorner1 = cutSketch.modelToSketchSpace(adsk.core.Point3D.create(minX - margin, minY - margin, 0))
+    frameCorner2 = cutSketch.modelToSketchSpace(adsk.core.Point3D.create(maxX + margin, maxY + margin, 0))
+    (frameCorner1.z, frameCorner2.z) = (0, 0)
+    cutSketch.sketchCurves.sketchLines.addTwoPointRectangle(frameCorner1, frameCorner2)
+
+    def area(profile: adsk.fusion.Profile) -> float:
+        box = profile.boundingBox
+        return (box.maxPoint.x - box.minPoint.x) * (box.maxPoint.y - box.minPoint.y)
+    cuttingProfile = max(list(cutSketch.profiles), key=area)
+    cutExtrudeInput = features.extrudeFeatures.createInput(
+        cuttingProfile,
+        adsk.fusion.FeatureOperations.CutFeatureOperation,
+    )
+    cutExtrudeInput.setTwoSidesExtent(
+        adsk.fusion.DistanceExtentDefinition.create(adsk.core.ValueInput.createByReal(100)),
+        adsk.fusion.DistanceExtentDefinition.create(adsk.core.ValueInput.createByReal(100)),
+    )
+    # the target component can be the root of a part design, which also holds unrelated bodies
+    cutExtrudeInput.participantBodies = targetBodies
+    cutExtrude = features.extrudeFeatures.add(cutExtrudeInput)
+    cutExtrude.name = name
+    return cutExtrude
+
+def cutShapeWallJunctionPockets(
+    baseConfiguration: BaseGeneratorInput,
+    cells: list[tuple[int, int]],
+    targetBody: adsk.fusion.BRepBody,
+    targetComponent: adsk.fusion.Component,
+) -> adsk.fusion.CombineFeature | None:
+    """
+    cutWallJunctionPockets for any shape, a pocket at every point of the outline where feet meet, see
+    binShape.wallJunctions. Inner corners get their own pockets, open towards the empty cell, see createWallJunctionPocketCutter
+    """
+    junctions = binShape.wallJunctions(cells)
+    if len(junctions) == 0:
+        return None
+    openings = binShape.innerCornerOpenings(cells)
+    sides = [point for point in junctions if point not in openings]
+    origin = baseConfiguration.originPoint
+    baseWidth = baseConfiguration.baseWidth.asExpression()
+    baseLength = baseConfiguration.baseLength.asExpression()
+
+    used = []
+    if len(sides) > 0:
+        columns = max(x for (x, _) in sides) + 1
+        rows = max(y for (_, y) in sides) + 1
+        # a cutter on every grid point up to the last junction along a side, the ones elsewhere are removed again
+        cutter = createWallJunctionPocketCutter(
+            Dim.length(origin.x),
+            Dim.length(origin.y),
+            origin.z,
+            baseConfiguration.cornerFilletRadius,
+            baseConfiguration.xyClearance,
+            targetComponent,
+        )
+        cutters = [cutter]
+        if columns > 1 or rows > 1:
+            pattern = patternUtils.recPatternGrid(
+                commonUtils.objectCollectionFromList([cutter]),
+                (columns, rows),
+                (baseWidth, baseLength),
+                targetComponent,
+                name='Wall junction pockets pattern',
+            )
+            # pattern bodies include the source cutter, the collection skips the duplicate
+            cutters = list(pattern.bodies) + [cutter]
+
+        kept = set(sides)
+        for body in cutters:
+            box = body.boundingBox
+            point = (
+                round(((box.minPoint.x + box.maxPoint.x) / 2 - origin.x) / baseConfiguration.baseWidth.value),
+                round(((box.minPoint.y + box.maxPoint.y) / 2 - origin.y) / baseConfiguration.baseLength.value),
+            )
+            if point in kept:
+                used.append(body)
+            else:
+                targetComponent.features.removeFeatures.add(body).name = 'Wall junction pocket remove'
+
+    for ((x, y), openSide) in openings.items():
+        used.append(createWallJunctionPocketCutter(
+            Dim.length(origin.x) + (baseWidth * x if x != 1 else baseWidth),
+            Dim.length(origin.y) + (baseLength * y if y != 1 else baseLength),
+            origin.z,
+            baseConfiguration.cornerFilletRadius,
+            baseConfiguration.xyClearance,
+            targetComponent,
+            openSide,
+        ))
+    return combineUtils.cutBody(targetBody, commonUtils.objectCollectionFromList(used), targetComponent, name='Wall junction pockets cut')

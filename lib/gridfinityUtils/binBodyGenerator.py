@@ -4,7 +4,7 @@ import math
 import copy
 
 from ...lib import fusion360utils as futil
-from . import const, combineUtils, faceUtils, commonUtils, sketchUtils, extrudeUtils, baseGenerator, edgeUtils, filletUtils, geometryUtils, patternUtils
+from . import const, combineUtils, faceUtils, commonUtils, sketchUtils, extrudeUtils, baseGenerator, edgeUtils, filletUtils, geometryUtils, patternUtils, binShape
 from .binBodyCutoutGenerator import createGridfinityBinBodyCutout
 from .binBodyCutoutGeneratorInput import BinBodyCutoutGeneratorInput
 from .baseGeneratorInput import BaseGeneratorInput
@@ -100,9 +100,18 @@ def createGridfinityBinBody(
         lipInput.binCornerFilletRadius = input.binCornerFilletRadius
         lipInput.origin = lipOriginPoint
         lipInput.originZ = binBodyTotalHeight
+        lipInput.shapeCells = input.shapeCells
         lipBody = createGridfinityBinBodyLip(lipInput, targetComponent)
 
-        if input.wallThickness < const.BIN_LIP_WALL_THICKNESS:
+        if input.wallThickness < const.BIN_LIP_WALL_THICKNESS and input.shapeCells is not None:
+            # the inside of the walls widening at 45 degrees into the lip, so it doesn't overhang the cavity
+            combineUtils.cutBody(
+                lipBody,
+                commonUtils.objectCollectionFromList([createShapeLipBottomChamfer(input, binBodyTotalHeight, targetComponent)]),
+                targetComponent,
+                name='Lip bottom chamfer cut',
+            )
+        elif input.wallThickness < const.BIN_LIP_WALL_THICKNESS:
             lipBottomChamferSize = max(const.BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS, input.binCornerFilletRadius - input.wallThickness)
             lipBottomChamferExtrude = extrudeUtils.createBoxAtPoint(
                 bodyWidth - wall * 2,
@@ -359,6 +368,89 @@ def createTabLabel(
     labelInput.tiltAngle = tabTopAngle
     return createLabel(labelInput, targetBody, targetComponent, name=name)
 
+
+def createShapeLipBottomChamfer(
+    input: BinBodyGeneratorInput,
+    topZ: Dim,
+    targetComponent: adsk.fusion.Component,
+) -> adsk.fusion.BRepBody:
+    """The inside of the walls of a shaped bin from the body top, narrowing at 45 degrees into the lip"""
+    grid = baseGenerator.shapeGridInput(input.baseWidth, input.baseLength, input.xyClearance)
+    offset = input.xyClearance + input.wallThickness
+    # as tall as the plain bin's, its outer corners' radius, a hair less, the taper would close the corner arcs to a point
+    height = compartmentCutoutFilletRadius(binShape.cornerRadius(True, grid.cornerFilletRadius, offset)) - 0.001
+    planeInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
+    planeInput.setByOffset(targetComponent.xYConstructionPlane, valueInput(topZ))
+    plane = targetComponent.constructionPlanes.add(planeInput)
+    plane.name = 'Lip bottom chamfer plane'
+    (sketch, _) = baseGenerator.createShapeOutlineSketch(
+        input.shapeCells,
+        grid,
+        offset,
+        plane,
+        targetComponent,
+        const.BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS,
+        name='Lip bottom chamfer',
+    )
+    chamfer = extrudeUtils.taperedExtrude(
+        sketch.profiles.item(0),
+        height,
+        adsk.fusion.ExtentDirections.PositiveExtentDirection,
+        targetComponent,
+        name='Lip bottom chamfer',
+    )
+    return chamfer.bodies.item(0)
+
+def createShapeCavity(
+    cells: list[tuple[int, int]],
+    baseConfiguration: BaseGeneratorInput,
+    wallThickness: float,
+    topZ: Dim,
+    targetComponent: adsk.fusion.Component,
+    *,
+    name: str,
+) -> adsk.fusion.BRepBody:
+    """
+    Cavity of a shaped bin, the outline moved in by the clearance and the wall from the top down to the floor,
+    rounded along the bottom like a plain bin's compartment. Its outer corners are concentric with the bin's,
+    see baseGenerator.createShapeOutlineSketch
+    """
+    planeInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
+    planeInput.setByOffset(targetComponent.xYConstructionPlane, valueInput(topZ))
+    plane = targetComponent.constructionPlanes.add(planeInput)
+    plane.name = f'{name} plane'
+    offset = baseConfiguration.xyClearance + wallThickness
+    # a plain bin's compartment corners don't go below the bottom fillet either, see compartmentCutoutFilletRadius
+    (sketch, _) = baseGenerator.createShapeOutlineSketch(
+        cells,
+        baseConfiguration,
+        offset,
+        plane,
+        targetComponent,
+        const.BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS,
+        name=name,
+    )
+    cavityExtrude = extrudeUtils.simpleDistanceExtrude(
+        sketch.profiles.item(0),
+        adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
+        topZ - Dim.length(const.BIN_COMPARTMENT_BOTTOM_THICKNESS),
+        adsk.fusion.ExtentDirections.NegativeExtentDirection,
+        [],
+        targetComponent,
+        name=name,
+    )
+    cavity = cavityExtrude.bodies.item(0)
+    cavity.name = name
+    # the same radius along the floor as up the outer corners, so they meet in a round corner like a plain bin's
+    floorRadius = compartmentCutoutFilletRadius(binShape.cornerRadius(True, baseConfiguration.cornerFilletRadius, offset))
+    filletUtils.createFillet(
+        list(faceUtils.getBottomFace(cavity).edges),
+        floorRadius,
+        True,
+        targetComponent,
+        name=f'{name} bottom fillet',
+    )
+    return cavity
 
 def compartmentCutoutFilletRadius(cornerFilletRadius: float) -> float:
     return max(const.BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS, cornerFilletRadius)

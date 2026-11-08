@@ -21,11 +21,12 @@ from ...lib.gridfinityUtils import const
 from ...lib.gridfinityUtils import parameterUtils
 from ...lib.gridfinityUtils import sharedParameters
 from ...lib.gridfinityUtils.dim import Dim
-from ...lib.gridfinityUtils.baseGenerator import createSingleGridfinityBaseBody, createBaseBodyPattern, cutBaseClearance, cutWallJunctionPockets, cellCenters, createCellJointOrigins
+from ...lib.gridfinityUtils.baseGenerator import createSingleGridfinityBaseBody, createBaseBodyPattern, cutBaseClearance, cutWallJunctionPockets, cellCenters, createCellJointOrigins, keepBodiesInCells, cutOutsideShape, cutShapeWallJunctionPockets
 from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
-from ...lib.gridfinityUtils.binBodyGenerator import createGridfinityBinBody, binBodyTopHeight, createCompartmentCutout, compartmentCutoutFilletRadius, tabTopClearance, createTabLabel, hollowTabWallThickness
+from ...lib.gridfinityUtils.binBodyGenerator import createGridfinityBinBody, createShapeCavity, binBodyTopHeight, createCompartmentCutout, compartmentCutoutFilletRadius, tabTopClearance, createTabLabel, hollowTabWallThickness
 from ...lib.gridfinityUtils import labelGenerator
 from ...lib.gridfinityUtils import compartmentLayout
+from ...lib.gridfinityUtils import binShape
 from ...lib.gridfinityUtils.binBodyGeneratorInput import BinBodyGeneratorInput, BinBodyCompartmentDefinition
 from ...lib.gridfinityUtils.binBodyTabGeneratorInput import BinBodyTabGeneratorInput
 from ...lib.gridfinityUtils.binBodyTabGenerator import createGridfinityBinBodyTab, createTabHollowCuts, TabCavity, TabWallOpenings
@@ -47,6 +48,8 @@ commandUIState = CommandUiState(CMD_NAME)
 actualDimensionsTableUiState = CommandUiState(CMD_NAME)
 # pockets drawn in the compartments drawing, see compartmentLayout
 compartmentPockets: list[dict] = []
+# cells of a custom shaped bin, see binShape, empty while the bin is a plain rectangle
+binShapeCells: list[tuple[int, int]] = []
 
 # Specify that the command will be promoted to the panel.
 IS_PROMOTED = True
@@ -65,6 +68,7 @@ ICON_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resource
 CONFIG_FOLDER_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'commandConfig')
 UI_INPUT_DEFAULTS_CONFIG_PATH = os.path.join(CONFIG_FOLDER_PATH, "ui_input_defaults.json")
 COMPARTMENTS_HTML_URL = pathlib.Path(os.path.dirname(os.path.abspath(__file__)), 'html', 'compartments.html').as_uri()
+SHAPE_HTML_URL = pathlib.Path(os.path.dirname(os.path.abspath(__file__)), 'html', 'shape.html').as_uri()
 
 # Local list of event handlers used to maintain a reference so
 # they are not released and garbage collected.
@@ -133,6 +137,10 @@ BIN_COMPARTMENTS_BROWSER_ID = 'compartments_browser'
 COMPARTMENTS_PAGE_GRID = 'grid'
 COMPARTMENTS_PAGE_LAYOUT = 'layout'
 BIN_TYPE_DROPDOWN_ID = 'bin_type'
+# a drawing of the bin's cells to leave some out, like a tetris piece, shown with the checkbox
+BIN_SHAPE_CUSTOM_ID = 'custom_shape'
+BIN_SHAPE_BROWSER_ID = 'shape_browser'
+SHAPE_NOTE = 'Compartments, scoop and label tab are not built for custom shapes yet'
 BIN_TYPE_HOLLOW = 'Hollow'
 BIN_TYPE_SHELLED = 'Shelled'
 
@@ -203,14 +211,18 @@ def refreshUi():
     global commandUIState
     commandUIState.forceUIRefresh()
     update_actual_bin_dimensions()
+    # before the inputs that depend on the shape
+    normalizeShapeCells()
     onChangeValidate()
     normalizeCompartmentPockets()
     refreshCompartmentsDrawing()
+    refreshShapeDrawing()
 
 def initDefaultUiState():
     global commandUIState
     global actualDimensionsTableUiState
     global compartmentPockets
+    global binShapeCells
     commandUIState.initValue(INFO_GROUP, True, adsk.core.GroupCommandInput.classType())
     commandUIState.initValue(BIN_BASIC_SIZES_GROUP, True, adsk.core.GroupCommandInput.classType())
     commandUIState.initValue(BIN_DIMENSIONS_GROUP, True, adsk.core.GroupCommandInput.classType())
@@ -229,6 +241,7 @@ def initDefaultUiState():
     commandUIState.initValue(BIN_XY_CLEARANCE_INPUT_ID, const.BIN_XY_CLEARANCE, adsk.core.ValueCommandInput.classType())
     commandUIState.initValue(BIN_WIDTH_INPUT_ID, 2, adsk.core.IntegerSpinnerCommandInput.classType())
     commandUIState.initValue(BIN_LENGTH_INPUT_ID, 3, adsk.core.IntegerSpinnerCommandInput.classType())
+    commandUIState.initValue(BIN_SHAPE_CUSTOM_ID, False, adsk.core.BoolValueCommandInput.classType())
     commandUIState.initValue(BIN_HEIGHT_INPUT_ID, 5, adsk.core.ValueCommandInput.classType())
 
     commandUIState.initValue(BIN_GENERATE_BODY_INPUT_ID, True, adsk.core.BoolValueCommandInput.classType())
@@ -268,6 +281,7 @@ def initDefaultUiState():
     commandUIState.initValue(BIN_MAGNET_HEIGHT_INPUT, const.DIMENSION_MAGNET_CUTOUT_DEPTH, adsk.core.ValueCommandInput.classType())
 
     compartmentPockets = []
+    binShapeCells = []
     recordedDefaults = configUtils.readJsonConfig(UI_INPUT_DEFAULTS_CONFIG_PATH)
     if recordedDefaults is not None and recordedDefaults.get('static_ui') is not None:
         staticUiState = recordedDefaults['static_ui']
@@ -290,6 +304,8 @@ def initDefaultUiState():
         except Exception as err:
             futil.log(f'{CMD_NAME} Failed to restore compartments, err: {err}')
         commandUIState.removeValue(LEGACY_COMPARTMENTS_GRID_TYPE_ID)
+        if commandUIState.getState(BIN_SHAPE_CUSTOM_ID) and isinstance(recordedDefaults.get('shape'), list):
+            binShapeCells = recordedDefaults['shape']
     futil.log(f'{CMD_NAME} UI state initialized')
 
 def getErrorMessage(text = "An unknown error occurred, please validate your inputs and try again"):
@@ -495,6 +511,60 @@ def refreshCompartmentsDrawing(skipBrowserId: str = None):
             # the page asks for the data itself once it has loaded
             futil.log(f'{CMD_NAME} Compartments page {browserId} not ready yet, {err}')
 
+def normalizeShapeCells():
+    """Shape cells within the bin, every cell when the shape is first shown"""
+    global binShapeCells
+    columns = commandUIState.getState(BIN_WIDTH_INPUT_ID)
+    rows = commandUIState.getState(BIN_LENGTH_INPUT_ID)
+    if not commandUIState.getState(BIN_SHAPE_CUSTOM_ID):
+        binShapeCells = []
+        return
+    binShapeCells = binShape.normalizeShape(binShapeCells, columns, rows)
+    if len(binShapeCells) == 0:
+        binShapeCells = binShape.rectangle(columns, rows)
+
+def shapeCells() -> list[tuple[int, int]]:
+    """Cells the bin covers, all of them without a custom shape"""
+    columns = commandUIState.getState(BIN_WIDTH_INPUT_ID)
+    rows = commandUIState.getState(BIN_LENGTH_INPUT_ID)
+    if not commandUIState.getState(BIN_SHAPE_CUSTOM_ID):
+        return binShape.rectangle(columns, rows)
+    return binShape.normalizeShape(binShapeCells, columns, rows)
+
+def isShaped() -> bool:
+    """A custom shape leaving cells out, a full one builds a plain bin"""
+    return commandUIState.getState(BIN_SHAPE_CUSTOM_ID) and not binShape.isRectangle(
+        shapeCells(),
+        commandUIState.getState(BIN_WIDTH_INPUT_ID),
+        commandUIState.getState(BIN_LENGTH_INPUT_ID),
+    )
+
+def shapeError() -> str | None:
+    """Why the shaped bin can't be built, none when it can or the bin is a plain rectangle"""
+    if not isShaped():
+        return None
+    return binShape.shapeError(shapeCells())
+
+def shapeDrawingData() -> dict:
+    return {
+        'columns': commandUIState.getState(BIN_WIDTH_INPUT_ID),
+        'rows': commandUIState.getState(BIN_LENGTH_INPUT_ID),
+        'cells': shapeCells(),
+        'error': shapeError(),
+        'note': SHAPE_NOTE if isShaped() else '',
+        'fontUrl': dialogFontUrl(),
+    }
+
+def refreshShapeDrawing():
+    browserInput: adsk.core.BrowserCommandInput = commandUIState.commandInputs.get(BIN_SHAPE_BROWSER_ID)
+    if browserInput is None:
+        return
+    try:
+        browserInput.sendInfoToHTML('update', json.dumps(shapeDrawingData()))
+    except Exception as err:
+        # the page asks for the data itself once it has loaded
+        futil.log(f'{CMD_NAME} Shape page not ready yet, {err}')
+
 def is_all_input_valid(inputs: adsk.core.CommandInputs):
     result = True
     base_width_unit: adsk.core.ValueCommandInput = inputs.itemById(BIN_BASE_WIDTH_UNIT_INPUT_ID)
@@ -535,6 +605,8 @@ def is_all_input_valid(inputs: adsk.core.CommandInputs):
     if bin_generate_base.value:
         result = result and (not bin_screw_holes.value or bin_screw_hole_diameter.value > 0.1) and (not bin_magnet_cutouts.value or bin_screw_hole_diameter.value < bin_magnet_cutout_diameter.value)
         result = result and bin_magnet_cutout_depth.value > 0
+
+    result = result and shapeError() is None
 
     if bin_generate_body.value and binTypeDropdownInput.selectedItem.name == BIN_TYPE_HOLLOW:
         if has_scoop.value:
@@ -607,6 +679,13 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     binHeightInput.minimumValue = 1
     binHeightInput.isMinimumInclusive = True
     commandUIState.registerCommandInput(binHeightInput)
+    customShapeInput = binDimensionsGroup.children.addBoolValueInput(BIN_SHAPE_CUSTOM_ID, 'Custom shape', True, '', commandUIState.getState(BIN_SHAPE_CUSTOM_ID))
+    customShapeInput.tooltip = 'Shows a drawing of the bin cells to leave some of them out, so the bin fills an L or another tetris like spot. Unticking it fills every cell again'
+    commandUIState.registerCommandInput(customShapeInput)
+    shapeBrowser = binDimensionsGroup.children.addBrowserCommandInput(BIN_SHAPE_BROWSER_ID, '', SHAPE_HTML_URL, 200, 200)
+    shapeBrowser.isFullWidth = True
+    shapeBrowser.isVisible = commandUIState.getState(BIN_SHAPE_CUSTOM_ID)
+    commandUIState.registerCommandInput(shapeBrowser)
 
     render_actual_bin_dimensions_table(binDimensionsGroup.children)
 
@@ -829,6 +908,7 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
 # This event handler is called when the compartments drawing asks for its data once loaded or changes the pockets.
 def command_incoming_from_html(args: adsk.core.HTMLEventArgs):
     global compartmentPockets
+    global binShapeCells
     browserId = args.browserCommandInput.id
     if browserId == INPUT_CHANGES_BUTTONS_BROWSER:
         action = handleDefaultsButtons(args)
@@ -841,6 +921,20 @@ def command_incoming_from_html(args: adsk.core.HTMLEventArgs):
             refreshUi()
             if commandUIState.getInput(SHOW_PREVIEW_INPUT).value:
                 args.browserCommandInput.parentCommand.doExecutePreview()
+        return
+    if browserId == BIN_SHAPE_BROWSER_ID:
+        if args.action == 'shape':
+            try:
+                binShapeCells = json.loads(args.data)
+            except ValueError as err:
+                futil.log(f'{CMD_NAME} Ignoring shape from the drawing, {err}')
+            normalizeShapeCells()
+            # scoop, tab and compartments inputs depend on the shape
+            onChangeValidate()
+            if commandUIState.getInput(SHOW_PREVIEW_INPUT).value:
+                args.browserCommandInput.parentCommand.doExecutePreview()
+        # the page redraws from the answer, with the error of the shape it sent
+        args.returnData = json.dumps(shapeDrawingData())
         return
     if args.action == 'ready':
         args.returnData = json.dumps(compartmentsDrawingData(browserId))
@@ -889,29 +983,36 @@ def onChangeValidate():
 
     generateBody: bool = commandUIState.getState(BIN_GENERATE_BODY_INPUT_ID)
     binType: str = commandUIState.getState(BIN_TYPE_DROPDOWN_ID)
+    # scoop and tab only follow a rectangle so far
+    shaped = isShaped()
     commandUIState.getInput(BIN_WALL_THICKNESS_INPUT_ID).isEnabled = generateBody and not binType == BIN_TYPE_SOLID
     commandUIState.getInput(BIN_WITH_LIP_INPUT_ID).isEnabled = generateBody
     commandUIState.getInput(BIN_WITH_LIP_NOTCHES_INPUT_ID).isEnabled = generateBody
-    commandUIState.getInput(BIN_HAS_TAB_INPUT_ID).isEnabled = generateBody
+    commandUIState.getInput(BIN_HAS_SCOOP_INPUT_ID).isEnabled = not shaped
+    commandUIState.getInput(BIN_HAS_TAB_INPUT_ID).isEnabled = generateBody and not shaped
     generateTab: bool = commandUIState.getState(BIN_HAS_TAB_INPUT_ID)
     for input in commandUIState.getInput(BIN_TAB_FEATURES_GROUP_ID).children:
         if not input.id == BIN_HAS_TAB_INPUT_ID:
-            input.isEnabled = generateBody and generateTab
-    updateTabHollowSidesInput(generateBody and generateTab)
+            input.isEnabled = generateBody and generateTab and not shaped
+    updateTabHollowSidesInput(generateBody and generateTab and not shaped)
 
     generateLip: bool = commandUIState.getState(BIN_WITH_LIP_INPUT_ID)
     commandUIState.getInput(BIN_WITH_LIP_NOTCHES_INPUT_ID).isEnabled = generateLip
 
     generateScoop: bool = commandUIState.getState(BIN_HAS_SCOOP_INPUT_ID)
-    commandUIState.getInput(BIN_SCOOP_MAX_RADIUS_INPUT_ID).isEnabled = generateScoop
+    commandUIState.getInput(BIN_SCOOP_MAX_RADIUS_INPUT_ID).isEnabled = generateScoop and not shaped
 
     generateTab: bool = commandUIState.getState(BIN_HAS_TAB_INPUT_ID)
-    commandUIState.getInput(BIN_TAB_LENGTH_INPUT_ID).isEnabled = generateTab
-    commandUIState.getInput(BIN_TAB_WIDTH_INPUT_ID).isEnabled = generateTab
-    commandUIState.getInput(BIN_TAB_ANGLE_INPUT_ID).isEnabled = generateTab
-    commandUIState.getInput(BIN_TAB_POSITION_INPUT_ID).isEnabled = generateTab
+    commandUIState.getInput(BIN_TAB_LENGTH_INPUT_ID).isEnabled = generateTab and not shaped
+    commandUIState.getInput(BIN_TAB_WIDTH_INPUT_ID).isEnabled = generateTab and not shaped
+    commandUIState.getInput(BIN_TAB_ANGLE_INPUT_ID).isEnabled = generateTab and not shaped
+    commandUIState.getInput(BIN_TAB_POSITION_INPUT_ID).isEnabled = generateTab and not shaped
 
-    commandUIState.getInput(BIN_COMPARTMENTS_BROWSER_ID).isVisible = commandUIState.getState(BIN_COMPARTMENTS_SHOW_LAYOUT_ID)
+    # shaped bins have a single cavity, the compartments drawing is hidden but keeps its layout for when the shape is filled again
+    commandUIState.getInput(BIN_COMPARTMENTS_SHOW_LAYOUT_ID).isEnabled = not shaped
+    commandUIState.getInput(BIN_COMPARTMENTS_GRID_BROWSER_ID).isVisible = not shaped
+    commandUIState.getInput(BIN_COMPARTMENTS_BROWSER_ID).isVisible = commandUIState.getState(BIN_COMPARTMENTS_SHOW_LAYOUT_ID) and not shaped
+    commandUIState.getInput(BIN_SHAPE_BROWSER_ID).isVisible = commandUIState.getState(BIN_SHAPE_CUSTOM_ID)
 
     showPreview: bool = commandUIState.getInput(SHOW_PREVIEW_INPUT).value
     commandUIState.getInput(SHOW_PREVIEW_MANUAL_INPUT).isVisible = not showPreview
@@ -921,6 +1022,7 @@ def saveUIInputsAsDefaults():
     result = configUtils.dumpJsonConfig(UI_INPUT_DEFAULTS_CONFIG_PATH, {
         'static_ui': commandUIState.toDict(ignoreKeys=[SHOW_PREVIEW_MANUAL_INPUT, SHOW_PREVIEW_INPUT]),
         'compartments': compartmentPockets,
+        'shape': binShapeCells,
         })
     if result:
         futil.log(f'{CMD_NAME} Saved successfully')
@@ -938,6 +1040,14 @@ def snapshotSettings(inputs: adsk.core.CommandInputs) -> list[dict]:
     if commandUIState.getState(BIN_COMPARTMENTS_SHOW_LAYOUT_ID) and compartmentLayout.isCustomized(compartmentPockets):
         items.extend([f'Compartment {index}', compartmentLayout.describe(item)] for (index, item) in enumerate(compartmentPockets, 1))
     settings.append({'title': 'Compartments', 'items': items})
+    if isShaped():
+        # the drawing as text, front row last like it's shown
+        cells = set(shapeCells())
+        rows = [
+            ''.join('#' if (x, y) in cells else '.' for x in range(commandUIState.getState(BIN_WIDTH_INPUT_ID)))
+            for y in reversed(range(commandUIState.getState(BIN_LENGTH_INPUT_ID)))
+        ]
+        settings.append({'title': 'Shape', 'items': [[f'Row {index}', row] for (index, row) in zip(reversed(range(1, len(rows) + 1)), rows)]})
     return settings
 
 def generateBin(args: adsk.core.CommandEventArgs):
@@ -982,8 +1092,13 @@ def generateBin(args: adsk.core.CommandEventArgs):
     isHollow = binTypeDropdownInput.selectedItem.name == BIN_TYPE_HOLLOW
     isSolid = binTypeDropdownInput.selectedItem.name == BIN_TYPE_SOLID
     isShelled = binTypeDropdownInput.selectedItem.name == BIN_TYPE_SHELLED
+    # a custom shape leaving cells out, without lip, scoop and tab for now
+    cells = shapeCells()
+    shaped = isShaped()
 
     try:
+        if shapeError() is not None:
+            raise ValueError(shapeError())
         des = adsk.fusion.Design.cast(app.activeProduct)
         if des.designType == adsk.fusion.DesignTypes.DirectDesignType:
             raise UnsupportedDesignTypeException('Timeline must be enabled for the generator to work, projects with disabled design history currently are not supported')
@@ -1057,10 +1172,13 @@ def generateBin(args: adsk.core.CommandEventArgs):
                 bin_length.value,
                 gridfinityBinComponent,
             )
+            if shaped:
+                baseBodies = keepBodiesInCells(baseBodies, cells, baseGeneratorInput, gridfinityBinComponent, name='Foot outside shape remove')
 
         # create bin body
         binBodyInput = BinBodyGeneratorInput()
         binBodyInput.hasLip = with_lip.value
+        binBodyInput.shapeCells = cells if shaped else None
         binBodyInput.hasLipNotches = with_lip_notches.value
         binBodyInput.binWidth = bin_width.value
         binBodyInput.binLength = bin_length.value
@@ -1070,11 +1188,12 @@ def generateBin(args: adsk.core.CommandEventArgs):
         binBodyInput.heightUnit = Dim.length(height_unit.value)
         binBodyInput.xyClearance = xyClearance
         binBodyInput.binCornerFilletRadius = const.BIN_CORNER_FILLET_RADIUS - xyClearance
-        binBodyInput.isSolid = isSolid or isShelled
+        # a shaped hollow bin gets its cavity once trimmed to the shape
+        binBodyInput.isSolid = isSolid or isShelled or shaped
         binBodyInput.wallThickness = bin_wall_thickness.value
-        binBodyInput.hasScoop = has_scoop.value and isHollow
+        binBodyInput.hasScoop = has_scoop.value and isHollow and not shaped
         binBodyInput.scoopMaxRadius = binScoopMaxRadius.value
-        binBodyInput.hasTab = hasTabInput.value and isHollow
+        binBodyInput.hasTab = hasTabInput.value and isHollow and not shaped
         binBodyInput.tabLength = binTabLength.value
         binBodyInput.tabWidth = binTabWidth.value
         binBodyInput.tabPosition = binTabPosition.value
@@ -1150,21 +1269,40 @@ def generateBin(args: adsk.core.CommandEventArgs):
             combineFeatures.add(combineFeatureInput).name = 'Bin body and feet join'
             binBody.name = binName
 
-        if bin_generate_body.value or bin_generate_base.value:
+        # feet only touch each other along edges, so without a body they stay separate
+        clearanceBodies = [binBody] if bin_generate_body.value else baseBodies
+        if shaped and (bin_generate_body.value or bin_generate_base.value):
+            # the body is built over the whole grid, the outline trims it down to the shape
+            cutOutsideShape(cells, baseGeneratorInput, clearanceBodies, gridfinityBinComponent, name='Outer clearance trim')
+        elif bin_generate_body.value or bin_generate_base.value:
             cutBaseClearance(
                 baseGeneratorInput,
                 bin_width.value,
                 bin_length.value,
-                # feet only touch each other along edges, so without a body they stay separate
-                [binBody] if bin_generate_body.value else baseBodies,
+                clearanceBodies,
                 gridfinityBinComponent,
             )
 
         binBasesXCount = int(round(bin_width.value))
         binBasesYCount = int(round(bin_length.value))
-        if bin_generate_body.value and bin_generate_base.value and not isShelled and (binBasesXCount > 1 or binBasesYCount > 1):
-            # curve up the gaps between feet along the walls instead of leaving flat overhangs
-            cutWallJunctionPockets(baseGeneratorInput, binBasesXCount, binBasesYCount, binBody, gridfinityBinComponent)
+        if bin_generate_body.value and bin_generate_base.value and (shaped or not isShelled):
+            # curve up the gaps between feet along the walls instead of leaving flat overhangs,
+            # shaped bins need them at the inner corners whatever the type, the shell follows the pockets cut before it
+            if shaped:
+                cutShapeWallJunctionPockets(baseGeneratorInput, cells, binBody, gridfinityBinComponent)
+            elif binBasesXCount > 1 or binBasesYCount > 1:
+                cutWallJunctionPockets(baseGeneratorInput, binBasesXCount, binBasesYCount, binBody, gridfinityBinComponent)
+
+        if shaped and isHollow and bin_generate_body.value:
+            cavity = createShapeCavity(
+                cells,
+                baseGeneratorInput,
+                binBodyInput.wallThickness,
+                binBodyTopHeight(binBodyInput),
+                gridfinityBinComponent,
+                name='Cavity',
+            )
+            combineUtils.cutBody(binBody, commonUtils.objectCollectionFromList([cavity]), gridfinityBinComponent, name='Cavity cut')
 
         if isShelled and bin_generate_body.value:
             # the body already stands the xy clearance in from the cell border, so the walls take the full thickness
@@ -1196,7 +1334,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
             else:
                 shellUtils.simpleShell([topFace], binBodyInput.wallThickness, gridfinityBinComponent, name='Shell')
 
-            if hasTabInput.value:
+            if hasTabInput.value and not shaped:
                 compartmentTabInput = BinBodyTabGeneratorInput()
                 tabOriginX = Dim.length(binBodyInput.wallThickness) + binBodyInput.baseWidth * max(0, min(binBodyInput.tabPosition, binBodyInput.binWidth - binBodyInput.tabLength))
                 if binBodyInput.hasLip and binBodyInput.hasScoop:
@@ -1300,16 +1438,17 @@ def generateBin(args: adsk.core.CommandEventArgs):
 
         if bin_generate_base.value and inputs.itemById(BIN_JOINT_ORIGINS_INPUT_ID).value:
             # last, after the placement, joint origins sit on sketches which don't follow body moves
+            centers = cellCenters(
+                baseWidth,
+                baseLength,
+                xyClearance,
+                range(bin_width.value),
+                range(bin_length.value),
+                Dim.length(binPlacement[0]) if binPlacement[0] != 0 else None,
+                Dim.length(binPlacement[1]) if binPlacement[1] != 0 else None,
+            )
             createCellJointOrigins(
-                cellCenters(
-                    baseWidth,
-                    baseLength,
-                    xyClearance,
-                    range(bin_width.value),
-                    range(bin_length.value),
-                    Dim.length(binPlacement[0]) if binPlacement[0] != 0 else None,
-                    Dim.length(binPlacement[1]) if binPlacement[1] != 0 else None,
-                ),
+                [center for center in centers if (center[0], center[1]) in set(cells)],
                 gridfinityBinComponent,
                 name='Foot joint origin',
             )

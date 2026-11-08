@@ -11,6 +11,79 @@ from .dim import Dim, valueInput
 app = adsk.core.Application.get()
 ui = app.userInterface
 
+def createShapeLipSocket(
+    input: BinBodyLipGeneratorInput,
+    targetComponent: adsk.fusion.Component,
+) -> adsk.fusion.BRepBody:
+    """
+    The lip cutout of a shaped bin, a foot following the outline the feet of a bin of the same shape stacked on top
+    sit in. Like the plain one it starts a clearance outside the cell lines, the 45 degree top section is a tapered
+    extrude, so its corners stay concentric with the bin's all the way down
+    """
+    grid = baseGenerator.shapeGridInput(input.baseWidth, input.baseLength, input.xyClearance)
+    planeInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
+    planeInput.setByOffset(targetComponent.xYConstructionPlane, valueInput(input.originZ + Dim.length(const.BIN_BASE_HEIGHT)))
+    plane = targetComponent.constructionPlanes.add(planeInput)
+    plane.name = 'Lip cutout plane'
+    (sketch, _) = baseGenerator.createShapeOutlineSketch(
+        input.shapeCells,
+        grid,
+        -input.xyClearance,
+        plane,
+        targetComponent,
+        name='Lip cutout',
+    )
+    topSection = extrudeUtils.taperedExtrude(
+        sketch.profiles.item(0),
+        const.BIN_BASE_TOP_SECTION_HEIGH,
+        adsk.fusion.ExtentDirections.NegativeExtentDirection,
+        targetComponent,
+        name='Lip cutout top section',
+    )
+    socket = topSection.bodies.item(0)
+    socket.name = 'Lip cutout'
+    extrudeUtils.simpleDistanceExtrude(
+        topSection.endFaces.item(0),
+        adsk.fusion.FeatureOperations.JoinFeatureOperation,
+        const.BIN_BASE_MID_SECTION_HEIGH + const.BIN_BASE_BOTTOM_SECTION_HEIGH,
+        adsk.fusion.ExtentDirections.PositiveExtentDirection,
+        [socket],
+        targetComponent,
+        name='Lip cutout bottom section',
+    )
+    return socket
+
+def createShapeLipMiddleCutout(
+    input: BinBodyLipGeneratorInput,
+    height: float,
+    targetComponent: adsk.fusion.Component,
+) -> adsk.fusion.BRepBody:
+    """Inside of the lip wall of a shaped bin, between the notches"""
+    grid = baseGenerator.shapeGridInput(input.baseWidth, input.baseLength, input.xyClearance)
+    planeInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
+    planeInput.setByOffset(targetComponent.xYConstructionPlane, valueInput(input.originZ))
+    plane = targetComponent.constructionPlanes.add(planeInput)
+    plane.name = 'Lip middle cutout plane'
+    (sketch, _) = baseGenerator.createShapeOutlineSketch(
+        input.shapeCells,
+        grid,
+        input.wallThickness,
+        plane,
+        targetComponent,
+        const.BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS,
+        name='Lip middle cutout',
+    )
+    cutout = extrudeUtils.simpleDistanceExtrude(
+        sketch.profiles.item(0),
+        adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
+        height,
+        adsk.fusion.ExtentDirections.PositiveExtentDirection,
+        [],
+        targetComponent,
+        name='Lip middle cutout',
+    )
+    return cutout.bodies.item(0)
+
 def createGridfinityBinBodyLip(
     input: BinBodyLipGeneratorInput,
     targetComponent: adsk.fusion.Component,
@@ -81,6 +154,16 @@ def createGridfinityBinBodyLip(
         rectangularPattern.name = 'Lip notch cutouts pattern'
         lipCutoutBodies = lipCutoutBodies + list(rectangularPattern.bodies)
 
+    if input.hasLipNotches and input.shapeCells is not None:
+        lipCutoutBodies = baseGenerator.keepBodiesInCells(
+            lipCutoutBodies,
+            input.shapeCells,
+            baseGenerator.shapeGridInput(input.baseWidth, input.baseLength, input.xyClearance),
+            targetComponent,
+            name='Lip notch outside shape remove',
+        )
+        bodiesToSubtract.append(createShapeLipMiddleCutout(input, lipBodyHeight, targetComponent))
+    elif input.hasLipNotches:
         lipMiddleCutoutOrigin = geometryUtils.createOffsetPoint(
             input.origin,
             byX=input.wallThickness - input.xyClearance,
@@ -104,6 +187,8 @@ def createGridfinityBinBodyLip(
         )
         bodiesToSubtract.append(lipMidCutout.bodies.item(0))
 
+    elif input.shapeCells is not None:
+        lipCutoutBodies.append(createShapeLipSocket(input, targetComponent))
     else:
         lipCutoutInput = BaseGeneratorInput()
         lipCutoutInput.originPoint = geometryUtils.createOffsetPoint(

@@ -10,6 +10,8 @@ class BinBodyLipGeneratorInput():
         self.hasLipNotches = False
         self.binCornerFilletRadius = const.BIN_CORNER_FILLET_RADIUS
         self.originZ = None
+        # grid cells of a shaped bin, see BinBodyGeneratorInput.shapeCells
+        self.shapeCells = None
 
     @property
     def baseWidth(self) -> Dim:

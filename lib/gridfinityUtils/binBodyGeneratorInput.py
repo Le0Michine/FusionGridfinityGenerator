@@ -77,6 +77,9 @@ class BinBodyGeneratorInput():
         self.compartmentsByX = 1
         self.compartmentsByY = 1
         self.binCornerFilletRadius = const.BIN_CORNER_FILLET_RADIUS
+        # grid cells of a shaped bin, see binShape, none for a plain one. The body is built over the whole grid,
+        # parts following the outline are left to the caller, the lip's are made here
+        self.shapeCells = None
 
     @property
     def baseWidth(self) -> Dim:

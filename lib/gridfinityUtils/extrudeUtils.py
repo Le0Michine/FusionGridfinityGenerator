@@ -28,6 +28,31 @@ def simpleDistanceExtrude(
     extrudeFeature.name = name
     return extrudeFeature
 
+def taperedExtrude(
+    profile: adsk.core.Base,
+    distance: Dim | float,
+    direction: adsk.fusion.ExtentDirections,
+    targetComponent: adsk.fusion.Component,
+    *,
+    name: str,
+    ) -> adsk.fusion.ExtrudeFeature:
+    """New body narrowing at 45 degrees away from the profile, every side and arc moves in as far as it goes"""
+    extrudeFeatures: adsk.fusion.ExtrudeFeatures = targetComponent.features.extrudeFeatures
+    extrudeInput = extrudeFeatures.createInput(profile, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+    extrudeInput.setOneSideExtent(
+        adsk.fusion.DistanceExtentDefinition.create(valueInput(distance)),
+        direction,
+        adsk.core.ValueInput.createByString('-45 deg'),
+    )
+    extrudeFeature = extrudeFeatures.add(extrudeInput)
+    extrudeFeature.name = name
+    profileBox = profile.boundingBox
+    bodyBox = extrudeFeature.bodies.item(0).boundingBox
+    if bodyBox.maxPoint.x - bodyBox.minPoint.x > profileBox.maxPoint.x - profileBox.minPoint.x + 1e-4:
+        # the taper sign depends on the extent direction, it went outwards
+        extrudeFeature.taperAngleOne.expression = '45 deg'
+    return extrudeFeature
+
 def createBox(
     width: Dim | float,
     length: Dim | float,

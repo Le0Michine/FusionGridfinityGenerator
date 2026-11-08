@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+    :root {
+        --text: #4a4a4a;
+        --muted: #8a8a8a;
+        --empty: #e4e8ec;
+        --empty-border: #c9d3de;
+        --cell: #4e79a7;
+        --error: #d0021b;
+        --button: #f7f7f7;
+        --button-border: #c4c4c4;
+        --button-hover: #dddddd;
+        --button-hover-border: #a6a6a6;
+        --button-pressed: #cfcfcf;
+    }
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --text: #d6d6d6;
+            --muted: #9a9a9a;
+            --empty: #2f353c;
+            --empty-border: #3a4654;
+            --cell: #5b8cc0;
+            --error: #ff6b6b;
+            --button: #474747;
+            --button-border: #626262;
+            --button-hover: #555555;
+            --button-hover-border: #7a7a7a;
+            --button-pressed: #5f5f5f;
+        }
+    }
+    * {
+        box-sizing: border-box;
+    }
+    html, body {
+        margin: 0;
+        padding: 0;
+        background: transparent;
+        overflow: hidden;
+        /* the dialog's font, loaded from the Fusion install once the dialog sends it */
+        font: 13px "Fusion Artifakt Element", "Artifakt Element", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+        color: var(--text);
+    }
+    #drawing svg {
+        display: block;
+        margin: 0 auto;
+        max-width: 100%;
+        height: auto;
+        touch-action: none;
+        user-select: none;
+        cursor: crosshair;
+    }
+    .empty {
+        fill: var(--empty);
+        stroke: var(--empty-border);
+        stroke-width: 1px;
+    }
+    .filled {
+        fill: var(--cell);
+    }
+    #footer {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 4px 0;
+    }
+    #message {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: var(--muted);
+    }
+    #message.error {
+        color: var(--error);
+    }
+    /* as Fusion draws its buttons, see lib/ui/html/defaultsButtons.html */
+    button {
+        flex: none;
+        font: inherit;
+        color: var(--text);
+        background: var(--button);
+        border: 1px solid var(--button-border);
+        border-radius: 3px;
+        padding: 2px 8px;
+    }
+    button:hover:enabled {
+        background: var(--button-hover);
+        border-color: var(--button-hover-border);
+    }
+    button:active:enabled {
+        background: var(--button-pressed);
+    }
+    button:disabled {
+        opacity: 0.5;
+    }
+</style>
+</head>
+<body>
+<div id="drawing"></div>
+<div id="footer">
+    <span id="message"></span>
+    <button id="fill" title="Every cell of the bin">Fill all</button>
+</div>
+<script>
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+    // gap between cells
+    const GAP = 2;
+    // space kept around the drawing
+    const MARGIN = 2;
+
+    let data = null;
+    // cells painted by the stroke in progress, all filled or all cleared like the cell it started on
+    let stroke = null;
+    let layout = null;
+
+    function svgElement(name, attributes) {
+        const element = document.createElementNS(SVG_NS, name);
+        for (const [key, value] of Object.entries(attributes)) {
+            element.setAttribute(key, value);
+        }
+        return element;
+    }
+
+    function key(x, y) {
+        return `${x},${y}`;
+    }
+
+    function filledSet() {
+        return new Set(data.cells.map((cell) => key(cell[0], cell[1])));
+    }
+
+    function send() {
+        if (!window.adsk || !adsk.fusionSendData) {
+            return;
+        }
+        const result = adsk.fusionSendData('shape', JSON.stringify(data.cells));
+        // the dialog answers with the checked shape, its error included
+        if (result && typeof result.then === 'function') {
+            result.then(update);
+        } else {
+            update(result);
+        }
+    }
+
+    function setCell(x, y, isFilled) {
+        const filled = filledSet();
+        if (filled.has(key(x, y)) === isFilled) {
+            return false;
+        }
+        if (isFilled) {
+            data.cells.push([x, y]);
+        } else {
+            data.cells = data.cells.filter((cell) => cell[0] !== x || cell[1] !== y);
+        }
+        return true;
+    }
+
+    function cellAt(event) {
+        const box = event.currentTarget.getBoundingClientRect();
+        const scale = layout.width / box.width;
+        const px = (event.clientX - box.left) * scale - MARGIN;
+        const py = (event.clientY - box.top) * scale - MARGIN;
+        const x = Math.floor(px / layout.cell);
+        // the front of the bin, row 0, at the bottom like the compartments drawing
+        const y = data.rows - 1 - Math.floor(py / layout.cell);
+        if (x < 0 || x >= data.columns || y < 0 || y >= data.rows) {
+            return null;
+        }
+        return { x: x, y: y };
+    }
+
+    function renderDrawing() {
+        const drawing = document.getElementById('drawing');
+        drawing.textContent = '';
+        const footerHeight = document.getElementById('footer').offsetHeight;
+        const availableWidth = Math.max(40, window.innerWidth - MARGIN * 2);
+        const availableHeight = Math.max(40, window.innerHeight - footerHeight - MARGIN * 2);
+        // square cells, as big as fit
+        const cell = Math.min(availableWidth / data.columns, availableHeight / data.rows);
+        layout = {
+            cell: cell,
+            width: cell * data.columns + MARGIN * 2,
+            height: cell * data.rows + MARGIN * 2,
+        };
+        const svg = svgElement('svg', {
+            width: layout.width,
+            height: layout.height,
+            viewBox: `0 0 ${layout.width} ${layout.height}`,
+        });
+        const filled = filledSet();
+        const gap = Math.min(GAP, cell / 4);
+        for (let x = 0; x < data.columns; x++) {
+            for (let y = 0; y < data.rows; y++) {
+                svg.appendChild(svgElement('rect', {
+                    class: filled.has(key(x, y)) ? 'filled' : 'empty',
+                    x: MARGIN + x * cell + gap / 2,
+                    y: MARGIN + (data.rows - 1 - y) * cell + gap / 2,
+                    width: cell - gap,
+                    height: cell - gap,
+                    rx: Math.min(3, cell / 6),
+                }));
+            }
+        }
+        svg.addEventListener('pointerdown', (event) => {
+            const at = cellAt(event);
+            if (!at) {
+                return;
+            }
+            svg.setPointerCapture(event.pointerId);
+            stroke = { isFilled: !filled.has(key(at.x, at.y)), changed: false };
+            stroke.changed = setCell(at.x, at.y, stroke.isFilled);
+            renderDrawing();
+        });
+        svg.addEventListener('pointermove', (event) => {
+            if (!stroke) {
+                return;
+            }
+            const at = cellAt(event);
+            if (at && setCell(at.x, at.y, stroke.isFilled)) {
+                stroke.changed = true;
+                renderDrawing();
+            }
+        });
+        const endStroke = () => {
+            if (stroke && stroke.changed) {
+                send();
+            }
+            stroke = null;
+        };
+        svg.addEventListener('pointerup', endStroke);
+        svg.addEventListener('pointercancel', endStroke);
+        drawing.appendChild(svg);
+    }
+
+    function renderFooter() {
+        const message = document.getElementById('message');
+        message.textContent = data.error || data.note || '';
+        message.title = message.textContent;
+        message.className = data.error ? 'error' : '';
+        document.getElementById('fill').disabled = data.cells.length === data.columns * data.rows;
+    }
+
+    // the dialog's font comes from the Fusion install, its path changes with every update
+    let loadedFont = null;
+    function loadFont() {
+        if (!data.fontUrl || data.fontUrl === loadedFont) {
+            return;
+        }
+        loadedFont = data.fontUrl;
+        const style = document.createElement('style');
+        style.textContent = `@font-face { font-family: "Fusion Artifakt Element"; src: url("${data.fontUrl}"); }`;
+        document.head.appendChild(style);
+    }
+
+    function render() {
+        if (!data || stroke) {
+            return;
+        }
+        loadFont();
+        renderFooter();
+        renderDrawing();
+    }
+
+    function update(json) {
+        if (!json || json === 'OK') {
+            return;
+        }
+        data = JSON.parse(json);
+        render();
+    }
+
+    document.getElementById('fill').addEventListener('click', () => {
+        data.cells = [];
+        for (let x = 0; x < data.columns; x++) {
+            for (let y = 0; y < data.rows; y++) {
+                data.cells.push([x, y]);
+            }
+        }
+        render();
+        send();
+    });
+
+    window.addEventListener('resize', render);
+
+    window.fusionJavaScriptHandler = {
+        handle: function (action, payload) {
+            if (action === 'update') {
+                update(payload);
+            }
+            return 'OK';
+        },
+    };
+
+    // the bridge is injected after the page starts loading, older Fusion versions return the data directly
+    function requestInitialData() {
+        if (!window.adsk || !adsk.fusionSendData) {
+            setTimeout(requestInitialData, 100);
+            return;
+        }
+        const result = adsk.fusionSendData('ready', '');
+        if (result && typeof result.then === 'function') {
+            result.then(update);
+        } else {
+            update(result);
+        }
+    }
+    requestInitialData();
+</script>
+</body>
+</html>
