@@ -453,9 +453,17 @@ def normalizeCompartmentPockets():
         commandUIState.getState(BIN_COMPARTMENTS_GRID_BASE_LENGTH_ID),
     )
 
+def hasSingleCompartment() -> bool:
+    """Merged cells of a custom grid make one compartment"""
+    return len(compartmentLayout.normalizePockets(
+        compartmentPockets,
+        commandUIState.getState(BIN_COMPARTMENTS_GRID_BASE_WIDTH_ID),
+        commandUIState.getState(BIN_COMPARTMENTS_GRID_BASE_LENGTH_ID),
+    )) == 1
+
 def updateTabHollowSidesInput(isTabEnabled: bool):
-    """Side walls are only opened for a hollow tab, the option is cleared when it can't apply"""
-    isEnabled = isTabEnabled and commandUIState.getState(BIN_TAB_HOLLOW_INPUT_ID)
+    """Side walls are only opened for a hollow tab of a single compartment, the option is cleared when it can't apply"""
+    isEnabled = isTabEnabled and commandUIState.getState(BIN_TAB_HOLLOW_INPUT_ID) and hasSingleCompartment()
     commandUIState.getInput(BIN_TAB_HOLLOW_SIDES_INPUT_ID).isEnabled = isEnabled
     if not isEnabled:
         commandUIState.updateValue(BIN_TAB_HOLLOW_SIDES_INPUT_ID, False)
@@ -944,6 +952,8 @@ def command_incoming_from_html(args: adsk.core.HTMLEventArgs):
         except ValueError as err:
             futil.log(f'{CMD_NAME} Ignoring pockets from the drawing, {err}')
         normalizeCompartmentPockets()
+        # merging cells changes how many compartments there are, which some inputs depend on
+        onChangeValidate()
         args.returnData = 'OK'
         if commandUIState.getInput(SHOW_PREVIEW_INPUT).value:
             args.browserCommandInput.parentCommand.doExecutePreview()
