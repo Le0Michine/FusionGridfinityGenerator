@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+    :root {
+        --text: #4a4a4a;
+        /* dialog input labels */
+        --label: #3c3c3c;
+        --muted: #8a8a8a;
+        --wall: #c9d3de;
+        --pocket: #4e79a7;
+        --pocket-text: #ffffff;
+        --selected: #f5a623;
+        --drag: #ffffff;
+        --field: #ffffff;
+        --field-border: #b8b8b8;
+        --error: #d0021b;
+        --button: #f7f7f7;
+        --button-border: #c4c4c4;
+        --button-hover: #dddddd;
+        --button-hover-border: #a6a6a6;
+        --button-pressed: #cfcfcf;
+    }
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --text: #d6d6d6;
+            --label: #e2e2e2;
+            --muted: #9a9a9a;
+            --wall: #3a4654;
+            --pocket: #5b8cc0;
+            --pocket-text: #ffffff;
+            --selected: #ffb84d;
+            --drag: #ffffff;
+            --field: #2b2b2b;
+            --field-border: #5a5a5a;
+            --error: #ff6b6b;
+            --button: #474747;
+            --button-border: #626262;
+            --button-hover: #555555;
+            --button-hover-border: #7a7a7a;
+            --button-pressed: #5f5f5f;
+        }
+    }
+    * {
+        box-sizing: border-box;
+    }
+    html, body {
+        margin: 0;
+        padding: 0;
+        background: transparent;
+        overflow: hidden;
+        /* the dialog's font, loaded from the Fusion install once the dialog sends it */
+        font: 13px "Fusion Artifakt Element", "Artifakt Element", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+        color: var(--text);
+    }
+    #drawing svg {
+        display: block;
+        margin: 0 auto;
+        max-width: 100%;
+        height: auto;
+        touch-action: none;
+        user-select: none;
+        cursor: crosshair;
+    }
+    .bin {
+        fill: var(--wall);
+    }
+    .pocket {
+        fill: var(--pocket);
+    }
+    .pocket.selected {
+        stroke: var(--selected);
+        stroke-width: 2px;
+    }
+    .drag {
+        fill: var(--drag);
+        fill-opacity: 0.35;
+        stroke: var(--selected);
+        stroke-width: 1.5px;
+        stroke-dasharray: 3 2;
+        pointer-events: none;
+    }
+    .pocket-label {
+        fill: var(--pocket-text);
+        text-anchor: middle;
+        dominant-baseline: central;
+        pointer-events: none;
+    }
+    .pocket-label.inherited {
+        font-style: italic;
+        fill-opacity: 0.75;
+    }
+    .pocket-depth {
+        fill: var(--pocket-text);
+        fill-opacity: 0.8;
+        text-anchor: end;
+        pointer-events: none;
+    }
+    #editor {
+        padding: 6px 4px 0;
+    }
+    .hint {
+        color: var(--muted);
+        text-align: center;
+        line-height: 1.5;
+    }
+    .row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 4px;
+    }
+    .row label {
+        width: 44px;
+        flex: none;
+        color: var(--label);
+    }
+    .row input, .row select {
+        flex: 1;
+        min-width: 0;
+        font: inherit;
+        color: var(--text);
+        background: var(--field);
+        border: 1px solid var(--field-border);
+        border-radius: 3px;
+        padding: 2px 4px;
+    }
+    /* keeps its placeholder readable, the buttons beside it fit the rest */
+    .row input[type=number] {
+        flex: 0 0 76px;
+        -moz-appearance: textfield;
+    }
+    .row input[type=number]::-webkit-outer-spin-button, .row input[type=number]::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+    .picker {
+        flex: 1;
+        min-width: 0;
+    }
+    .picker-field {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        width: 100%;
+        padding: 2px 4px;
+        text-align: left;
+        background: var(--field);
+        border: 1px solid var(--field-border);
+        border-radius: 3px;
+    }
+    .picker-field:hover:enabled {
+        background: var(--field);
+    }
+    .picker-text {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .picker-caret {
+        color: var(--muted);
+    }
+    .picker img {
+        width: 16px;
+        height: 16px;
+        flex: none;
+    }
+    .picker-list {
+        position: fixed;
+        z-index: 10;
+        overflow-y: auto;
+        padding: 2px 0;
+        background: var(--field);
+        border: 1px solid var(--field-border);
+        border-radius: 3px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+    .picker-group {
+        padding: 3px 6px 1px;
+        color: var(--muted);
+    }
+    .picker-option {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 2px 6px;
+        white-space: nowrap;
+    }
+    .picker-option.grouped {
+        padding-left: 16px;
+    }
+    .picker-option:hover {
+        background: var(--button-hover);
+    }
+    .picker-option.selected {
+        background: var(--pocket);
+        color: var(--pocket-text);
+    }
+    .picker-list img {
+        width: 16px;
+        height: 16px;
+        flex: none;
+    }
+    .row img {
+        width: 16px;
+        height: 16px;
+        flex: none;
+    }
+    .row .unit {
+        color: var(--muted);
+    }
+    .buttons {
+        display: flex;
+        gap: 6px;
+        justify-content: flex-end;
+    }
+    /* as Fusion draws its buttons, see lib/ui/html/defaultsButtons.html */
+    button {
+        font: inherit;
+        color: var(--text);
+        background: var(--button);
+        border: 1px solid var(--button-border);
+        border-radius: 3px;
+        padding: 2px 8px;
+    }
+    button:hover:enabled {
+        background: var(--button-hover);
+        border-color: var(--button-hover-border);
+    }
+    button:active:enabled {
+        background: var(--button-pressed);
+    }
+    button:disabled {
+        opacity: 0.5;
+    }
+    #grid {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        gap: 4px 10px;
+        padding: 0 4px 6px;
+    }
+    .stepper {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+    }
+    .stepper button {
+        width: 20px;
+        height: 20px;
+        padding: 0;
+        border-radius: 2px;
+    }
+    .stepper input {
+        width: 34px;
+        height: 20px;
+        text-align: center;
+        font: inherit;
+        color: var(--text);
+        background: var(--field);
+        border: 1px solid var(--field-border);
+        border-radius: 2px;
+        padding: 0;
+        -moz-appearance: textfield;
+    }
+    .stepper input::-webkit-outer-spin-button, .stepper input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+    body.grid #drawing, body.grid #editor, body.layout #grid {
+        display: none;
+    }
+    /* one line, the dialog keeps the row this short */
+    body.grid #grid {
+        flex-wrap: nowrap;
+        justify-content: flex-start;
+        height: 100vh;
+        /* lines up with the dialog's labels */
+        padding: 0 4px 0 2px;
+        white-space: nowrap;
+    }
+    .field-label {
+        color: var(--label);
+    }
+    .stepper .axis {
+        color: var(--muted);
+        margin-right: 2px;
+    }
+    /* at the end of the row, the cell size gives way when it's narrow */
+    .grid-reset {
+        flex: none;
+        margin-left: auto;
+        height: 20px;
+        padding: 0 6px;
+        border-radius: 2px;
+    }
+    .cell-size {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: var(--muted);
+    }
+    .cell-size.too-small {
+        color: var(--error);
+    }
+</style>
+</head>
+<body>
+<div id="grid"></div>
+<div id="drawing"></div>
+<div id="editor"></div>
+<script>
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+    // gap between pockets, standing for the walls between them
+    const WALL = 3;
+    // space kept around the drawing
+    const MARGIN = 2;
+
+    let data = null;
+    // the selected pocket is kept by its corner cell, which survives updates from the dialog
+    let selectedCell = null;
+    let drag = null;
+    let layout = null;
+
+    function svgElement(name, attributes) {
+        const element = document.createElementNS(SVG_NS, name);
+        for (const [key, value] of Object.entries(attributes)) {
+            element.setAttribute(key, value);
+        }
+        return element;
+    }
+
+    function htmlElement(name, attributes, text) {
+        const element = document.createElement(name);
+        for (const [key, value] of Object.entries(attributes || {})) {
+            element.setAttribute(key, value);
+        }
+        if (text !== undefined) {
+            element.textContent = text;
+        }
+        return element;
+    }
+
+    function isDark() {
+        return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+
+    // light icons for dark backgrounds, like the pockets in the drawing
+    function iconImage(name, onDark) {
+        const icon = data.icons.find((item) => item.name === name);
+        if (!icon || !icon.image) {
+            return null;
+        }
+        return onDark && icon.imageDark ? icon.imageDark : icon.image;
+    }
+
+    function pocketAt(x, y) {
+        return data.pockets.find((p) => x >= p.x && x < p.x + p.width && y >= p.y && y < p.y + p.length);
+    }
+
+    function selectedPocket() {
+        return selectedCell ? pocketAt(selectedCell.x, selectedCell.y) : null;
+    }
+
+    function singleCell(x, y, depth) {
+        return { x: x, y: y, width: 1, length: 1, depth: depth === undefined ? null : depth, label: '', icon: 'Default' };
+    }
+
+    function sortPockets() {
+        data.pockets.sort((a, b) => a.x - b.x || a.y - b.y);
+    }
+
+    function send() {
+        sortPockets();
+        if (window.adsk && adsk.fusionSendData) {
+            adsk.fusionSendData('pockets', JSON.stringify(data.pockets));
+        }
+    }
+
+    // a pocket over the cells between two corners, pockets it cuts through fall back to single cells
+    function merge(from, to) {
+        const minX = Math.min(from.x, to.x);
+        const minY = Math.min(from.y, to.y);
+        const maxX = Math.max(from.x, to.x);
+        const maxY = Math.max(from.y, to.y);
+        const source = pocketAt(from.x, from.y);
+        const kept = [];
+        for (const p of data.pockets) {
+            const overlaps = p.x <= maxX && p.x + p.width - 1 >= minX && p.y <= maxY && p.y + p.length - 1 >= minY;
+            if (!overlaps) {
+                kept.push(p);
+                continue;
+            }
+            for (let x = p.x; x < p.x + p.width; x++) {
+                for (let y = p.y; y < p.y + p.length; y++) {
+                    if (x < minX || x > maxX || y < minY || y > maxY) {
+                        kept.push(singleCell(x, y, p.depth));
+                    }
+                }
+            }
+        }
+        kept.push({
+            x: minX,
+            y: minY,
+            width: maxX - minX + 1,
+            length: maxY - minY + 1,
+            depth: source ? source.depth : null,
+            label: source ? source.label : '',
+            icon: source ? source.icon : 'Default',
+        });
+        data.pockets = kept;
+        selectedCell = { x: minX, y: minY };
+        send();
+        render();
+    }
+
+    function split(pocket) {
+        data.pockets = data.pockets.filter((p) => p !== pocket);
+        for (let x = pocket.x; x < pocket.x + pocket.width; x++) {
+            for (let y = pocket.y; y < pocket.y + pocket.length; y++) {
+                data.pockets.push(singleCell(x, y, pocket.depth));
+            }
+        }
+        send();
+        render();
+    }
+
+    function resetAll() {
+        data.pockets = [];
+        for (let x = 0; x < data.columns; x++) {
+            for (let y = 0; y < data.rows; y++) {
+                data.pockets.push(singleCell(x, y));
+            }
+        }
+        selectedCell = null;
+        send();
+        render();
+    }
+
+    function cellFromEvent(event) {
+        const svg = event.currentTarget;
+        const box = svg.getBoundingClientRect();
+        // the svg can be shown smaller than drawn, when the panel is narrow
+        const scale = box.width / layout.svgWidth;
+        const px = (event.clientX - box.left) / scale - MARGIN;
+        const py = (event.clientY - box.top) / scale - MARGIN;
+        const x = Math.floor(px / layout.cellWidth);
+        const y = data.rows - 1 - Math.floor(py / layout.cellLength);
+        return { x: Math.max(0, Math.min(data.columns - 1, x)), y: Math.max(0, Math.min(data.rows - 1, y)) };
+    }
+
+    function renderDrawing() {
+        const drawing = document.getElementById('drawing');
+        drawing.replaceChildren();
+        const editorHeight = document.getElementById('editor').offsetHeight;
+        const maxWidth = Math.max(document.documentElement.clientWidth - MARGIN * 2 - 4, 40);
+        const maxHeight = Math.max(document.documentElement.clientHeight - editorHeight - MARGIN * 2 - 4, 40);
+        // data is in mm with Y pointing to the back of the bin, drawn upwards
+        const scale = Math.min(maxWidth / data.binWidth, maxHeight / data.binLength);
+        const width = data.binWidth * scale;
+        const height = data.binLength * scale;
+        layout = {
+            svgWidth: width + MARGIN * 2,
+            cellWidth: width / data.columns,
+            cellLength: height / data.rows,
+        };
+        const svg = svgElement('svg', { width: layout.svgWidth, height: height + MARGIN * 2, viewBox: `${-MARGIN} ${-MARGIN} ${width + MARGIN * 2} ${height + MARGIN * 2}` });
+        drawing.appendChild(svg);
+        svg.appendChild(svgElement('rect', { class: 'bin', x: 0, y: 0, width: width, height: height, rx: 4 }));
+
+        const selected = selectedPocket();
+        for (const p of data.pockets) {
+            const x = p.x * layout.cellWidth + WALL / 2;
+            const y = height - (p.y + p.length) * layout.cellLength + WALL / 2;
+            const pocketWidth = Math.max(p.width * layout.cellWidth - WALL, 1);
+            const pocketHeight = Math.max(p.length * layout.cellLength - WALL, 1);
+            const rect = svgElement('rect', { class: 'pocket' + (p === selected ? ' selected' : ''), x: x, y: y, width: pocketWidth, height: pocketHeight, rx: 2 });
+            const title = svgElement('title', {});
+            title.textContent = `${p.width} x ${p.length} cells` + (p.depth !== null ? `, ${p.depth} mm deep` : '');
+            rect.appendChild(title);
+            svg.appendChild(rect);
+
+            if (data.hasTab) {
+                const text = p.label || data.defaultLabel;
+                const iconName = p.icon === 'Default' ? data.defaultIcon : p.icon;
+                const image = iconImage(iconName, true);
+                // as tall as the text
+                const iconSize = 13;
+                if (text || image) {
+                    const label = svgElement('text', { class: 'pocket-label' + (p.label ? '' : ' inherited'), x: 0, y: y + pocketHeight / 2 });
+                    label.textContent = text;
+                    svg.appendChild(label);
+                    // icon and text are centered together and cut down to the pocket width
+                    const available = pocketWidth - 6;
+                    const iconWidth = image ? iconSize + (text ? 3 : 0) : 0;
+                    let textWidth = text ? label.getComputedTextLength() : 0;
+                    if (textWidth + iconWidth > available && text) {
+                        let shortened = text;
+                        while (shortened.length > 1 && label.getComputedTextLength() + iconWidth > available) {
+                            shortened = shortened.slice(0, -1);
+                            label.textContent = shortened + '…';
+                        }
+                        textWidth = label.getComputedTextLength();
+                    }
+                    const start = x + pocketWidth / 2 - (textWidth + iconWidth) / 2;
+                    label.setAttribute('x', start + iconWidth + textWidth / 2);
+                    if (image && iconWidth <= available) {
+                        svg.appendChild(svgElement('image', { href: image, x: start, y: y + pocketHeight / 2 - iconSize / 2, width: iconSize, height: iconSize }));
+                    }
+                }
+            }
+            if (p.depth !== null && pocketHeight >= 32 && pocketWidth >= 40) {
+                const depth = svgElement('text', { class: 'pocket-depth', x: x + pocketWidth - 3, y: y + pocketHeight - 3 });
+                depth.textContent = `${p.depth} mm`;
+                svg.appendChild(depth);
+            }
+        }
+
+        if (drag && drag.current) {
+            const minX = Math.min(drag.start.x, drag.current.x);
+            const minY = Math.min(drag.start.y, drag.current.y);
+            const maxX = Math.max(drag.start.x, drag.current.x);
+            const maxY = Math.max(drag.start.y, drag.current.y);
+            svg.appendChild(svgElement('rect', {
+                class: 'drag',
+                x: minX * layout.cellWidth,
+                y: height - (maxY + 1) * layout.cellLength,
+                width: (maxX - minX + 1) * layout.cellWidth,
+                height: (maxY - minY + 1) * layout.cellLength,
+                rx: 2,
+            }));
+        }
+
+        svg.addEventListener('pointerdown', (event) => {
+            svg.setPointerCapture(event.pointerId);
+            drag = { start: cellFromEvent(event), current: null };
+        });
+        svg.addEventListener('pointermove', (event) => {
+            if (!drag) {
+                return;
+            }
+            const cell = cellFromEvent(event);
+            const moved = cell.x !== drag.start.x || cell.y !== drag.start.y;
+            if (moved || drag.current) {
+                if (!drag.current || cell.x !== drag.current.x || cell.y !== drag.current.y) {
+                    drag.current = cell;
+                    renderDrawing();
+                }
+            }
+        });
+        svg.addEventListener('pointerup', (event) => {
+            if (!drag) {
+                return;
+            }
+            const finished = drag;
+            drag = null;
+            const cell = cellFromEvent(event);
+            if (finished.current && (cell.x !== finished.start.x || cell.y !== finished.start.y)) {
+                merge(finished.start, cell);
+            } else {
+                const p = pocketAt(cell.x, cell.y);
+                selectedCell = p && p !== selectedPocket() ? { x: p.x, y: p.y } : null;
+                render();
+            }
+        });
+    }
+
+    // a dropdown drawn in the page, Fusion opens a native select's list away from the dialog
+    function picker(options, value, disabled, change) {
+        const element = htmlElement('div', { class: 'picker' });
+        const field = htmlElement('button', { class: 'picker-field', type: 'button' });
+        field.disabled = disabled;
+        function optionContent(target, option) {
+            const image = htmlElement('img', { alt: '' });
+            if (option && option.image) {
+                image.src = option.image;
+            } else {
+                image.style.visibility = 'hidden';
+            }
+            target.append(image, htmlElement('span', { class: 'picker-text' }, option ? option.text : ''));
+        }
+        optionContent(field, options.find((option) => option.value === value));
+        field.appendChild(htmlElement('span', { class: 'picker-caret' }, '▾'));
+        element.appendChild(field);
+
+        let list = null;
+        function close() {
+            if (list) {
+                list.remove();
+                list = null;
+                document.removeEventListener('pointerdown', closeOutside, true);
+            }
+        }
+        function closeOutside(event) {
+            // the list hangs off the page body, not the picker
+            if (!element.contains(event.target) && !(list && list.contains(event.target))) {
+                close();
+            }
+        }
+        field.addEventListener('click', () => {
+            if (list) {
+                close();
+                return;
+            }
+            list = htmlElement('div', { class: 'picker-list' });
+            let group = '';
+            for (const option of options) {
+                if (option.group && option.group !== group) {
+                    group = option.group;
+                    list.appendChild(htmlElement('div', { class: 'picker-group' }, group));
+                }
+                const item = htmlElement('div', { class: 'picker-option' + (option.group ? ' grouped' : '') + (option.value === value ? ' selected' : '') });
+                optionContent(item, option);
+                item.addEventListener('click', () => {
+                    close();
+                    change(option.value);
+                    renderEditor();
+                });
+                list.appendChild(item);
+            }
+            // opens upwards over the drawing when there's more room above, the editor sits at the bottom
+            const box = field.getBoundingClientRect();
+            const above = box.top - 4;
+            const below = document.documentElement.clientHeight - box.bottom - 4;
+            list.style.left = `${box.left}px`;
+            list.style.width = `${box.width}px`;
+            if (above > below) {
+                list.style.bottom = `${document.documentElement.clientHeight - box.top + 2}px`;
+                list.style.maxHeight = `${above}px`;
+            } else {
+                list.style.top = `${box.bottom + 2}px`;
+                list.style.maxHeight = `${below}px`;
+            }
+            document.body.appendChild(list);
+            const selected = list.querySelector('.selected');
+            if (selected) {
+                selected.scrollIntoView({ block: 'nearest' });
+            }
+            document.addEventListener('pointerdown', closeOutside, true);
+        });
+        field.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                close();
+            }
+        });
+        return element;
+    }
+
+    // shown with and without a pocket selected
+    function resetButton() {
+        const reset = htmlElement('button', {}, 'Reset all');
+        reset.title = 'Back to single cells, without labels or depths';
+        reset.disabled = data.pockets.every((item) => item.width === 1 && item.length === 1 && item.depth === null && !item.label && item.icon === 'Default');
+        reset.addEventListener('click', resetAll);
+        return reset;
+    }
+
+    function renderEditor() {
+        const editor = document.getElementById('editor');
+        editor.replaceChildren();
+        const p = selectedPocket();
+        if (!p) {
+            editor.appendChild(htmlElement('div', { class: 'hint' }, 'Drag across cells to merge them into a pocket.'));
+            editor.appendChild(htmlElement('div', { class: 'hint' }, 'Click a pocket to set its label and depth.'));
+            const buttons = htmlElement('div', { class: 'buttons' });
+            buttons.appendChild(resetButton());
+            editor.appendChild(buttons);
+            return;
+        }
+
+        const labelRow = htmlElement('div', { class: 'row' });
+        labelRow.appendChild(htmlElement('label', {}, 'Label'));
+        const labelInput = htmlElement('input', { type: 'text', placeholder: data.defaultLabel || 'label tab text' });
+        labelInput.value = p.label;
+        labelInput.disabled = !data.hasTab;
+        labelInput.title = data.hasTab ? 'Empty takes the text from the label tab section' : 'Turn on the label tab to label pockets';
+        labelInput.addEventListener('input', () => {
+            p.label = labelInput.value;
+            renderDrawing();
+        });
+        labelInput.addEventListener('change', send);
+        labelRow.appendChild(labelInput);
+        editor.appendChild(labelRow);
+
+        const iconRow = htmlElement('div', { class: 'row' });
+        iconRow.appendChild(htmlElement('label', {}, 'Icon'));
+        const iconPicker = picker(
+            data.icons.map((icon) => ({
+                value: icon.name,
+                text: icon.name === 'Default' ? `Default (${data.defaultIcon})` : icon.name,
+                group: icon.group,
+                image: iconImage(icon.name === 'Default' ? data.defaultIcon : icon.name, isDark()),
+            })),
+            p.icon,
+            !data.hasTab,
+            (value) => {
+                p.icon = value;
+                send();
+                renderDrawing();
+            },
+        );
+        iconRow.appendChild(iconPicker);
+        editor.appendChild(iconRow);
+
+        const depthRow = htmlElement('div', { class: 'row' });
+        depthRow.appendChild(htmlElement('label', {}, 'Depth'));
+        const depthInput = htmlElement('input', { type: 'number', min: '1', step: '0.5', placeholder: `full, ${data.fullDepth}` });
+        depthInput.value = p.depth === null ? '' : p.depth;
+        depthInput.title = 'From the top of the bin, empty for the full depth';
+        depthInput.addEventListener('change', () => {
+            const value = parseFloat(depthInput.value);
+            p.depth = isFinite(value) && value > 0 && value < data.fullDepth ? value : null;
+            depthInput.value = p.depth === null ? '' : p.depth;
+            send();
+            renderDrawing();
+        });
+        depthRow.appendChild(depthInput);
+        depthRow.appendChild(htmlElement('span', { class: 'unit' }, 'mm'));
+        const buttons = htmlElement('div', { class: 'buttons' });
+        buttons.style.flex = '1';
+        const splitButton = htmlElement('button', {}, 'Split');
+        splitButton.disabled = p.width === 1 && p.length === 1;
+        splitButton.title = 'Back to single cells';
+        splitButton.addEventListener('click', () => split(p));
+        // changes apply as they're made, this only lets go of the pocket
+        const doneButton = htmlElement('button', {}, 'Done');
+        doneButton.title = 'Finish editing this compartment, changes are already applied';
+        doneButton.addEventListener('click', () => {
+            selectedCell = null;
+            render();
+        });
+        buttons.appendChild(doneButton);
+        buttons.appendChild(splitButton);
+        // last, where it is without a pocket selected too
+        buttons.appendChild(resetButton());
+        depthRow.appendChild(buttons);
+        editor.appendChild(depthRow);
+    }
+
+    // the grid size is the dialog's, the answer brings the pockets fitted to it
+    function setGrid(columns, rows) {
+        columns = Math.max(1, Math.min(data.maxCells, columns));
+        rows = Math.max(1, Math.min(data.maxCells, rows));
+        if (columns === data.columns && rows === data.rows) {
+            render();
+            return;
+        }
+        if (!window.adsk || !adsk.fusionSendData) {
+            return;
+        }
+        const result = adsk.fusionSendData('grid', JSON.stringify({ columns: columns, rows: rows }));
+        if (result && typeof result.then === 'function') {
+            result.then(update);
+        } else {
+            update(result);
+        }
+    }
+
+    function stepper(axis, title, value, change) {
+        const element = htmlElement('span', { class: 'stepper', title: title });
+        element.appendChild(htmlElement('span', { class: 'axis' }, axis));
+        const less = htmlElement('button', {}, '−');
+        less.disabled = value <= 1;
+        less.addEventListener('click', () => change(value - 1));
+        const input = htmlElement('input', { type: 'number', min: '1', max: String(data.maxCells), step: '1' });
+        input.value = value;
+        input.addEventListener('change', () => {
+            const next = parseInt(input.value, 10);
+            change(isFinite(next) ? next : value);
+        });
+        const more = htmlElement('button', {}, '+');
+        more.disabled = value >= data.maxCells;
+        more.addEventListener('click', () => change(value + 1));
+        element.append(less, input, more);
+        return element;
+    }
+
+    function renderGrid() {
+        const grid = document.getElementById('grid');
+        grid.replaceChildren();
+        grid.appendChild(htmlElement('span', { class: 'field-label' }, 'Grid'));
+        grid.appendChild(stepper('X', 'Cells along the bin width', data.columns, (columns) => setGrid(columns, data.rows)));
+        grid.appendChild(stepper('Y', 'Cells along the bin length', data.rows, (rows) => setGrid(data.columns, rows)));
+        const tooSmall = data.cellWidth < data.minCellSize || data.cellLength < data.minCellSize;
+        const size = htmlElement('span', { class: 'cell-size' + (tooSmall ? ' too-small' : '') }, `cell ${data.cellWidth} x ${data.cellLength} mm`);
+        size.title = tooSmall ? `Cells under ${data.minCellSize} mm are too small for the compartment corner fillets` : 'Size of one cell inside its walls';
+        grid.appendChild(size);
+        const reset = htmlElement('button', { class: 'grid-reset' }, 'Clear');
+        reset.title = 'Back to a single cell';
+        reset.disabled = data.columns === 1 && data.rows === 1;
+        reset.addEventListener('click', () => setGrid(1, 1));
+        grid.appendChild(reset);
+    }
+
+    // the dialog's font comes from the Fusion install, its path changes with every update
+    let loadedFont = null;
+    function loadFont() {
+        if (!data.fontUrl || data.fontUrl === loadedFont) {
+            return;
+        }
+        loadedFont = data.fontUrl;
+        const style = htmlElement('style', {}, `@font-face { font-family: "Fusion Artifakt Element"; src: url("${data.fontUrl}"); }`);
+        document.head.appendChild(style);
+        // labels are shortened to fit from the laid out text, so they're drawn again with the font
+        document.fonts.ready.then(render);
+    }
+
+    function render() {
+        if (!data) {
+            return;
+        }
+        loadFont();
+        // the dialog shows the page twice, as the grid size row and as the drawing
+        document.body.className = data.page;
+        if (data.page === 'grid') {
+            renderGrid();
+            return;
+        }
+        // the editor goes first, the drawing takes the height it leaves
+        renderEditor();
+        renderDrawing();
+    }
+
+    function update(json) {
+        if (!json) {
+            return;
+        }
+        const active = document.activeElement;
+        data = JSON.parse(json);
+        // keep typing undisturbed when the dialog sends an update while a field is being edited
+        if (active && active.tagName === 'INPUT' && selectedPocket() && data.page === 'layout') {
+            renderDrawing();
+            return;
+        }
+        render();
+    }
+
+    window.addEventListener('resize', render);
+
+    // a click beside the drawing lets go of the selected pocket, the drawing and the editor keep it
+    document.addEventListener('pointerdown', (event) => {
+        if (!selectedCell || event.target.closest('svg, #editor, .picker-list')) {
+            return;
+        }
+        selectedCell = null;
+        render();
+    });
+
+    window.fusionJavaScriptHandler = {
+        handle: function (action, payload) {
+            if (action === 'update') {
+                update(payload);
+            }
+            return 'OK';
+        },
+    };
+
+    // the bridge is injected after the page starts loading, older Fusion versions return the data directly
+    function requestInitialData() {
+        if (!window.adsk || !adsk.fusionSendData) {
+            setTimeout(requestInitialData, 100);
+            return;
+        }
+        const result = adsk.fusionSendData('ready', '');
+        if (result && typeof result.then === 'function') {
+            result.then(update);
+        } else {
+            update(result);
+        }
+    }
+    requestInitialData();
+</script>
+</body>
+</html>

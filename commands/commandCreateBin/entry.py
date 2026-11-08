@@ -1,5 +1,7 @@
 import adsk.core, adsk.fusion, traceback
+import json
 import os
+import pathlib
 import time
 import math
 
@@ -21,13 +23,15 @@ from ...lib.gridfinityUtils import sharedParameters
 from ...lib.gridfinityUtils.dim import Dim
 from ...lib.gridfinityUtils.baseGenerator import createSingleGridfinityBaseBody, createBaseBodyPattern, cutBaseClearance, cutWallJunctionPockets, cellCenters, createCellJointOrigins
 from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
-from ...lib.gridfinityUtils.binBodyGenerator import createGridfinityBinBody, uniformCompartments, binBodyTopHeight, createCompartmentCutout, compartmentCutoutFilletRadius, tabTopClearance, createTabLabel, hollowTabWallThickness
+from ...lib.gridfinityUtils.binBodyGenerator import createGridfinityBinBody, binBodyTopHeight, createCompartmentCutout, compartmentCutoutFilletRadius, tabTopClearance, createTabLabel, hollowTabWallThickness
 from ...lib.gridfinityUtils import labelGenerator
+from ...lib.gridfinityUtils import compartmentLayout
 from ...lib.gridfinityUtils.binBodyGeneratorInput import BinBodyGeneratorInput, BinBodyCompartmentDefinition
 from ...lib.gridfinityUtils.binBodyTabGeneratorInput import BinBodyTabGeneratorInput
 from ...lib.gridfinityUtils.binBodyTabGenerator import createGridfinityBinBodyTab, createTabHollowCuts, TabCavity, TabWallOpenings
 from ...lib.ui.commandUiState import CommandUiState
 from ...lib.ui.defaultsButtons import addDefaultsButtonRow, handleDefaultsButtons, DEFAULTS_SAVE, DEFAULTS_FACTORY_RESET
+from ...lib.ui.dialogFont import dialogFontUrl
 from ...lib.ui.unsupportedDesignTypeException import UnsupportedDesignTypeException
 
 app = adsk.core.Application.get()
@@ -41,8 +45,8 @@ CMD_Description = 'Create simple gridfinity bin'
 
 commandUIState = CommandUiState(CMD_NAME)
 actualDimensionsTableUiState = CommandUiState(CMD_NAME)
-actualCompartmentDimensionsUiState = CommandUiState(CMD_NAME)
-commandCompartmentsTableUIState: list[CommandUiState] = []
+# pockets drawn in the compartments drawing, see compartmentLayout
+compartmentPockets: list[dict] = []
 
 # Specify that the command will be promoted to the panel.
 IS_PROMOTED = True
@@ -60,6 +64,7 @@ ICON_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resource
 
 CONFIG_FOLDER_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'commandConfig')
 UI_INPUT_DEFAULTS_CONFIG_PATH = os.path.join(CONFIG_FOLDER_PATH, "ui_input_defaults.json")
+COMPARTMENTS_HTML_URL = pathlib.Path(os.path.dirname(os.path.abspath(__file__)), 'html', 'compartments.html').as_uri()
 
 # Local list of event handlers used to maintain a reference so
 # they are not released and garbage collected.
@@ -112,25 +117,21 @@ BIN_TAB_LABEL_TEXT_INPUT_ID = 'bin_tab_label_text'
 BIN_TAB_LABEL_ICON_INPUT_ID = 'bin_tab_label_icon'
 BIN_TAB_LABEL_STYLE_INPUT_ID = 'bin_tab_label_style'
 BIN_TAB_LABEL_BOLD_INPUT_ID = 'bin_tab_label_bold'
-# compartment rows can leave the label to the label tab section
-COMPARTMENT_LABEL_ICON_DEFAULT = 'Default'
 BIN_WITH_LIP_INPUT_ID = 'with_lip'
 BIN_WITH_LIP_NOTCHES_INPUT_ID = 'with_lip_notches'
-BIN_COMPARTMENT_REAL_DIMENSIONS_TABLE = "compartment_real_dimensions"
-BIN_COMPARTMENT_REAL_DIMENSIONS_WIDTH = "compartment_width_u"
-BIN_COMPARTMENT_REAL_DIMENSIONS_LENGTH = "compartment_length_u"
-BIN_COMPARTMENTS_GRID_TYPE_ID = 'compartments_grid_type'
-BIN_COMPARTMENTS_GRID_TYPE_UNIFORM = 'Uniform'
-BIN_COMPARTMENTS_GRID_TYPE_CUSTOM = 'Custom grid'
-BIN_COMPARTMENTS_GRID_TYPE_INFO = 'grid_type_info'
-BIN_COMPARTMENTS_GRID_TYPE_INFO_UNIFORM = 'Divide bin uniformly along length and width dimensions'
-BIN_COMPARTMENTS_GRID_TYPE_INFO_CUSTOM = 'Input each compartment size and location. Grid size defines units for each compartment location (x, y) and dimensions (w, l)'
+# replaced by the drawing, still read from defaults saved before it
+LEGACY_COMPARTMENTS_GRID_TYPE_ID = 'compartments_grid_type'
+LEGACY_COMPARTMENTS_GRID_TYPE_CUSTOM = 'Custom grid'
 BIN_COMPARTMENTS_GRID_BASE_WIDTH_ID = 'compartments_grid_w'
 BIN_COMPARTMENTS_GRID_BASE_LENGTH_ID = 'compartments_grid_l'
-BIN_COMPARTMENTS_TABLE_ID = 'compartments_table'
-BIN_COMPARTMENTS_TABLE_ADD_ID = 'compartments_table_add'
-BIN_COMPARTMENTS_TABLE_REMOVE_ID = 'compartments_table_remove'
-BIN_COMPARTMENTS_TABLE_UNIFORM_ID = 'compartments_table_uniform'
+GRID_CELLS_MAX = 100
+# the same page twice, a row with the grid size and a drawing to pick compartment shapes, labels and depths,
+# the drawing shown on request as it takes space. Fusion doesn't resize a browser input once it's shown
+BIN_COMPARTMENTS_SHOW_LAYOUT_ID = 'compartments_show_layout'
+BIN_COMPARTMENTS_GRID_BROWSER_ID = 'compartments_grid_browser'
+BIN_COMPARTMENTS_BROWSER_ID = 'compartments_browser'
+COMPARTMENTS_PAGE_GRID = 'grid'
+COMPARTMENTS_PAGE_LAYOUT = 'layout'
 BIN_TYPE_DROPDOWN_ID = 'bin_type'
 BIN_TYPE_HOLLOW = 'Hollow'
 BIN_TYPE_SHELLED = 'Shelled'
@@ -201,20 +202,21 @@ def createLabelDefinition(
 def refreshUi():
     global commandUIState
     commandUIState.forceUIRefresh()
-    refreshCompartmentsTable()
-    update_actual_compartment_unit_dimensions()
     update_actual_bin_dimensions()
     onChangeValidate()
+    normalizeCompartmentPockets()
+    refreshCompartmentsDrawing()
 
 def initDefaultUiState():
     global commandUIState
     global actualDimensionsTableUiState
-    global commandCompartmentsTableUIState
+    global compartmentPockets
     commandUIState.initValue(INFO_GROUP, True, adsk.core.GroupCommandInput.classType())
     commandUIState.initValue(BIN_BASIC_SIZES_GROUP, True, adsk.core.GroupCommandInput.classType())
     commandUIState.initValue(BIN_DIMENSIONS_GROUP, True, adsk.core.GroupCommandInput.classType())
     commandUIState.initValue(BIN_FEATURES_GROUP, True, adsk.core.GroupCommandInput.classType())
     commandUIState.initValue(BIN_COMPARTMENTS_GROUP_ID, True, adsk.core.GroupCommandInput.classType())
+    commandUIState.initValue(BIN_COMPARTMENTS_SHOW_LAYOUT_ID, False, adsk.core.BoolValueCommandInput.classType())
     commandUIState.initValue(BIN_SCOOP_GROUP_ID, True, adsk.core.GroupCommandInput.classType())
     commandUIState.initValue(BIN_TAB_FEATURES_GROUP_ID, True, adsk.core.GroupCommandInput.classType())
     commandUIState.initValue(BIN_BASE_FEATURES_GROUP_ID, True, adsk.core.GroupCommandInput.classType())
@@ -237,7 +239,6 @@ def initDefaultUiState():
 
     commandUIState.initValue(BIN_COMPARTMENTS_GRID_BASE_WIDTH_ID, 1, adsk.core.IntegerSpinnerCommandInput.classType())
     commandUIState.initValue(BIN_COMPARTMENTS_GRID_BASE_LENGTH_ID, 1, adsk.core.IntegerSpinnerCommandInput.classType())
-    commandUIState.initValue(BIN_COMPARTMENTS_GRID_TYPE_ID, BIN_COMPARTMENTS_GRID_TYPE_UNIFORM, adsk.core.DropDownCommandInput.classType())
 
     commandUIState.initValue(BIN_HAS_SCOOP_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
     commandUIState.initValue(BIN_SCOOP_MAX_RADIUS_INPUT_ID, const.BIN_SCOOP_MAX_RADIUS, adsk.core.ValueCommandInput.classType())
@@ -266,28 +267,29 @@ def initDefaultUiState():
     commandUIState.initValue(BIN_MAGNET_DIAMETER_INPUT, const.DIMENSION_MAGNET_CUTOUT_DIAMETER, adsk.core.ValueCommandInput.classType())
     commandUIState.initValue(BIN_MAGNET_HEIGHT_INPUT, const.DIMENSION_MAGNET_CUTOUT_DEPTH, adsk.core.ValueCommandInput.classType())
 
-    commandCompartmentsTableUIState = []
+    compartmentPockets = []
     recordedDefaults = configUtils.readJsonConfig(UI_INPUT_DEFAULTS_CONFIG_PATH)
-    if recordedDefaults is not None and 'static_ui' in recordedDefaults and 'compartments_table' in recordedDefaults:
+    if recordedDefaults is not None and recordedDefaults.get('static_ui') is not None:
         staticUiState = recordedDefaults['static_ui']
-        compartmentsTableState = recordedDefaults['compartments_table']
-        if staticUiState is not None:
-            futil.log(f'{CMD_NAME} Found previously saved default values, restoring {staticUiState}')
-
-            try:
-                commandUIState.initValues(staticUiState)
-                futil.log(f'{CMD_NAME} Successfully restored default values')
-            except Exception as err:
-                futil.log(f'{CMD_NAME} Failed to restore default values, err: {err}')
-        if compartmentsTableState is not None and isinstance(compartmentsTableState, list):
-            futil.log(f'{CMD_NAME} Found previously saving default values for compartments table, restoring {compartmentsTableState}')
-            try:
-                for row in compartmentsTableState:
-                    commandCompartmentsTableUIState.append(CommandUiState(CMD_NAME))
-                    commandCompartmentsTableUIState[-1].initValues(row)
-                futil.log(f'{CMD_NAME} Successfully restored compartments table default values')
-            except Exception as err:
-                futil.log(f'{CMD_NAME} Failed to restore default values, err: {err}')
+        futil.log(f'{CMD_NAME} Found previously saved default values, restoring {staticUiState}')
+        try:
+            commandUIState.initValues(staticUiState)
+            futil.log(f'{CMD_NAME} Successfully restored default values')
+        except Exception as err:
+            futil.log(f'{CMD_NAME} Failed to restore default values, err: {err}')
+        try:
+            if isinstance(recordedDefaults.get('compartments'), list):
+                # pockets only count with the layout shown, the grid is uniform otherwise
+                if commandUIState.getState(BIN_COMPARTMENTS_SHOW_LAYOUT_ID):
+                    compartmentPockets = recordedDefaults['compartments']
+            elif staticUiState.get(LEGACY_COMPARTMENTS_GRID_TYPE_ID, {}).get('value') == LEGACY_COMPARTMENTS_GRID_TYPE_CUSTOM:
+                # the custom grid table saved before the drawing, its rows become pockets
+                compartmentPockets = compartmentLayout.fromTableRows(recordedDefaults.get('compartments_table'), fullCompartmentDepth() / 10)
+                commandUIState.initValue(BIN_COMPARTMENTS_SHOW_LAYOUT_ID, True, adsk.core.BoolValueCommandInput.classType())
+                futil.log(f'{CMD_NAME} Restored compartments from the saved custom grid table')
+        except Exception as err:
+            futil.log(f'{CMD_NAME} Failed to restore compartments, err: {err}')
+        commandUIState.removeValue(LEGACY_COMPARTMENTS_GRID_TYPE_ID)
     futil.log(f'{CMD_NAME} UI state initialized')
 
 def getErrorMessage(text = "An unknown error occurred, please validate your inputs and try again"):
@@ -352,13 +354,6 @@ def stop():
     if command_definition:
         command_definition.deleteMe()
 
-def updateTabHollowSidesInput(isTabEnabled: bool):
-    """Side walls are only opened for a hollow tab, the option is cleared when it can't apply"""
-    isEnabled = isTabEnabled and commandUIState.getState(BIN_TAB_HOLLOW_INPUT_ID)
-    commandUIState.getInput(BIN_TAB_HOLLOW_SIDES_INPUT_ID).isEnabled = isEnabled
-    if not isEnabled:
-        commandUIState.updateValue(BIN_TAB_HOLLOW_SIDES_INPUT_ID, False)
-
 def render_actual_bin_dimensions_table(inputs: adsk.core.CommandInputs):
     global actualDimensionsTableUiState
     actualDimensionsTable = inputs.addTableCommandInput(BIN_REAL_DIMENSIONS_TABLE, "Actual dimensions (mm)", 3, "1:1:1")
@@ -384,47 +379,17 @@ def render_actual_bin_dimensions_table(inputs: adsk.core.CommandInputs):
     actualDimensionsTable.maximumVisibleRows = 1
     return actualDimensionsTable
 
-def render_actual_compartment_dimension_units_table(inputs: adsk.core.CommandInputs):
-    global actualCompartmentDimensionsUiState
-    actualDimensionsTable = inputs.addTableCommandInput(BIN_COMPARTMENT_REAL_DIMENSIONS_TABLE, "Actual dimensions (mm)", 2, "1:1")
-    totalWidth = actualDimensionsTable.commandInputs.addTextBoxCommandInput(BIN_COMPARTMENT_REAL_DIMENSIONS_WIDTH, "", "Grid cell width", 1, True)
-    actualCompartmentDimensionsUiState.registerCommandInput(totalWidth)
-    actualCompartmentDimensionsUiState.initValue(totalWidth.id, "", totalWidth.objectType)
-    totalLength = actualDimensionsTable.commandInputs.addTextBoxCommandInput(BIN_COMPARTMENT_REAL_DIMENSIONS_LENGTH, "", "Grid cell length", 1, True)
-    actualCompartmentDimensionsUiState.registerCommandInput(totalLength)
-    actualCompartmentDimensionsUiState.initValue(totalLength.id, "", totalLength.objectType)
-    actualDimensionsTable.addCommandInput(totalWidth, 0, 0)
-    actualDimensionsTable.addCommandInput(totalLength, 0, 1)
-    actualDimensionsTable.tablePresentationStyle = adsk.core.TablePresentationStyles.transparentBackgroundTablePresentationStyle
-    actualDimensionsTable.hasGrid = False
-    actualDimensionsTable.minimumVisibleRows = 1
-    actualDimensionsTable.maximumVisibleRows = 1
-    return actualDimensionsTable
-
-def formatString(text: str, color: str=""):
-    if len(color) > 0:
-        return f"<p style='color:{color}'>{text}</p>"
-    return text
-
-def update_actual_compartment_unit_dimensions():
-    global commandUIState
-    global actualCompartmentDimensionsUiState
-    baseWidth: float = commandUIState.getState(BIN_BASE_WIDTH_UNIT_INPUT_ID)
-    baseLength: float = commandUIState.getState(BIN_BASE_LENGTH_UNIT_INPUT_ID)
-    binWidth: float = commandUIState.getState(BIN_WIDTH_INPUT_ID)
-    binLength: float = commandUIState.getState(BIN_LENGTH_INPUT_ID)
-    gridWidth: int = commandUIState.getState(BIN_COMPARTMENTS_GRID_BASE_WIDTH_ID)
-    gridLength: int = commandUIState.getState(BIN_COMPARTMENTS_GRID_BASE_LENGTH_ID)
+def compartmentCellSize() -> tuple[float, float, float]:
+    """Width and length of a compartment grid cell in mm, and the smallest one that still fits the corner fillets"""
     wallThickness: float = commandUIState.getState(BIN_WALL_THICKNESS_INPUT_ID)
-    xyClearance: float = commandUIState.getState(BIN_WITH_LIP_INPUT_ID)
-    try:
-        minCompartmentDimensionLimit = (const.BIN_CORNER_FILLET_RADIUS - wallThickness) * 2 * 10
-        cellWidth = round((baseWidth * binWidth - wallThickness * 2 - xyClearance * 2 - wallThickness * (gridWidth - 1)) / gridWidth * 10, 2)
-        actualCompartmentDimensionsUiState.updateValue(BIN_COMPARTMENT_REAL_DIMENSIONS_WIDTH, formatString(f'Grid cell width: {cellWidth}mm', '' if cellWidth >= minCompartmentDimensionLimit else 'red'))
-        cellLength = round((baseLength * binLength - wallThickness * 2 - xyClearance * 2 - wallThickness * (gridLength - 1)) / gridLength * 10, 2)
-        actualCompartmentDimensionsUiState.updateValue(BIN_COMPARTMENT_REAL_DIMENSIONS_LENGTH, formatString(f'Grid cell length: {cellLength}mm', '' if cellLength >= minCompartmentDimensionLimit else 'red'))
-    except:
-        showErrorInMessageBox()
+    xyClearance: float = commandUIState.getState(BIN_XY_CLEARANCE_INPUT_ID)
+    def cell(baseUnit: float, binSize: int, cells: int) -> float:
+        return round((baseUnit * binSize - wallThickness * 2 - xyClearance * 2 - wallThickness * (cells - 1)) / cells * 10, 2)
+    return (
+        cell(commandUIState.getState(BIN_BASE_WIDTH_UNIT_INPUT_ID), commandUIState.getState(BIN_WIDTH_INPUT_ID), commandUIState.getState(BIN_COMPARTMENTS_GRID_BASE_WIDTH_ID)),
+        cell(commandUIState.getState(BIN_BASE_LENGTH_UNIT_INPUT_ID), commandUIState.getState(BIN_LENGTH_INPUT_ID), commandUIState.getState(BIN_COMPARTMENTS_GRID_BASE_LENGTH_ID)),
+        round((const.BIN_CORNER_FILLET_RADIUS - wallThickness) * 2 * 10, 2),
+    )
 
 def update_actual_bin_dimensions():
     global actualDimensionsTableUiState
@@ -455,92 +420,80 @@ def addIconItems(dropdown: adsk.core.DropDownCommandInput, firstItems: list[str]
     if dropdown.selectedItem is None:
         dropdown.listItems.item(0).isSelected = True
 
-def render_compartments_table(inputs: adsk.core.CommandInputs):
-    global commandUIState
-    initiallyVisible: bool = commandUIState.getState(BIN_COMPARTMENTS_GRID_TYPE_ID) == BIN_COMPARTMENTS_GRID_TYPE_CUSTOM
-    compartmentsGroup: adsk.core.GroupCommandInput = commandUIState.getInput(BIN_COMPARTMENTS_GROUP_ID)
-    binCompartmentsTable = compartmentsGroup.children.addTableCommandInput(BIN_COMPARTMENTS_TABLE_ID, "Compartments", 7, "1:1:1:1:1:2:2")
-    addButton = compartmentsGroup.commandInputs.addBoolValueInput(BIN_COMPARTMENTS_TABLE_ADD_ID, "Add", False, "", False)
-    removeButton = compartmentsGroup.commandInputs.addBoolValueInput(BIN_COMPARTMENTS_TABLE_REMOVE_ID, "Remove", False, "", False)
-    populateUniform = compartmentsGroup.commandInputs.addBoolValueInput(BIN_COMPARTMENTS_TABLE_UNIFORM_ID, "Reset to uniform", False, "", False)
-    binCompartmentsTable.addToolbarCommandInput(addButton)
-    binCompartmentsTable.addToolbarCommandInput(removeButton)
-    binCompartmentsTable.addToolbarCommandInput(populateUniform)
-    binCompartmentsTable.hasGrid = False
-    binCompartmentsTable.tablePresentationStyle = adsk.core.TablePresentationStyles.nameValueTablePresentationStyle
-    commandUIState.registerCommandInput(binCompartmentsTable)
-    x_input_label = binCompartmentsTable.commandInputs.addStringValueInput("x_input_0_label", "", "X position")
-    x_input_label.isReadOnly = True
-    x_input_label.isFullWidth = True
-    y_input_label = binCompartmentsTable.commandInputs.addStringValueInput("y_input_0_label", "", "Y position")
-    y_input_label.isReadOnly = True
-    y_input_label.isFullWidth = True
-    w_input_label = binCompartmentsTable.commandInputs.addStringValueInput("w_input_0_label", "", "Width")
-    w_input_label.isFullWidth = True
-    w_input_label.isReadOnly = True
-    l_input_label = binCompartmentsTable.commandInputs.addStringValueInput("l_input_0_label", "", "Length")
-    l_input_label.isReadOnly = True
-    l_input_label.isFullWidth = True
-    d_input_label = binCompartmentsTable.commandInputs.addStringValueInput("d_input_0_label", "", "Depth")
-    d_input_label.isReadOnly = True
-    d_input_label.isFullWidth = True
-    binCompartmentsTable.addCommandInput(x_input_label, 0, 0)
-    binCompartmentsTable.addCommandInput(y_input_label, 0, 1)
-    binCompartmentsTable.addCommandInput(w_input_label, 0, 2)
-    binCompartmentsTable.addCommandInput(l_input_label, 0, 3)
-    label_input_label = binCompartmentsTable.commandInputs.addStringValueInput("label_input_0_label", "", "Label")
-    label_input_label.isReadOnly = True
-    label_input_label.isFullWidth = True
-    icon_input_label = binCompartmentsTable.commandInputs.addStringValueInput("icon_input_0_label", "", "Icon")
-    icon_input_label.isReadOnly = True
-    icon_input_label.isFullWidth = True
-    binCompartmentsTable.addCommandInput(d_input_label, 0, 4)
-    binCompartmentsTable.addCommandInput(label_input_label, 0, 5)
-    binCompartmentsTable.addCommandInput(icon_input_label, 0, 6)
-    binCompartmentsTable.maximumVisibleRows = 20
-    binCompartmentsTable.isVisible = initiallyVisible
-    addButton.isVisible = initiallyVisible
-    removeButton.isVisible = initiallyVisible
-    populateUniform.isVisible = initiallyVisible
+def fullCompartmentDepth() -> float:
+    """Depth of a full depth compartment from the bin top in mm, as the generator builds it"""
+    heightUnit: float = commandUIState.getState(BIN_HEIGHT_UNIT_INPUT_ID)
+    binHeight: float = commandUIState.getState(BIN_HEIGHT_INPUT_ID)
+    # see binBodyTopHeight
+    bodyHeight = binHeight * heightUnit - const.BIN_BASE_HEIGHT if heightUnit >= const.BIN_BASE_HEIGHT else (binHeight - 1) * heightUnit
+    return round((bodyHeight - const.BIN_COMPARTMENT_BOTTOM_THICKNESS) * 10, 2)
 
-    append_compartments_from_state()
+def normalizeCompartmentPockets():
+    """Pockets fitted to the compartment grid, after it changes size"""
+    global compartmentPockets
+    compartmentPockets = compartmentLayout.normalizePockets(
+        compartmentPockets,
+        commandUIState.getState(BIN_COMPARTMENTS_GRID_BASE_WIDTH_ID),
+        commandUIState.getState(BIN_COMPARTMENTS_GRID_BASE_LENGTH_ID),
+    )
 
-def append_compartments_from_state():
-    global commandCompartmentsTableUIState
-    for i, rowState in enumerate(commandCompartmentsTableUIState, 1):
-        # rows saved before labels existed have no label columns
-        label = rowState.getState(f'label_input_{i}') if f'label_input_{i}' in rowState.inputState else ''
-        icon = rowState.getState(f'icon_input_{i}') if f'icon_input_{i}' in rowState.inputState else COMPARTMENT_LABEL_ICON_DEFAULT
-        append_compartment_table_row(rowState.getState(f'x_input_{i}'), rowState.getState(f'y_input_{i}'), rowState.getState(f'w_input_{i}'), rowState.getState(f'l_input_{i}'), rowState.getState(f'd_input_{i}'), label, icon)
+def updateTabHollowSidesInput(isTabEnabled: bool):
+    """Side walls are only opened for a hollow tab, the option is cleared when it can't apply"""
+    isEnabled = isTabEnabled and commandUIState.getState(BIN_TAB_HOLLOW_INPUT_ID)
+    commandUIState.getInput(BIN_TAB_HOLLOW_SIDES_INPUT_ID).isEnabled = isEnabled
+    if not isEnabled:
+        commandUIState.updateValue(BIN_TAB_HOLLOW_SIDES_INPUT_ID, False)
 
-def append_compartment_table_row(x: int, y: int, w: int, l: int, defaultDepth: float, label: str = '', icon: str = COMPARTMENT_LABEL_ICON_DEFAULT):
-    global commandUIState
-    binCompartmentsTable: adsk.core.TableCommandInput = commandUIState.getInput(BIN_COMPARTMENTS_TABLE_ID)
-    commandUIState.registerCommandInput(binCompartmentsTable)
-    newRow = binCompartmentsTable.rowCount
-    x_input = binCompartmentsTable.commandInputs.addIntegerSpinnerCommandInput(f'x_input_{newRow}', 'X (u)', 0, 100, 1, x)
-    x_input.isFullWidth = True
-    y_input = binCompartmentsTable.commandInputs.addIntegerSpinnerCommandInput(f'y_input_{newRow}', 'Y (u)', 0, 100, 1, y)
-    y_input.isFullWidth = True
-    w_input = binCompartmentsTable.commandInputs.addIntegerSpinnerCommandInput(f'w_input_{newRow}', 'W (u)', 1, 100, 1, w)
-    w_input.isFullWidth = True
-    l_input = binCompartmentsTable.commandInputs.addIntegerSpinnerCommandInput(f'l_input_{newRow}', 'L (u)', 1, 100, 1, l)
-    l_input.isFullWidth = True
-    d_input = binCompartmentsTable.commandInputs.addValueInput(f'd_input_{newRow}', 'Depth (mm)', app.activeProduct.unitsManager.defaultLengthUnits, adsk.core.ValueInput.createByReal(defaultDepth))
-    d_input.isFullWidth = True
-    binCompartmentsTable.addCommandInput(x_input, newRow, 0)
-    binCompartmentsTable.addCommandInput(y_input, newRow, 1)
-    binCompartmentsTable.addCommandInput(w_input, newRow, 2)
-    binCompartmentsTable.addCommandInput(l_input, newRow, 3)
-    label_input = binCompartmentsTable.commandInputs.addStringValueInput(f'label_input_{newRow}', 'Label', label)
-    label_input.isFullWidth = True
-    label_input.tooltip = 'Leave empty to use the label text from the label tab section'
-    icon_input = binCompartmentsTable.commandInputs.addDropDownCommandInput(f'icon_input_{newRow}', 'Icon', adsk.core.DropDownStyles.LabeledIconDropDownStyle)
-    addIconItems(icon_input, [COMPARTMENT_LABEL_ICON_DEFAULT, labelGenerator.LABEL_ICON_NONE], icon)
-    icon_input.isFullWidth = True
-    binCompartmentsTable.addCommandInput(d_input, newRow, 4)
-    binCompartmentsTable.addCommandInput(label_input, newRow, 5)
-    binCompartmentsTable.addCommandInput(icon_input, newRow, 6)
+def compartmentIconOptions() -> list[dict]:
+    """Label icons for the drawing, with the preview images the icon dropdowns show"""
+    def option(name: str, group: str = '', previewFolder: str = '') -> dict:
+        def image(fileName: str) -> str:
+            path = os.path.join(previewFolder, fileName)
+            return pathlib.Path(path).as_uri() if previewFolder and os.path.isfile(path) else ''
+        return {'name': name, 'group': group, 'image': image('32x32.png'), 'imageDark': image('32x32-dark.png')}
+    options = [option(compartmentLayout.DEFAULT_ICON), option(labelGenerator.LABEL_ICON_NONE)]
+    for group in labelGenerator.listIconGroups():
+        for icon in group:
+            folder = os.path.dirname(icon.path)
+            groupName = 'Other' if os.path.samefile(folder, labelGenerator.LABEL_ICONS_FOLDER) else os.path.basename(folder).capitalize()
+            options.append(option(icon.name, groupName, icon.previewFolder))
+    return options
+
+def compartmentsDrawingData(browserId: str) -> dict:
+    """Everything the compartments drawing shows, sizes in mm"""
+    xyClearance: float = commandUIState.getState(BIN_XY_CLEARANCE_INPUT_ID)
+    (cellWidth, cellLength, minCellSize) = compartmentCellSize()
+    hasTab = commandUIState.getState(BIN_HAS_TAB_INPUT_ID) and commandUIState.getState(BIN_GENERATE_BODY_INPUT_ID) and commandUIState.getState(BIN_TYPE_DROPDOWN_ID) == BIN_TYPE_HOLLOW
+    return {
+        'page': COMPARTMENTS_PAGE_GRID if browserId == BIN_COMPARTMENTS_GRID_BROWSER_ID else COMPARTMENTS_PAGE_LAYOUT,
+        'columns': commandUIState.getState(BIN_COMPARTMENTS_GRID_BASE_WIDTH_ID),
+        'rows': commandUIState.getState(BIN_COMPARTMENTS_GRID_BASE_LENGTH_ID),
+        'binWidth': round((commandUIState.getState(BIN_BASE_WIDTH_UNIT_INPUT_ID) * commandUIState.getState(BIN_WIDTH_INPUT_ID) - xyClearance * 2) * 10, 2),
+        'binLength': round((commandUIState.getState(BIN_BASE_LENGTH_UNIT_INPUT_ID) * commandUIState.getState(BIN_LENGTH_INPUT_ID) - xyClearance * 2) * 10, 2),
+        'cellWidth': cellWidth,
+        'cellLength': cellLength,
+        'minCellSize': minCellSize,
+        'maxCells': GRID_CELLS_MAX,
+        'fullDepth': fullCompartmentDepth(),
+        'pockets': compartmentPockets,
+        'hasTab': hasTab,
+        'defaultLabel': commandUIState.getState(BIN_TAB_LABEL_TEXT_INPUT_ID),
+        'defaultIcon': commandUIState.getState(BIN_TAB_LABEL_ICON_INPUT_ID),
+        'icons': compartmentIconOptions(),
+        'fontUrl': dialogFontUrl(),
+    }
+
+def refreshCompartmentsDrawing(skipBrowserId: str = None):
+    """Both compartment pages, but the one that is getting its answer already"""
+    for browserId in [BIN_COMPARTMENTS_GRID_BROWSER_ID, BIN_COMPARTMENTS_BROWSER_ID]:
+        browserInput: adsk.core.BrowserCommandInput = commandUIState.commandInputs.get(browserId)
+        if browserInput is None or browserId == skipBrowserId:
+            continue
+        try:
+            browserInput.sendInfoToHTML('update', json.dumps(compartmentsDrawingData(browserId)))
+        except Exception as err:
+            # the page asks for the data itself once it has loaded
+            futil.log(f'{CMD_NAME} Compartments page {browserId} not ready yet, {err}')
 
 def is_all_input_valid(inputs: adsk.core.CommandInputs):
     result = True
@@ -570,10 +523,6 @@ def is_all_input_valid(inputs: adsk.core.CommandInputs):
     binTabPosition: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_POSITION_INPUT_ID)
     binTabAngle: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_ANGLE_INPUT_ID)
     binTypeDropdownInput: adsk.core.DropDownCommandInput = inputs.itemById(BIN_TYPE_DROPDOWN_ID)
-    binCompartmentGridTypeDropdownInput: adsk.core.DropDownCommandInput = inputs.itemById(BIN_COMPARTMENTS_GRID_TYPE_ID)
-    binCompartmentsTable: adsk.core.TableCommandInput = inputs.itemById(BIN_COMPARTMENTS_TABLE_ID)
-    compartmentsX: adsk.core.IntegerSpinnerCommandInput = inputs.itemById(BIN_COMPARTMENTS_GRID_BASE_WIDTH_ID)
-    compartmentsY: adsk.core.IntegerSpinnerCommandInput = inputs.itemById(BIN_COMPARTMENTS_GRID_BASE_LENGTH_ID)
 
     result = result and base_width_unit.value > 1
     result = result and base_length_unit.value > 1
@@ -597,17 +546,6 @@ def is_all_input_valid(inputs: adsk.core.CommandInputs):
             result = result and binTabAngle.value >= math.radians(30) and binTabAngle.value <= math.radians(65)
             binTabTopAngle: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_TOP_ANGLE_INPUT_ID)
             result = result and binTabTopAngle.value >= 0 and binTabTopAngle.value <= math.radians(45)
-        if binCompartmentGridTypeDropdownInput.selectedItem.name == BIN_COMPARTMENTS_GRID_TYPE_CUSTOM:
-            for i in range(1, binCompartmentsTable.rowCount):
-                posX: adsk.core.IntegerSpinnerCommandInput = binCompartmentsTable.getInputAtPosition(i, 0)
-                posY: adsk.core.IntegerSpinnerCommandInput = binCompartmentsTable.getInputAtPosition(i, 1)
-                width: adsk.core.IntegerSpinnerCommandInput = binCompartmentsTable.getInputAtPosition(i, 2)
-                length: adsk.core.IntegerSpinnerCommandInput = binCompartmentsTable.getInputAtPosition(i, 3)
-
-                result = result and posX.value >= 0 and (posX.value + width.value) <= compartmentsX.value
-                result = result and posY.value >= 0 and (posY.value + length.value) <= compartmentsY.value
-                result = result and width.value > 0 and (posX.value + width.value) <= compartmentsX.value
-                result = result and length.value > 0 and (posY.value + length.value) <= compartmentsY.value
 
     return result
 
@@ -699,18 +637,16 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     compartmentsGroup: adsk.core.GroupCommandInput = inputs.addGroupCommandInput(BIN_COMPARTMENTS_GROUP_ID, 'Bin compartments')
     compartmentsGroup.isExpanded = commandUIState.getState(BIN_COMPARTMENTS_GROUP_ID)
     commandUIState.registerCommandInput(compartmentsGroup)
-    binCompartmentsWidthInput = compartmentsGroup.children.addIntegerSpinnerCommandInput(BIN_COMPARTMENTS_GRID_BASE_WIDTH_ID, "Grid width, X (n per bin width)", 1, 100, 1, commandUIState.getState(BIN_COMPARTMENTS_GRID_BASE_WIDTH_ID))
-    commandUIState.registerCommandInput(binCompartmentsWidthInput)
-    binCompartmentsLengthInput = compartmentsGroup.children.addIntegerSpinnerCommandInput(BIN_COMPARTMENTS_GRID_BASE_LENGTH_ID, "Grid length, Y (n per bin length)", 1, 100, 1, commandUIState.getState(BIN_COMPARTMENTS_GRID_BASE_LENGTH_ID))
-    commandUIState.registerCommandInput(binCompartmentsLengthInput)
-    render_actual_compartment_dimension_units_table(compartmentsGroup.children)
-
-    compartmentGridDropdown = compartmentsGroup.children.addDropDownCommandInput(BIN_COMPARTMENTS_GRID_TYPE_ID, "Grid type", adsk.core.DropDownStyles.LabeledIconDropDownStyle)
-    compartmentGridDropdownDefaultValue = commandUIState.getState(BIN_COMPARTMENTS_GRID_TYPE_ID)
-    compartmentGridDropdown.listItems.add(BIN_COMPARTMENTS_GRID_TYPE_UNIFORM, compartmentGridDropdownDefaultValue == BIN_COMPARTMENTS_GRID_TYPE_UNIFORM)
-    compartmentGridDropdown.listItems.add(BIN_COMPARTMENTS_GRID_TYPE_CUSTOM, compartmentGridDropdownDefaultValue == BIN_COMPARTMENTS_GRID_TYPE_CUSTOM)
-    commandUIState.registerCommandInput(compartmentGridDropdown)
-    render_compartments_table(inputs)
+    compartmentsGridBrowser = compartmentsGroup.children.addBrowserCommandInput(BIN_COMPARTMENTS_GRID_BROWSER_ID, '', COMPARTMENTS_HTML_URL, 30, 30)
+    compartmentsGridBrowser.isFullWidth = True
+    commandUIState.registerCommandInput(compartmentsGridBrowser)
+    showLayoutInput = compartmentsGroup.children.addBoolValueInput(BIN_COMPARTMENTS_SHOW_LAYOUT_ID, 'Edit compartment layout', True, '', commandUIState.getState(BIN_COMPARTMENTS_SHOW_LAYOUT_ID))
+    showLayoutInput.tooltip = 'Shows a drawing of the compartment grid to merge cells into larger compartments and give each its own label and depth. Unticking it resets the compartments to the uniform grid'
+    commandUIState.registerCommandInput(showLayoutInput)
+    compartmentsBrowser = compartmentsGroup.children.addBrowserCommandInput(BIN_COMPARTMENTS_BROWSER_ID, '', COMPARTMENTS_HTML_URL, 270, 270)
+    compartmentsBrowser.isFullWidth = True
+    compartmentsBrowser.isVisible = commandUIState.getState(BIN_COMPARTMENTS_SHOW_LAYOUT_ID)
+    commandUIState.registerCommandInput(compartmentsBrowser)
 
     binScoopGroup = compartmentsGroup.children.addGroupCommandInput(BIN_SCOOP_GROUP_ID, 'Scoop')
     binScoopGroup.isExpanded = commandUIState.getState(BIN_SCOOP_GROUP_ID)
@@ -754,7 +690,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     tabHollowSidesInput.tooltip = 'Also opens a hollow tab through the side walls of the bin where it runs into them, not only through the back wall. Only for a single compartment'
     commandUIState.registerCommandInput(tabHollowSidesInput)
     labelTextInput = binTabFeaturesGroup.children.addStringValueInput(BIN_TAB_LABEL_TEXT_INPUT_ID, 'Label text', commandUIState.getState(BIN_TAB_LABEL_TEXT_INPUT_ID))
-    labelTextInput.tooltip = 'Text on every compartment label, compartments in a custom grid can have their own. Each label gets a text parameter to edit it later'
+    labelTextInput.tooltip = 'Text on every compartment label, compartments in the drawing above can have their own. Each label gets a text parameter to edit it later'
     commandUIState.registerCommandInput(labelTextInput)
     labelIconInput = binTabFeaturesGroup.children.addDropDownCommandInput(BIN_TAB_LABEL_ICON_INPUT_ID, 'Label icon', adsk.core.DropDownStyles.LabeledIconDropDownStyle)
     addIconItems(labelIconInput, [labelGenerator.LABEL_ICON_NONE], commandUIState.getState(BIN_TAB_LABEL_ICON_INPUT_ID))
@@ -851,18 +787,6 @@ def command_preview(args: adsk.core.CommandEventArgs):
         args.executeFailed = True
         args.executeFailedMessage = "Some inputs are invalid, unable to generate preview"
 
-def cache_compartments_table_state(inputs: adsk.core.CommandInputs):
-    binCompartmentsTable: adsk.core.TableCommandInput = inputs.itemById(BIN_COMPARTMENTS_TABLE_ID)
-    global commandCompartmentsTableUIState
-    commandCompartmentsTableUIState = []
-    for i in range(1, binCompartmentsTable.rowCount):
-        commandCompartmentsTableUIState.append(CommandUiState(CMD_NAME))
-        for j in range(binCompartmentsTable.numberOfColumns):
-            input = binCompartmentsTable.getInputAtPosition(i, j)
-            value = input.selectedItem.name if isinstance(input, adsk.core.DropDownCommandInput) else input.value
-            commandCompartmentsTableUIState[-1].initValue(input.id, value, input.objectType)
-            commandCompartmentsTableUIState[-1].registerCommandInput(input)
-
 def showPreviewTime(inputs: adsk.core.CommandInputs, seconds: float, isValid: bool):
     inputs.itemById(PREVIEW_TIME_INPUT).text = f'{seconds:.2f} s' if isValid else f'failed after {seconds:.2f} s'
 
@@ -870,50 +794,23 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
     changed_input = args.input
     inputs = args.inputs
     global commandUIState
+    global compartmentPockets
     futil.log(f'{CMD_NAME} Input Changed Event fired from a change to {changed_input.id}')
     # the preview time is only shown, nothing follows from it
     if changed_input.id == PREVIEW_TIME_INPUT:
         return
-    if changed_input.parentCommandInput and changed_input.parentCommandInput.id == BIN_COMPARTMENTS_TABLE_ID:
-        cache_compartments_table_state(inputs)
-    else:
-        commandUIState.onInputUpdate(changed_input)
-        if changed_input.id == BIN_TYPE_DROPDOWN_ID:
-            commandUIState.updateValue(BIN_TAB_HOLLOW_INPUT_ID, commandUIState.getState(BIN_TYPE_DROPDOWN_ID) == BIN_TYPE_SHELLED)
-        refreshUi()
+    commandUIState.onInputUpdate(changed_input)
+    if changed_input.id == BIN_TYPE_DROPDOWN_ID:
+        commandUIState.updateValue(BIN_TAB_HOLLOW_INPUT_ID, commandUIState.getState(BIN_TYPE_DROPDOWN_ID) == BIN_TYPE_SHELLED)
+    elif changed_input.id == BIN_COMPARTMENTS_SHOW_LAYOUT_ID and not commandUIState.getState(BIN_COMPARTMENTS_SHOW_LAYOUT_ID):
+        # back to the uniform grid, refreshUi fills it with single cells
+        compartmentPockets = []
+    refreshUi()
 
     if isinstance(changed_input, adsk.core.GroupCommandInput) and changed_input.isExpanded == True:
         for input in changed_input.children:
             commandUIState.registerCommandInput(input)
         refreshUi()
-
-    binCompartmentsTable: adsk.core.TableCommandInput = inputs.itemById(BIN_COMPARTMENTS_TABLE_ID)
-
-    try:
-        binHeightUnit = commandUIState.getState(BIN_HEIGHT_UNIT_INPUT_ID)
-        binHeight = commandUIState.getState(BIN_HEIGHT_INPUT_ID)
-        compartmentsGridWidth = commandUIState.getState(BIN_COMPARTMENTS_GRID_BASE_WIDTH_ID)
-        compartmentsGridLength = commandUIState.getState(BIN_COMPARTMENTS_GRID_BASE_LENGTH_ID)
-
-        if changed_input.id == BIN_COMPARTMENTS_TABLE_ADD_ID:
-            append_compartment_table_row(0, 0, 1, 1, (binHeight + 1) * binHeightUnit - const.BIN_BASE_HEIGHT)
-            cache_compartments_table_state(inputs)
-        elif changed_input.id == BIN_COMPARTMENTS_TABLE_REMOVE_ID:
-            if binCompartmentsTable.selectedRow > 0:
-                deleteTableRow(binCompartmentsTable.selectedRow, binCompartmentsTable, commandCompartmentsTableUIState)
-            elif binCompartmentsTable.rowCount > 1:
-                deleteTableRow(binCompartmentsTable.rowCount - 1, binCompartmentsTable, commandCompartmentsTableUIState)
-        elif changed_input.id == BIN_COMPARTMENTS_TABLE_UNIFORM_ID:
-            for i in range(binCompartmentsTable.rowCount - 1, 0, -1):
-                deleteTableRow(i, binCompartmentsTable, commandCompartmentsTableUIState)
-            for i in range(compartmentsGridWidth):
-                for j in range(compartmentsGridLength):
-                    append_compartment_table_row(i, j, 1, 1, (binHeight + 1) * binHeightUnit - const.BIN_BASE_HEIGHT)
-                cache_compartments_table_state(inputs)
-
-    except:
-        showErrorInMessageBox()
-
 
 
 # This event handler is called when the user interacts with any of the inputs in the dialog
@@ -929,9 +826,11 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
     futil.log(f'{CMD_NAME} Inputs are {"valid" if args.areInputsValid else "invalid"}')
 
 
-# This event handler is called when a page in the dialog sends something.
+# This event handler is called when the compartments drawing asks for its data once loaded or changes the pockets.
 def command_incoming_from_html(args: adsk.core.HTMLEventArgs):
-    if args.browserCommandInput.id == INPUT_CHANGES_BUTTONS_BROWSER:
+    global compartmentPockets
+    browserId = args.browserCommandInput.id
+    if browserId == INPUT_CHANGES_BUTTONS_BROWSER:
         action = handleDefaultsButtons(args)
         if action == DEFAULTS_SAVE:
             saveUIInputsAsDefaults()
@@ -942,6 +841,32 @@ def command_incoming_from_html(args: adsk.core.HTMLEventArgs):
             refreshUi()
             if commandUIState.getInput(SHOW_PREVIEW_INPUT).value:
                 args.browserCommandInput.parentCommand.doExecutePreview()
+        return
+    if args.action == 'ready':
+        args.returnData = json.dumps(compartmentsDrawingData(browserId))
+    elif args.action == 'pockets':
+        try:
+            compartmentPockets = json.loads(args.data)
+        except ValueError as err:
+            futil.log(f'{CMD_NAME} Ignoring pockets from the drawing, {err}')
+        normalizeCompartmentPockets()
+        args.returnData = 'OK'
+        if commandUIState.getInput(SHOW_PREVIEW_INPUT).value:
+            args.browserCommandInput.parentCommand.doExecutePreview()
+    elif args.action == 'grid':
+        try:
+            grid = json.loads(args.data)
+            for (inputId, key) in [(BIN_COMPARTMENTS_GRID_BASE_WIDTH_ID, 'columns'), (BIN_COMPARTMENTS_GRID_BASE_LENGTH_ID, 'rows')]:
+                commandUIState.updateValue(inputId, max(1, min(GRID_CELLS_MAX, int(grid[key]))))
+        except (ValueError, TypeError, KeyError) as err:
+            futil.log(f'{CMD_NAME} Ignoring grid size from the drawing, {err}')
+        normalizeCompartmentPockets()
+        onChangeValidate()
+        # the page that changed it redraws from the answer
+        args.returnData = json.dumps(compartmentsDrawingData(browserId))
+        refreshCompartmentsDrawing(browserId)
+        if commandUIState.getInput(SHOW_PREVIEW_INPUT).value:
+            args.browserCommandInput.parentCommand.doExecutePreview()
 
 # This event handler is called when the command terminates.
 def command_destroy(args: adsk.core.CommandEventArgs):
@@ -949,18 +874,6 @@ def command_destroy(args: adsk.core.CommandEventArgs):
     futil.log(f'{CMD_NAME} Command Destroy Event "{args.terminationReason}"')
     global local_handlers
     local_handlers = []
-
-def deleteTableRow(rowToDelete: int, tableInput: adsk.core.TableCommandInput, inputState: list[CommandUiState]):
-    inputState.pop(rowToDelete - 1)
-    tableInput.deleteRow(rowToDelete)
-
-def refreshCompartmentsTable():
-    global commandUIState
-    binCompartmentsTable: adsk.core.TableCommandInput = commandUIState.getInput(BIN_COMPARTMENTS_TABLE_ID)
-    for i in range(binCompartmentsTable.rowCount - 1, 0, -1):
-        binCompartmentsTable.deleteRow(i)
-    append_compartments_from_state()
-
 
 def onChangeValidate():
     global commandUIState
@@ -998,8 +911,7 @@ def onChangeValidate():
     commandUIState.getInput(BIN_TAB_ANGLE_INPUT_ID).isEnabled = generateTab
     commandUIState.getInput(BIN_TAB_POSITION_INPUT_ID).isEnabled = generateTab
 
-    compartmentsGridType: str = commandUIState.getState(BIN_COMPARTMENTS_GRID_TYPE_ID)
-    commandUIState.getInput(BIN_COMPARTMENTS_TABLE_ID).isVisible = compartmentsGridType == BIN_COMPARTMENTS_GRID_TYPE_CUSTOM
+    commandUIState.getInput(BIN_COMPARTMENTS_BROWSER_ID).isVisible = commandUIState.getState(BIN_COMPARTMENTS_SHOW_LAYOUT_ID)
 
     showPreview: bool = commandUIState.getInput(SHOW_PREVIEW_INPUT).value
     commandUIState.getInput(SHOW_PREVIEW_MANUAL_INPUT).isVisible = not showPreview
@@ -1008,7 +920,7 @@ def saveUIInputsAsDefaults():
     futil.log(f'{CMD_NAME} Saving UI state to file')
     result = configUtils.dumpJsonConfig(UI_INPUT_DEFAULTS_CONFIG_PATH, {
         'static_ui': commandUIState.toDict(ignoreKeys=[SHOW_PREVIEW_MANUAL_INPUT, SHOW_PREVIEW_INPUT]),
-        'compartments_table': [x.toDict() for x in commandCompartmentsTableUIState]
+        'compartments': compartmentPockets,
         })
     if result:
         futil.log(f'{CMD_NAME} Saved successfully')
@@ -1016,11 +928,17 @@ def saveUIInputsAsDefaults():
         futil.log(f'{CMD_NAME} UI state failed to save')
 
 def snapshotSettings(inputs: adsk.core.CommandInputs) -> list[dict]:
-    return settingsUtils.snapshotInputs(
+    settings = settingsUtils.snapshotInputs(
         inputs,
-        [INFO_GROUP, USER_CHANGES_GROUP_ID, PREVIEW_GROUP_ID, BIN_REAL_DIMENSIONS_TABLE, BIN_COMPARTMENT_REAL_DIMENSIONS_TABLE],
+        [INFO_GROUP, USER_CHANGES_GROUP_ID, PREVIEW_GROUP_ID, BIN_REAL_DIMENSIONS_TABLE],
         CMD_NAME,
     )
+    # the drawing isn't an input with a value, it holds the grid size too
+    items = [['Grid', f'{commandUIState.getState(BIN_COMPARTMENTS_GRID_BASE_WIDTH_ID)} x {commandUIState.getState(BIN_COMPARTMENTS_GRID_BASE_LENGTH_ID)}']]
+    if commandUIState.getState(BIN_COMPARTMENTS_SHOW_LAYOUT_ID) and compartmentLayout.isCustomized(compartmentPockets):
+        items.extend([f'Compartment {index}', compartmentLayout.describe(item)] for (index, item) in enumerate(compartmentPockets, 1))
+    settings.append({'title': 'Compartments', 'items': items})
+    return settings
 
 def generateBin(args: adsk.core.CommandEventArgs):
     startTime = time.perf_counter()
@@ -1058,10 +976,8 @@ def generateBin(args: adsk.core.CommandEventArgs):
     labelStyleInput: adsk.core.DropDownCommandInput = inputs.itemById(BIN_TAB_LABEL_STYLE_INPUT_ID)
     labelBoldInput: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_TAB_LABEL_BOLD_INPUT_ID)
     binTypeDropdownInput: adsk.core.DropDownCommandInput = inputs.itemById(BIN_TYPE_DROPDOWN_ID)
-    binCompartmentGridTypeDropdownInput: adsk.core.DropDownCommandInput = inputs.itemById(BIN_COMPARTMENTS_GRID_TYPE_ID)
-    binCompartmentsTable: adsk.core.TableCommandInput = inputs.itemById(BIN_COMPARTMENTS_TABLE_ID)
-    compartmentsX: adsk.core.IntegerSpinnerCommandInput = inputs.itemById(BIN_COMPARTMENTS_GRID_BASE_WIDTH_ID)
-    compartmentsY: adsk.core.IntegerSpinnerCommandInput = inputs.itemById(BIN_COMPARTMENTS_GRID_BASE_LENGTH_ID)
+    compartmentsX: int = commandUIState.getState(BIN_COMPARTMENTS_GRID_BASE_WIDTH_ID)
+    compartmentsY: int = commandUIState.getState(BIN_COMPARTMENTS_GRID_BASE_LENGTH_ID)
 
     isHollow = binTypeDropdownInput.selectedItem.name == BIN_TYPE_HOLLOW
     isSolid = binTypeDropdownInput.selectedItem.name == BIN_TYPE_SOLID
@@ -1168,27 +1084,21 @@ def generateBin(args: adsk.core.CommandEventArgs):
         binBodyInput.tabTopAngle = inputs.itemById(BIN_TAB_TOP_ANGLE_INPUT_ID).value
         binBodyInput.labelStyle = labelStyleInput.selectedItem.name
         binBodyInput.isLabelBold = labelBoldInput.value
-        binBodyInput.compartmentsByX = compartmentsX.value
-        binBodyInput.compartmentsByY = compartmentsY.value
+        binBodyInput.compartmentsByX = compartmentsX
+        binBodyInput.compartmentsByY = compartmentsY
 
         # label text and icon per compartment, the label tab section fills in the ones left blank
-        compartmentLabels: list[tuple[str, str]] = []
-        if binCompartmentGridTypeDropdownInput.selectedItem.name == BIN_COMPARTMENTS_GRID_TYPE_UNIFORM:
-            binBodyInput.isUniformCompartments = True
-            binBodyInput.compartments = uniformCompartments(binBodyInput.compartmentsByX, binBodyInput.compartmentsByY)
-        else:
-            binBodyInput.compartments = []
-            for i in range(1, binCompartmentsTable.rowCount):
-                positionX: adsk.core.IntegerSpinnerCommandInput = binCompartmentsTable.getInputAtPosition(i, 0)
-                positionY: adsk.core.IntegerSpinnerCommandInput  = binCompartmentsTable.getInputAtPosition(i, 1)
-                width: adsk.core.IntegerSpinnerCommandInput = binCompartmentsTable.getInputAtPosition(i, 2)
-                length: adsk.core.IntegerSpinnerCommandInput = binCompartmentsTable.getInputAtPosition(i, 3)
-                depth: adsk.core.ValueCommandInput = binCompartmentsTable.getInputAtPosition(i, 4)
-                labelText: adsk.core.StringValueCommandInput = binCompartmentsTable.getInputAtPosition(i, 5)
-                labelIcon: adsk.core.DropDownCommandInput = binCompartmentsTable.getInputAtPosition(i, 6)
-                compartment = BinBodyCompartmentDefinition(positionX.value, positionY.value, width.value, length.value, depth.value)
-                compartmentLabels.append((labelText.value, labelIcon.selectedItem.name))
-                binBodyInput.compartments.append(compartment)
+        # without the layout the grid is uniform, also for pockets saved with the layout hidden
+        pockets = compartmentLayout.normalizePockets(compartmentPockets if commandUIState.getState(BIN_COMPARTMENTS_SHOW_LAYOUT_ID) else [], compartmentsX, compartmentsY)
+        compartmentLabels: list[tuple[str, str]] = [(item['label'], item['icon']) for item in pockets]
+        # pockets come in pattern order, single full depth cells are built once and patterned
+        binBodyInput.isUniformCompartments = compartmentLayout.isUniform(pockets)
+        binBodyInput.compartments = []
+        for item in pockets:
+            compartment = BinBodyCompartmentDefinition(item['x'], item['y'], item['width'], item['length'])
+            if item['depth'] is not None:
+                compartment.depth = item['depth'] / 10
+            binBodyInput.compartments.append(compartment)
 
         binBody: adsk.fusion.BRepBody
 
@@ -1202,13 +1112,13 @@ def generateBin(args: adsk.core.CommandEventArgs):
             binParameters.append(['Bin height (u)', binBodyInput.binHeight.expression])
             if binBodyInput.hasTab:
                 for compartmentIndex, compartment in enumerate(binBodyInput.compartments):
-                    (compartmentText, compartmentIcon) = compartmentLabels[compartmentIndex] if compartmentIndex < len(compartmentLabels) else ('', COMPARTMENT_LABEL_ICON_DEFAULT)
+                    (compartmentText, compartmentIcon) = compartmentLabels[compartmentIndex] if compartmentIndex < len(compartmentLabels) else ('', compartmentLayout.DEFAULT_ICON)
                     compartment.label = createLabelDefinition(
                         des,
                         binParameterPrefix,
                         BIN_LABEL_PARAMETER if len(binBodyInput.compartments) == 1 else f'{BIN_LABEL_PARAMETER}{compartmentIndex + 1}',
                         compartmentText or labelTextInput.value,
-                        labelIconInput.selectedItem.name if compartmentIcon == COMPARTMENT_LABEL_ICON_DEFAULT else compartmentIcon,
+                        labelIconInput.selectedItem.name if compartmentIcon == compartmentLayout.DEFAULT_ICON else compartmentIcon,
                     )
                     if compartment.label is not None and compartment.label.textParameter is not None:
                         binParameters.append([
