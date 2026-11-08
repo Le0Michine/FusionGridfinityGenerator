@@ -44,7 +44,11 @@ ui = app.userInterface
 # *** The command identity information. ***
 CMD_ID = f'{config.COMPANY_NAME}_{config.ADDIN_NAME}_cmdBin'
 CMD_NAME = 'Gridfinity bin'
-CMD_Description = 'Create simple gridfinity bin'
+# shown on hover over the button, the first paragraph says what it makes, the second how
+CMD_Description = ('Creates a gridfinity bin that drops into a baseplate.\n\n'
+    'Set its size in base and height units, then pick a hollow, shelled or solid body with a stacking lip, '
+    'compartments, a scoop, a label tab and magnet or screw holes in its feet. '
+    'A custom shape fills odd spots like a tetris piece.')
 
 commandUIState = CommandUiState(CMD_NAME)
 actualDimensionsTableUiState = CommandUiState(CMD_NAME)
@@ -66,6 +70,8 @@ COMMAND_BESIDE_ID = 'ScriptsManagerCommand'
 
 # Resource location for command icons, here we assume a sub folder in this directory named "resources".
 ICON_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources', '')
+# picture under the description on hover, like Fusion's own commands
+TOOL_CLIP_PATH = os.path.join(ICON_FOLDER, 'toolclip.png')
 
 CONFIG_FOLDER_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'commandConfig')
 UI_INPUT_DEFAULTS_CONFIG_PATH = os.path.join(CONFIG_FOLDER_PATH, "ui_input_defaults.json")
@@ -339,6 +345,8 @@ def start():
         cmd_def = ui.commandDefinitions.itemById(CMD_ID)
         if not cmd_def:
             cmd_def = ui.commandDefinitions.addButtonDefinition(CMD_ID, CMD_NAME, CMD_Description, ICON_FOLDER)
+            if os.path.isfile(TOOL_CLIP_PATH):
+                cmd_def.toolClipFilename = TOOL_CLIP_PATH
 
             # Define an event handler for the command created event. It will be called when the button is clicked.
             futil.add_handler(cmd_def.commandCreated, command_created)
