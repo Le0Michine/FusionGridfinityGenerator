@@ -22,6 +22,15 @@ BIN_TAB_OVERHANG_ANGLE = 45
 BIN_TAB_LABEL_ANGLE = 0
 BIN_TAB_EDGE_FILLET_RADIUS = 0.06
 BIN_TAB_TOP_CLEARANCE = 0.05
+BIN_LABEL_DEPTH = 0.05
+# outline walls are only there to split the tab face into regions a slicer can color
+BIN_LABEL_OUTLINE_THICKNESS = 0.0001
+BIN_LABEL_MARGIN = 0.1
+# from the compartment walls or the tab ends
+BIN_LABEL_SIDE_MARGIN = 0.18
+BIN_LABEL_ICON_GAP = 0.18
+# tallest letters and icon, as a share of the label height inside its margins, 7.9mm on a default tab
+BIN_LABEL_TEXT_HEIGHT_RATIO = 0.79 / (BIN_TAB_WIDTH - BIN_LABEL_MARGIN * 2)
 
 BIN_SCOOP_MAX_RADIUS = 2.5
 

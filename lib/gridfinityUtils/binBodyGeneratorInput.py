@@ -2,6 +2,7 @@ import adsk.core, adsk.fusion, traceback
 
 from . import const
 from .dim import Dim
+from .labelGenerator import LABEL_STYLE_OUTLINE
 
 class BinBodyCompartmentDefinition():
     def __init__(self, positionX=0, positionY=0, width=1, length=1, depth=9999999999999):
@@ -11,6 +12,8 @@ class BinBodyCompartmentDefinition():
         self.length = length
         # set to something big so it would get limited by bin height
         self.depth = depth
+        # text and icon on the compartment label tab, none leaves the tab blank
+        self.label = None
 
     @property
     def positionX(self) -> float:
@@ -64,6 +67,8 @@ class BinBodyGeneratorInput():
         self.tabPosition = 0
         self.tabLength = 1
         self.tabWidth = const.BIN_TAB_WIDTH
+        self.labelStyle = LABEL_STYLE_OUTLINE
+        self.isLabelBold = True
         self.compartments = [BinBodyCompartmentDefinition()]
         self.isUniformCompartments = False
         self.compartmentsByX = 1
@@ -181,6 +186,23 @@ class BinBodyGeneratorInput():
     @scoopMaxRadius.setter
     def scoopMaxRadius(self, value: float):
         self._scoopMaxRadius = value
+
+    @property
+    def isLabelBold(self) -> bool:
+        return self._isLabelBold
+
+    @isLabelBold.setter
+    def isLabelBold(self, value: bool):
+        self._isLabelBold = value
+
+    @property
+    def labelStyle(self) -> str:
+        """How labels are formed on the tabs, one of the labelGenerator styles"""
+        return self._labelStyle
+
+    @labelStyle.setter
+    def labelStyle(self, value: str):
+        self._labelStyle = value
 
     @property
     def hasTab(self) -> bool:

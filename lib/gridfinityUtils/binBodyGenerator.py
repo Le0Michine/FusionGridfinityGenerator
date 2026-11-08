@@ -11,6 +11,7 @@ from .baseGeneratorInput import BaseGeneratorInput
 from .binBodyGeneratorInput import BinBodyGeneratorInput, BinBodyCompartmentDefinition
 from .binBodyTabGeneratorInput import BinBodyTabGeneratorInput
 from .binBodyTabGenerator import createGridfinityBinBodyTab
+from .labelGenerator import BinLabelDefinition, BinLabelInput, createLabel, LABEL_STYLE_EMBOSSED
 from .binBodyLipGeneratorInput import BinBodyLipGeneratorInput
 from .binBodyLipGenerator import createGridfinityBinBodyLip
 from .dim import Dim
@@ -149,29 +150,42 @@ def createGridfinityBinBody(
         compartmentWidthUnit = (totalCompartmentsWidth - wall * (input.compartmentsByX - 1)) / input.compartmentsByX
         compartmentLengthUnit = (totalCompartmentsLength - wall * (input.compartmentsByY - 1)) / input.compartmentsByY
 
+        def compartmentPlacement(compartment: BinBodyCompartmentDefinition) -> tuple[Dim, Dim, Dim, Dim]:
+            """X, y, width and length of the compartment cavity"""
+            return (
+                compartmentsMinX + (compartmentWidthUnit + wall) * compartment.positionX,
+                compartmentsMinY + (compartmentLengthUnit + wall) * compartment.positionY,
+                compartmentWidthUnit * compartment.width + wall * (compartment.width - 1),
+                compartmentLengthUnit * compartment.length + wall * (compartment.length - 1),
+            )
+
+        def tabPlacement(compartmentX: Dim, compartmentY: Dim, compartmentLength: Dim) -> tuple[Dim, Dim, Dim]:
+            """X and y of the tab's back top corner, along the compartment's back wall, and its length"""
+            return (
+                compartmentX + input.baseWidth * max(0, min(input.tabPosition, input.binWidth - input.tabLength)),
+                compartmentY + compartmentLength,
+                input.baseWidth * max(0, min(input.tabLength, input.binWidth)),
+            )
+
         useCompartmentPattern = input.isUniformCompartments and len(input.compartments) > 1
         compartmentsToBuild = input.compartments[:1] if useCompartmentPattern else input.compartments
         for compartmentIndex, compartment in enumerate(compartmentsToBuild):
             compartmentName = 'Compartment' if len(compartmentsToBuild) == 1 else f'Compartment {compartmentIndex + 1}'
-            compartmentX = compartmentsMinX + (compartmentWidthUnit + wall) * compartment.positionX
-            compartmentY = compartmentsMinY + (compartmentLengthUnit + wall) * compartment.positionY
-            compartmentWidth = compartmentWidthUnit * compartment.width + wall * (compartment.width - 1)
-            compartmentLength = compartmentLengthUnit * compartment.length + wall * (compartment.length - 1)
+            (compartmentX, compartmentY, compartmentWidth, compartmentLength) = compartmentPlacement(compartment)
             # full depth compartments keep their floor thickness, shallower ones keep their depth from the top
             fullCompartmentDepth = binBodyTotalHeight - Dim.length(const.BIN_COMPARTMENT_BOTTOM_THICKNESS)
             compartmentDepth = fullCompartmentDepth if compartment.depth >= fullCompartmentDepth.value else compartment.depth
 
             compartmentTabInput = BinBodyTabGeneratorInput()
-            tabOriginX = compartmentX + input.baseWidth * max(0, min(input.tabPosition, input.binWidth - input.tabLength))
-            tabOriginY = compartmentY + compartmentLength
+            (tabOriginX, tabOriginY, tabLength) = tabPlacement(compartmentX, compartmentY, compartmentLength)
             compartmentTabInput.origin = adsk.core.Point3D.create(tabOriginX.value, tabOriginY.value, binBodyTotalHeight.value)
             compartmentTabInput.originX = tabOriginX
             compartmentTabInput.originY = tabOriginY
             compartmentTabInput.originZ = binBodyTotalHeight
-            compartmentTabInput.length = input.baseWidth * max(0, min(input.tabLength, input.binWidth))
+            compartmentTabInput.length = tabLength
             compartmentTabInput.width = input.tabWidth
             compartmentTabInput.overhangAngle = input.tabOverhangAngle
-            compartmentTabInput.topClearance = const.BIN_TAB_TOP_CLEARANCE
+            compartmentTabInput.topClearance = tabTopClearance(input.labelStyle)
 
             [compartmentMerges, compartmentCuts] = createCompartment(
                 input.wallThickness,
@@ -247,7 +261,63 @@ def createGridfinityBinBody(
             name='Bin body lip and tabs join',
         )
 
+    if not input.isSolid and input.hasTab:
+        # every compartment gets its own label, also where the tabs come from a pattern
+        for compartmentIndex, compartment in enumerate(input.compartments):
+            if compartment.label is None or compartment.label.isEmpty:
+                continue
+            (compartmentX, compartmentY, compartmentWidth, compartmentLength) = compartmentPlacement(compartment)
+            (tabOriginX, tabOriginY, tabLength) = tabPlacement(compartmentX, compartmentY, compartmentLength)
+            # tabs are trimmed to their compartment
+            labelMinX = tabOriginX if tabOriginX.value >= compartmentX.value else compartmentX
+            tabMaxX = tabOriginX + tabLength
+            compartmentMaxX = compartmentX + compartmentWidth
+            labelMaxX = tabMaxX if tabMaxX.value <= compartmentMaxX.value else compartmentMaxX
+            createTabLabel(
+                compartment.label,
+                input.labelStyle,
+                input.isLabelBold,
+                labelMinX,
+                labelMaxX,
+                tabOriginY,
+                input.tabWidth,
+                binBodyTotalHeight,
+                binBody,
+                targetComponent,
+                name='Label' if len(input.compartments) == 1 else f'Compartment {compartmentIndex + 1} label',
+            )
+
     return binBody
+
+def tabTopClearance(labelStyle: str) -> float:
+    """Embossed labels stand on a tab lowered by their depth, so they keep the tab's clearance"""
+    return const.BIN_TAB_TOP_CLEARANCE + (const.BIN_LABEL_DEPTH if labelStyle == LABEL_STYLE_EMBOSSED else 0)
+
+def createTabLabel(
+        definition: BinLabelDefinition,
+        style: str,
+        isBold: bool,
+        minX: Dim,
+        maxX: Dim,
+        tabOriginY: Dim,
+        tabWidth: float,
+        tabOriginZ: Dim,
+        targetBody: adsk.fusion.BRepBody,
+        targetComponent: adsk.fusion.Component,
+        *,
+        name: str,
+    ):
+    """Label on the top face of a tab with its back top corner at the tab origin y and z, between the given x"""
+    labelInput = BinLabelInput()
+    labelInput.style = style
+    labelInput.isBold = isBold
+    labelInput.definition = definition
+    labelInput.originX = minX
+    labelInput.originY = tabOriginY - Dim.length(tabWidth)
+    labelInput.originZ = tabOriginZ - Dim.length(tabTopClearance(style))
+    labelInput.width = (maxX - minX).value
+    labelInput.length = tabWidth
+    return createLabel(labelInput, targetBody, targetComponent, name=name)
 
 
 def createCompartmentCutout(

@@ -20,7 +20,8 @@ from ...lib.gridfinityUtils import sharedParameters
 from ...lib.gridfinityUtils.dim import Dim
 from ...lib.gridfinityUtils.baseGenerator import createSingleGridfinityBaseBody, createBaseBodyPattern, cutBaseClearance, cutWallJunctionPockets
 from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
-from ...lib.gridfinityUtils.binBodyGenerator import createGridfinityBinBody, uniformCompartments, binBodyTopHeight, createCompartmentCutout
+from ...lib.gridfinityUtils.binBodyGenerator import createGridfinityBinBody, uniformCompartments, binBodyTopHeight, createCompartmentCutout, tabTopClearance, createTabLabel
+from ...lib.gridfinityUtils import labelGenerator
 from ...lib.gridfinityUtils.binBodyGeneratorInput import BinBodyGeneratorInput, BinBodyCompartmentDefinition
 from ...lib.gridfinityUtils.binBodyTabGeneratorInput import BinBodyTabGeneratorInput
 from ...lib.gridfinityUtils.binBodyTabGenerator import createGridfinityBinBodyTab
@@ -101,6 +102,12 @@ BIN_TAB_LENGTH_INPUT_ID = 'bin_tab_length'
 BIN_TAB_WIDTH_INPUT_ID = 'bin_tab_width'
 BIN_TAB_POSITION_INPUT_ID = 'bin_tab_position'
 BIN_TAB_ANGLE_INPUT_ID = 'bin_tab_angle'
+BIN_TAB_LABEL_TEXT_INPUT_ID = 'bin_tab_label_text'
+BIN_TAB_LABEL_ICON_INPUT_ID = 'bin_tab_label_icon'
+BIN_TAB_LABEL_STYLE_INPUT_ID = 'bin_tab_label_style'
+BIN_TAB_LABEL_BOLD_INPUT_ID = 'bin_tab_label_bold'
+# compartment rows can leave the label to the label tab section
+COMPARTMENT_LABEL_ICON_DEFAULT = 'Default'
 BIN_WITH_LIP_INPUT_ID = 'with_lip'
 BIN_WITH_LIP_NOTCHES_INPUT_ID = 'with_lip_notches'
 BIN_COMPARTMENT_REAL_DIMENSIONS_TABLE = "compartment_real_dimensions"
@@ -128,6 +135,7 @@ BIN_LEGACY_NAME_PREFIX = 'Gridfinity bin '
 # User parameter names are stored in user documents, keep these literal
 BIN_PARAMETER_BASE_NAME = 'gfBin'
 BIN_HEIGHT_PARAMETER = 'heightU'
+BIN_LABEL_PARAMETER = 'label'
 # per bin fallback for the shared height unit
 BIN_HEIGHT_UNIT_PARAMETER = 'heightUnit'
 BIN_PARAMETERS = [BIN_HEIGHT_PARAMETER, BIN_HEIGHT_UNIT_PARAMETER, sharedParameters.BASE_WIDTH_FALLBACK_PARAMETER, sharedParameters.BASE_LENGTH_FALLBACK_PARAMETER]
@@ -165,6 +173,25 @@ def applySharedParameterDefaults():
         if value is not None:
             commandUIState.initValue(inputId, value, adsk.core.ValueCommandInput.classType())
             commonUtils.debugLog(f'{CMD_NAME} dialog default {inputId} = {value} from the shared parameter')
+
+def createLabelDefinition(
+    design: adsk.fusion.Design,
+    binParameterPrefix: str,
+    parameterName: str,
+    text: str,
+    icon: str,
+) -> labelGenerator.BinLabelDefinition | None:
+    """The text goes into a text parameter so the label can be edited later, nothing for a blank label"""
+    textParameter = None
+    if len(text.strip()) > 0:
+        textParameter = parameterUtils.addTextParameter(
+            design,
+            parameterUtils.parameterName(binParameterPrefix, parameterName),
+            text,
+            'Gridfinity bin label text',
+        )
+    definition = labelGenerator.BinLabelDefinition(textParameter, labelGenerator.iconPath(icon))
+    return None if definition.isEmpty else definition
 
 def refreshUi():
     global commandUIState
@@ -215,6 +242,10 @@ def initDefaultUiState():
     commandUIState.initValue(BIN_TAB_WIDTH_INPUT_ID, const.BIN_TAB_WIDTH, adsk.core.ValueCommandInput.classType())
     commandUIState.initValue(BIN_TAB_POSITION_INPUT_ID, 0, adsk.core.ValueCommandInput.classType())
     commandUIState.initValue(BIN_TAB_ANGLE_INPUT_ID, '45 deg', adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_TAB_LABEL_TEXT_INPUT_ID, '', adsk.core.StringValueCommandInput.classType())
+    commandUIState.initValue(BIN_TAB_LABEL_ICON_INPUT_ID, labelGenerator.LABEL_ICON_NONE, adsk.core.DropDownCommandInput.classType())
+    commandUIState.initValue(BIN_TAB_LABEL_STYLE_INPUT_ID, labelGenerator.LABEL_STYLE_OUTLINE, adsk.core.DropDownCommandInput.classType())
+    commandUIState.initValue(BIN_TAB_LABEL_BOLD_INPUT_ID, True, adsk.core.BoolValueCommandInput.classType())
 
     commandUIState.initValue(BIN_GENERATE_BASE_INPUT_ID, True, adsk.core.BoolValueCommandInput.classType())
     commandUIState.initValue(BIN_SCREW_HOLES_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
@@ -396,11 +427,22 @@ def update_actual_bin_dimensions():
     except:
         showErrorInMessageBox()
 
+def addIconItems(dropdown: adsk.core.DropDownCommandInput, firstItems: list[str], selected: str):
+    """Icons show their preview, separated by type"""
+    for name in firstItems:
+        dropdown.listItems.add(name, name == selected)
+    for group in labelGenerator.listIconGroups():
+        dropdown.listItems.addSeparator(-1)
+        for icon in group:
+            dropdown.listItems.add(icon.name, icon.name == selected, icon.previewFolder)
+    if dropdown.selectedItem is None:
+        dropdown.listItems.item(0).isSelected = True
+
 def render_compartments_table(inputs: adsk.core.CommandInputs):
     global commandUIState
     initiallyVisible: bool = commandUIState.getState(BIN_COMPARTMENTS_GRID_TYPE_ID) == BIN_COMPARTMENTS_GRID_TYPE_CUSTOM
     compartmentsGroup: adsk.core.GroupCommandInput = commandUIState.getInput(BIN_COMPARTMENTS_GROUP_ID)
-    binCompartmentsTable = compartmentsGroup.children.addTableCommandInput(BIN_COMPARTMENTS_TABLE_ID, "Compartments", 5, "1:1:1:1:1")
+    binCompartmentsTable = compartmentsGroup.children.addTableCommandInput(BIN_COMPARTMENTS_TABLE_ID, "Compartments", 7, "1:1:1:1:1:2:2")
     addButton = compartmentsGroup.commandInputs.addBoolValueInput(BIN_COMPARTMENTS_TABLE_ADD_ID, "Add", False, "", False)
     removeButton = compartmentsGroup.commandInputs.addBoolValueInput(BIN_COMPARTMENTS_TABLE_REMOVE_ID, "Remove", False, "", False)
     populateUniform = compartmentsGroup.commandInputs.addBoolValueInput(BIN_COMPARTMENTS_TABLE_UNIFORM_ID, "Reset to uniform", False, "", False)
@@ -429,7 +471,15 @@ def render_compartments_table(inputs: adsk.core.CommandInputs):
     binCompartmentsTable.addCommandInput(y_input_label, 0, 1)
     binCompartmentsTable.addCommandInput(w_input_label, 0, 2)
     binCompartmentsTable.addCommandInput(l_input_label, 0, 3)
+    label_input_label = binCompartmentsTable.commandInputs.addStringValueInput("label_input_0_label", "", "Label")
+    label_input_label.isReadOnly = True
+    label_input_label.isFullWidth = True
+    icon_input_label = binCompartmentsTable.commandInputs.addStringValueInput("icon_input_0_label", "", "Icon")
+    icon_input_label.isReadOnly = True
+    icon_input_label.isFullWidth = True
     binCompartmentsTable.addCommandInput(d_input_label, 0, 4)
+    binCompartmentsTable.addCommandInput(label_input_label, 0, 5)
+    binCompartmentsTable.addCommandInput(icon_input_label, 0, 6)
     binCompartmentsTable.maximumVisibleRows = 20
     binCompartmentsTable.isVisible = initiallyVisible
     addButton.isVisible = initiallyVisible
@@ -441,9 +491,12 @@ def render_compartments_table(inputs: adsk.core.CommandInputs):
 def append_compartments_from_state():
     global commandCompartmentsTableUIState
     for i, rowState in enumerate(commandCompartmentsTableUIState, 1):
-        append_compartment_table_row(rowState.getState(f'x_input_{i}'), rowState.getState(f'y_input_{i}'), rowState.getState(f'w_input_{i}'), rowState.getState(f'l_input_{i}'), rowState.getState(f'd_input_{i}'))
+        # rows saved before labels existed have no label columns
+        label = rowState.getState(f'label_input_{i}') if f'label_input_{i}' in rowState.inputState else ''
+        icon = rowState.getState(f'icon_input_{i}') if f'icon_input_{i}' in rowState.inputState else COMPARTMENT_LABEL_ICON_DEFAULT
+        append_compartment_table_row(rowState.getState(f'x_input_{i}'), rowState.getState(f'y_input_{i}'), rowState.getState(f'w_input_{i}'), rowState.getState(f'l_input_{i}'), rowState.getState(f'd_input_{i}'), label, icon)
 
-def append_compartment_table_row(x: int, y: int, w: int, l: int, defaultDepth: float):
+def append_compartment_table_row(x: int, y: int, w: int, l: int, defaultDepth: float, label: str = '', icon: str = COMPARTMENT_LABEL_ICON_DEFAULT):
     global commandUIState
     binCompartmentsTable: adsk.core.TableCommandInput = commandUIState.getInput(BIN_COMPARTMENTS_TABLE_ID)
     commandUIState.registerCommandInput(binCompartmentsTable)
@@ -462,7 +515,15 @@ def append_compartment_table_row(x: int, y: int, w: int, l: int, defaultDepth: f
     binCompartmentsTable.addCommandInput(y_input, newRow, 1)
     binCompartmentsTable.addCommandInput(w_input, newRow, 2)
     binCompartmentsTable.addCommandInput(l_input, newRow, 3)
+    label_input = binCompartmentsTable.commandInputs.addStringValueInput(f'label_input_{newRow}', 'Label', label)
+    label_input.isFullWidth = True
+    label_input.tooltip = 'Leave empty to use the label text from the label tab section'
+    icon_input = binCompartmentsTable.commandInputs.addDropDownCommandInput(f'icon_input_{newRow}', 'Icon', adsk.core.DropDownStyles.LabeledIconDropDownStyle)
+    addIconItems(icon_input, [COMPARTMENT_LABEL_ICON_DEFAULT, labelGenerator.LABEL_ICON_NONE], icon)
+    icon_input.isFullWidth = True
     binCompartmentsTable.addCommandInput(d_input, newRow, 4)
+    binCompartmentsTable.addCommandInput(label_input, newRow, 5)
+    binCompartmentsTable.addCommandInput(icon_input, newRow, 6)
 
 def is_all_input_valid(inputs: adsk.core.CommandInputs):
     result = True
@@ -657,6 +718,19 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     tabObverhangAngleInput.maximumValue = math.radians(65)
     tabObverhangAngleInput.isMaximumInclusive = True
     commandUIState.registerCommandInput(tabObverhangAngleInput)
+    labelTextInput = binTabFeaturesGroup.children.addStringValueInput(BIN_TAB_LABEL_TEXT_INPUT_ID, 'Label text', commandUIState.getState(BIN_TAB_LABEL_TEXT_INPUT_ID))
+    labelTextInput.tooltip = 'Text on every compartment label, compartments in a custom grid can have their own. Each label gets a text parameter to edit it later'
+    commandUIState.registerCommandInput(labelTextInput)
+    labelIconInput = binTabFeaturesGroup.children.addDropDownCommandInput(BIN_TAB_LABEL_ICON_INPUT_ID, 'Label icon', adsk.core.DropDownStyles.LabeledIconDropDownStyle)
+    addIconItems(labelIconInput, [labelGenerator.LABEL_ICON_NONE], commandUIState.getState(BIN_TAB_LABEL_ICON_INPUT_ID))
+    commandUIState.registerCommandInput(labelIconInput)
+    labelStyleInput = binTabFeaturesGroup.children.addDropDownCommandInput(BIN_TAB_LABEL_STYLE_INPUT_ID, 'Label style', adsk.core.DropDownStyles.TextListDropDownStyle)
+    labelStyleInput.tooltip = 'Outline splits the tab face along the label so a slicer can color it, engraved cuts it in, embossed raises it from a lowered tab'
+    for style in labelGenerator.LABEL_STYLES:
+        labelStyleInput.listItems.add(style, style == commandUIState.getState(BIN_TAB_LABEL_STYLE_INPUT_ID))
+    commandUIState.registerCommandInput(labelStyleInput)
+    labelBoldInput = binTabFeaturesGroup.children.addBoolValueInput(BIN_TAB_LABEL_BOLD_INPUT_ID, 'Bold label text', True, '', commandUIState.getState(BIN_TAB_LABEL_BOLD_INPUT_ID))
+    commandUIState.registerCommandInput(labelBoldInput)
     for input in binTabFeaturesGroup.children:
         if not input.id == BIN_HAS_TAB_INPUT_ID:
             input.isEnabled = commandUIState.getState(BIN_HAS_TAB_INPUT_ID)
@@ -746,7 +820,8 @@ def cache_compartments_table_state(inputs: adsk.core.CommandInputs):
         commandCompartmentsTableUIState.append(CommandUiState(CMD_NAME))
         for j in range(binCompartmentsTable.numberOfColumns):
             input = binCompartmentsTable.getInputAtPosition(i, j)
-            commandCompartmentsTableUIState[-1].initValue(input.id, input.value, input.objectType)
+            value = input.selectedItem.name if isinstance(input, adsk.core.DropDownCommandInput) else input.value
+            commandCompartmentsTableUIState[-1].initValue(input.id, value, input.objectType)
             commandCompartmentsTableUIState[-1].registerCommandInput(input)
 
 def command_input_changed(args: adsk.core.InputChangedEventArgs):
@@ -914,6 +989,10 @@ def generateBin(args: adsk.core.CommandEventArgs):
     binTabWidth: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_WIDTH_INPUT_ID)
     binTabPosition: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_POSITION_INPUT_ID)
     binTabAngle: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_ANGLE_INPUT_ID)
+    labelTextInput: adsk.core.StringValueCommandInput = inputs.itemById(BIN_TAB_LABEL_TEXT_INPUT_ID)
+    labelIconInput: adsk.core.DropDownCommandInput = inputs.itemById(BIN_TAB_LABEL_ICON_INPUT_ID)
+    labelStyleInput: adsk.core.DropDownCommandInput = inputs.itemById(BIN_TAB_LABEL_STYLE_INPUT_ID)
+    labelBoldInput: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_TAB_LABEL_BOLD_INPUT_ID)
     binTypeDropdownInput: adsk.core.DropDownCommandInput = inputs.itemById(BIN_TYPE_DROPDOWN_ID)
     binCompartmentGridTypeDropdownInput: adsk.core.DropDownCommandInput = inputs.itemById(BIN_COMPARTMENTS_GRID_TYPE_ID)
     binCompartmentsTable: adsk.core.TableCommandInput = inputs.itemById(BIN_COMPARTMENTS_TABLE_ID)
@@ -1018,9 +1097,13 @@ def generateBin(args: adsk.core.CommandEventArgs):
         binBodyInput.tabWidth = binTabWidth.value
         binBodyInput.tabPosition = binTabPosition.value
         binBodyInput.tabOverhangAngle = binTabAngle.value
+        binBodyInput.labelStyle = labelStyleInput.selectedItem.name
+        binBodyInput.isLabelBold = labelBoldInput.value
         binBodyInput.compartmentsByX = compartmentsX.value
         binBodyInput.compartmentsByY = compartmentsY.value
 
+        # label text and icon per compartment, the label tab section fills in the ones left blank
+        compartmentLabels: list[tuple[str, str]] = []
         if binCompartmentGridTypeDropdownInput.selectedItem.name == BIN_COMPARTMENTS_GRID_TYPE_UNIFORM:
             binBodyInput.isUniformCompartments = True
             binBodyInput.compartments = uniformCompartments(binBodyInput.compartmentsByX, binBodyInput.compartmentsByY)
@@ -1032,7 +1115,11 @@ def generateBin(args: adsk.core.CommandEventArgs):
                 width: adsk.core.IntegerSpinnerCommandInput = binCompartmentsTable.getInputAtPosition(i, 2)
                 length: adsk.core.IntegerSpinnerCommandInput = binCompartmentsTable.getInputAtPosition(i, 3)
                 depth: adsk.core.ValueCommandInput = binCompartmentsTable.getInputAtPosition(i, 4)
-                binBodyInput.compartments.append(BinBodyCompartmentDefinition(positionX.value, positionY.value, width.value, length.value, depth.value))
+                labelText: adsk.core.StringValueCommandInput = binCompartmentsTable.getInputAtPosition(i, 5)
+                labelIcon: adsk.core.DropDownCommandInput = binCompartmentsTable.getInputAtPosition(i, 6)
+                compartment = BinBodyCompartmentDefinition(positionX.value, positionY.value, width.value, length.value, depth.value)
+                compartmentLabels.append((labelText.value, labelIcon.selectedItem.name))
+                binBodyInput.compartments.append(compartment)
 
         binBody: adsk.fusion.BRepBody
 
@@ -1043,6 +1130,16 @@ def generateBin(args: adsk.core.CommandEventArgs):
                 bin_height.value,
                 'Gridfinity bin height, in height units',
             ))
+            if binBodyInput.hasTab:
+                for compartmentIndex, compartment in enumerate(binBodyInput.compartments):
+                    (compartmentText, compartmentIcon) = compartmentLabels[compartmentIndex] if compartmentIndex < len(compartmentLabels) else ('', COMPARTMENT_LABEL_ICON_DEFAULT)
+                    compartment.label = createLabelDefinition(
+                        des,
+                        binParameterPrefix,
+                        BIN_LABEL_PARAMETER if len(binBodyInput.compartments) == 1 else f'{BIN_LABEL_PARAMETER}{compartmentIndex + 1}',
+                        compartmentText or labelTextInput.value,
+                        labelIconInput.selectedItem.name if compartmentIcon == COMPARTMENT_LABEL_ICON_DEFAULT else compartmentIcon,
+                    )
             binBodyInput.heightUnit = Dim.parameter(sharedParameters.findOrCreateSharedLengthParameter(
                 des,
                 tagUtils.TAG_HEIGHT_UNIT_PARAMETER,
@@ -1128,7 +1225,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
                 compartmentTabInput.length = binBodyInput.baseWidth * max(0, min(binBodyInput.tabLength, binBodyInput.binWidth)) - Dim.length(binBodyInput.wallThickness * 2 + binBodyInput.xyClearance * 2)
                 compartmentTabInput.width = binBodyInput.tabWidth
                 compartmentTabInput.overhangAngle = binBodyInput.tabOverhangAngle
-                compartmentTabInput.topClearance = const.BIN_TAB_TOP_CLEARANCE
+                compartmentTabInput.topClearance = tabTopClearance(binBodyInput.labelStyle)
                 tabBody = createGridfinityBinBodyTab(compartmentTabInput, gridfinityBinComponent, name='Label tab')
 
                 # trim the tab to the shell interior, its ends would otherwise poke out past the rounded outer corners,
@@ -1157,6 +1254,22 @@ def generateBin(args: adsk.core.CommandEventArgs):
                 intersectTabFeature = combineFeatures.add(intersectTabInput)
                 intersectTabFeature.name = 'Label tab trim'
                 combineUtils.joinBodies(binBody, commonUtils.objectCollectionFromList(intersectTabFeature.bodies), gridfinityBinComponent, name='Label tab join')
+
+                shelledLabel = createLabelDefinition(des, binParameterPrefix, BIN_LABEL_PARAMETER, labelTextInput.value, labelIconInput.selectedItem.name)
+                if shelledLabel is not None:
+                    createTabLabel(
+                        shelledLabel,
+                        binBodyInput.labelStyle,
+                        binBodyInput.isLabelBold,
+                        tabOriginX,
+                        tabOriginX + compartmentTabInput.length,
+                        tabOriginY,
+                        binBodyInput.tabWidth,
+                        tabOriginZ,
+                        binBody,
+                        gridfinityBinComponent,
+                        name='Label',
+                    )
 
         if bin_generate_body.value or bin_generate_base.value:
             generatedBodies = [binBody] if bin_generate_body.value else baseBodies

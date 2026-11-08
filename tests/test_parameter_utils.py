@@ -62,3 +62,11 @@ def test_reuses_gaps_left_by_deleted_parameters():
 
 def test_parameter_name_joins_prefix_and_name():
     assert parameterUtils.parameterName("gfBin1", "heightU") == "gfBin1_heightU"
+
+
+def test_text_expression_is_a_quoted_literal():
+    assert parameterUtils.textExpression("M3 screws") == "'M3 screws'"
+
+
+def test_text_expression_swaps_inner_quotes():
+    assert parameterUtils.textExpression("Leo's bits") == "'Leo’s bits'"

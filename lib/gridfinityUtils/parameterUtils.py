@@ -26,3 +26,15 @@ def addLengthParameter(
 ) -> adsk.fusion.UserParameter:
     """Value in internal units (cm), shown in millimeters"""
     return design.userParameters.add(name, adsk.core.ValueInput.createByReal(value), 'mm', comment)
+
+def textExpression(text: str) -> str:
+    """Text parameters take a single quoted literal, quotes inside are swapped for typographic ones"""
+    return "'" + text.replace("'", "\u2019") + "'"
+
+def addTextParameter(
+    design: adsk.fusion.Design,
+    name: str,
+    text: str,
+    comment: str,
+) -> adsk.fusion.UserParameter:
+    return design.userParameters.add(name, adsk.core.ValueInput.createByString(textExpression(text)), 'Text', comment)
