@@ -45,37 +45,6 @@ def patternCompartmentBodies(bodies, input, spacingX, spacingY, targetComponent,
     return bodies + list(pattern.bodies)
 
 
-def patternWallCuts(cuts, input, spacingX, spacingY, targetComponent, toLastColumn: bool, toLastRow: bool, name: str, isAlongWall: bool = True):
-    """Takes the wall cuts of the front left pattern seed to the outer wall they open, the back one along the last row
-    and the sides along the first or last column, then along that wall unless they only open a corner"""
-    if not cuts:
-        return cuts
-    features = targetComponent.features
-    moveX = spacingX * (input.compartmentsByX - 1) if toLastColumn and input.compartmentsByX > 1 else None
-    moveY = spacingY * (input.compartmentsByY - 1) if toLastRow and input.compartmentsByY > 1 else None
-    if moveX is not None or moveY is not None:
-        moveInput = features.moveFeatures.createInput2(commonUtils.objectCollectionFromList(cuts))
-        moveInput.defineAsTranslateXYZ(
-            valueInput(moveX if moveX is not None else Dim.length(0)),
-            valueInput(moveY if moveY is not None else Dim.length(0)),
-            adsk.core.ValueInput.createByReal(0),
-            True,
-        )
-        moveFeature = features.moveFeatures.add(moveInput)
-        moveFeature.name = f'{name} to the wall'
-    # the back wall runs along x, the sides along y
-    counts = (input.compartmentsByX, 1) if toLastRow else (1, input.compartmentsByY)
-    if counts == (1, 1) or not isAlongWall:
-        return cuts
-    pattern = patternUtils.recPatternGrid(
-        commonUtils.objectCollectionFromList(cuts),
-        counts,
-        (spacingX, spacingY),
-        targetComponent,
-        name=f'{name} pattern',
-    )
-    return cuts + [body for body in pattern.bodies if body not in cuts]
-
 def binBodyTopHeight(input: BinBodyGeneratorInput) -> Dim:
     """Height of the body top above the base top"""
     if input.heightUnit.value >= const.BIN_BASE_HEIGHT:
@@ -220,14 +189,15 @@ def createGridfinityBinBody(
             compartmentTabInput.overhangAngle = input.tabOverhangAngle
             compartmentTabInput.labelAngle = input.tabTopAngle
             compartmentTabInput.topClearance = tabTopClearance(input.labelStyle)
-            # hollow tabs are opened through the outer walls of the bin they meet, the pattern seed gets cuts to move there
+            # a hollow tab of a single compartment is opened through the outer walls of the bin, with more compartments
+            # the hollows are left closed
             tabOpenings = None
-            if input.isTabHollow:
+            if input.isTabHollow and len(input.compartments) == 1:
                 tabOpenings = TabWallOpenings(
                     input.wallThickness * 2,
-                    back=useCompartmentPattern or compartment.positionY + compartment.length >= input.compartmentsByY,
-                    minXSide=input.isTabOpenThroughSides and (useCompartmentPattern or compartment.positionX == 0),
-                    maxXSide=input.isTabOpenThroughSides and (useCompartmentPattern or compartment.positionX + compartment.width >= input.compartmentsByX),
+                    back=True,
+                    minXSide=input.isTabOpenThroughSides,
+                    maxXSide=input.isTabOpenThroughSides,
                 )
 
             [compartmentMerges, compartmentCuts, compartmentHollowCuts] = createCompartment(
@@ -270,15 +240,12 @@ def createGridfinityBinBody(
                     compartmentLengthUnit + wall,
                     targetComponent, 'Label tabs pattern',
                 )
-                spacing = (compartmentWidthUnit + wall, compartmentLengthUnit + wall)
-                compartmentHollowCuts = TabHollowCuts(
-                    hollow=patternCompartmentBodies(compartmentHollowCuts.hollow, input, *spacing, targetComponent, 'Label tab hollows pattern'),
-                    back=patternWallCuts(compartmentHollowCuts.back, input, *spacing, targetComponent, False, True, 'Label tab back openings'),
-                    minXSide=patternWallCuts(compartmentHollowCuts.minXSide, input, *spacing, targetComponent, False, False, 'Label tab left openings'),
-                    maxXSide=patternWallCuts(compartmentHollowCuts.maxXSide, input, *spacing, targetComponent, True, False, 'Label tab right openings'),
-                    minXCorner=patternWallCuts(compartmentHollowCuts.minXCorner, input, *spacing, targetComponent, False, True, 'Label tab left corner opening', isAlongWall=False),
-                    maxXCorner=patternWallCuts(compartmentHollowCuts.maxXCorner, input, *spacing, targetComponent, True, True, 'Label tab right corner opening', isAlongWall=False),
-                )
+                compartmentHollowCuts = TabHollowCuts(hollow=patternCompartmentBodies(
+                    compartmentHollowCuts.hollow, input,
+                    compartmentWidthUnit + wall,
+                    compartmentLengthUnit + wall,
+                    targetComponent, 'Label tab hollows pattern',
+                ))
             bodiesToSubtract.extend(compartmentCuts)
             tabHollowCuts.extend(compartmentHollowCuts.all())
             bodiesToMerge.extend(compartmentMerges)

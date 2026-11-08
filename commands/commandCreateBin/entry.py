@@ -352,6 +352,13 @@ def stop():
     if command_definition:
         command_definition.deleteMe()
 
+def updateTabHollowSidesInput(isTabEnabled: bool):
+    """Side walls are only opened for a hollow tab, the option is cleared when it can't apply"""
+    isEnabled = isTabEnabled and commandUIState.getState(BIN_TAB_HOLLOW_INPUT_ID)
+    commandUIState.getInput(BIN_TAB_HOLLOW_SIDES_INPUT_ID).isEnabled = isEnabled
+    if not isEnabled:
+        commandUIState.updateValue(BIN_TAB_HOLLOW_SIDES_INPUT_ID, False)
+
 def render_actual_bin_dimensions_table(inputs: adsk.core.CommandInputs):
     global actualDimensionsTableUiState
     actualDimensionsTable = inputs.addTableCommandInput(BIN_REAL_DIMENSIONS_TABLE, "Actual dimensions (mm)", 3, "1:1:1")
@@ -621,7 +628,10 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     defaultLengthUnits = app.activeProduct.unitsManager.defaultLengthUnits
 
     infoGroup = inputs.addGroupCommandInput(INFO_GROUP, 'Info')
-    infoGroup.children.addTextBoxCommandInput("info_text", "Info", infoText(), 4, True)
+    # as many rows as the text has lines, so the box takes no more room than it needs, and a row for the help line
+    # to wrap into, as the box keeps its height when the dialog is made narrower
+    info = infoText()
+    infoGroup.children.addTextBoxCommandInput("info_text", "Info", info, info.count('<br>') + 2, True)
     infoGroup.isExpanded = commandUIState.getState(INFO_GROUP)
     commandUIState.registerCommandInput(infoGroup)
 
@@ -738,10 +748,10 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     tabTopAngleInput.isMaximumInclusive = True
     commandUIState.registerCommandInput(tabTopAngleInput)
     tabHollowInput = binTabFeaturesGroup.children.addBoolValueInput(BIN_TAB_HOLLOW_INPUT_ID, 'Hollow tab', True, '', commandUIState.getState(BIN_TAB_HOLLOW_INPUT_ID))
-    tabHollowInput.tooltip = 'Shells the tab with the wall thickness, open towards the wall it sits on. On by default for shelled bins'
+    tabHollowInput.tooltip = 'Shells the tab with the wall thickness. With a single compartment it is opened through the back wall of the bin, with more compartments it is left closed. On by default for shelled bins'
     commandUIState.registerCommandInput(tabHollowInput)
     tabHollowSidesInput = binTabFeaturesGroup.children.addBoolValueInput(BIN_TAB_HOLLOW_SIDES_INPUT_ID, 'Open through side walls', True, '', commandUIState.getState(BIN_TAB_HOLLOW_SIDES_INPUT_ID))
-    tabHollowSidesInput.tooltip = 'Also opens a hollow tab through the outer side walls of the bin where it runs into them, not only through the back wall'
+    tabHollowSidesInput.tooltip = 'Also opens a hollow tab through the side walls of the bin where it runs into them, not only through the back wall. Only for a single compartment'
     commandUIState.registerCommandInput(tabHollowSidesInput)
     labelTextInput = binTabFeaturesGroup.children.addStringValueInput(BIN_TAB_LABEL_TEXT_INPUT_ID, 'Label text', commandUIState.getState(BIN_TAB_LABEL_TEXT_INPUT_ID))
     labelTextInput.tooltip = 'Text on every compartment label, compartments in a custom grid can have their own. Each label gets a text parameter to edit it later'
@@ -759,7 +769,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     for input in binTabFeaturesGroup.children:
         if not input.id == BIN_HAS_TAB_INPUT_ID:
             input.isEnabled = commandUIState.getState(BIN_HAS_TAB_INPUT_ID)
-    tabHollowSidesInput.isEnabled = commandUIState.getState(BIN_HAS_TAB_INPUT_ID) and commandUIState.getState(BIN_TAB_HOLLOW_INPUT_ID)
+    updateTabHollowSidesInput(commandUIState.getState(BIN_HAS_TAB_INPUT_ID))
 
     baseFeaturesGroup = inputs.addGroupCommandInput(BIN_BASE_FEATURES_GROUP_ID, 'Base interface features')
     baseFeaturesGroup.isExpanded = commandUIState.getState(BIN_BASE_FEATURES_GROUP_ID)
@@ -963,7 +973,7 @@ def onChangeValidate():
     for input in commandUIState.getInput(BIN_TAB_FEATURES_GROUP_ID).children:
         if not input.id == BIN_HAS_TAB_INPUT_ID:
             input.isEnabled = generateBody and generateTab
-    commandUIState.getInput(BIN_TAB_HOLLOW_SIDES_INPUT_ID).isEnabled = generateBody and generateTab and commandUIState.getState(BIN_TAB_HOLLOW_INPUT_ID)
+    updateTabHollowSidesInput(generateBody and generateTab)
 
     generateLip: bool = commandUIState.getState(BIN_WITH_LIP_INPUT_ID)
     commandUIState.getInput(BIN_WITH_LIP_NOTCHES_INPUT_ID).isEnabled = generateLip

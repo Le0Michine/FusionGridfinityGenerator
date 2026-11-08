@@ -161,14 +161,12 @@ class TabHollowCuts:
     """Bodies to cut out of a joined tab, the hollow and the openings through each wall around it"""
     hollow: list[adsk.fusion.BRepBody] = field(default_factory=list)
     back: list[adsk.fusion.BRepBody] = field(default_factory=list)
+    # the sides take the back wall at the corners along with them
     minXSide: list[adsk.fusion.BRepBody] = field(default_factory=list)
     maxXSide: list[adsk.fusion.BRepBody] = field(default_factory=list)
-    # the back wall at the corners, opened along with the sides
-    minXCorner: list[adsk.fusion.BRepBody] = field(default_factory=list)
-    maxXCorner: list[adsk.fusion.BRepBody] = field(default_factory=list)
 
     def all(self) -> list[adsk.fusion.BRepBody]:
-        return self.hollow + self.back + self.minXSide + self.maxXSide + self.minXCorner + self.maxXCorner
+        return self.hollow + self.back + self.minXSide + self.maxXSide
 
 def createTabHollowCuts(
     tabInput: BinBodyTabGeneratorInput,
@@ -275,16 +273,16 @@ def createTabHollowCuts(
         cuts.back = createBackOpening(openingMinX, openingMaxX, 'back opening')
     # a side opened along with the back also takes the back wall at the corner between them, so no pillar is left
     if openings.back and isMinXSideOpened:
-        cuts.minXCorner = createBackOpening(cavity.minX - depth, flatMinX, 'min x corner opening')
+        cuts.minXSide += createBackOpening(cavity.minX - depth, flatMinX, 'min x corner opening')
     if openings.back and isMaxXSideOpened:
-        cuts.maxXCorner = createBackOpening(flatMaxX, cavity.maxX + depth, 'max x corner opening')
+        cuts.maxXSide += createBackOpening(flatMaxX, cavity.maxX + depth, 'max x corner opening')
 
     # side openings are the hollow profile running back to the back wall carried on through the side walls,
     # they reach into the cavity by its corner radius, taking the rounded corner, where they match the hollow
     sideLength = depth + Dim.length(cavity.cornerRadius)
     if isMinXSideOpened:
-        cuts.minXSide = [createHollowProfile(cavity.minX - depth, cavity.minX - depth + sideLength, cavity.backY, 'min x side opening')]
+        cuts.minXSide += [createHollowProfile(cavity.minX - depth, cavity.minX - depth + sideLength, cavity.backY, 'min x side opening')]
     if isMaxXSideOpened:
         sideMinX = cavity.maxX - Dim.length(cavity.cornerRadius)
-        cuts.maxXSide = [createHollowProfile(sideMinX, sideMinX + sideLength, cavity.backY, 'max x side opening')]
+        cuts.maxXSide += [createHollowProfile(sideMinX, sideMinX + sideLength, cavity.backY, 'max x side opening')]
     return cuts

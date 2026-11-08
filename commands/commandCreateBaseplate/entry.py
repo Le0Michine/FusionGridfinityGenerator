@@ -263,7 +263,10 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     infoGroup = inputs.addGroupCommandInput(INFO_GROUP, 'Info')
     infoGroup.isExpanded = uiState.getState(INFO_GROUP)
     uiState.registerCommandInput(infoGroup)
-    infoGroup.children.addTextBoxCommandInput("info_text", "Info", infoText(), 4, True)
+    # as many rows as the text has lines, so the box takes no more room than it needs, and a row for the help line
+    # to wrap into, as the box keeps its height when the dialog is made narrower
+    info = infoText()
+    infoGroup.children.addTextBoxCommandInput("info_text", "Info", info, info.count('<br>') + 2, True)
 
     basicSizesGroup = inputs.addGroupCommandInput(BASIC_SIZES_GROUP, 'Basic size')
     basicSizesGroup.isExpanded = uiState.getState(BASIC_SIZES_GROUP)
