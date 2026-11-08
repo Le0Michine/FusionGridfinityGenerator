@@ -7,7 +7,27 @@ from .baseGeneratorInput import BaseGeneratorInput
 from .baseplateGeneratorInput import BaseplateGeneratorInput
 from .dim import Dim, applyTo, valueInput
 
-def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: adsk.fusion.Component):
+def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: adsk.fusion.Component) -> adsk.fusion.BRepBody:
+    return createBaseplateBodies(input, None, targetComponent)[0]
+
+def createGridfinityBaseplatePieces(
+    input: BaseplateGeneratorInput,
+    pieces: list[tuple[int, int, int, int]],
+    targetComponent: adsk.fusion.Component,
+) -> list[adsk.fusion.BRepBody]:
+    """The plate built once and cut into pieces, given as (first column, columns, first row, rows) of whole cells.
+    Bodies come in the order of the pieces"""
+    return createBaseplateBodies(input, pieces, targetComponent)
+
+def createBaseplateBodies(
+    input: BaseplateGeneratorInput,
+    pieces: list[tuple[int, int, int, int]] | None,
+    targetComponent: adsk.fusion.Component,
+) -> list[adsk.fusion.BRepBody]:
+    """
+    The whole plate, cut into the given pieces in place, or a single piece. Pieces end the xy clearance short of the cell
+    border on the seams, the same as a plate's outer edge. Connection holes go along the seams too.
+    """
     timer = commonUtils.StepTimer('Baseplate {}x{}'.format(int(input.baseplateWidth), int(input.baseplateLength)))
     features = targetComponent.features
     clearance = Dim.length(input.xyClearance)
@@ -34,6 +54,9 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
 
     connectionHoleYTool = None
     connectionHoleXTool = None
+    # cell borders between pieces
+    seamColumns = sorted({firstColumn for (firstColumn, _, _, _) in pieces or [] if firstColumn > 0})
+    seamRows = sorted({firstRow for (_, _, firstRow, _) in pieces or [] if firstRow > 0})
 
     if input.hasSkeletonizedBottom:
         centerCutoutSketch,centerCutoutSketchCircle = baseGenerator.createCircleAtPointSketch(
@@ -235,6 +258,22 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
         )
         connectionHoleYToolList = list(connectionHoleYTool.bodies) + list(holeToolsYFeature.bodies)
 
+        # a tool at a cell border reaches into the cells on both sides, so one per seam holes both pieces
+        for (seams, tools, isAlongX, axisName) in [
+            (seamColumns, connectionHoleXToolList, True, 'X'),
+            (seamRows, connectionHoleYToolList, False, 'Y'),
+        ]:
+            for seam in seams:
+                seamPattern = patternUtils.recPattern(
+                    commonUtils.objectCollectionFromList(tools),
+                    (targetComponent.xConstructionAxis, targetComponent.yConstructionAxis),
+                    (input.baseWidth * seam, input.baseLength) if isAlongX else (input.baseWidth, input.baseLength * seam),
+                    (2, 1) if isAlongX else (1, 2),
+                    targetComponent,
+                    name=f'Connection holes seam {axisName}{seam} pattern',
+                )
+                cuttingTools.extend(body for body in seamPattern.bodies if body not in tools)
+
         constructionPlaneXZInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
         constructionPlaneXZInput.setByOffset(targetComponent.xZConstructionPlane, valueInput(input.baseLength * input.baseplateLength / 2 - clearance))
         constructionPlaneXZ = targetComponent.constructionPlanes.add(constructionPlaneXZInput)
@@ -340,39 +379,69 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
         )
         timer.step(f'padding ({len(paddingBodies)} strips)')
 
-    # trims cells overhanging the plate edge and rounds the outer corners
-    baseGenerator.cutOutsideRoundedRectangle(
-        adsk.core.Point3D.create(outlineMinX.value, outlineMinY.value, 0),
-        outlineMaxX - outlineMinX,
-        outlineMaxY - outlineMinY,
+    # holes go in before the plate is cut into pieces, a combine cuts one body only
+    if len(cuttingTools) > 0:
+        combineUtils.cutBody(
+            baseplateBody,
+            commonUtils.objectCollectionFromList(cuttingTools),
+            targetComponent,
+            name='Connection holes cut',
+        )
+        timer.step('connection holes cut')
+
+    # trims cells overhanging the plate edge and rounds the corners, of every piece at once
+    def axisRange(first: int, count: int, total: int, baseUnit: Dim, outlineMin: Dim, outlineMax: Dim) -> tuple[Dim, Dim]:
+        low = outlineMin if first == 0 else baseUnit * first
+        high = outlineMax if first + count == total else baseUnit * (first + count) - clearance * 2
+        return (low, high)
+    pieceOutlines: list[tuple[Dim, Dim, Dim, Dim]] = []
+    for (firstColumn, columns, firstRow, rows) in pieces or [(0, input.baseplateWidth, 0, input.baseplateLength)]:
+        (minX, maxX) = axisRange(firstColumn, columns, input.baseplateWidth, input.baseWidth, outlineMinX, outlineMaxX)
+        (minY, maxY) = axisRange(firstRow, rows, input.baseplateLength, input.baseLength, outlineMinY, outlineMaxY)
+        pieceOutlines.append((minX, minY, maxX, maxY))
+    trimFeature = baseGenerator.cutOutsideRoundedRectangles(
+        pieceOutlines,
         input.cornerFilletRadius - input.xyClearance,
         [baseplateBody],
         targetComponent,
-        outlineMinX,
-        outlineMinY,
-        name='Plate outline trim',
+        name='Plate outline trim' if pieces is None else 'Plate pieces cut',
     )
-    timer.step('trim to outline')
+    timer.step('trim to outline' if pieces is None else f'cut into {len(pieceOutlines)} pieces')
 
-    bottomFace = faceUtils.getBottomFace(baseplateBody)
-    plateBox = baseplateBody.boundingBox
-    def isOnOutline(edge: adsk.fusion.BRepEdge):
-        edgeBox = edge.boundingBox
-        return any(math.isclose(edgeValue, plateValue, abs_tol=const.DEFAULT_FILTER_TOLERANCE) for (edgeValue, plateValue) in [
-            (edgeBox.minPoint.x, plateBox.minPoint.x),
-            (edgeBox.maxPoint.x, plateBox.maxPoint.x),
-            (edgeBox.minPoint.y, plateBox.minPoint.y),
-            (edgeBox.maxPoint.y, plateBox.maxPoint.y),
-        ])
-    # the bottom face also has socket edges now, only chamfer the outline edges picked by length as before
-    bottomChamferEdges = [
-        edge for edge in edgeUtils.selectEdgesByLength(
-            [bottomFace],
-            (outlineMaxY - outlineMinY).value,
-            const.BIN_CORNER_FILLET_RADIUS * 3,
-        )
-        if isOnOutline(edge)
-    ]
+    # the cut can leave the bodies in any order, each piece is the one around its outline center.
+    # The plate body itself stays one of them
+    trimmedBodies = [baseplateBody] + [body for body in trimFeature.bodies if body != baseplateBody]
+    plateBodies: list[adsk.fusion.BRepBody] = []
+    for (minX, minY, maxX, maxY) in pieceOutlines:
+        (centerX, centerY) = ((minX.value + maxX.value) / 2, (minY.value + maxY.value) / 2)
+        matches = [
+            body for body in trimmedBodies
+            if body.boundingBox.minPoint.x < centerX < body.boundingBox.maxPoint.x and body.boundingBox.minPoint.y < centerY < body.boundingBox.maxPoint.y
+        ]
+        if len(matches) != 1:
+            raise Exception(f'Expected one plate body around ({centerX:.2f}, {centerY:.2f}), found {len(matches)}')
+        plateBodies.append(matches[0])
+
+    def outlineChamferEdges(body: adsk.fusion.BRepBody) -> list[adsk.fusion.BRepEdge]:
+        bodyBox = body.boundingBox
+        def isOnOutline(edge: adsk.fusion.BRepEdge):
+            edgeBox = edge.boundingBox
+            return any(math.isclose(edgeValue, bodyValue, abs_tol=const.DEFAULT_FILTER_TOLERANCE) for (edgeValue, bodyValue) in [
+                (edgeBox.minPoint.x, bodyBox.minPoint.x),
+                (edgeBox.maxPoint.x, bodyBox.maxPoint.x),
+                (edgeBox.minPoint.y, bodyBox.minPoint.y),
+                (edgeBox.maxPoint.y, bodyBox.maxPoint.y),
+            ])
+        # the bottom face also has socket edges now, only chamfer the outline edges picked by length as before
+        return [
+            edge for edge in edgeUtils.selectEdgesByLength(
+                [faceUtils.getBottomFace(body)],
+                bodyBox.maxPoint.y - bodyBox.minPoint.y,
+                const.BIN_CORNER_FILLET_RADIUS * 3,
+            )
+            if isOnOutline(edge)
+        ]
+    bottomChamferEdges = [edge for body in plateBodies for edge in outlineChamferEdges(body)]
     if len(bottomChamferEdges) > 0:
         filletUtils.createChamfer(
             commonUtils.objectCollectionFromList(bottomChamferEdges),
@@ -381,19 +450,9 @@ def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: a
             name='Plate bottom chamfer',
         )
     timer.step('bottom chamfer')
-
-    # cut everything else
-    if len(cuttingTools) > 0:
-        combineUtils.cutBody(
-            baseplateBody,
-            commonUtils.objectCollectionFromList(cuttingTools),
-            targetComponent,
-            name='Connection holes cut',
-        )
-        timer.step('final cut')
     timer.total()
 
-    return baseplateBody
+    return plateBodies
 
 def createGridfinityBaseplateFill(
     input: BaseplateGeneratorInput,
@@ -402,53 +461,30 @@ def createGridfinityBaseplateFill(
     pieceGap: float = 0,
 ) -> list[tuple[baseplateLayout.FillPiece, adsk.fusion.BRepBody]]:
     """
-    Baseplate pieces of a fill layout, assembled in place. The input padding goes on the outer sides,
-    inner sides have none, so each piece is cut the xy clearance short of the cell border on the seams.
-    Pieces of the same size and edges are generated once and copied.
+    Baseplate pieces of a fill layout, built once as a plate of the whole grid with the input padding and half cells
+    on its outer sides, then cut into the pieces in place. Each piece is cut the xy clearance short of the cell border
+    on the seams, like a plate's outer edge.
     The piece gap spreads the pieces further apart, e.g. to tell them apart in the preview.
     """
-    seamPadding = Dim.length(0)
-    (outerLeft, outerTop, outerRight, outerBottom) = (input.paddingLeft, input.paddingTop, input.paddingRight, input.paddingBottom)
-    (outerHalfLeft, outerHalfTop, outerHalfRight, outerHalfBottom) = (input.hasHalfCellsLeft, input.hasHalfCellsTop, input.hasHalfCellsRight, input.hasHalfCellsBottom)
+    input.baseplateWidth = layout.x.cells
+    input.baseplateLength = layout.y.cells
     input.hasPadding = True
-    sourcePieces: dict[tuple, tuple[baseplateLayout.FillPiece, adsk.fusion.BRepBody]] = {}
-    result: list[tuple[baseplateLayout.FillPiece, adsk.fusion.BRepBody]] = []
-    for piece in layout.pieces:
-        pieceName = f'Piece {piece.column + 1}-{piece.row + 1}'
-        key = baseplateLayout.pieceShapeKey(piece)
-        if key in sourcePieces:
-            (sourcePiece, sourceBody) = sourcePieces[key]
-            copyFeature = targetComponent.features.copyPasteBodies.add(sourceBody)
-            copyFeature.name = f'{pieceName} copy'
-            body = copyFeature.bodies.item(0)
-            (fromX, fromY) = (sourcePiece.cellOffsetX, sourcePiece.cellOffsetY)
-            (fromColumn, fromRow) = (sourcePiece.column, sourcePiece.row)
-        else:
-            input.baseplateWidth = piece.cellsX
-            input.baseplateLength = piece.cellsY
-            input.paddingLeft = outerLeft if piece.isLeftEdge else seamPadding
-            input.paddingRight = outerRight if piece.isRightEdge else seamPadding
-            input.paddingBottom = outerBottom if piece.isBottomEdge else seamPadding
-            input.paddingTop = outerTop if piece.isTopEdge else seamPadding
-            input.hasHalfCellsLeft = outerHalfLeft and piece.isLeftEdge
-            input.hasHalfCellsRight = outerHalfRight and piece.isRightEdge
-            input.hasHalfCellsBottom = outerHalfBottom and piece.isBottomEdge
-            input.hasHalfCellsTop = outerHalfTop and piece.isTopEdge
-            body = createGridfinityBaseplate(input, targetComponent)
-            sourcePieces[key] = (piece, body)
-            (fromX, fromY) = (0, 0)
-            (fromColumn, fromRow) = (0, 0)
-        (cellsByX, cellsByY) = (piece.cellOffsetX - fromX, piece.cellOffsetY - fromY)
-        (gapsByX, gapsByY) = (piece.column - fromColumn, piece.row - fromRow)
-        if cellsByX != 0 or cellsByY != 0:
-            offsetX = input.baseWidth * Dim.number(cellsByX, f'({cellsByX})')
-            offsetY = input.baseLength * Dim.number(cellsByY, f'({cellsByY})')
-            if pieceGap > 0:
-                (offsetX, offsetY) = (offsetX + Dim.length(pieceGap * gapsByX), offsetY + Dim.length(pieceGap * gapsByY))
-            # offsets follow the base unit parameters, so pieces stay together when the units change
-            moveBodiesBy([body], offsetX, offsetY, targetComponent, name=f'{pieceName} placement')
-        result.append((piece, body))
-    return result
+    bodies = createGridfinityBaseplatePieces(
+        input,
+        [(piece.cellOffsetX, piece.cellsX, piece.cellOffsetY, piece.cellsY) for piece in layout.pieces],
+        targetComponent,
+    )
+    if pieceGap > 0:
+        for (piece, body) in zip(layout.pieces, bodies):
+            if piece.column > 0 or piece.row > 0:
+                moveBodiesBy(
+                    [body],
+                    Dim.length(pieceGap * piece.column),
+                    Dim.length(pieceGap * piece.row),
+                    targetComponent,
+                    name=f'Piece {piece.column + 1}-{piece.row + 1} spread',
+                )
+    return list(zip(layout.pieces, bodies))
 
 def moveBodiesBy(
     bodies: list[adsk.fusion.BRepBody],

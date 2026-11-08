@@ -343,6 +343,66 @@ def createBaseBodyPattern(
     rectangularPattern.name = 'Feet pattern'
     return list(rectangularPattern.bodies) + [baseBody]
 
+def cutOutsideRoundedRectangles(
+    rectangles: list[tuple[Dim, Dim, Dim, Dim]],
+    filletRadius: float,
+    targetBodies: list[adsk.fusion.BRepBody],
+    targetComponent: adsk.fusion.Component,
+    *,
+    name: str,
+) -> adsk.fusion.ExtrudeFeature:
+    """Cuts everything outside the rounded rectangles (minX, minY, maxX, maxY) from the target bodies, through their
+    full height, in one cut. Bodies spanning several rectangles split along the gaps between them.
+    The rectangle dims drive their position and size. Sketch and cut are named after the given name"""
+    features = targetComponent.features
+    cutSketch: adsk.fusion.Sketch = targetComponent.sketches.add(targetComponent.xYConstructionPlane)
+    cutSketch.name = f'{name} sketch'
+    sketchArcs = cutSketch.sketchCurves.sketchArcs
+    geometricConstraints = cutSketch.geometricConstraints
+    fillets = []
+    for (minX, minY, maxX, maxY) in rectangles:
+        cornerPoint = cutSketch.modelToSketchSpace(adsk.core.Point3D.create(minX.value, minY.value, 0))
+        cornerPoint.z = 0
+        [side1, side2, side3, side4] = list(createRectangle(maxX - minX, maxY - minY, cornerPoint, cutSketch, minX, minY))
+        fillets.append(sketchArcs.addFillet(side1, side1.endSketchPoint.geometry, side2, side2.startSketchPoint.geometry, filletRadius))
+        fillets.append(sketchArcs.addFillet(side2, side2.endSketchPoint.geometry, side3, side3.startSketchPoint.geometry, filletRadius))
+        fillets.append(sketchArcs.addFillet(side3, side3.endSketchPoint.geometry, side4, side4.startSketchPoint.geometry, filletRadius))
+        fillets.append(sketchArcs.addFillet(side4, side4.endSketchPoint.geometry, side1, side1.startSketchPoint.geometry, filletRadius))
+    # one radius for every corner
+    for fillet in fillets[1:]:
+        geometricConstraints.addEqual(fillets[0], fillet)
+    cutSketch.sketchDimensions.addRadialDimension(fillets[0], fillets[0].startSketchPoint.geometry)
+
+    # a frame around all the rectangles, its region less the rectangles is cut. It is as far again past them on every side,
+    # so it keeps clear of them when parameters grow the plate
+    allMinX = min(rectangle[0].value for rectangle in rectangles)
+    allMinY = min(rectangle[1].value for rectangle in rectangles)
+    allMaxX = max(rectangle[2].value for rectangle in rectangles)
+    allMaxY = max(rectangle[3].value for rectangle in rectangles)
+    margin = max(allMaxX - allMinX, allMaxY - allMinY)
+    frameCorner1 = cutSketch.modelToSketchSpace(adsk.core.Point3D.create(allMinX - margin, allMinY - margin, 0))
+    frameCorner2 = cutSketch.modelToSketchSpace(adsk.core.Point3D.create(allMaxX + margin, allMaxY + margin, 0))
+    (frameCorner1.z, frameCorner2.z) = (0, 0)
+    cutSketch.sketchCurves.sketchLines.addTwoPointRectangle(frameCorner1, frameCorner2)
+
+    def area(profile: adsk.fusion.Profile) -> float:
+        box = profile.boundingBox
+        return (box.maxPoint.x - box.minPoint.x) * (box.maxPoint.y - box.minPoint.y)
+    cuttingProfile = max(list(cutSketch.profiles), key=area)
+    cutExtrudeInput = features.extrudeFeatures.createInput(
+        cuttingProfile,
+        adsk.fusion.FeatureOperations.CutFeatureOperation,
+    )
+    cutExtrudeInput.setTwoSidesExtent(
+        adsk.fusion.DistanceExtentDefinition.create(adsk.core.ValueInput.createByReal(100)),
+        adsk.fusion.DistanceExtentDefinition.create(adsk.core.ValueInput.createByReal(100)),
+    )
+    # the target component can be the root of a part design, which also holds unrelated bodies
+    cutExtrudeInput.participantBodies = targetBodies
+    cutExtrude = features.extrudeFeatures.add(cutExtrudeInput)
+    cutExtrude.name = name
+    return cutExtrude
+
 def cellCenters(
     baseWidth: Dim,
     baseLength: Dim,
