@@ -2,6 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
+<link rel="stylesheet" href="../../../lib/ui/html/dialog.css">
 <style>
     :root {
         --text: #4a4a4a;
@@ -10,11 +11,6 @@
         --empty-border: #c9d3de;
         --cell: #4e79a7;
         --error: #d0021b;
-        --button: #f7f7f7;
-        --button-border: #c4c4c4;
-        --button-hover: #dddddd;
-        --button-hover-border: #a6a6a6;
-        --button-pressed: #cfcfcf;
     }
     @media (prefers-color-scheme: dark) {
         :root {
@@ -24,24 +20,7 @@
             --empty-border: #3a4654;
             --cell: #5b8cc0;
             --error: #ff6b6b;
-            --button: #474747;
-            --button-border: #626262;
-            --button-hover: #555555;
-            --button-hover-border: #7a7a7a;
-            --button-pressed: #5f5f5f;
         }
-    }
-    * {
-        box-sizing: border-box;
-    }
-    html, body {
-        margin: 0;
-        padding: 0;
-        background: transparent;
-        overflow: hidden;
-        /* the dialog's font, loaded from the Fusion install once the dialog sends it */
-        font: 13px "Fusion Artifakt Element", "Artifakt Element", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
-        color: var(--text);
     }
     #drawing svg {
         display: block;
@@ -77,25 +56,8 @@
     #message.error {
         color: var(--error);
     }
-    /* as Fusion draws its buttons, see lib/ui/html/defaultsButtons.html */
     button {
         flex: none;
-        font: inherit;
-        color: var(--text);
-        background: var(--button);
-        border: 1px solid var(--button-border);
-        border-radius: 3px;
-        padding: 2px 8px;
-    }
-    button:hover:enabled {
-        background: var(--button-hover);
-        border-color: var(--button-hover-border);
-    }
-    button:active:enabled {
-        background: var(--button-pressed);
-    }
-    button:disabled {
-        opacity: 0.5;
     }
 </style>
 </head>
@@ -105,6 +67,7 @@
     <span id="message"></span>
     <button id="fill" title="Every cell of the bin">Fill all</button>
 </div>
+<script src="../../../lib/ui/html/fusionBridge.js"></script>
 <script>
     const SVG_NS = 'http://www.w3.org/2000/svg';
     // gap between cells
@@ -134,16 +97,8 @@
     }
 
     function send() {
-        if (!window.adsk || !adsk.fusionSendData) {
-            return;
-        }
-        const result = adsk.fusionSendData('shape', JSON.stringify(data.cells));
         // the dialog answers with the checked shape, its error included
-        if (result && typeof result.then === 'function') {
-            result.then(update);
-        } else {
-            update(result);
-        }
+        fusionBridge.send('shape', data.cells).then(update);
     }
 
     function setCell(x, y, isFilled) {
@@ -277,32 +232,19 @@
         document.getElementById('fill').disabled = data.cells.length === data.columns * data.rows;
     }
 
-    // the dialog's font comes from the Fusion install, its path changes with every update
-    let loadedFont = null;
-    function loadFont() {
-        if (!data.fontUrl || data.fontUrl === loadedFont) {
-            return;
-        }
-        loadedFont = data.fontUrl;
-        const style = document.createElement('style');
-        style.textContent = `@font-face { font-family: "Fusion Artifakt Element"; src: url("${data.fontUrl}"); }`;
-        document.head.appendChild(style);
-    }
-
     function render() {
         if (!data || stroke) {
             return;
         }
-        loadFont();
         renderFooter();
         renderDrawing();
     }
 
-    function update(json) {
-        if (!json || json === 'OK') {
+    function update(next) {
+        if (!next) {
             return;
         }
-        data = JSON.parse(json);
+        data = next;
         render();
     }
 
@@ -317,31 +259,7 @@
         send();
     });
 
-    window.addEventListener('resize', render);
-
-    window.fusionJavaScriptHandler = {
-        handle: function (action, payload) {
-            if (action === 'update') {
-                update(payload);
-            }
-            return 'OK';
-        },
-    };
-
-    // the bridge is injected after the page starts loading, older Fusion versions return the data directly
-    function requestInitialData() {
-        if (!window.adsk || !adsk.fusionSendData) {
-            setTimeout(requestInitialData, 100);
-            return;
-        }
-        const result = adsk.fusionSendData('ready', '');
-        if (result && typeof result.then === 'function') {
-            result.then(update);
-        } else {
-            update(result);
-        }
-    }
-    requestInitialData();
+    fusionBridge.connect(update, render);
 </script>
 </body>
 </html>

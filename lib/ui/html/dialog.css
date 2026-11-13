@@ -1,0 +1,49 @@
+/* what every page shown in a dialog shares, the page sets its own --text */
+:root {
+    /* as Fusion draws its buttons, it darkens them on hover */
+    --button: #f7f7f7;
+    --button-border: #c4c4c4;
+    --button-hover: #dddddd;
+    --button-hover-border: #a6a6a6;
+    --button-pressed: #cfcfcf;
+}
+@media (prefers-color-scheme: dark) {
+    /* dark buttons have no fill of their own, the dialog shows through, they light up on hover */
+    :root {
+        --button: transparent;
+        --button-border: #8e9194;
+        --button-hover: rgba(255, 255, 255, 0.08);
+        --button-hover-border: #a9acaf;
+        --button-pressed: rgba(255, 255, 255, 0.14);
+    }
+}
+* {
+    box-sizing: border-box;
+}
+html, body {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    overflow: hidden;
+    /* the dialog's font, loaded from the Fusion install once the dialog sends it, see fusionBridge.js */
+    font: 13px "Fusion Artifakt Element", "Artifakt Element", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    color: var(--text);
+}
+button {
+    font: inherit;
+    color: var(--text);
+    background: var(--button);
+    border: 1px solid var(--button-border);
+    border-radius: 3px;
+    padding: 2px 8px;
+}
+button:hover:enabled {
+    background: var(--button-hover);
+    border-color: var(--button-hover-border);
+}
+button:active:enabled {
+    background: var(--button-pressed);
+}
+button:disabled {
+    opacity: 0.5;
+}

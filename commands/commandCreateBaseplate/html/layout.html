@@ -2,6 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
+<link rel="stylesheet" href="../../../lib/ui/html/dialog.css">
 <style>
     :root {
         --text: #4a4a4a;
@@ -30,15 +31,6 @@
             --padding: #34587d;
             --padding-hatch: #5b8cc0;
         }
-    }
-    html, body {
-        margin: 0;
-        padding: 0;
-        background: transparent;
-        overflow: hidden;
-        /* the dialog's font, loaded from the Fusion install once the dialog sends it */
-        font: 13px "Fusion Artifakt Element", "Artifakt Element", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
-        color: var(--text);
     }
     #drawing svg {
         display: block;
@@ -112,6 +104,7 @@
 <body>
 <div id="drawing"></div>
 <div id="caption"></div>
+<script src="../../../lib/ui/html/fusionBridge.js"></script>
 <script>
     // spare room below the caption, so its last line isn't cut off by rounding
     const CAPTION_SPACING = 4;
@@ -376,62 +369,18 @@
     }
 
     let lastData = null;
-    // the dialog's font comes from the Fusion install, its path changes with every update
-    let loadedFont = '';
-    function loadFont(fontUrl) {
-        if (!fontUrl || fontUrl === loadedFont) {
-            return;
-        }
-        loadedFont = fontUrl;
-        const style = document.createElement('style');
-        style.textContent = `@font-face { font-family: "Fusion Artifakt Element"; src: url("${fontUrl}"); }`;
-        document.head.appendChild(style);
-        // labels are sized from the laid out text, so they're drawn again with the font
-        document.fonts.ready.then(() => {
-            if (lastData) {
-                render(lastData);
-            }
-        });
-    }
 
-    function update(json) {
-        if (!json) {
-            return;
-        }
-        lastData = JSON.parse(json);
-        loadFont(lastData.fontUrl);
+    function update(data) {
+        lastData = data;
         render(lastData);
     }
 
-    window.addEventListener('resize', () => {
+    // labels are sized from the laid out text, so they're drawn again with the font
+    fusionBridge.connect(update, () => {
         if (lastData) {
             render(lastData);
         }
     });
-
-    window.fusionJavaScriptHandler = {
-        handle: function (action, data) {
-            if (action === 'update') {
-                update(data);
-            }
-            return 'OK';
-        },
-    };
-
-    // the bridge is injected after the page starts loading, older Fusion versions return the data directly
-    function requestInitialData() {
-        if (!window.adsk || !adsk.fusionSendData) {
-            setTimeout(requestInitialData, 100);
-            return;
-        }
-        const result = adsk.fusionSendData('ready', '');
-        if (result && typeof result.then === 'function') {
-            result.then(update);
-        } else {
-            update(result);
-        }
-    }
-    requestInitialData();
 </script>
 </body>
 </html>

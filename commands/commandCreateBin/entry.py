@@ -1,5 +1,4 @@
 import adsk.core, adsk.fusion, traceback
-import json
 import os
 import pathlib
 import time
@@ -35,8 +34,8 @@ from ...lib.gridfinityUtils.binBodyGeneratorInput import BinBodyGeneratorInput, 
 from ...lib.gridfinityUtils.binBodyTabGeneratorInput import BinBodyTabGeneratorInput
 from ...lib.gridfinityUtils.binBodyTabGenerator import createGridfinityBinBodyTab, createTabHollowCuts, TabCavity, TabWallOpenings
 from ...lib.ui.commandUiState import CommandUiState
-from ...lib.ui.defaultsButtons import addDefaultsButtonRow, handleDefaultsButtons, DEFAULTS_SAVE, DEFAULTS_FACTORY_RESET
-from ...lib.ui.dialogFont import dialogFontUrl
+from ...lib.ui.defaultsButtons import addDefaultsButtonRow, defaultsButtonsHandlers, DEFAULTS_SAVE, DEFAULTS_FACTORY_RESET
+from ...lib.ui import browserPages
 from ...lib.ui.unsupportedDesignTypeException import UnsupportedDesignTypeException
 
 app = adsk.core.Application.get()
@@ -77,8 +76,8 @@ TOOL_CLIP_PATH = os.path.join(ICON_FOLDER, 'toolclip.png')
 
 CONFIG_FOLDER_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'commandConfig')
 UI_INPUT_DEFAULTS_CONFIG_PATH = os.path.join(CONFIG_FOLDER_PATH, "ui_input_defaults.json")
-COMPARTMENTS_HTML_URL = pathlib.Path(os.path.dirname(os.path.abspath(__file__)), 'html', 'compartments.html').as_uri()
-SHAPE_HTML_URL = pathlib.Path(os.path.dirname(os.path.abspath(__file__)), 'html', 'shape.html').as_uri()
+COMPARTMENTS_HTML_URL = browserPages.pageUrl(__file__, 'compartments.html')
+SHAPE_HTML_URL = browserPages.pageUrl(__file__, 'shape.html')
 
 # Local list of event handlers used to maintain a reference so
 # they are not released and garbage collected.
@@ -530,20 +529,13 @@ def compartmentsDrawingData(browserId: str) -> dict:
         'defaultLabel': commandUIState.getState(BIN_TAB_LABEL_TEXT_INPUT_ID),
         'defaultIcon': commandUIState.getState(BIN_TAB_LABEL_ICON_INPUT_ID),
         'icons': compartmentIconOptions(),
-        'fontUrl': dialogFontUrl(),
     }
 
 def refreshCompartmentsDrawing(skipBrowserId: str = None):
     """Both compartment pages, but the one that is getting its answer already"""
     for browserId in [BIN_COMPARTMENTS_GRID_BROWSER_ID, BIN_COMPARTMENTS_BROWSER_ID]:
-        browserInput: adsk.core.BrowserCommandInput = commandUIState.commandInputs.get(browserId)
-        if browserInput is None or browserId == skipBrowserId:
-            continue
-        try:
-            browserInput.sendInfoToHTML('update', json.dumps(compartmentsDrawingData(browserId)))
-        except Exception as err:
-            # the page asks for the data itself once it has loaded
-            futil.log(f'{CMD_NAME} Compartments page {browserId} not ready yet, {err}')
+        if browserId != skipBrowserId:
+            browserPages.sendUpdate(commandUIState.commandInputs.get(browserId), compartmentsDrawingData(browserId))
 
 def isHalfGrid() -> bool:
     return commandUIState.getState(BIN_HALF_GRID_INPUT_ID)
@@ -633,18 +625,10 @@ def shapeDrawingData() -> dict:
         'cells': shapeCells(),
         'error': shapeError(),
         'note': SHAPE_NOTE if isShaped() else '',
-        'fontUrl': dialogFontUrl(),
     }
 
 def refreshShapeDrawing():
-    browserInput: adsk.core.BrowserCommandInput = commandUIState.commandInputs.get(BIN_SHAPE_BROWSER_ID)
-    if browserInput is None:
-        return
-    try:
-        browserInput.sendInfoToHTML('update', json.dumps(shapeDrawingData()))
-    except Exception as err:
-        # the page asks for the data itself once it has loaded
-        futil.log(f'{CMD_NAME} Shape page not ready yet, {err}')
+    browserPages.sendUpdate(commandUIState.commandInputs.get(BIN_SHAPE_BROWSER_ID), shapeDrawingData())
 
 def is_all_input_valid(inputs: adsk.core.CommandInputs):
     result = True
@@ -1018,51 +1002,44 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
 
 # This event handler is called when the compartments drawing asks for its data once loaded or changes the pockets.
 def command_incoming_from_html(args: adsk.core.HTMLEventArgs):
-    global compartmentPockets
-    global binShapeCells
-    browserId = args.browserCommandInput.id
-    if browserId == INPUT_CHANGES_BUTTONS_BROWSER:
-        action = handleDefaultsButtons(args)
+    browserPages.handleMessage(args, pageHandlers(args.browserCommandInput.id, args.browserCommandInput.parentCommand))
+
+def pageHandlers(browserId: str, command: adsk.core.Command) -> dict[str, browserPages.Handler]:
+    """What the pages of the dialog send, see browserPages.handleMessage"""
+    def preview():
+        if commandUIState.getInput(SHOW_PREVIEW_INPUT).value:
+            command.doExecutePreview()
+
+    def onDefaults(action: str):
         if action == DEFAULTS_SAVE:
             saveUIInputsAsDefaults()
-        elif action is not None:
-            if action == DEFAULTS_FACTORY_RESET:
-                configUtils.deleteConfigFile(UI_INPUT_DEFAULTS_CONFIG_PATH)
-            initDefaultUiState()
-            refreshUi()
-            if commandUIState.getInput(SHOW_PREVIEW_INPUT).value:
-                args.browserCommandInput.parentCommand.doExecutePreview()
-        return
-    if browserId == BIN_SHAPE_BROWSER_ID:
-        if args.action == 'shape':
-            try:
-                binShapeCells = json.loads(args.data)
-            except ValueError as err:
-                futil.log(f'{CMD_NAME} Ignoring shape from the drawing, {err}')
-            normalizeShapeCells()
-            # scoop, tab and compartments inputs depend on the shape
-            onChangeValidate()
-            if commandUIState.getInput(SHOW_PREVIEW_INPUT).value:
-                args.browserCommandInput.parentCommand.doExecutePreview()
+            return
+        if action == DEFAULTS_FACTORY_RESET:
+            configUtils.deleteConfigFile(UI_INPUT_DEFAULTS_CONFIG_PATH)
+        initDefaultUiState()
+        refreshUi()
+        preview()
+
+    def onShape(cells):
+        global binShapeCells
+        binShapeCells = cells
+        normalizeShapeCells()
+        # scoop, tab and compartments inputs depend on the shape
+        onChangeValidate()
+        preview()
         # the page redraws from the answer, with the error of the shape it sent
-        args.returnData = json.dumps(shapeDrawingData())
-        return
-    if args.action == 'ready':
-        args.returnData = json.dumps(compartmentsDrawingData(browserId))
-    elif args.action == 'pockets':
-        try:
-            compartmentPockets = json.loads(args.data)
-        except ValueError as err:
-            futil.log(f'{CMD_NAME} Ignoring pockets from the drawing, {err}')
+        return shapeDrawingData()
+
+    def onPockets(pockets):
+        global compartmentPockets
+        compartmentPockets = pockets
         normalizeCompartmentPockets()
         # merging cells changes how many compartments there are, which some inputs depend on
         onChangeValidate()
-        args.returnData = 'OK'
-        if commandUIState.getInput(SHOW_PREVIEW_INPUT).value:
-            args.browserCommandInput.parentCommand.doExecutePreview()
-    elif args.action == 'grid':
+        preview()
+
+    def onGrid(grid):
         try:
-            grid = json.loads(args.data)
             for (inputId, key) in [(BIN_COMPARTMENTS_GRID_BASE_WIDTH_ID, 'columns'), (BIN_COMPARTMENTS_GRID_BASE_LENGTH_ID, 'rows')]:
                 commandUIState.updateValue(inputId, max(1, min(GRID_CELLS_MAX, int(grid[key]))))
         except (ValueError, TypeError, KeyError) as err:
@@ -1070,10 +1047,15 @@ def command_incoming_from_html(args: adsk.core.HTMLEventArgs):
         normalizeCompartmentPockets()
         onChangeValidate()
         # the page that changed it redraws from the answer
-        args.returnData = json.dumps(compartmentsDrawingData(browserId))
         refreshCompartmentsDrawing(browserId)
-        if commandUIState.getInput(SHOW_PREVIEW_INPUT).value:
-            args.browserCommandInput.parentCommand.doExecutePreview()
+        preview()
+        return compartmentsDrawingData(browserId)
+
+    if browserId == INPUT_CHANGES_BUTTONS_BROWSER:
+        return defaultsButtonsHandlers(onDefaults)
+    if browserId == BIN_SHAPE_BROWSER_ID:
+        return {browserPages.READY: lambda _: shapeDrawingData(), 'shape': onShape}
+    return {browserPages.READY: lambda _: compartmentsDrawingData(browserId), 'pockets': onPockets, 'grid': onGrid}
 
 # This event handler is called when the command terminates.
 def command_destroy(args: adsk.core.CommandEventArgs):

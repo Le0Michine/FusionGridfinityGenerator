@@ -1,8 +1,6 @@
 import adsk.core, adsk.fusion, traceback
-import json
 import math
 import os
-import pathlib
 import time
 
 
@@ -26,8 +24,8 @@ from ...lib.gridfinityUtils.dim import Dim
 from .inputState import InputState
 from . import printBeds
 from ...lib.ui.commandUiState import CommandUiState
-from ...lib.ui.defaultsButtons import addDefaultsButtonRow, handleDefaultsButtons, DEFAULTS_SAVE, DEFAULTS_FACTORY_RESET
-from ...lib.ui.dialogFont import dialogFontUrl
+from ...lib.ui.defaultsButtons import addDefaultsButtonRow, defaultsButtonsHandlers, DEFAULTS_SAVE, DEFAULTS_FACTORY_RESET
+from ...lib.ui import browserPages
 from ...lib.ui.unsupportedDesignTypeException import UnsupportedDesignTypeException
 
 app = adsk.core.Application.get()
@@ -80,7 +78,7 @@ TOOL_CLIP_PATH = os.path.join(ICON_FOLDER, 'toolclip.png')
 CONFIG_FOLDER_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'commandConfig')
 UI_INPUT_DEFAULTS_CONFIG_PATH = os.path.join(CONFIG_FOLDER_PATH, "ui_input_defaults.json")
 
-LAYOUT_HTML_URL = pathlib.Path(os.path.dirname(os.path.abspath(__file__)), 'html', 'layout.html').as_uri()
+LAYOUT_HTML_URL = browserPages.pageUrl(__file__, 'layout.html')
 
 # Local list of event handlers used to maintain a reference so
 # they are not released and garbage collected.
@@ -582,21 +580,25 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
 
 # This event handler is called when the layout drawing asks for its data once loaded.
 def command_incoming_from_html(args: adsk.core.HTMLEventArgs):
-    if args.browserCommandInput.id == INPUT_CHANGES_BUTTONS_BROWSER:
-        action = handleDefaultsButtons(args)
+    command = args.browserCommandInput.parentCommand
+
+    def onDefaults(action: str):
         if action == DEFAULTS_SAVE:
             saveUIInputsAsDefaults()
-        elif action is not None:
-            if action == DEFAULTS_FACTORY_RESET:
-                configUtils.deleteConfigFile(UI_INPUT_DEFAULTS_CONFIG_PATH)
-            initUiState()
-            uiState.forceUIRefresh()
-            updateSizingModeInputs(args.browserCommandInput.parentCommand.commandInputs)
-            if uiState.getInput(SHOW_PREVIEW_INPUT).value:
-                args.browserCommandInput.parentCommand.doExecutePreview()
-        return
-    if args.action == 'ready':
-        args.returnData = json.dumps(layoutData(getInputsState()))
+            return
+        if action == DEFAULTS_FACTORY_RESET:
+            configUtils.deleteConfigFile(UI_INPUT_DEFAULTS_CONFIG_PATH)
+        initUiState()
+        uiState.forceUIRefresh()
+        updateSizingModeInputs(command.commandInputs)
+        if uiState.getInput(SHOW_PREVIEW_INPUT).value:
+            command.doExecutePreview()
+
+    if args.browserCommandInput.id == INPUT_CHANGES_BUTTONS_BROWSER:
+        handlers = defaultsButtonsHandlers(onDefaults)
+    else:
+        handlers = {browserPages.READY: lambda _: layoutData(getInputsState())}
+    browserPages.handleMessage(args, handlers)
 
 
 # This event handler is called when the command terminates.
@@ -780,7 +782,7 @@ def gridLayoutData(inputsState: InputState) -> dict:
 def layoutData(inputsState: InputState) -> dict:
     data = fillLayoutData(inputsState) if inputsState.sizingMode == SIZING_MODE_FILL_AREA else gridLayoutData(inputsState)
     # cells start the clearance before the plate does, the drawing adds it back to tell the padding
-    return {**data, 'fontUrl': dialogFontUrl(), 'xyClearance': inputsState.xyClearance * 10}
+    return {**data, 'xyClearance': inputsState.xyClearance * 10}
 
 def updateSizingModeInputs(inputs: adsk.core.CommandInputs):
     """Shows the inputs of the selected sizing mode and refreshes the layout drawing"""
@@ -789,12 +791,7 @@ def updateSizingModeInputs(inputs: adsk.core.CommandInputs):
         inputs.itemById(inputId).isVisible = not isFillArea
     for inputId in FILL_AREA_MODE_INPUTS:
         inputs.itemById(inputId).isVisible = isFillArea
-    browserInput: adsk.core.BrowserCommandInput = inputs.itemById(LAYOUT_BROWSER)
-    try:
-        browserInput.sendInfoToHTML('update', json.dumps(layoutData(getInputsState())))
-    except Exception as err:
-        # the page asks for the data itself once it has loaded
-        futil.log(f'{CMD_NAME} Layout drawing not ready yet, {err}')
+    browserPages.sendUpdate(inputs.itemById(LAYOUT_BROWSER), layoutData(getInputsState()))
 
 def baseplateDisplayName(plateWidth: int, plateLength: int) -> str:
     return 'Gridfinity baseplate {}x{}'.format(int(plateLength), int(plateWidth))

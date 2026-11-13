@@ -2,6 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
+<link rel="stylesheet" href="../../../lib/ui/html/dialog.css">
 <style>
     :root {
         --text: #4a4a4a;
@@ -16,11 +17,6 @@
         --field: #ffffff;
         --field-border: #b8b8b8;
         --error: #d0021b;
-        --button: #f7f7f7;
-        --button-border: #c4c4c4;
-        --button-hover: #dddddd;
-        --button-hover-border: #a6a6a6;
-        --button-pressed: #cfcfcf;
     }
     @media (prefers-color-scheme: dark) {
         :root {
@@ -35,24 +31,7 @@
             --field: #2b2b2b;
             --field-border: #5a5a5a;
             --error: #ff6b6b;
-            --button: #474747;
-            --button-border: #626262;
-            --button-hover: #555555;
-            --button-hover-border: #7a7a7a;
-            --button-pressed: #5f5f5f;
         }
-    }
-    * {
-        box-sizing: border-box;
-    }
-    html, body {
-        margin: 0;
-        padding: 0;
-        background: transparent;
-        overflow: hidden;
-        /* the dialog's font, loaded from the Fusion install once the dialog sends it */
-        font: 13px "Fusion Artifakt Element", "Artifakt Element", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
-        color: var(--text);
     }
     #drawing svg {
         display: block;
@@ -217,25 +196,6 @@
         gap: 6px;
         justify-content: flex-end;
     }
-    /* as Fusion draws its buttons, see lib/ui/html/defaultsButtons.html */
-    button {
-        font: inherit;
-        color: var(--text);
-        background: var(--button);
-        border: 1px solid var(--button-border);
-        border-radius: 3px;
-        padding: 2px 8px;
-    }
-    button:hover:enabled {
-        background: var(--button-hover);
-        border-color: var(--button-hover-border);
-    }
-    button:active:enabled {
-        background: var(--button-pressed);
-    }
-    button:disabled {
-        opacity: 0.5;
-    }
     #grid {
         display: flex;
         flex-wrap: wrap;
@@ -313,6 +273,7 @@
 <div id="grid"></div>
 <div id="drawing"></div>
 <div id="editor"></div>
+<script src="../../../lib/ui/html/fusionBridge.js"></script>
 <script>
     const SVG_NS = 'http://www.w3.org/2000/svg';
     // gap between pockets, standing for the walls between them
@@ -376,9 +337,7 @@
 
     function send() {
         sortPockets();
-        if (window.adsk && adsk.fusionSendData) {
-            adsk.fusionSendData('pockets', JSON.stringify(data.pockets));
-        }
+        fusionBridge.send('pockets', data.pockets);
     }
 
     // a pocket over the cells between two corners, pockets it cuts through fall back to single cells
@@ -749,15 +708,7 @@
             render();
             return;
         }
-        if (!window.adsk || !adsk.fusionSendData) {
-            return;
-        }
-        const result = adsk.fusionSendData('grid', JSON.stringify({ columns: columns, rows: rows }));
-        if (result && typeof result.then === 'function') {
-            result.then(update);
-        } else {
-            update(result);
-        }
+        fusionBridge.send('grid', { columns: columns, rows: rows }).then(update);
     }
 
     function stepper(axis, title, value, change) {
@@ -796,24 +747,10 @@
         grid.appendChild(reset);
     }
 
-    // the dialog's font comes from the Fusion install, its path changes with every update
-    let loadedFont = null;
-    function loadFont() {
-        if (!data.fontUrl || data.fontUrl === loadedFont) {
-            return;
-        }
-        loadedFont = data.fontUrl;
-        const style = htmlElement('style', {}, `@font-face { font-family: "Fusion Artifakt Element"; src: url("${data.fontUrl}"); }`);
-        document.head.appendChild(style);
-        // labels are shortened to fit from the laid out text, so they're drawn again with the font
-        document.fonts.ready.then(render);
-    }
-
     function render() {
         if (!data) {
             return;
         }
-        loadFont();
         // the dialog shows the page twice, as the grid size row and as the drawing
         document.body.className = data.page;
         if (data.page === 'grid') {
@@ -825,12 +762,12 @@
         renderDrawing();
     }
 
-    function update(json) {
-        if (!json) {
+    function update(next) {
+        if (!next) {
             return;
         }
         const active = document.activeElement;
-        data = JSON.parse(json);
+        data = next;
         // keep typing undisturbed when the dialog sends an update while a field is being edited
         if (active && active.tagName === 'INPUT' && selectedPocket() && data.page === 'layout') {
             renderDrawing();
@@ -838,8 +775,6 @@
         }
         render();
     }
-
-    window.addEventListener('resize', render);
 
     // a click beside the drawing lets go of the selected pocket, the drawing and the editor keep it
     document.addEventListener('pointerdown', (event) => {
@@ -850,29 +785,8 @@
         render();
     });
 
-    window.fusionJavaScriptHandler = {
-        handle: function (action, payload) {
-            if (action === 'update') {
-                update(payload);
-            }
-            return 'OK';
-        },
-    };
-
-    // the bridge is injected after the page starts loading, older Fusion versions return the data directly
-    function requestInitialData() {
-        if (!window.adsk || !adsk.fusionSendData) {
-            setTimeout(requestInitialData, 100);
-            return;
-        }
-        const result = adsk.fusionSendData('ready', '');
-        if (result && typeof result.then === 'function') {
-            result.then(update);
-        } else {
-            update(result);
-        }
-    }
-    requestInitialData();
+    // labels are shortened to fit from the laid out text, so they're drawn again with the font
+    fusionBridge.connect(update, render);
 </script>
 </body>
 </html>
