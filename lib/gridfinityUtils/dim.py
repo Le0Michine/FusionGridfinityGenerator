@@ -47,6 +47,22 @@ class Dim:
     def abs(self) -> 'Dim':
         return Dim(abs(self.value), f'abs({self.expression})', self.kind)
 
+    @staticmethod
+    def min(first: 'Dim', second: 'Dim') -> 'Dim':
+        """The smaller of the two, as Fusion's min function, so it changes with the parameters"""
+        return Dim._function('min', first, second, min(first.value, second.value))
+
+    @staticmethod
+    def max(first: 'Dim', second: 'Dim') -> 'Dim':
+        """The larger of the two, as Fusion's max function, so it changes with the parameters"""
+        return Dim._function('max', first, second, max(first.value, second.value))
+
+    @staticmethod
+    def _function(name: str, first: 'Dim', second: 'Dim', value: float) -> 'Dim':
+        kind = DimKind.EXPRESSION if first.isExpression or second.isExpression else DimKind.VALUE
+        # Fusion separates function arguments with semicolons
+        return Dim(value, f'{name}({first.expression}; {second.expression})', kind)
+
     def _operand(self) -> str:
         return f'({self.expression})' if self.isCompound else self.expression
 

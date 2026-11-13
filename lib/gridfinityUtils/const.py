@@ -37,6 +37,10 @@ BIN_LABEL_ICON_GAP = 0.18
 BIN_LABEL_TEXT_HEIGHT_RATIO = 0.79 / (BIN_TAB_WIDTH - BIN_LABEL_MARGIN * 2)
 
 BIN_SCOOP_MAX_RADIUS = 2.5
+# the scoop stops this far below the top of its compartment, so the corners above it keep their vertical edges at any
+# depth. A scoop as deep as the compartment would take them, the corner fillets would lose their edges once a height
+# change takes the scoop past the depth or back
+BIN_SCOOP_TOP_MARGIN = 0.01
 
 BASEPLATE_EXTRA_HEIGHT = 0.64
 BASEPLATE_BIN_Z_CLEARANCE = 0.05

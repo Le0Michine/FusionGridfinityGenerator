@@ -8,7 +8,7 @@ from ...lib.gridfinityUtils import filletUtils
 from . import const, combineUtils, faceUtils, commonUtils, sketchUtils, extrudeUtils, baseGenerator, edgeUtils
 from .baseGeneratorInput import BaseGeneratorInput
 from .binBodyCutoutGeneratorInput import BinBodyCutoutGeneratorInput
-from .dim import valueInput, valueOf
+from .dim import Dim, valueInput
 from ... import config
 
 app = adsk.core.Application.get()
@@ -61,8 +61,12 @@ def createGridfinityBinBodyCutout(
     if input.hasScoop:
         [innerCutoutScoopFace, innerCutoputScoopOppositeFace] = getInnerCutoutScoopFace(innerCutoutBody)
         scoopEdge = faceUtils.getBottomHorizontalEdge(innerCutoutScoopFace.edges)
-        cutoutHeight = valueOf(input.height)
-        scoopMaxRadius = min(input.scoopMaxRadius, cutoutHeight) if min(input.scoopMaxRadius, cutoutHeight) >= input.filletRadius else input.filletRadius
+        # a margin less deep than the cutout at most and as round as its corners at least, an expression of the cutout
+        # depth so it still fits once the height unit changes, see const.BIN_SCOOP_TOP_MARGIN
+        scoopMaxRadius = Dim.max(
+            Dim.min(Dim.length(input.scoopMaxRadius), Dim.asLength(input.height) - Dim.length(const.BIN_SCOOP_TOP_MARGIN)),
+            Dim.length(input.filletRadius),
+        )
         filletUtils.createFillet(
             [scoopEdge],
             scoopMaxRadius,

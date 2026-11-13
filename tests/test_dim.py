@@ -133,3 +133,18 @@ def test_as_length_lifts_plain_values_and_keeps_dims():
     assert Dim.asLength(4.2).expression == "42 mm"
     width = Dim.parameter(_FakeParameter("gfBaseWidth", 4.2))
     assert Dim.asLength(width) is width
+
+
+def test_min_and_max_keep_the_expression():
+    height = Dim(2.4, "gfHeightUnit * 4", dim.DimKind.EXPRESSION, True)
+    radius = Dim.max(Dim.min(Dim.length(2.5), height), Dim.length(0.2))
+    assert radius.value == pytest.approx(2.4)
+    assert radius.isExpression
+    assert radius.expression == "max(min(25 mm; gfHeightUnit * 4); 2 mm)"
+
+
+def test_min_and_max_of_values_stay_values():
+    radius = Dim.max(Dim.min(Dim.length(2.5), Dim.length(2.9)), Dim.length(0.2))
+    assert radius.value == pytest.approx(2.5)
+    assert not radius.isExpression
+    assert dim.valueInput(radius).real == pytest.approx(2.5)
