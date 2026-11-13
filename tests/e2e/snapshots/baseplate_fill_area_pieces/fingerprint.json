@@ -1,0 +1,84 @@
+{
+    "bodies": [
+        {
+            "name": "Gridfinity baseplate 2x4 (1-1)",
+            "file": "body1.smt",
+            "volume": 21743.021633,
+            "area": 20386.891295,
+            "bboxMin": [
+                0.0,
+                -31.5,
+                -5.0
+            ],
+            "bboxMax": [
+                167.5,
+                83.5,
+                -0.5
+            ],
+            "lumps": 1,
+            "faces": 306,
+            "edges": 716,
+            "vertices": 404
+        },
+        {
+            "name": "Gridfinity baseplate 2x3 (2-1)",
+            "file": "body2.smt",
+            "volume": 19066.951116,
+            "area": 16800.665105,
+            "bboxMin": [
+                168.0,
+                -31.5,
+                -5.0
+            ],
+            "bboxMax": [
+                299.0,
+                83.5,
+                -0.5
+            ],
+            "lumps": 1,
+            "faces": 234,
+            "edges": 547,
+            "vertices": 310
+        },
+        {
+            "name": "Gridfinity baseplate 2x4 (1-2)",
+            "file": "body3.smt",
+            "volume": 9945.790944,
+            "area": 12674.191889,
+            "bboxMin": [
+                0.0,
+                84.0,
+                -5.0
+            ],
+            "bboxMax": [
+                167.5,
+                167.5,
+                -0.5
+            ],
+            "lumps": 1,
+            "faces": 210,
+            "edges": 488,
+            "vertices": 272
+        },
+        {
+            "name": "Gridfinity baseplate 2x3 (2-2)",
+            "file": "body4.smt",
+            "volume": 9459.0906,
+            "area": 10611.253619,
+            "bboxMin": [
+                168.0,
+                84.0,
+                -5.0
+            ],
+            "bboxMax": [
+                299.0,
+                167.5,
+                -0.5
+            ],
+            "lumps": 1,
+            "faces": 162,
+            "edges": 378,
+            "vertices": 212
+        }
+    ]
+}

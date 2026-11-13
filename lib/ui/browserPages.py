@@ -16,6 +16,8 @@ from .dialogFont import dialogFontUrl
 # the answer when the page has nothing to redraw
 NO_ANSWER = 'OK'
 READY = 'ready'
+# a palette gets what its page answered to each sendInfoToHTML back as this action, nothing to do about it
+RESPONSE = 'response'
 
 Handler = Callable[[Any], Any]
 

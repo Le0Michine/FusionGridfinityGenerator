@@ -6,6 +6,8 @@
 from .commandCreateBin import entry as commandCreateBin
 from .commandCreateBaseplate import entry as commandCreateBaseplate
 from .commandShowSettings import entry as commandShowSettings
+from .commandSnapshotTests import entry as commandSnapshotTests
+from .. import config
 
 # TODO add imported modules to this list.
 # Fusion will automatically call the start() and stop() functions.
@@ -14,6 +16,9 @@ commands = [
     commandCreateBaseplate,
     commandShowSettings,
 ]
+# development only, see config.DEV_TOOLS
+if config.DEV_TOOLS:
+    commands.append(commandSnapshotTests)
 
 
 # Assumes you defined a "start" function in each of your modules.

@@ -10,6 +10,10 @@ import os
 # are ready to distribute it.
 DEBUG = True
 
+# Commands for developing the add-in, such as the shape snapshot tests. Only when it runs from a git checkout,
+# releases ship without the .git folder, while DEBUG stays on for logging
+DEV_TOOLS = os.path.isdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), '.git'))
+
 # Gets the name of the add-in from the name of the folder the py file is in.
 # This is used when defining unique internal names for various UI elements 
 # that need a unique name. It's also recommended to use a company name as 

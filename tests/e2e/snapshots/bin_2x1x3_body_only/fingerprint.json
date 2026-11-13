@@ -1,0 +1,24 @@
+{
+    "bodies": [
+        {
+            "name": "Bin body",
+            "file": "body1.smt",
+            "volume": 9583.532958,
+            "area": 15960.242611,
+            "bboxMin": [
+                0.0,
+                0.0,
+                0.0
+            ],
+            "bboxMax": [
+                83.5,
+                41.5,
+                19.8
+            ],
+            "lumps": 1,
+            "faces": 51,
+            "edges": 108,
+            "vertices": 60
+        }
+    ]
+}

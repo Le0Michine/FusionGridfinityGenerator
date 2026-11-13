@@ -1,0 +1,41 @@
+/* A progress bar under a palette's title, see the model pictures and the snapshot tests. Visible while busy, it fills
+   to how far the work is when that can be told, else it slides to only show that something is going on:
+
+   <div class="progress-track busy"><div class="progress-bar" style="width: 40%"></div></div>
+   <div class="progress-track busy indeterminate"><div class="progress-bar"></div></div> */
+:root {
+    --progress-track: #e2e2e2;
+    --progress-bar: #0696d7;
+}
+@media (prefers-color-scheme: dark) {
+    :root {
+        --progress-track: #474747;
+        --progress-bar: #38abdf;
+    }
+}
+.progress-track {
+    height: 4px;
+    margin: 8px 0;
+    border-radius: 2px;
+    background: var(--progress-track);
+    overflow: hidden;
+    visibility: hidden;
+}
+.progress-track.busy {
+    visibility: visible;
+}
+.progress-bar {
+    height: 100%;
+    width: 0;
+    background: var(--progress-bar);
+    transition: width 0.3s ease-out;
+}
+.progress-track.indeterminate .progress-bar {
+    width: 30%;
+    transition: none;
+    animation: progress-slide 1.2s ease-in-out infinite;
+}
+@keyframes progress-slide {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(340%); }
+}

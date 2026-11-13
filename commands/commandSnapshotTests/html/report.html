@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../../../lib/ui/html/dialog.css">
+<link rel="stylesheet" href="../../../lib/ui/html/progress.css">
+<style>
+    :root {
+        --text: #3c3c3c;
+        --muted: #8a8a8a;
+        --background: #f5f5f5;
+        --card: #ffffff;
+        --card-border: #dcdcdc;
+        --rule: #ececec;
+        --pass: #2e8b4a;
+        --review: #b7791f;
+        --fail: #c62828;
+        --new: #2f6fb3;
+        --neutral: #8a8a8a;
+        --missing: #dc2828;
+        --extra: #28b446;
+        --pending: #fff4e0;
+        --pending-border: #e6b35c;
+    }
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --text: #dcdcdc;
+            --muted: #9a9a9a;
+            --background: #2b2b2b;
+            --card: #333333;
+            --card-border: #474747;
+            --rule: #3d3d3d;
+            --pass: #5cc77a;
+            --review: #e0a84a;
+            --fail: #ff6b6b;
+            --new: #6ea8e6;
+            --neutral: #9a9a9a;
+            --missing: #ff5c5c;
+            --extra: #4fd36d;
+            --pending: #3d3322;
+            --pending-border: #9a7432;
+        }
+    }
+    /* a palette scrolls its page, dialog pages fit theirs */
+    html, body {
+        overflow: auto;
+        background: var(--background);
+    }
+    body {
+        padding: 12px;
+    }
+    h1 {
+        font-size: 15px;
+        margin: 0 0 6px;
+    }
+    .summary {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    .muted {
+        color: var(--muted);
+    }
+    .pill {
+        display: inline-block;
+        padding: 1px 7px;
+        border-radius: 9px;
+        font-size: 11px;
+        font-weight: bold;
+        text-transform: uppercase;
+        color: #ffffff;
+        background: var(--neutral);
+        white-space: nowrap;
+    }
+    .pill.pass, .pill.unchanged { background: var(--pass); }
+    .pill.review { background: var(--review); }
+    .pill.fail, .pill.changed { background: var(--fail); }
+    .pill.new { background: var(--new); }
+    .pill.untested, .pill.queued { background: transparent; color: var(--muted); border: 1px solid var(--card-border); }
+    .pill.running { background: var(--progress-bar); }
+    .progress-label {
+        margin: -4px 0 10px;
+        color: var(--muted);
+    }
+    .banner {
+        border: 1px solid var(--card-border);
+        border-radius: 4px;
+        padding: 8px 10px;
+        margin-bottom: 10px;
+        background: var(--card);
+    }
+    .banner.pending {
+        background: var(--pending);
+        border-color: var(--pending-border);
+    }
+    .banner .actions {
+        margin-top: 6px;
+        display: flex;
+        gap: 6px;
+    }
+    .folder {
+        word-break: break-all;
+        font-size: 11px;
+    }
+    .legend span {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 2px;
+        margin: 0 4px 0 8px;
+        vertical-align: -1px;
+    }
+    details.case {
+        border: 1px solid var(--card-border);
+        border-radius: 4px;
+        background: var(--card);
+        margin-bottom: 8px;
+    }
+    details.case > summary {
+        list-style: none;
+        cursor: pointer;
+        padding: 7px 10px;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+    details.case > summary::-webkit-details-marker {
+        display: none;
+    }
+    details.case > summary .name {
+        font-weight: bold;
+        flex: 1;
+        overflow-wrap: anywhere;
+    }
+    /* what the case's document shows, one pressed at a time */
+    .views {
+        display: inline-flex;
+    }
+    .views button {
+        border-radius: 0;
+        margin-left: -1px;
+    }
+    .views button:first-child {
+        border-radius: 3px 0 0 3px;
+        margin-left: 0;
+    }
+    .views button:last-child {
+        border-radius: 0 3px 3px 0;
+    }
+    .toolbar {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 10px;
+    }
+    .views button.active {
+        background: var(--button-pressed);
+        font-weight: bold;
+    }
+    /* the case whose document is in the viewport */
+    details.case.shown {
+        border-color: var(--progress-bar);
+        box-shadow: 0 0 0 1px var(--progress-bar);
+    }
+    .shown-tag {
+        font-size: 11px;
+        color: var(--progress-bar);
+        white-space: nowrap;
+    }
+    .case-content {
+        padding: 0 10px 8px;
+    }
+    .description {
+        margin-bottom: 6px;
+    }
+    .body-name {
+        font-weight: bold;
+        margin: 8px 0 4px;
+    }
+    table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 12px;
+    }
+    th, td {
+        text-align: left;
+        padding: 3px 6px;
+        border-bottom: 1px solid var(--rule);
+        vertical-align: top;
+    }
+    th {
+        color: var(--muted);
+        font-weight: normal;
+    }
+    td.number {
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+    .delta.up { color: var(--extra); }
+    .delta.down { color: var(--missing); }
+    .leftover {
+        margin-top: 6px;
+        padding: 5px 8px;
+        border-left: 4px solid var(--neutral);
+        background: var(--background);
+        border-radius: 2px;
+    }
+    .leftover.missing { border-color: var(--missing); }
+    .leftover.extra { border-color: var(--extra); }
+    .leftover .kind {
+        font-weight: bold;
+    }
+    /* a snapshot's preview beside the case's name, and larger in the card, the new one beside it in an update */
+    .thumb {
+        width: 32px;
+        height: 32px;
+        object-fit: contain;
+        flex: none;
+    }
+    .previews {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin: 6px 0;
+    }
+    .previews figure {
+        margin: 0;
+    }
+    .previews img {
+        display: block;
+        width: 180px;
+        height: 180px;
+        object-fit: contain;
+        background: var(--background);
+        border-radius: 4px;
+    }
+    .previews figcaption {
+        text-align: center;
+        color: var(--muted);
+        font-size: 11px;
+        margin-top: 2px;
+    }
+    .callout {
+        margin: 6px 0;
+        padding: 2px 8px 6px;
+        border-left: 4px solid var(--neutral);
+        background: var(--background);
+        border-radius: 2px;
+    }
+    .callout.fail, .callout.changed { border-color: var(--fail); }
+    .callout.review { border-color: var(--review); }
+    .callout.new { border-color: var(--new); }
+    .notes {
+        margin: 6px 0 0;
+        padding-left: 18px;
+    }
+</style>
+</head>
+<body>
+<div id="report"><p class="muted">Waiting for a report…</p></div>
+<script src="../../../lib/ui/html/fusionBridge.js"></script>
+<script src="../../../lib/ui/html/pictureFinish.js"></script>
+<script>
+    // statuses that need a look, their cases are shown open
+    const ATTENTION = ['fail', 'review', 'changed', 'new', 'removed'];
+    const UNITS = { volume: 'mm³', area: 'mm²', bboxMin: 'mm', bboxMax: 'mm' };
+    const LABELS = {
+        volume: 'Volume', area: 'Surface area', bboxMin: 'Box min (x, y, z)', bboxMax: 'Box max (x, y, z)',
+        lumps: 'Lumps', faces: 'Faces', edges: 'Edges', vertices: 'Vertices',
+    };
+    // fingerprints are rounded to this many digits, see snapshots.fingerprint
+    const DIGITS = 4;
+
+    function element(name, className, text) {
+        const node = document.createElement(name);
+        if (className) {
+            node.className = className;
+        }
+        if (text !== undefined) {
+            node.textContent = text;
+        }
+        return node;
+    }
+
+    function formatNumber(value) {
+        return typeof value === 'number' ? String(Number(value.toFixed(DIGITS))) : String(value);
+    }
+
+    function formatValue(value) {
+        if (value === null || value === undefined) {
+            return '–';
+        }
+        return Array.isArray(value) ? '(' + value.map(formatNumber).join(', ') + ')' : formatNumber(value);
+    }
+
+    // what changed, signed, for a number or each coordinate of a point
+    function delta(expected, actual) {
+        const difference = (e, a) => (typeof e === 'number' && typeof a === 'number' ? a - e : null);
+        if (Array.isArray(expected) && Array.isArray(actual)) {
+            return expected.map((e, index) => difference(e, actual[index]));
+        }
+        return difference(expected, actual);
+    }
+
+    function deltaCell(change) {
+        const cell = element('td', 'number');
+        const value = delta(change.expected, change.actual);
+        const values = Array.isArray(value) ? value : [value];
+        values.forEach((item, index) => {
+            if (index > 0) {
+                cell.appendChild(document.createTextNode(', '));
+            }
+            if (item === null) {
+                cell.appendChild(document.createTextNode('–'));
+                return;
+            }
+            const sign = item > 0 ? '+' : '';
+            cell.appendChild(element('span', 'delta ' + (item > 0 ? 'up' : item < 0 ? 'down' : ''), sign + formatNumber(item)));
+        });
+        return cell;
+    }
+
+    function changesTable(changes) {
+        const table = element('table');
+        const head = element('tr');
+        ['', 'Snapshot', 'Built', 'Change'].forEach((title) => head.appendChild(element('th', '', title)));
+        table.appendChild(head);
+        for (const change of changes) {
+            const row = element('tr');
+            const unit = UNITS[change.key] ? ' ' + UNITS[change.key] : '';
+            row.appendChild(element('td', '', (LABELS[change.key] || change.key) + (unit ? ',' + unit : '')));
+            row.appendChild(element('td', 'number', formatValue(change.expected)));
+            row.appendChild(element('td', 'number', formatValue(change.actual)));
+            row.appendChild(deltaCell(change));
+            table.appendChild(row);
+        }
+        return table;
+    }
+
+    function leftoverBlock(kind, leftover) {
+        const block = element('div', 'leftover ' + kind);
+        const title = kind === 'missing' ? 'Missing material' : 'Unexpected material';
+        const explanation = kind === 'missing' ? 'in the snapshot, not in the built body' : 'in the built body, not in the snapshot';
+        block.appendChild(element('span', 'kind', title));
+        block.appendChild(element('span', 'muted', ' ' + explanation));
+        block.appendChild(element('div', '', `${formatNumber(leftover.volume)} mm³ in ${leftover.pieces} piece(s)`));
+        block.appendChild(element('div', 'muted', `within ${formatValue(leftover.min)} – ${formatValue(leftover.max)} mm`));
+        return block;
+    }
+
+    function notesList(notes) {
+        const list = element('ul', 'notes');
+        notes.forEach((note) => list.appendChild(element('li', '', note)));
+        return list;
+    }
+
+    const VIEWS = [
+        ['diff', 'Diff', 'Built body see-through, missing material red, unexpected green'],
+        ['built', 'Built', 'The received bodies, built now'],
+        ['snapshot', 'Snapshot', 'The expected bodies, from the snapshot'],
+    ];
+
+    function viewSwitch(item) {
+        const views = element('span', 'views');
+        for (const [mode, label, tooltip] of VIEWS) {
+            const button = element('button', mode === item.view ? 'active' : '', label);
+            button.title = tooltip;
+            button.addEventListener('click', (event) => {
+                // a click in the summary would fold the card too
+                event.preventDefault();
+                fusionBridge.send('view', { case: item.name, mode: mode }).then((data) => data && render(data));
+            });
+            views.appendChild(button);
+        }
+        return views;
+    }
+
+    // what the toolbar and each case run, the tests or new snapshots
+    const RUNS = {
+        run: {
+            all: ['Run all', 'Build every case and compare each with its snapshot', 'runAll'],
+            one: ['Run', 'Build this case and compare it with its snapshot', 'run'],
+            busy: 'Running',
+        },
+        update: {
+            all: ['Refresh all', 'Build every case for a new snapshot, compared with the current one, nothing is replaced before you confirm', 'refreshAll'],
+            one: ['Refresh', 'Build this case for a new snapshot, compared with the current one, nothing is replaced before you confirm', 'refresh'],
+            busy: 'Refreshing',
+        },
+    };
+
+    // the run redraws the report before each case, every button waits for the report it ends with
+    function runButton([label, tooltip, action], data) {
+        const button = element('button', '', label);
+        button.title = tooltip;
+        button.addEventListener('click', (event) => {
+            event.preventDefault();
+            document.querySelectorAll('#report button').forEach((other) => (other.disabled = true));
+            button.textContent = 'Starting…';
+            // without an answer, the run failed, the buttons come back as they were
+            fusionBridge.send(action, data).then((report) => render(report || current));
+        });
+        return button;
+    }
+
+    function caseCard(item, kind, shown) {
+        const card = element('details', 'case' + (shown ? ' shown' : ''));
+        card.open = ATTENTION.includes(item.status);
+        const summary = element('summary');
+        summary.appendChild(element('span', 'pill ' + item.status, item.status));
+        const previews = item.previews || {};
+        if (previews.new || previews.snapshot) {
+            const thumb = element('img', 'thumb');
+            thumb.src = previews.new || previews.snapshot;
+            thumb.alt = '';
+            summary.appendChild(thumb);
+        }
+        summary.appendChild(element('span', 'name', item.name));
+        if (shown) {
+            summary.appendChild(element('span', 'shown-tag', 'In viewport'));
+        }
+        if (RUNS[kind] && item.status !== 'removed') {
+            summary.appendChild(runButton(RUNS[kind].one, { case: item.name }));
+        }
+        if (item.hasDocument) {
+            summary.appendChild(viewSwitch(item));
+            const show = element('button', '', 'Show');
+            show.title = 'Bring the document of this case to the front';
+            show.addEventListener('click', (event) => {
+                event.preventDefault();
+                fusionBridge.send('show', { case: item.name });
+            });
+            summary.appendChild(show);
+        }
+        card.appendChild(summary);
+
+        const content = element('div', 'case-content');
+        if (item.description) {
+            content.appendChild(element('div', 'description muted', item.description));
+        }
+        const pictures = [['snapshot', 'Snapshot'], ['new', 'New']].filter(([key]) => previews[key]);
+        if (pictures.length > 0) {
+            const row = element('div', 'previews');
+            for (const [key, caption] of pictures) {
+                const figure = element('figure');
+                const image = element('img');
+                image.src = previews[key];
+                image.alt = `${caption} of ${item.name}`;
+                figure.appendChild(image);
+                figure.appendChild(element('figcaption', '', caption));
+                row.appendChild(figure);
+            }
+            content.appendChild(row);
+        }
+        // what's wrong with the case as a whole rather than a body of it, why it failed when its bodies match
+        const caseNotes = item.notes.concat(...item.bodies.filter((body) => !body.name).map((body) => body.notes));
+        if (caseNotes.length > 0) {
+            const callout = element('div', 'callout ' + item.status);
+            callout.appendChild(notesList(caseNotes));
+            content.appendChild(callout);
+        }
+        for (const body of item.bodies) {
+            if (!body.name) {
+                continue;
+            }
+            const hasDetails = body.changes.length > 0 || body.missing || body.extra || body.notes.length > 0;
+            const name = element('div', 'body-name', body.name + ' ');
+            if (body.status !== item.status) {
+                name.appendChild(element('span', 'pill ' + body.status, body.status));
+            }
+            content.appendChild(name);
+            if (body.changes.length > 0) {
+                content.appendChild(changesTable(body.changes));
+            }
+            if (body.missing) {
+                content.appendChild(leftoverBlock('missing', body.missing));
+            }
+            if (body.extra) {
+                content.appendChild(leftoverBlock('extra', body.extra));
+            }
+            if (body.notes.length > 0) {
+                content.appendChild(notesList(body.notes));
+            }
+            if (!hasDetails) {
+                content.appendChild(element('div', 'muted', body.status === 'new' ? 'no snapshot yet' : 'matches its snapshot'));
+            }
+        }
+        card.appendChild(content);
+        return card;
+    }
+
+    function pendingBanner(pending) {
+        const banner = element('div', 'banner pending');
+        const previews = pending.previews ? `, add ${pending.previews} preview(s)` : '';
+        banner.appendChild(element('div', '', `Replace ${pending.replace} and remove ${pending.remove} snapshot(s)${previews} in`));
+        banner.appendChild(element('div', 'folder muted', pending.folder));
+        const actions = element('div', 'actions');
+        const apply = element('button', '', 'Replace snapshots');
+        const discard = element('button', '', 'Discard');
+        const send = (action) => {
+            apply.disabled = true;
+            discard.disabled = true;
+            fusionBridge.send(action).then((data) => data && render(data));
+        };
+        apply.addEventListener('click', () => send('apply'));
+        discard.addEventListener('click', () => send('discard'));
+        actions.appendChild(apply);
+        actions.appendChild(discard);
+        banner.appendChild(actions);
+        return banner;
+    }
+
+    // the report drawn last, and the case it showed in the viewport, the page scrolls to a newly shown one
+    let current = null;
+    let lastShown = null;
+
+    function render(report) {
+        current = report;
+        const root = document.getElementById('report');
+        root.replaceChildren();
+        root.appendChild(element('h1', '', report.title));
+
+        const summary = element('div', 'summary');
+        for (const [status, count] of Object.entries(report.counts)) {
+            summary.appendChild(element('span', 'pill ' + status, `${count} ${status}`));
+        }
+        const took = report.seconds > 0 ? ` in ${report.seconds} s` : '';
+        summary.appendChild(element('span', 'muted', `${report.cases.length} case(s)${took}`));
+        root.appendChild(summary);
+
+        const progress = report.progress;
+        if (progress) {
+            const track = element('div', 'progress-track busy');
+            const bar = element('div', 'progress-bar');
+            track.appendChild(bar);
+            root.appendChild(track);
+            // the cases done, it steps up as each one finishes
+            bar.style.width = `${(100 * progress.done) / progress.total}%`;
+            const busy = RUNS[report.kind] ? RUNS[report.kind].busy : 'Building';
+            root.appendChild(element('div', 'progress-label', `${busy} ${progress.current}, ${progress.done + 1} of ${progress.total}`));
+        }
+
+        const toolbar = element('div', 'toolbar');
+        if (RUNS[report.kind]) {
+            toolbar.appendChild(runButton(RUNS[report.kind].all));
+        }
+        if (report.cases.some((item) => item.hasDocument)) {
+            const close = element('button', '', 'Close test documents');
+            close.title = 'Close the documents left open by cases that did not pass, without saving them';
+            close.addEventListener('click', () => fusionBridge.send('closeAll').then((data) => data && render(data)));
+            toolbar.appendChild(close);
+        }
+        if (report.kind === 'update' && !report.pending) {
+            const back = element('button', '', 'Back to tests');
+            back.title = 'List the cases to run them';
+            back.addEventListener('click', () => fusionBridge.send('tests').then((data) => data && render(data)));
+            toolbar.appendChild(back);
+        }
+        if (toolbar.children.length > 0) {
+            root.appendChild(toolbar);
+        }
+
+        if (report.pending) {
+            root.appendChild(pendingBanner(report.pending));
+        }
+        if (report.message) {
+            root.appendChild(element('div', 'banner', report.message));
+        }
+        if (report.cases.some((item) => item.hasDocument)) {
+            const legend = element('div', 'legend muted');
+            legend.appendChild(document.createTextNode('Diff view:'));
+            for (const [kind, label] of [['missing', 'missing'], ['extra', 'unexpected']]) {
+                const swatch = element('span');
+                swatch.style.background = `var(--${kind})`;
+                legend.appendChild(swatch);
+                legend.appendChild(document.createTextNode(label));
+            }
+            legend.style.marginBottom = '10px';
+            root.appendChild(legend);
+        }
+        for (const item of report.cases) {
+            const card = caseCard(item, report.kind, item.name === report.shown);
+            root.appendChild(card);
+            if (item.name === report.shown && report.shown !== lastShown) {
+                card.scrollIntoView({ block: 'nearest' });
+            }
+        }
+        lastShown = report.shown;
+        if (progress) {
+            // nothing else runs until this run is done
+            root.querySelectorAll('button').forEach((button) => (button.disabled = true));
+        }
+    }
+
+    // updates are reports to draw, or a preview to finish while the snapshots are refreshed
+    fusionBridge.connect((data) => (data.job ? pictureFinish.process(data.job) : render(data)));
+</script>
+</body>
+</html>
