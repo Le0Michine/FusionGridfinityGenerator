@@ -349,7 +349,8 @@ def buildBin(
     if shaped and (state.generateBody or state.generateBase):
         # the body is built over the whole grid, the outline trims it down to the shape
         cutOutsideShape(outline, outlineGrid, clearanceBodies, gridfinityBinComponent, name='Outer clearance trim')
-    elif state.generateBody or state.generateBase:
+    elif state.generateBase:
+        # the body is built inside the clearance already, alone it has nothing to trim
         cutBaseClearance(
             baseGeneratorInput,
             columns,
