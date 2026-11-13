@@ -159,15 +159,38 @@
         return true;
     }
 
+    // sizes of the columns or rows in whole cells, a half foot is half as big
+    function sizes(count, given) {
+        return Array.from({ length: count }, (_, index) => (given && given[index]) || 1);
+    }
+
+    // where each column or row starts, and where the last one ends
+    function offsets(cellSizes, cell) {
+        const result = [0];
+        for (const size of cellSizes) {
+            result.push(result[result.length - 1] + size * cell);
+        }
+        return result;
+    }
+
+    function indexAt(lines, position) {
+        for (let index = 0; index < lines.length - 1; index++) {
+            if (position >= lines[index] && position < lines[index + 1]) {
+                return index;
+            }
+        }
+        return -1;
+    }
+
     function cellAt(event) {
         const box = event.currentTarget.getBoundingClientRect();
         const scale = layout.width / box.width;
         const px = (event.clientX - box.left) * scale - MARGIN;
         const py = (event.clientY - box.top) * scale - MARGIN;
-        const x = Math.floor(px / layout.cell);
+        const x = indexAt(layout.columnLines, px);
         // the front of the bin, row 0, at the bottom like the compartments drawing
-        const y = data.rows - 1 - Math.floor(py / layout.cell);
-        if (x < 0 || x >= data.columns || y < 0 || y >= data.rows) {
+        const y = indexAt(layout.rowLines, layout.rowLines[layout.rowLines.length - 1] - py);
+        if (x < 0 || y < 0) {
             return null;
         }
         return { x: x, y: y };
@@ -179,13 +202,21 @@
         const footerHeight = document.getElementById('footer').offsetHeight;
         const availableWidth = Math.max(40, window.innerWidth - MARGIN * 2);
         const availableHeight = Math.max(40, window.innerHeight - footerHeight - MARGIN * 2);
-        // square cells, as big as fit
-        const cell = Math.min(availableWidth / data.columns, availableHeight / data.rows);
+        // square cells, as big as fit, half feet half as big
+        const columnSizes = sizes(data.columns, data.columnSizes);
+        const rowSizes = sizes(data.rows, data.rowSizes);
+        const sum = (values) => values.reduce((total, value) => total + value, 0);
+        const cell = Math.min(availableWidth / sum(columnSizes), availableHeight / sum(rowSizes));
+        const columnLines = offsets(columnSizes, cell);
+        const rowLines = offsets(rowSizes, cell);
         layout = {
             cell: cell,
-            width: cell * data.columns + MARGIN * 2,
-            height: cell * data.rows + MARGIN * 2,
+            columnLines: columnLines,
+            rowLines: rowLines,
+            width: columnLines[columnLines.length - 1] + MARGIN * 2,
+            height: rowLines[rowLines.length - 1] + MARGIN * 2,
         };
+        const drawingHeight = rowLines[rowLines.length - 1];
         const svg = svgElement('svg', {
             width: layout.width,
             height: layout.height,
@@ -195,13 +226,15 @@
         const gap = Math.min(GAP, cell / 4);
         for (let x = 0; x < data.columns; x++) {
             for (let y = 0; y < data.rows; y++) {
+                const width = columnLines[x + 1] - columnLines[x];
+                const height = rowLines[y + 1] - rowLines[y];
                 svg.appendChild(svgElement('rect', {
                     class: filled.has(key(x, y)) ? 'filled' : 'empty',
-                    x: MARGIN + x * cell + gap / 2,
-                    y: MARGIN + (data.rows - 1 - y) * cell + gap / 2,
-                    width: cell - gap,
-                    height: cell - gap,
-                    rx: Math.min(3, cell / 6),
+                    x: MARGIN + columnLines[x] + gap / 2,
+                    y: MARGIN + drawingHeight - rowLines[y + 1] + gap / 2,
+                    width: width - gap,
+                    height: height - gap,
+                    rx: Math.min(3, Math.min(width, height) / 6),
                 }));
             }
         }

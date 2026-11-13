@@ -12,6 +12,9 @@ def _displayValue(input: adsk.core.CommandInput) -> str | None:
     spinnerInput = adsk.core.IntegerSpinnerCommandInput.cast(input)
     if spinnerInput is not None:
         return str(spinnerInput.value)
+    floatSpinnerInput = adsk.core.FloatSpinnerCommandInput.cast(input)
+    if floatSpinnerInput is not None:
+        return f'{floatSpinnerInput.value:g}'
     dropDownInput = adsk.core.DropDownCommandInput.cast(input)
     if dropDownInput is not None:
         return dropDownInput.selectedItem.name if dropDownInput.selectedItem is not None else None

@@ -123,3 +123,23 @@ def test_corner_radii_are_centred_like_a_bin_corner():
     # the pocket inside a 1.2 mm wall
     assert shape.cornerRadius(True, 0.4, 0.025 + 0.12) == pytest.approx(0.255)
     assert shape.cornerRadius(False, 0.4, 0.025 + 0.12) == pytest.approx(0.545)
+
+
+def test_split_cells_makes_four_half_cells_each():
+    assert shape.splitCells([(0, 0), (1, 0)]) == [(0, 0), (0, 1), (1, 0), (1, 1), (2, 0), (2, 1), (3, 0), (3, 1)]
+
+
+def test_merge_cells_keeps_whole_cells_with_any_half():
+    assert shape.mergeCells([(0, 0), (1, 1), (2, 0)]) == [(0, 0), (1, 0)]
+    assert shape.mergeCells(shape.splitCells(L_SHAPE)) == sorted(L_SHAPE)
+
+
+def test_foot_shape_to_outline_keeps_half_feet_a_single_cell():
+    # 1.5 x 1 feet, the right column a half foot
+    assert shape.footShapeToOutline([(0, 0), (1, 0)], 1.5, 1, 2) == [(0, 0), (0, 1), (1, 0), (1, 1), (2, 0), (2, 1)]
+    assert shape.footShapeToOutline(L_SHAPE, 2, 3, 1) == sorted(L_SHAPE)
+
+
+def test_foot_shape_merges_back_from_the_outline():
+    feet = [(0, 0), (1, 0), (2, 0), (0, 1)]
+    assert shape.mergeCells(shape.footShapeToOutline(feet, 2.5, 1.5, 2)) == sorted(feet)

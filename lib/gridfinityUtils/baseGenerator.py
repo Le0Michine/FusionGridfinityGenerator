@@ -1,10 +1,11 @@
 import adsk.core, adsk.fusion, traceback, math
+import copy
 import os
 
 from .sketchUtils import createRectangle
 from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
 from .dim import Dim, valueInput, applyTo
-from . import sketchUtils, const, edgeUtils, commonUtils, combineUtils, faceUtils, extrudeUtils, shapeUtils, geometryUtils, patternUtils, binShape
+from . import sketchUtils, const, edgeUtils, commonUtils, combineUtils, faceUtils, extrudeUtils, shapeUtils, geometryUtils, patternUtils, binShape, binGrid
 from ...lib import fusion360utils as futil
 from ... import config
 
@@ -324,8 +325,13 @@ def createBaseBodyPattern(
     basesXCount: Dim | int,
     basesYCount: Dim | int,
     targetComponent: adsk.fusion.Component,
+    spacingX: Dim = None,
+    spacingY: Dim = None,
+    *,
+    name: str = 'Foot',
 ):
-    baseBody = createSingleGridfinityBaseBody(baseConfiguration, targetComponent, name='Foot')
+    """Feet the spacing apart, the base size by default. Bodies and features are named after the given name"""
+    baseBody = createSingleGridfinityBaseBody(baseConfiguration, targetComponent, name=name)
     features = targetComponent.features
     # replicate base in a rectangular pattern
     rectangularPatternFeatures: adsk.fusion.RectangularPatternFeatures = features.rectangularPatternFeatures
@@ -334,14 +340,97 @@ def createBaseBodyPattern(
     patternInput = rectangularPatternFeatures.createInput(patternInputBodies,
         targetComponent.xConstructionAxis,
         valueInput(basesXCount),
-        valueInput(baseConfiguration.baseWidth),
+        valueInput(spacingX if spacingX is not None else baseConfiguration.baseWidth),
         adsk.fusion.PatternDistanceType.SpacingPatternDistanceType)
     patternInput.directionTwoEntity = targetComponent.yConstructionAxis
     patternInput.quantityTwo = valueInput(basesYCount)
-    patternInput.distanceTwo = valueInput(baseConfiguration.baseLength)
+    patternInput.distanceTwo = valueInput(spacingY if spacingY is not None else baseConfiguration.baseLength)
     rectangularPattern = rectangularPatternFeatures.add(patternInput)
-    rectangularPattern.name = 'Feet pattern'
+    rectangularPattern.name = f'{name} pattern'
     return list(rectangularPattern.bodies) + [baseBody]
+
+def createFootGrid(
+    baseConfiguration: BaseGeneratorInput,
+    columns: float,
+    rows: float,
+    targetComponent: adsk.fusion.Component,
+    spacingX: Dim = None,
+    spacingY: Dim = None,
+    *,
+    name: str = 'Foot',
+) -> list[adsk.fusion.BRepBody]:
+    """
+    A foot per grid cell of a bin the columns by rows cells big, the spacing apart, the base size by default.
+    A half cell left over makes a row of half feet along the far side, see binGrid. They are halved across the row
+    only, like the half cells of a baseplate, so they line up with the whole ones, the corner one is halved both ways.
+    Half feet are as much smaller as half the spacing and have no holes, there is no room for them in the standard spots
+    """
+    spacingX = spacingX if spacingX is not None else baseConfiguration.baseWidth
+    spacingY = spacingY if spacingY is not None else baseConfiguration.baseLength
+    (wholeX, hasHalfX) = binGrid.splitHalf(columns)
+    (wholeY, hasHalfY) = binGrid.splitHalf(rows)
+    bodies: list[adsk.fusion.BRepBody] = []
+    if wholeX > 0 and wholeY > 0:
+        bodies += createBaseBodyPattern(baseConfiguration, wholeX, wholeY, targetComponent, spacingX, spacingY, name=name)
+
+    halfWidth = baseConfiguration.baseWidth - spacingX / 2
+    halfLength = baseConfiguration.baseLength - spacingY / 2
+    halfX = spacingX * wholeX if wholeX != 1 else spacingX
+    halfY = spacingY * wholeY if wholeY != 1 else spacingY
+    noOffset = Dim.length(0)
+    for (hasHalf, label, width, length, offsetX, offsetY, countX, countY) in [
+        (hasHalfX, 'half width', halfWidth, baseConfiguration.baseLength, halfX, noOffset, 1, wholeY),
+        (hasHalfY, 'half length', baseConfiguration.baseWidth, halfLength, noOffset, halfY, wholeX, 1),
+        (hasHalfX and hasHalfY, 'half corner', halfWidth, halfLength, halfX, halfY, 1, 1),
+    ]:
+        if not hasHalf or countX * countY == 0:
+            continue
+        halfInput = copy.copy(baseConfiguration)
+        halfInput.baseWidth = width
+        halfInput.baseLength = length
+        halfInput.hasScrewHoles = False
+        halfInput.hasMagnetCutouts = False
+        halfInput.hasMagnetCutoutsTabs = False
+        halfBody = createSingleGridfinityBaseBody(halfInput, targetComponent, name=f'{name} {label}')
+        bodies.append(halfBody)
+        if offsetX.value > 0 or offsetY.value > 0:
+            moveInput = targetComponent.features.moveFeatures.createInput2(commonUtils.objectCollectionFromList([halfBody]))
+            moveInput.defineAsTranslateXYZ(valueInput(offsetX), valueInput(offsetY), adsk.core.ValueInput.createByReal(0), True)
+            targetComponent.features.moveFeatures.add(moveInput).name = f'{name} {label} placement'
+        if countX * countY > 1:
+            pattern = patternUtils.recPatternGrid(
+                commonUtils.objectCollectionFromList([halfBody]),
+                (countX, countY),
+                (spacingX, spacingY),
+                targetComponent,
+                name=f'{name} {label} pattern',
+            )
+            # pattern bodies include the source body, which a combine rejects as its own tool
+            bodies += [body for body in pattern.bodies if body != halfBody]
+    return bodies
+
+def footCenters(
+    baseWidth: Dim,
+    baseLength: Dim,
+    xyClearance: float,
+    columns: float,
+    rows: float,
+    offsetX: Dim = None,
+    offsetY: Dim = None,
+) -> list[tuple[int, int, Dim, Dim]]:
+    """cellCenters of the feet of createFootGrid, the half ones included"""
+    centers = []
+    for (column, (startX, sizeX)) in enumerate(binGrid.footSpans(columns)):
+        for (row, (startY, sizeY)) in enumerate(binGrid.footSpans(rows)):
+            x = baseWidth * (startX + sizeX / 2) - Dim.length(xyClearance)
+            y = baseLength * (startY + sizeY / 2) - Dim.length(xyClearance)
+            centers.append((
+                column,
+                row,
+                x + offsetX if offsetX is not None else x,
+                y + offsetY if offsetY is not None else y,
+            ))
+    return centers
 
 def cutOutsideRoundedRectangles(
     rectangles: list[tuple[Dim, Dim, Dim, Dim]],
@@ -619,15 +708,18 @@ def createWallJunctionPocketCutter(
 
 def cutWallJunctionPockets(
     baseConfiguration: BaseGeneratorInput,
-    basesXCount: int,
-    basesYCount: int,
+    columns: float,
+    rows: float,
     targetBody: adsk.fusion.BRepBody,
     targetComponent: adsk.fusion.Component,
 ) -> adsk.fusion.CombineFeature:
-    """Curves up the gaps between feet along all outer walls instead of leaving flat overhangs there"""
+    """Curves up the gaps between feet along all outer walls instead of leaving flat overhangs there.
+    Feet meet on every grid line, a half cell left over adds one more gap before its half feet, see createFootGrid"""
     origin = baseConfiguration.originPoint
     baseWidth = baseConfiguration.baseWidth.asExpression()
     baseLength = baseConfiguration.baseLength.asExpression()
+    junctionsX = math.ceil(columns - 1e-6) - 1
+    junctionsY = math.ceil(rows - 1e-6) - 1
 
     # cutters are symmetric, so one row of them serves both opposite walls
     cutters: list[adsk.fusion.BRepBody] = []
@@ -639,9 +731,9 @@ def cutWallJunctionPockets(
         baseConfiguration.xyClearance,
         targetComponent,
     )
-    if basesYCount > 1:
+    if junctionsY > 0:
         # the first left wall junction is always one base back and up from the first front one
-        if basesXCount > 1:
+        if junctionsX > 0:
             copyFeature = targetComponent.features.copyPasteBodies.add(frontCutter)
             copyFeature.name = 'Wall junction pocket copy'
             sideCutter = copyFeature.bodies.item(0)
@@ -657,18 +749,18 @@ def cutWallJunctionPockets(
         targetComponent.features.moveFeatures.add(moveInput).name = 'Wall junction pocket move to left wall'
         pattern = patternUtils.recPatternGrid(
             commonUtils.objectCollectionFromList([sideCutter]),
-            (2, basesYCount - 1),
-            (baseWidth * basesXCount, baseLength),
+            (2, junctionsY),
+            (baseWidth * columns, baseLength),
             targetComponent,
             name='Wall junction pockets left and right pattern',
         )
         # pattern bodies include the source cutter, the collection skips the duplicate
         cutters += list(pattern.bodies) + [sideCutter]
-    if basesXCount > 1:
+    if junctionsX > 0:
         pattern = patternUtils.recPatternGrid(
             commonUtils.objectCollectionFromList([frontCutter]),
-            (basesXCount - 1, 2),
-            (baseWidth, baseLength * basesYCount),
+            (junctionsX, 2),
+            (baseWidth, baseLength * rows),
             targetComponent,
             name='Wall junction pockets front and back pattern',
         )
@@ -739,12 +831,15 @@ def cutOutsideRoundedRectangle(
     cutExtrude = features.extrudeFeatures.add(cutExtrudeInput)
     cutExtrude.name = name
     return cutExtrude
-def shapeGridInput(baseWidth: Dim, baseLength: Dim, xyClearance: float) -> BaseGeneratorInput:
-    """The base grid of a bin, for shape outlines and picking cells, cells start a clearance before the origin"""
+def shapeGridInput(baseWidth: Dim, baseLength: Dim, xyClearance: float, cellsPerFoot: int = 1) -> BaseGeneratorInput:
+    """
+    The base grid of a bin, for shape outlines and picking cells, cells start a clearance before the origin.
+    Its cells are the base size, or the given part of it for an outline in half cells, see binGrid.outlineCellsPerFoot
+    """
     grid = BaseGeneratorInput()
     grid.originPoint = adsk.core.Point3D.create(-xyClearance, -xyClearance, 0)
-    grid.baseWidth = baseWidth
-    grid.baseLength = baseLength
+    grid.baseWidth = baseWidth / cellsPerFoot if cellsPerFoot != 1 else baseWidth
+    grid.baseLength = baseLength / cellsPerFoot if cellsPerFoot != 1 else baseLength
     grid.xyClearance = xyClearance
     return grid
 
@@ -922,12 +1017,16 @@ def cutShapeWallJunctionPockets(
     cells: list[tuple[int, int]],
     targetBody: adsk.fusion.BRepBody,
     targetComponent: adsk.fusion.Component,
+    footLines: tuple[set[int], set[int]] = None,
 ) -> adsk.fusion.CombineFeature | None:
     """
     cutWallJunctionPockets for any shape, a pocket at every point of the outline where feet meet, see
-    binShape.wallJunctions. Inner corners get their own pockets, open towards the empty cell, see createWallJunctionPocketCutter
+    binShape.wallJunctions. Inner corners get their own pockets, open towards the empty cell, see createWallJunctionPocketCutter.
+    With the grid lines where feet meet, see binGrid.footLines, an outline in half cells only gets pockets on those
     """
     junctions = binShape.wallJunctions(cells)
+    if footLines is not None:
+        junctions = [(x, y) for (x, y) in junctions if x in footLines[0] and y in footLines[1]]
     if len(junctions) == 0:
         return None
     openings = binShape.innerCornerOpenings(cells)

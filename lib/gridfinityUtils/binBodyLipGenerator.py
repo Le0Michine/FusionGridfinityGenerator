@@ -3,7 +3,7 @@ import os
 import math
 
 from ...lib import fusion360utils as futil
-from . import const, combineUtils, faceUtils, commonUtils, sketchUtils, extrudeUtils, baseGenerator, edgeUtils, filletUtils, geometryUtils
+from . import const, combineUtils, faceUtils, commonUtils, sketchUtils, extrudeUtils, baseGenerator, edgeUtils, filletUtils, geometryUtils, binShape
 from .baseGeneratorInput import BaseGeneratorInput
 from .binBodyLipGeneratorInput import BinBodyLipGeneratorInput
 from .dim import Dim, valueInput
@@ -20,7 +20,7 @@ def createShapeLipSocket(
     sit in. Like the plain one it starts a clearance outside the cell lines, the 45 degree top section is a tapered
     extrude, so its corners stay concentric with the bin's all the way down
     """
-    grid = baseGenerator.shapeGridInput(input.baseWidth, input.baseLength, input.xyClearance)
+    grid = baseGenerator.shapeGridInput(input.baseWidth, input.baseLength, input.xyClearance, input.shapeCellsPerFoot)
     planeInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
     planeInput.setByOffset(targetComponent.xYConstructionPlane, valueInput(input.originZ + Dim.length(const.BIN_BASE_HEIGHT)))
     plane = targetComponent.constructionPlanes.add(planeInput)
@@ -59,7 +59,7 @@ def createShapeLipMiddleCutout(
     targetComponent: adsk.fusion.Component,
 ) -> adsk.fusion.BRepBody:
     """Inside of the lip wall of a shaped bin, between the notches"""
-    grid = baseGenerator.shapeGridInput(input.baseWidth, input.baseLength, input.xyClearance)
+    grid = baseGenerator.shapeGridInput(input.baseWidth, input.baseLength, input.xyClearance, input.shapeCellsPerFoot)
     planeInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
     planeInput.setByOffset(targetComponent.xYConstructionPlane, valueInput(input.originZ))
     plane = targetComponent.constructionPlanes.add(planeInput)
@@ -137,27 +137,22 @@ def createGridfinityBinBodyLip(
         lipCutoutInput.xyClearance = input.xyClearance
         lipCutoutInput.hasBottomChamfer = False
         lipCutoutInput.cornerFilletRadius = input.binCornerFilletRadius + input.xyClearance * 2
-        lipCutout = baseGenerator.createSingleGridfinityBaseBody(lipCutoutInput, targetComponent, name='Lip notch cutout')
-        lipCutoutBodies.append(lipCutout)
-
-        patternInputBodies = adsk.core.ObjectCollection.create()
-        patternInputBodies.add(lipCutout)
-        patternInput = features.rectangularPatternFeatures.createInput(patternInputBodies,
-            targetComponent.xConstructionAxis,
-            adsk.core.ValueInput.createByReal(input.binWidth),
-            valueInput(input.baseWidth),
-            adsk.fusion.PatternDistanceType.SpacingPatternDistanceType)
-        patternInput.directionTwoEntity = targetComponent.yConstructionAxis
-        patternInput.quantityTwo = adsk.core.ValueInput.createByReal(input.binLength)
-        patternInput.distanceTwo = valueInput(input.baseLength)
-        rectangularPattern = features.rectangularPatternFeatures.add(patternInput)
-        rectangularPattern.name = 'Lip notch cutouts pattern'
-        lipCutoutBodies = lipCutoutBodies + list(rectangularPattern.bodies)
+        # one per foot of a bin stacked on top, half ones included
+        lipCutoutBodies = baseGenerator.createFootGrid(
+            lipCutoutInput,
+            input.binWidth,
+            input.binLength,
+            targetComponent,
+            input.baseWidth,
+            input.baseLength,
+            name='Lip notch cutout',
+        )
 
     if input.hasLipNotches and input.shapeCells is not None:
+        # notches go by feet, the outline may be in half cells
         lipCutoutBodies = baseGenerator.keepBodiesInCells(
             lipCutoutBodies,
-            input.shapeCells,
+            binShape.mergeCells(input.shapeCells, input.shapeCellsPerFoot),
             baseGenerator.shapeGridInput(input.baseWidth, input.baseLength, input.xyClearance),
             targetComponent,
             name='Lip notch outside shape remove',

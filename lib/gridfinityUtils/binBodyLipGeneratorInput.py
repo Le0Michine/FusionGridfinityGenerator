@@ -12,6 +12,7 @@ class BinBodyLipGeneratorInput():
         self.originZ = None
         # grid cells of a shaped bin, see BinBodyGeneratorInput.shapeCells
         self.shapeCells = None
+        self.shapeCellsPerFoot = 1
 
     @property
     def baseWidth(self) -> Dim:

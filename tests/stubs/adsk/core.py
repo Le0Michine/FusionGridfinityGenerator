@@ -62,6 +62,16 @@ class IntegerSpinnerCommandInput(CommandInput):
         self._value = v
 
 
+class FloatSpinnerCommandInput(CommandInput):
+    @property
+    def value(self) -> float:
+        return float(self._value)
+
+    @value.setter
+    def value(self, v: float):
+        self._value = v
+
+
 class ValueCommandInput(CommandInput):
     """Covers both plain-value and degree (expression) inputs."""
 

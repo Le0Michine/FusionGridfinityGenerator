@@ -101,6 +101,7 @@ def createGridfinityBinBody(
         lipInput.origin = lipOriginPoint
         lipInput.originZ = binBodyTotalHeight
         lipInput.shapeCells = input.shapeCells
+        lipInput.shapeCellsPerFoot = input.shapeCellsPerFoot
         lipBody = createGridfinityBinBodyLip(lipInput, targetComponent)
 
         if input.wallThickness < const.BIN_LIP_WALL_THICKNESS and input.shapeCells is not None:
@@ -375,7 +376,7 @@ def createShapeLipBottomChamfer(
     targetComponent: adsk.fusion.Component,
 ) -> adsk.fusion.BRepBody:
     """The inside of the walls of a shaped bin from the body top, narrowing at 45 degrees into the lip"""
-    grid = baseGenerator.shapeGridInput(input.baseWidth, input.baseLength, input.xyClearance)
+    grid = baseGenerator.shapeGridInput(input.baseWidth, input.baseLength, input.xyClearance, input.shapeCellsPerFoot)
     offset = input.xyClearance + input.wallThickness
     # as tall as the plain bin's, its outer corners' radius, a hair less, the taper would close the corner arcs to a point
     height = compartmentCutoutFilletRadius(binShape.cornerRadius(True, grid.cornerFilletRadius, offset)) - 0.001

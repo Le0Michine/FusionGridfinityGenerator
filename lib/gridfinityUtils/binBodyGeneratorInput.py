@@ -80,6 +80,8 @@ class BinBodyGeneratorInput():
         # grid cells of a shaped bin, see binShape, none for a plain one. The body is built over the whole grid,
         # parts following the outline are left to the caller, the lip's are made here
         self.shapeCells = None
+        # shape cells along a foot, two for an outline in half cells, see binGrid.outlineCellsPerFoot
+        self.shapeCellsPerFoot = 1
 
     @property
     def baseWidth(self) -> Dim:

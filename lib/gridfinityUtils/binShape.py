@@ -29,6 +29,24 @@ def isRectangle(cells, columns: int, rows: int) -> bool:
     """Every cell of the grid, a plain bin"""
     return set(normalizeShape(cells, columns, rows)) == set(rectangle(columns, rows))
 
+def splitCells(cells, factor: int = 2) -> list[tuple[int, int]]:
+    """The same shape in cells the factor times smaller, half cells by default, for switching to a half grid"""
+    return sorted({(x * factor + dx, y * factor + dy) for (x, y) in cells for dx in range(factor) for dy in range(factor)})
+
+def mergeCells(cells, factor: int = 2) -> list[tuple[int, int]]:
+    """
+    The same shape in cells the factor times bigger, whole cells by default, for switching off a half grid.
+    A whole cell is kept with any of its halves
+    """
+    return sorted({(x // factor, y // factor) for (x, y) in cells})
+
+def footShapeToOutline(cells, columns: float, rows: float, cellsPerFoot: int) -> list[tuple[int, int]]:
+    """
+    A shape drawn in feet, the columns by rows of them, in cells of the outline grid, the given number along a foot.
+    The last column or row of a size ending in a half has half feet, they take a single cell
+    """
+    return normalizeShape(splitCells(cells, cellsPerFoot), round(columns * cellsPerFoot), round(rows * cellsPerFoot))
+
 def isConnected(cells) -> bool:
     remaining = set(cells)
     if len(remaining) == 0:

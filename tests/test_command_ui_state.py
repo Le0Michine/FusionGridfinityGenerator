@@ -43,6 +43,15 @@ class TestCommandUiStateBasics:
         state.onInputUpdate(inp)
         assert state.getState("flag") is False
 
+    def test_float_spinner_keeps_half_values(self):
+        state = CommandUiState("test")
+        inp = core.FloatSpinnerCommandInput("size", 2.5)
+        state.onInputUpdate(inp)
+        assert state.getState("size") == 2.5
+
+        state.updateValue("size", 3.5)
+        assert inp.value == 3.5
+
     def test_remove_value(self):
         state = CommandUiState("test")
         state.initValue("my_input", 42, core.IntegerSpinnerCommandInput.classType())

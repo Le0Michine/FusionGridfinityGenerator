@@ -4,6 +4,7 @@ import os
 import pathlib
 import time
 import math
+import copy
 
 
 from ...lib import configUtils
@@ -21,12 +22,13 @@ from ...lib.gridfinityUtils import const
 from ...lib.gridfinityUtils import parameterUtils
 from ...lib.gridfinityUtils import sharedParameters
 from ...lib.gridfinityUtils.dim import Dim
-from ...lib.gridfinityUtils.baseGenerator import createSingleGridfinityBaseBody, createBaseBodyPattern, cutBaseClearance, cutWallJunctionPockets, cellCenters, createCellJointOrigins, keepBodiesInCells, cutOutsideShape, cutShapeWallJunctionPockets
+from ...lib.gridfinityUtils.baseGenerator import createFootGrid, cutBaseClearance, cutWallJunctionPockets, footCenters, createCellJointOrigins, keepBodiesInCells, cutOutsideShape, cutShapeWallJunctionPockets
 from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
 from ...lib.gridfinityUtils.binBodyGenerator import createGridfinityBinBody, createShapeCavity, binBodyTopHeight, createCompartmentCutout, compartmentCutoutFilletRadius, tabTopClearance, createTabLabel, hollowTabWallThickness
 from ...lib.gridfinityUtils import labelGenerator
 from ...lib.gridfinityUtils import compartmentLayout
 from ...lib.gridfinityUtils import binShape
+from ...lib.gridfinityUtils import binGrid
 from ...lib.gridfinityUtils import wallCreases
 from ...lib.gridfinityUtils.wallCreaseGenerator import createCreaseFolds
 from ...lib.gridfinityUtils.binBodyGeneratorInput import BinBodyGeneratorInput, BinBodyCompartmentDefinition
@@ -100,6 +102,8 @@ BIN_HEIGHT_UNIT_INPUT_ID = 'height_unit'
 BIN_XY_CLEARANCE_INPUT_ID = 'bin_xy_tolerance'
 BIN_WIDTH_INPUT_ID = 'bin_width'
 BIN_LENGTH_INPUT_ID = 'bin_length'
+# half size feet all over, otherwise sizes ending in a half get a row of half feet, see binGrid
+BIN_HALF_GRID_INPUT_ID = 'half_grid'
 BIN_HEIGHT_INPUT_ID = 'bin_height'
 BIN_REAL_DIMENSIONS_TABLE = "real_dimensions"
 BIN_REAL_DIMENSIONS_TABLE_TOTAL_WIDTH = "total_real_width"
@@ -253,8 +257,9 @@ def initDefaultUiState():
     commandUIState.initValue(BIN_BASE_LENGTH_UNIT_INPUT_ID, const.DIMENSION_DEFAULT_WIDTH_UNIT, adsk.core.ValueCommandInput.classType())
     commandUIState.initValue(BIN_HEIGHT_UNIT_INPUT_ID, const.DIMENSION_DEFAULT_HEIGHT_UNIT, adsk.core.ValueCommandInput.classType())
     commandUIState.initValue(BIN_XY_CLEARANCE_INPUT_ID, const.BIN_XY_CLEARANCE, adsk.core.ValueCommandInput.classType())
-    commandUIState.initValue(BIN_WIDTH_INPUT_ID, 2, adsk.core.IntegerSpinnerCommandInput.classType())
-    commandUIState.initValue(BIN_LENGTH_INPUT_ID, 3, adsk.core.IntegerSpinnerCommandInput.classType())
+    commandUIState.initValue(BIN_WIDTH_INPUT_ID, 2, adsk.core.FloatSpinnerCommandInput.classType())
+    commandUIState.initValue(BIN_LENGTH_INPUT_ID, 3, adsk.core.FloatSpinnerCommandInput.classType())
+    commandUIState.initValue(BIN_HALF_GRID_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
     commandUIState.initValue(BIN_SHAPE_CUSTOM_ID, False, adsk.core.BoolValueCommandInput.classType())
     commandUIState.initValue(BIN_HEIGHT_INPUT_ID, 5, adsk.core.ValueCommandInput.classType())
 
@@ -540,11 +545,30 @@ def refreshCompartmentsDrawing(skipBrowserId: str = None):
             # the page asks for the data itself once it has loaded
             futil.log(f'{CMD_NAME} Compartments page {browserId} not ready yet, {err}')
 
+def isHalfGrid() -> bool:
+    return commandUIState.getState(BIN_HALF_GRID_INPUT_ID)
+
+def gridDivisions() -> int:
+    """Grid cells per base unit of the bin outline, see binGrid.outlineDivisions"""
+    return binGrid.outlineDivisions(commandUIState.getState(BIN_WIDTH_INPUT_ID), commandUIState.getState(BIN_LENGTH_INPUT_ID), isHalfGrid())
+
+def feetSize() -> tuple[float, float]:
+    """The bin size in feet, half ones in a half grid, ending in a half foot for a whole grid bin ending in a half"""
+    feetPerUnit = binGrid.feetPerUnit(isHalfGrid())
+    return (commandUIState.getState(BIN_WIDTH_INPUT_ID) * feetPerUnit, commandUIState.getState(BIN_LENGTH_INPUT_ID) * feetPerUnit)
+
+def feetGridSize() -> tuple[int, int]:
+    """Columns and rows of feet, the shape is drawn in, a half foot counts as one"""
+    (columns, rows) = feetSize()
+    return (len(binGrid.footSpans(columns)), len(binGrid.footSpans(rows)))
+
+def outlineCellsPerFoot() -> int:
+    return binGrid.outlineCellsPerFoot(commandUIState.getState(BIN_WIDTH_INPUT_ID), commandUIState.getState(BIN_LENGTH_INPUT_ID), isHalfGrid())
+
 def normalizeShapeCells():
     """Shape cells within the bin, every cell when the shape is first shown"""
     global binShapeCells
-    columns = commandUIState.getState(BIN_WIDTH_INPUT_ID)
-    rows = commandUIState.getState(BIN_LENGTH_INPUT_ID)
+    (columns, rows) = feetGridSize()
     if not commandUIState.getState(BIN_SHAPE_CUSTOM_ID):
         binShapeCells = []
         return
@@ -553,20 +577,19 @@ def normalizeShapeCells():
         binShapeCells = binShape.rectangle(columns, rows)
 
 def shapeCells() -> list[tuple[int, int]]:
-    """Cells the bin covers, all of them without a custom shape"""
-    columns = commandUIState.getState(BIN_WIDTH_INPUT_ID)
-    rows = commandUIState.getState(BIN_LENGTH_INPUT_ID)
+    """Feet the bin stands on, as drawn, all of them without a custom shape, see feetGridSize"""
+    (columns, rows) = feetGridSize()
     if not commandUIState.getState(BIN_SHAPE_CUSTOM_ID):
         return binShape.rectangle(columns, rows)
     return binShape.normalizeShape(binShapeCells, columns, rows)
 
+def outlineCells() -> list[tuple[int, int]]:
+    """Cells of the outline grid the bin covers, half cells in a half grid or for sizes ending in a half, see gridDivisions"""
+    return binShape.footShapeToOutline(shapeCells(), *feetSize(), outlineCellsPerFoot())
+
 def isShaped() -> bool:
     """A custom shape leaving cells out, a full one builds a plain bin"""
-    return commandUIState.getState(BIN_SHAPE_CUSTOM_ID) and not binShape.isRectangle(
-        shapeCells(),
-        commandUIState.getState(BIN_WIDTH_INPUT_ID),
-        commandUIState.getState(BIN_LENGTH_INPUT_ID),
-    )
+    return commandUIState.getState(BIN_SHAPE_CUSTOM_ID) and not binShape.isRectangle(shapeCells(), *feetGridSize())
 
 def shapeError() -> str | None:
     """Why the shaped bin can't be built, none when it can or the bin is a plain rectangle"""
@@ -588,19 +611,25 @@ def creaseLayout() -> list[tuple[wallCreases.WallSide, int]]:
         return []
     # the scoop braces the front wall already
     hasScoop = commandUIState.getState(BIN_HAS_SCOOP_INPUT_ID) and binType == BIN_TYPE_HOLLOW and not isShaped()
+    # in outline grid cells, the lengths in base units scale along
+    divisions = gridDivisions()
     return wallCreases.creaseLayout(
-        shapeCells(),
-        commandUIState.getState(BIN_BASE_WIDTH_UNIT_INPUT_ID),
-        commandUIState.getState(BIN_BASE_LENGTH_UNIT_INPUT_ID),
-        commandUIState.getState(BIN_CREASE_MIN_LENGTH_INPUT_ID),
-        commandUIState.getState(BIN_CREASE_MAX_PANEL_LENGTH_INPUT_ID),
+        outlineCells(),
+        commandUIState.getState(BIN_BASE_WIDTH_UNIT_INPUT_ID) / divisions,
+        commandUIState.getState(BIN_BASE_LENGTH_UNIT_INPUT_ID) / divisions,
+        commandUIState.getState(BIN_CREASE_MIN_LENGTH_INPUT_ID) * divisions,
+        commandUIState.getState(BIN_CREASE_MAX_PANEL_LENGTH_INPUT_ID) * divisions,
         hasScoop,
     )
 
 def shapeDrawingData() -> dict:
+    (columns, rows) = feetGridSize()
     return {
-        'columns': commandUIState.getState(BIN_WIDTH_INPUT_ID),
-        'rows': commandUIState.getState(BIN_LENGTH_INPUT_ID),
+        'columns': columns,
+        'rows': rows,
+        # a half foot is drawn half as wide
+        'columnSizes': [size for (_, size) in binGrid.footSpans(feetSize()[0])],
+        'rowSizes': [size for (_, size) in binGrid.footSpans(feetSize()[1])],
         'cells': shapeCells(),
         'error': shapeError(),
         'note': SHAPE_NOTE if isShaped() else '',
@@ -650,8 +679,8 @@ def is_all_input_valid(inputs: adsk.core.CommandInputs):
     result = result and base_length_unit.value > 1
     result = result and height_unit.value > 0.5
     result = result and xy_tolerance.value >= 0.01 and xy_tolerance.value <= 0.05
-    result = result and bin_width.value > 0
-    result = result and bin_length.value > 0
+    result = result and bin_width.value > 0 and binGrid.isHalfStep(bin_width.value)
+    result = result and bin_length.value > 0 and binGrid.isHalfStep(bin_length.value)
     result = result and bin_height.value >= 1
     result = result and bin_wall_thickness.value >= 0.04 and bin_wall_thickness.value <= 0.2
     if bin_generate_base.value:
@@ -726,10 +755,17 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     binDimensionsGroup.tooltipDescription = 'Set in base units'
     binDimensionsGroup.isExpanded = commandUIState.getState(BIN_DIMENSIONS_GROUP)
     commandUIState.registerCommandInput(binDimensionsGroup)
-    binWidthInput = binDimensionsGroup.children.addIntegerSpinnerCommandInput(BIN_WIDTH_INPUT_ID, 'Bin width, X (u)', 1, 100, 1, commandUIState.getState(BIN_WIDTH_INPUT_ID))
+    binWidthInput = binDimensionsGroup.children.addFloatSpinnerCommandInput(BIN_WIDTH_INPUT_ID, 'Bin width, X (u)', '', 0.5, 100, 0.5, commandUIState.getState(BIN_WIDTH_INPUT_ID))
+    binWidthInput.tooltip = 'In whole or half base units'
     commandUIState.registerCommandInput(binWidthInput)
-    binLengthInput = binDimensionsGroup.children.addIntegerSpinnerCommandInput(BIN_LENGTH_INPUT_ID, 'Bin length, Y (u)', 1, 100, 1, commandUIState.getState(BIN_LENGTH_INPUT_ID))
+    binLengthInput = binDimensionsGroup.children.addFloatSpinnerCommandInput(BIN_LENGTH_INPUT_ID, 'Bin length, Y (u)', '', 0.5, 100, 0.5, commandUIState.getState(BIN_LENGTH_INPUT_ID))
+    binLengthInput.tooltip = 'In whole or half base units'
     commandUIState.registerCommandInput(binLengthInput)
+    halfGridInput = binDimensionsGroup.children.addBoolValueInput(BIN_HALF_GRID_INPUT_ID, 'Half grid', True, '', commandUIState.getState(BIN_HALF_GRID_INPUT_ID))
+    halfGridInput.tooltip = ('Puts the bin on half size feet, for a half grid baseplate, the bin keeps its size in base units. '
+        'Without it a size ending in a half gets whole feet and a row of half feet along the back or right side, halved across the row only. '
+        'Half feet have no magnet or screw holes, there is no room for them')
+    commandUIState.registerCommandInput(halfGridInput)
     binHeightInput = binDimensionsGroup.children.addValueInput(BIN_HEIGHT_INPUT_ID, 'Bin height, Z (u)', '', adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_HEIGHT_INPUT_ID)))
     binHeightInput.minimumValue = 1
     binHeightInput.isMinimumInclusive = True
@@ -945,6 +981,7 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
     inputs = args.inputs
     global commandUIState
     global compartmentPockets
+    global binShapeCells
     futil.log(f'{CMD_NAME} Input Changed Event fired from a change to {changed_input.id}')
     # the preview time is only shown, nothing follows from it
     if changed_input.id == PREVIEW_TIME_INPUT:
@@ -955,6 +992,9 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
     elif changed_input.id == BIN_COMPARTMENTS_SHOW_LAYOUT_ID and not commandUIState.getState(BIN_COMPARTMENTS_SHOW_LAYOUT_ID):
         # back to the uniform grid, refreshUi fills it with single cells
         compartmentPockets = []
+    elif changed_input.id == BIN_HALF_GRID_INPUT_ID:
+        # the drawn shape keeps its footprint in the cells of the other grid
+        binShapeCells = binShape.splitCells(binShapeCells) if isHalfGrid() else binShape.mergeCells(binShapeCells)
     refreshUi()
 
     if isinstance(changed_input, adsk.core.GroupCommandInput) and changed_input.isExpanded == True:
@@ -1046,13 +1086,11 @@ def onChangeValidate():
     global commandUIState
 
     generateBase: bool = commandUIState.getState(BIN_GENERATE_BASE_INPUT_ID)
-    commandUIState.getInput(BIN_SCREW_HOLES_INPUT_ID).isEnabled = generateBase
     commandUIState.getInput(BIN_JOINT_ORIGINS_INPUT_ID).isEnabled = generateBase
-    commandUIState.getInput(BIN_MAGNET_CUTOUTS_INPUT_ID).isEnabled = generateBase
-    commandUIState.getInput(BIN_MAGNET_CUTOUTS_TABS_INPUT_ID).isEnabled = generateBase
-    commandUIState.getInput(BIN_MAGNET_DIAMETER_INPUT).isEnabled = generateBase
-    commandUIState.getInput(BIN_MAGNET_HEIGHT_INPUT).isEnabled = generateBase
-    commandUIState.getInput(BIN_SCREW_DIAMETER_INPUT).isEnabled = generateBase
+    # half feet have no room for holes
+    hasHoles = generateBase and not isHalfGrid()
+    for inputId in [BIN_SCREW_HOLES_INPUT_ID, BIN_MAGNET_CUTOUTS_INPUT_ID, BIN_MAGNET_CUTOUTS_TABS_INPUT_ID, BIN_MAGNET_DIAMETER_INPUT, BIN_MAGNET_HEIGHT_INPUT, BIN_SCREW_DIAMETER_INPUT]:
+        commandUIState.getInput(inputId).isEnabled = hasHoles
 
     generateBody: bool = commandUIState.getState(BIN_GENERATE_BODY_INPUT_ID)
     binType: str = commandUIState.getState(BIN_TYPE_DROPDOWN_ID)
@@ -1127,9 +1165,10 @@ def snapshotSettings(inputs: adsk.core.CommandInputs) -> list[dict]:
     if isShaped():
         # the drawing as text, front row last like it's shown
         cells = set(shapeCells())
+        (columnCount, rowCount) = feetGridSize()
         rows = [
-            ''.join('#' if (x, y) in cells else '.' for x in range(commandUIState.getState(BIN_WIDTH_INPUT_ID)))
-            for y in reversed(range(commandUIState.getState(BIN_LENGTH_INPUT_ID)))
+            ''.join('#' if (x, y) in cells else '.' for x in range(columnCount))
+            for y in reversed(range(rowCount))
         ]
         settings.append({'title': 'Shape', 'items': [[f'Row {index}', row] for (index, row) in zip(reversed(range(1, len(rows) + 1)), rows)]})
     return settings
@@ -1178,9 +1217,16 @@ def generateBin(args: adsk.core.CommandEventArgs):
     isHollow = binTypeDropdownInput.selectedItem.name == BIN_TYPE_HOLLOW
     isSolid = binTypeDropdownInput.selectedItem.name == BIN_TYPE_SOLID
     isShelled = binTypeDropdownInput.selectedItem.name == BIN_TYPE_SHELLED
-    # a custom shape leaving cells out, without lip, scoop and tab for now
+    # a custom shape leaving cells out, without lip, scoop and tab for now. It's drawn in feet, its outline may be in half cells
     cells = shapeCells()
     shaped = isShaped()
+    outline = outlineCells()
+    cellsPerFoot = outlineCellsPerFoot()
+    # the bin size in feet, half ones in a half grid, the feet grid cells are as much smaller
+    halfGrid = isHalfGrid()
+    feetPerUnit = binGrid.feetPerUnit(halfGrid)
+    columns = bin_width.value * feetPerUnit
+    rows = bin_length.value * feetPerUnit
 
     try:
         if shapeError() is not None:
@@ -1191,7 +1237,12 @@ def generateBin(args: adsk.core.CommandEventArgs):
         root = adsk.fusion.Component.cast(des.rootComponent)
 
         xyClearance = xy_clearance.value
-        binName = 'Gridfinity bin {}x{}x{}'.format(int(bin_length.value), int(bin_width.value), int(bin_height.value))
+        binName = 'Gridfinity bin {}x{}x{}{}'.format(
+            binGrid.formatSize(bin_length.value),
+            binGrid.formatSize(bin_width.value),
+            int(bin_height.value),
+            ' half grid' if halfGrid else '',
+        )
 
         originalTimelineCount = des.timeline.count
         if des.designIntent == adsk.fusion.DesignIntentTypes.HybridDesignIntentType:
@@ -1230,6 +1281,8 @@ def generateBin(args: adsk.core.CommandEventArgs):
         )
         baseWidth = Dim.parameter(baseWidthParameter)
         baseLength = Dim.parameter(baseLengthParameter)
+        gridWidth = baseWidth / feetPerUnit if halfGrid else baseWidth
+        gridLength = baseLength / feetPerUnit if halfGrid else baseLength
         # user parameters driving the bin, kept in its tag to show with its settings
         binParameters = [['Base width unit', baseWidthParameter.name], ['Base length unit', baseLengthParameter.name]]
 
@@ -1240,22 +1293,31 @@ def generateBin(args: adsk.core.CommandEventArgs):
             byX=-xyClearance,
             byY=-xyClearance,
         )
-        baseGeneratorInput.baseWidth = baseWidth
-        baseGeneratorInput.baseLength = baseLength
+        baseGeneratorInput.baseWidth = gridWidth
+        baseGeneratorInput.baseLength = gridLength
         baseGeneratorInput.xyClearance = xyClearance
-        baseGeneratorInput.hasScrewHoles = bin_screw_holes.value and not isShelled
-        baseGeneratorInput.hasMagnetCutouts = bin_magnet_cutouts.value and not isShelled
-        baseGeneratorInput.hasMagnetCutoutsTabs = bin_magnet_cutouts_tabs.value and not isShelled
+        # half feet have no room for holes
+        baseGeneratorInput.hasScrewHoles = bin_screw_holes.value and not isShelled and not halfGrid
+        baseGeneratorInput.hasMagnetCutouts = bin_magnet_cutouts.value and not isShelled and not halfGrid
+        baseGeneratorInput.hasMagnetCutoutsTabs = bin_magnet_cutouts_tabs.value and not isShelled and not halfGrid
         baseGeneratorInput.screwHolesDiameter = bin_screw_hole_diameter.value
         baseGeneratorInput.magnetCutoutsDiameter = bin_magnet_cutout_diameter.value
         baseGeneratorInput.magnetCutoutsDepth = bin_magnet_cutout_depth.value
 
+        # the grid of the outline, for the shape and creases, in half cells for a whole grid bin ending in a half, see gridDivisions
+        if gridDivisions() == feetPerUnit:
+            outlineGrid = baseGeneratorInput
+        else:
+            outlineGrid = copy.copy(baseGeneratorInput)
+            outlineGrid.baseWidth = baseWidth / gridDivisions()
+            outlineGrid.baseLength = baseLength / gridDivisions()
+
         baseBodies: list[adsk.fusion.BRepBody]
         if bin_generate_base.value:
-            baseBodies = createBaseBodyPattern(
+            baseBodies = createFootGrid(
                 baseGeneratorInput,
-                bin_width.value,
-                bin_length.value,
+                columns,
+                rows,
                 gridfinityBinComponent,
             )
             if shaped:
@@ -1264,13 +1326,14 @@ def generateBin(args: adsk.core.CommandEventArgs):
         # create bin body
         binBodyInput = BinBodyGeneratorInput()
         binBodyInput.hasLip = with_lip.value
-        binBodyInput.shapeCells = cells if shaped else None
+        binBodyInput.shapeCells = outline if shaped else None
+        binBodyInput.shapeCellsPerFoot = cellsPerFoot
         binBodyInput.hasLipNotches = with_lip_notches.value
-        binBodyInput.binWidth = bin_width.value
-        binBodyInput.binLength = bin_length.value
+        binBodyInput.binWidth = columns
+        binBodyInput.binLength = rows
         binBodyInput.binHeight = Dim.number(bin_height.value)
-        binBodyInput.baseWidth = baseWidth
-        binBodyInput.baseLength = baseLength
+        binBodyInput.baseWidth = gridWidth
+        binBodyInput.baseLength = gridLength
         binBodyInput.heightUnit = Dim.length(height_unit.value)
         binBodyInput.xyClearance = xyClearance
         binBodyInput.binCornerFilletRadius = const.BIN_CORNER_FILLET_RADIUS - xyClearance
@@ -1280,9 +1343,10 @@ def generateBin(args: adsk.core.CommandEventArgs):
         binBodyInput.hasScoop = has_scoop.value and isHollow and not shaped
         binBodyInput.scoopMaxRadius = binScoopMaxRadius.value
         binBodyInput.hasTab = hasTabInput.value and isHollow and not shaped
-        binBodyInput.tabLength = binTabLength.value
+        # in base units like the size, the body counts in feet
+        binBodyInput.tabLength = binTabLength.value * feetPerUnit
         binBodyInput.tabWidth = binTabWidth.value
-        binBodyInput.tabPosition = binTabPosition.value
+        binBodyInput.tabPosition = binTabPosition.value * feetPerUnit
         binBodyInput.tabOverhangAngle = binTabAngle.value
         binBodyInput.isTabHollow = binTabHollow.value and len(creases) == 0
         binBodyInput.isTabOpenThroughSides = inputs.itemById(BIN_TAB_HOLLOW_SIDES_INPUT_ID).value
@@ -1359,30 +1423,34 @@ def generateBin(args: adsk.core.CommandEventArgs):
         clearanceBodies = [binBody] if bin_generate_body.value else baseBodies
         if shaped and (bin_generate_body.value or bin_generate_base.value):
             # the body is built over the whole grid, the outline trims it down to the shape
-            cutOutsideShape(cells, baseGeneratorInput, clearanceBodies, gridfinityBinComponent, name='Outer clearance trim')
+            cutOutsideShape(outline, outlineGrid, clearanceBodies, gridfinityBinComponent, name='Outer clearance trim')
         elif bin_generate_body.value or bin_generate_base.value:
             cutBaseClearance(
                 baseGeneratorInput,
-                bin_width.value,
-                bin_length.value,
+                columns,
+                rows,
                 clearanceBodies,
                 gridfinityBinComponent,
             )
 
-        binBasesXCount = int(round(bin_width.value))
-        binBasesYCount = int(round(bin_length.value))
         if bin_generate_body.value and bin_generate_base.value and (shaped or not isShelled):
             # curve up the gaps between feet along the walls instead of leaving flat overhangs,
             # shaped bins need them at the inner corners whatever the type, the shell follows the pockets cut before it
             if shaped:
-                cutShapeWallJunctionPockets(baseGeneratorInput, cells, binBody, gridfinityBinComponent)
-            elif binBasesXCount > 1 or binBasesYCount > 1:
-                cutWallJunctionPockets(baseGeneratorInput, binBasesXCount, binBasesYCount, binBody, gridfinityBinComponent)
+                cutShapeWallJunctionPockets(
+                    outlineGrid,
+                    outline,
+                    binBody,
+                    gridfinityBinComponent,
+                    (binGrid.footLines(columns, cellsPerFoot), binGrid.footLines(rows, cellsPerFoot)),
+                )
+            elif columns > 1 or rows > 1:
+                cutWallJunctionPockets(baseGeneratorInput, columns, rows, binBody, gridfinityBinComponent)
 
         if shaped and isHollow and bin_generate_body.value:
             cavity = createShapeCavity(
-                cells,
-                baseGeneratorInput,
+                outline,
+                outlineGrid,
                 binBodyInput.wallThickness,
                 binBodyTopHeight(binBodyInput),
                 gridfinityBinComponent,
@@ -1401,9 +1469,9 @@ def generateBin(args: adsk.core.CommandEventArgs):
             if isHollow:
                 # the inside follows the dent, so the wall keeps its thickness, a shell does it by itself.
                 # Joined before the dent is cut, the dent goes deeper than the wall and would get filled back in
-                innerFolds = createCreaseFolds(creases, baseGeneratorInput, wallOffset, creaseDepth, creaseBottomZ, creaseTopZ, gridfinityBinComponent, name='Wall crease inside')
+                innerFolds = createCreaseFolds(creases, outlineGrid, wallOffset, creaseDepth, creaseBottomZ, creaseTopZ, gridfinityBinComponent, name='Wall crease inside')
                 combineUtils.joinBodies(binBody, commonUtils.objectCollectionFromList(innerFolds), gridfinityBinComponent, name='Wall creases inside join')
-            outerFolds = createCreaseFolds(creases, baseGeneratorInput, xyClearance, creaseDepth, creaseBottomZ, creaseTopZ, gridfinityBinComponent, name='Wall crease')
+            outerFolds = createCreaseFolds(creases, outlineGrid, xyClearance, creaseDepth, creaseBottomZ, creaseTopZ, gridfinityBinComponent, name='Wall crease')
             combineUtils.cutBody(binBody, commonUtils.objectCollectionFromList(outerFolds), gridfinityBinComponent, name='Wall creases cut')
 
         if isShelled and bin_generate_body.value:
@@ -1540,17 +1608,17 @@ def generateBin(args: adsk.core.CommandEventArgs):
 
         if bin_generate_base.value and inputs.itemById(BIN_JOINT_ORIGINS_INPUT_ID).value:
             # last, after the placement, joint origins sit on sketches which don't follow body moves
-            centers = cellCenters(
-                baseWidth,
-                baseLength,
+            centers = footCenters(
+                gridWidth,
+                gridLength,
                 xyClearance,
-                range(bin_width.value),
-                range(bin_length.value),
+                columns,
+                rows,
                 Dim.length(binPlacement[0]) if binPlacement[0] != 0 else None,
                 Dim.length(binPlacement[1]) if binPlacement[1] != 0 else None,
             )
             createCellJointOrigins(
-                [center for center in centers if (center[0], center[1]) in set(cells)],
+                [center for center in centers if not shaped or (center[0], center[1]) in set(cells)],
                 gridfinityBinComponent,
                 name='Foot joint origin',
             )

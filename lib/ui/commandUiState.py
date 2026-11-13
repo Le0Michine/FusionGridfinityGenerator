@@ -46,7 +46,7 @@ class CommandUiState:
     def onInputUpdate(self, input: adsk.core.CommandInput):
         inputId = input.id
         self.commandInputs[inputId] = input
-        if isinstance(input, adsk.core.IntegerSpinnerCommandInput):
+        if isinstance(input, (adsk.core.IntegerSpinnerCommandInput, adsk.core.FloatSpinnerCommandInput)):
             self.inputState[inputId] = SingleInputState(inputId, input.value, input.objectType)
         elif isinstance(input, adsk.core.ValueCommandInput):
             if input.unitType == 'deg':
@@ -84,7 +84,7 @@ class CommandUiState:
     def updateInputFromState(self, input: adsk.core.CommandInput):
         inputId = input.id
         value = self.getState(inputId)
-        if isinstance(input, adsk.core.IntegerSpinnerCommandInput):
+        if isinstance(input, (adsk.core.IntegerSpinnerCommandInput, adsk.core.FloatSpinnerCommandInput)):
             input.value = value
         elif isinstance(input, adsk.core.ValueCommandInput):
             if isinstance(value, str):
