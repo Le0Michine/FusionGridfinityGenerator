@@ -15,7 +15,9 @@ BIN_LIP_TOP_RECESS_HEIGHT = 0.06
 BIN_WALL_THICKNESS = 0.12
 BIN_CONNECTION_RECESS_DEPTH = 0.44
 BIN_COMPARTMENT_BOTTOM_THICKNESS = 0.1
-BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS = 0.2
+# compartment corners shrink with the wall thickness to stay concentric with the bin's down to this, the inside radius
+# of the lip, so where the walls line up the corners run up into the lip without a step
+BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS = BIN_CORNER_FILLET_RADIUS - BIN_LIP_WALL_THICKNESS
 
 BIN_TAB_WIDTH = 1.3
 BIN_TAB_OVERHANG_ANGLE = 45
