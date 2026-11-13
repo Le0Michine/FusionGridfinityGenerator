@@ -1,0 +1,56 @@
+{
+    "description": "README bin compartments options: custom compartments A",
+    "extends": "_bin.json",
+    "settings": {
+        "showCompartmentsLayout": true,
+        "compartmentsX": 4,
+        "compartmentsY": 6,
+        "compartmentPockets": [
+            {
+                "x": 0,
+                "y": 0,
+                "width": 2,
+                "length": 2,
+                "depth": null,
+                "label": "",
+                "icon": "Default"
+            },
+            {
+                "x": 0,
+                "y": 2,
+                "width": 1,
+                "length": 4,
+                "depth": null,
+                "label": "",
+                "icon": "Default"
+            },
+            {
+                "x": 1,
+                "y": 2,
+                "width": 1,
+                "length": 4,
+                "depth": null,
+                "label": "",
+                "icon": "Default"
+            },
+            {
+                "x": 2,
+                "y": 0,
+                "width": 2,
+                "length": 5,
+                "depth": null,
+                "label": "",
+                "icon": "Default"
+            },
+            {
+                "x": 2,
+                "y": 5,
+                "width": 2,
+                "length": 1,
+                "depth": null,
+                "label": "",
+                "icon": "Default"
+            }
+        ]
+    }
+}

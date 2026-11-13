@@ -1,0 +1,5 @@
+{
+    "description": "README bin bottom options: solid bottom",
+    "extends": "_bin-bottom.json",
+    "settings": {}
+}

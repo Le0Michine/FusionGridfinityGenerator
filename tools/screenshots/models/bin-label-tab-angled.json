@@ -1,0 +1,10 @@
+{
+    "description": "README label tab GIF: full length tab with its top tilted 30 degrees",
+    "extends": "_bin-wide.json",
+    "settings": {
+        "hasTab": true,
+        "tabLength": 3,
+        "tabPosition": 0,
+        "tabTopAngle": 30.0
+    }
+}

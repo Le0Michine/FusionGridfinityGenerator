@@ -1,0 +1,9 @@
+{
+    "description": "README label tab configuration: full length",
+    "extends": "_bin-wide.json",
+    "settings": {
+        "hasTab": true,
+        "tabLength": 3,
+        "tabPosition": 0
+    }
+}

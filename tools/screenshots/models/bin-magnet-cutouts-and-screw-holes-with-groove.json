@@ -1,0 +1,8 @@
+{
+    "description": "README bin bottom options: magnet cutouts and screw holes together, with the groove",
+    "extends": "_bin-bottom.json",
+    "settings": {
+        "hasMagnetCutouts": true,
+        "hasScrewHoles": true
+    }
+}

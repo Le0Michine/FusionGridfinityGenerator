@@ -1,0 +1,7 @@
+{
+    "description": "README bin type options: solid bin",
+    "extends": "_bin.json",
+    "settings": {
+        "binType": "Solid"
+    }
+}

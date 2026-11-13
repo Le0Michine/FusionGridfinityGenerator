@@ -1,0 +1,9 @@
+{
+    "description": "README label tab configuration: single slot",
+    "extends": "_bin-wide.json",
+    "settings": {
+        "hasTab": true,
+        "tabLength": 1,
+        "tabPosition": 0
+    }
+}

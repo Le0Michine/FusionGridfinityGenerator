@@ -1,0 +1,9 @@
+{
+    "description": "README connection holes GIF: skeletonized with 5 mm connection holes",
+    "extends": "_baseplate-docs.json",
+    "settings": {
+        "plateType": "Skeletonized",
+        "hasConnectionHoles": true,
+        "connectionHoleSize": 5.0
+    }
+}

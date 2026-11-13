@@ -1,0 +1,7 @@
+{
+    "description": "README baseplate types: full",
+    "extends": "_baseplate-docs.json",
+    "settings": {
+        "plateType": "Full"
+    }
+}

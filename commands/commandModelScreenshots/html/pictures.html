@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../../../lib/ui/html/dialog.css">
+<link rel="stylesheet" href="../../../lib/ui/html/progress.css">
+<style>
+    :root {
+        --text: #3c3c3c;
+        --muted: #8a8a8a;
+        --background: #f5f5f5;
+        --line: #e2e2e2;
+        --bar: #0696d7;
+        --thumb: #ffffff;
+        --check: #ececec;
+        --saved: #2e8b4a;
+        --warning: #b7791f;
+        --failed: #c62828;
+    }
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --text: #dcdcdc;
+            --muted: #9a9a9a;
+            --background: #2b2b2b;
+            --line: #3d3d3d;
+            --bar: #38abdf;
+            --thumb: #3a3a3a;
+            --check: #303030;
+            --saved: #5cc77a;
+            --warning: #e0a84a;
+            --failed: #ff6b6b;
+        }
+    }
+    /* a palette scrolls its page, dialog pages fit theirs */
+    html, body {
+        overflow: auto;
+        background: var(--background);
+    }
+    body {
+        padding: 12px;
+    }
+    #title {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        justify-content: space-between;
+        font-weight: bold;
+    }
+    #message {
+        margin-bottom: 8px;
+        color: var(--muted);
+        overflow-wrap: anywhere;
+    }
+    .item {
+        display: flex;
+        gap: 10px;
+        padding: 8px 0;
+        border-top: 1px solid var(--line);
+    }
+    .thumb {
+        flex: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 64px;
+        height: 64px;
+        border-radius: 3px;
+        /* a checkerboard shows what is transparent */
+        background: var(--thumb) repeating-conic-gradient(var(--check) 0% 25%, transparent 0% 50%) 0 0 / 12px 12px;
+        object-fit: contain;
+        color: var(--muted);
+        font-size: 11px;
+        text-align: center;
+    }
+    img.thumb {
+        cursor: zoom-in;
+    }
+    img.thumb:hover {
+        outline: 2px solid var(--bar);
+    }
+    .text {
+        flex: 1;
+        min-width: 0;
+    }
+    .name {
+        font-weight: bold;
+    }
+    .description, .status {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: var(--muted);
+    }
+    .status:empty {
+        display: none;
+    }
+    .status.saved { color: var(--saved); }
+    .status.warning { color: var(--warning); white-space: normal; }
+    .status.failed { color: var(--failed); white-space: normal; overflow-wrap: anywhere; }
+    .status.queued, .status.building, .status.rendering { color: var(--bar); }
+    .buttons {
+        display: flex;
+        gap: 6px;
+        margin-top: 6px;
+    }
+    /* the buttons go under the title when the palette is narrow */
+    #title {
+        flex-wrap: wrap;
+    }
+    #title .buttons {
+        margin-top: 0;
+    }
+    #title button {
+        white-space: nowrap;
+    }
+    #viewer {
+        position: fixed;
+        inset: 0;
+        display: none;
+        flex-direction: column;
+        gap: 8px;
+        padding: 12px;
+        background: var(--background);
+    }
+    #viewer.open {
+        display: flex;
+    }
+    .section {
+        margin-top: 16px;
+        padding-bottom: 4px;
+        font-weight: bold;
+    }
+    .section:empty, #gifs:empty {
+        display: none;
+    }
+    .needs {
+        color: var(--warning);
+        white-space: normal;
+    }
+    /* a GIF over the dialog animation going with it */
+    #viewer-images {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    #viewer img {
+        flex: 1;
+        min-height: 0;
+        width: 100%;
+        object-fit: contain;
+        cursor: zoom-out;
+        background: var(--thumb) repeating-conic-gradient(var(--check) 0% 25%, transparent 0% 50%) 0 0 / 16px 16px;
+    }
+    .thumbs {
+        display: flex;
+        flex: none;
+        gap: 4px;
+    }
+    #viewer-path {
+        white-space: pre-line;
+        color: var(--muted);
+        overflow-wrap: anywhere;
+    }
+    #viewer-buttons {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+    }
+</style>
+</head>
+<body>
+<div id="title">
+    <span>Model pictures</span>
+    <span class="buttons">
+        <button id="open-folder" title="Shows the folder of the pictures in Finder or Explorer">Open location</button>
+        <button id="make-gifs" title="Makes the GIFs of modelGifs.json from the saved pictures, with the dialog animations they go with">Make GIFs</button>
+        <button id="refresh-all" title="Makes the pictures of every preset again, from their files, then the GIFs">Refresh all</button>
+    </span>
+</div>
+<!-- how far the pictures are can't be told, the bar only shows that they are being made -->
+<div id="track" class="progress-track indeterminate"><div class="progress-bar"></div></div>
+<div id="message"></div>
+<div id="items"></div>
+<div class="section" id="gifs-title">GIFs</div>
+<div id="gifs"></div>
+<div id="viewer">
+    <div class="name" id="viewer-name"></div>
+    <div id="viewer-images" title="Back to the list"></div>
+    <div id="viewer-path"></div>
+    <div id="viewer-buttons">
+        <button id="viewer-open" title="Opens the saved picture in the computer's image viewer">Open file</button>
+        <button id="viewer-close">Close</button>
+    </div>
+</div>
+<script src="../../../lib/ui/html/fusionBridge.js"></script>
+<script src="../../../lib/ui/html/pictureFinish.js"></script>
+<script>
+    const STATUS_TEXT = {
+        queued: 'Waiting',
+        building: 'Building',
+        rendering: 'Rendering',
+        saved: 'Saved',
+        warning: 'Saved',
+        failed: 'Failed',
+    };
+    let state = { items: [], gifs: [], message: '', busy: false };
+    const theme = () => window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+
+    function button(text, title, onClick) {
+        const result = document.createElement('button');
+        result.textContent = text;
+        result.title = title;
+        result.addEventListener('click', onClick);
+        return result;
+    }
+
+    // the answer is the rows with what was asked for waiting
+    function request(names, gifs) {
+        fusionBridge.send('render', { names: names, gifs: gifs }).then((data) => data && update(data));
+    }
+
+    function thumbnail(saved, empty, onClick) {
+        if (!saved) {
+            const placeholder = document.createElement('div');
+            placeholder.className = 'thumb';
+            placeholder.textContent = empty;
+            return placeholder;
+        }
+        const thumb = document.createElement('img');
+        thumb.className = 'thumb';
+        thumb.alt = '';
+        thumb.src = saved.url;
+        thumb.title = 'Click to view';
+        thumb.addEventListener('click', onClick);
+        return thumb;
+    }
+
+    function textOf(item, buttonText, buttonTitle, onClick, note) {
+        const text = document.createElement('div');
+        text.className = 'text';
+        const name = document.createElement('div');
+        name.className = 'name';
+        name.textContent = item.name;
+        const description = document.createElement('div');
+        description.className = 'description';
+        description.textContent = item.description;
+        description.title = item.description;
+        const status = document.createElement('div');
+        status.className = `status ${item.status}`;
+        status.textContent = item.status ? [STATUS_TEXT[item.status] || item.status, item.message].filter(Boolean).join(', ') : '';
+        status.title = item.message || '';
+        text.append(name, description, status);
+        // what a row is waiting for, while nothing is being done with it
+        if (note && !item.status) {
+            const needs = document.createElement('div');
+            needs.className = 'description needs';
+            needs.textContent = note;
+            needs.title = note;
+            text.append(needs);
+        }
+        const buttons = document.createElement('div');
+        buttons.className = 'buttons';
+        buttons.append(button(buttonText, buttonTitle, onClick));
+        text.append(buttons);
+        return text;
+    }
+
+    function pictureRow(item) {
+        const row = document.createElement('div');
+        row.className = 'item';
+        row.append(
+            thumbnail(item.picture, 'No picture', () => view(item, 'items')),
+            textOf(item, item.picture ? 'Refresh' : 'Create', 'Makes the picture from the preset\'s file', () => request([item.name], [])),
+        );
+        return row;
+    }
+
+    function gifRow(gif) {
+        const row = document.createElement('div');
+        row.className = 'item';
+        const model = gif.files[`model-${theme()}`];
+        const dialog = gif.files[`dialog-${theme()}`];
+        const thumbs = document.createElement('div');
+        thumbs.className = 'thumbs';
+        thumbs.append(thumbnail(model, 'No GIF', () => view(gif, 'gifs')));
+        if (dialog) {
+            thumbs.append(thumbnail(dialog, '', () => view(gif, 'gifs')));
+        }
+        const note = gif.missing.length ? `Needs pictures of ${gif.missing.join(', ')}` : gif.outdated ? 'Pictures changed since it was made' : '';
+        const title = gif.missing.length ? 'Makes the missing pictures, then the GIF and its dialog animation' : 'Makes the GIF and its dialog animation';
+        row.append(thumbs, textOf(gif, model ? 'Refresh' : 'Create', title, () => request([], [gif.name]), note));
+        return row;
+    }
+
+    function render() {
+        document.getElementById('track').classList.toggle('busy', state.busy);
+        document.getElementById('message').textContent = state.message || '';
+        document.getElementById('refresh-all').disabled = state.items.length === 0;
+        document.getElementById('make-gifs').disabled = state.gifs.length === 0;
+        document.getElementById('items').replaceChildren(...state.items.map(pictureRow));
+        document.getElementById('gifs-title').textContent = state.gifs.length ? 'GIFs' : '';
+        document.getElementById('gifs').replaceChildren(...state.gifs.map(gifRow));
+        if (viewing) {
+            const item = state[viewing.section].find((each) => each.name === viewing.name);
+            if (item && viewed(item, viewing.section).length) {
+                view(item, viewing.section);
+            } else {
+                closeViewer();
+            }
+        }
+    }
+
+    // what's large over the list: a picture, or a GIF over its dialog animation, and the file Open file opens
+    let viewing = null;
+
+    function viewed(item, section) {
+        if (section === 'items') {
+            return item.picture ? [{ saved: item.picture }] : [];
+        }
+        return ['model', 'dialog'].map((kind) => ({ saved: item.files[`${kind}-${theme()}`], which: `${kind}-${theme()}` })).filter((each) => each.saved);
+    }
+
+    function view(item, section) {
+        const shown = viewed(item, section);
+        viewing = { name: item.name, section: section, which: shown[0].which };
+        document.getElementById('viewer-name').textContent = item.name;
+        document.getElementById('viewer-images').replaceChildren(...shown.map((each) => {
+            const image = document.createElement('img');
+            image.alt = '';
+            image.src = each.saved.url;
+            return image;
+        }));
+        document.getElementById('viewer-path').textContent = shown.map((each) => each.saved.path).join('\n');
+        document.getElementById('viewer').classList.add('open');
+    }
+
+    function closeViewer() {
+        viewing = null;
+        document.getElementById('viewer').classList.remove('open');
+    }
+
+    document.getElementById('refresh-all').addEventListener('click', () => {
+        request(state.items.map((item) => item.name), state.gifs.map((gif) => gif.name));
+    });
+    document.getElementById('open-folder').addEventListener('click', () => fusionBridge.send('openFolder'));
+    document.getElementById('make-gifs').addEventListener('click', () => request([], state.gifs.map((gif) => gif.name)));
+    document.getElementById('viewer-images').addEventListener('click', closeViewer);
+    document.getElementById('viewer-close').addEventListener('click', closeViewer);
+    document.getElementById('viewer-open').addEventListener('click', () => fusionBridge.send('open', viewing));
+    // the GIFs shown are of Fusion's theme
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            closeViewer();
+        }
+    });
+
+    function update(data) {
+        if (data.state) {
+            state = data.state;
+            render();
+        }
+        if (data.job) {
+            pictureFinish.process(data.job);
+        }
+    }
+
+    fusionBridge.connect(update, render);
+</script>
+</body>
+</html>

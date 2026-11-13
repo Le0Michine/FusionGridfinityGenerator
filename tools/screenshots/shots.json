@@ -53,11 +53,184 @@
             "inputs": ["compartments_group:header", "compartments_browser"]
         },
         {
-            "name": "bin-custom-shape",
+            "name": "bin-custom-shape-drawing",
+            "output": "documentation/assets/gif",
             "command": "bin",
-            "values": {"bin_width": 2.5, "custom_shape": true},
-            "globals": {"binShapeCells": [[0, 0], [1, 0], [2, 0], [0, 1], [1, 1], [2, 1], [0, 2], [1, 2]]},
-            "inputs": ["bin_dimensions_group"]
+            "values": {"bin_width": 2.5},
+            "inputs": ["bin_dimensions_group"],
+            "steps": [
+                {"click": "custom_shape"},
+                {"wait": 600},
+                {"drag": {"page": "shape_browser", "selector": "svg", "from": [0.92, 0.15], "to": [0.92, 0.5]}},
+                {"model": 1},
+                {"wait": 800},
+                {"click": {"page": "shape_browser", "selector": "#fill"}},
+                {"model": 0},
+                {"wait": 600}
+            ]
+        },
+        {
+            "name": "bin-features-editing",
+            "output": "documentation/assets/gif",
+            "command": "bin",
+            "inputs": ["bin_dimensions_group:header", "bin_wall_thickness"],
+            "steps": [
+                {"spin": {"input": "bin_width", "direction": "up", "times": 2}},
+                {"model": 1},
+                {"select": {"input": "bin_type", "item": "Shelled"}},
+                {"model": 2},
+                {"type": {"input": "bin_wall_thickness", "text": "0.8"}},
+                {"model": 3},
+                {"wait": 400}
+            ]
+        },
+        {
+            "name": "bin-compartments-merging",
+            "output": "documentation/assets/gif",
+            "command": "bin",
+            "values": {"compartments_grid_w": 3, "compartments_grid_l": 2, "compartments_show_layout": true, "bin_has_tab": true},
+            "inputs": ["compartments_group:header", "compartments_browser"],
+            "steps": [
+                {"drag": {"page": "compartments_browser", "selector": "#drawing svg", "from": [0.15, 0.25], "to": [0.5, 0.25]}},
+                {"model": 1},
+                {"wait": 500},
+                {"type": {"page": "compartments_browser", "selector": "input[type=text]", "text": "Screws"}},
+                {"model": 2},
+                {"wait": 600}
+            ]
+        },
+        {
+            "name": "bin-bottom-options-dialog",
+            "output": "documentation/assets/gif",
+            "command": "bin",
+            "inputs": ["bin_base_features_group:header", "magnet_height"],
+            "steps": [
+                {"wait": 1200},
+                {"click": "bin_screw_holes"},
+                {"model": 1},
+                {"wait": 1200},
+                {"click": "bin_screw_holes"},
+                {"click": "bin_magnet_cutouts"},
+                {"model": 2},
+                {"wait": 1200},
+                {"click": "bin_magnet_cutouts_tabs"},
+                {"model": 3},
+                {"wait": 1200},
+                {"click": "bin_magnet_cutouts_tabs"},
+                {"model": 2},
+                {"wait": 1200},
+                {"click": "bin_screw_holes"},
+                {"model": 4},
+                {"wait": 1200},
+                {"click": "bin_screw_holes"},
+                {"click": "bin_magnet_cutouts"},
+                {"model": 0}
+            ]
+        },
+        {
+            "name": "bin-half-grid-dialog",
+            "output": "documentation/assets/gif",
+            "command": "bin",
+            "values": {"bin_width": 2, "bin_length": 1},
+            "inputs": ["bin_dimensions_group:header", "half_grid"],
+            "steps": [
+                {"wait": 1200},
+                {"click": "half_grid"},
+                {"model": 1},
+                {"wait": 1200},
+                {"click": "half_grid"},
+                {"spin": {"input": "bin_width", "direction": "up"}},
+                {"model": 2},
+                {"wait": 1200},
+                {"spin": {"input": "bin_width", "direction": "down"}},
+                {"model": 0}
+            ]
+        },
+        {
+            "name": "baseplate-types-dialog",
+            "output": "documentation/assets/gif",
+            "command": "baseplate",
+            "values": {"sizing_mode_dropdown": "Grid units", "plate_width": 2, "plate_length": 3},
+            "inputs": ["plate_features:header", "plate_type_dropdown"],
+            "steps": [
+                {"wait": 1200},
+                {"select": {"input": "plate_type_dropdown", "item": "Skeletonized"}},
+                {"model": 1},
+                {"wait": 1200},
+                {"select": {"input": "plate_type_dropdown", "item": "Full"}},
+                {"model": 2},
+                {"wait": 1200},
+                {"select": {"input": "plate_type_dropdown", "item": "Light"}},
+                {"model": 0}
+            ]
+        },
+        {
+            "name": "baseplate-connection-holes-dialog",
+            "output": "documentation/assets/gif",
+            "command": "baseplate",
+            "values": {"sizing_mode_dropdown": "Grid units", "plate_width": 2, "plate_length": 3, "plate_type_dropdown": "Skeletonized", "advanced_plate_size_group": true},
+            "inputs": ["advanced_plate_size_group:header", "connection_hole_diameter"],
+            "steps": [
+                {"wait": 1200},
+                {"click": "has_connection_hole"},
+                {"model": 1},
+                {"wait": 1200},
+                {"type": {"input": "connection_hole_diameter", "text": "5"}},
+                {"model": 2},
+                {"wait": 1200},
+                {"type": {"input": "connection_hole_diameter", "text": "3.2"}},
+                {"click": "has_connection_hole"},
+                {"model": 0}
+            ]
+        },
+        {
+            "name": "bin-label-tab-options-dialog",
+            "output": "documentation/assets/gif",
+            "command": "bin",
+            "values": {"bin_width": 3, "bin_length": 2, "bin_has_tab": true, "bin_tab_length": 3, "bin_tab_position": 0},
+            "inputs": ["bin_tab_features_group:header", "bin_tab_top_angle"],
+            "steps": [
+                {"wait": 1200},
+                {"type": {"input": "bin_tab_length", "text": "1"}},
+                {"model": 1},
+                {"wait": 1200},
+                {"type": {"input": "bin_tab_position", "text": "1"}},
+                {"model": 2},
+                {"wait": 1200},
+                {"type": {"input": "bin_tab_position", "text": "0"}},
+                {"type": {"input": "bin_tab_length", "text": "3"}},
+                {"type": {"input": "bin_tab_top_angle", "text": "30"}},
+                {"model": 3},
+                {"wait": 1200},
+                {"type": {"input": "bin_tab_top_angle", "text": "0"}},
+                {"model": 0}
+            ]
+        },
+        {
+            "name": "bin-label-options-dialog",
+            "output": "documentation/assets/gif",
+            "command": "bin",
+            "values": {"bin_width": 2, "bin_length": 1, "bin_height": 3, "bin_has_tab": true, "bin_tab_length": 2},
+            "inputs": ["bin_tab_label_text", "bin_tab_label_bold"],
+            "steps": [
+                {"wait": 1200},
+                {"type": {"input": "bin_tab_label_text", "text": "M3 screws"}},
+                {"model": 1},
+                {"wait": 1200},
+                {"select": {"input": "bin_tab_label_icon", "item": "Socket head screw"}},
+                {"model": 2},
+                {"wait": 1200},
+                {"select": {"input": "bin_tab_label_style", "item": "Engraved"}},
+                {"model": 3},
+                {"wait": 1200},
+                {"select": {"input": "bin_tab_label_style", "item": "Embossed"}},
+                {"model": 4},
+                {"wait": 1200},
+                {"select": {"input": "bin_tab_label_style", "item": "Outline"}},
+                {"select": {"input": "bin_tab_label_icon", "item": "None"}},
+                {"type": {"input": "bin_tab_label_text", "text": ""}},
+                {"model": 0}
+            ]
         }
     ]
 }

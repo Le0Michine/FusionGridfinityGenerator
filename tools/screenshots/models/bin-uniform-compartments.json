@@ -1,0 +1,82 @@
+{
+    "description": "README bin compartments options: uniform 4x2 compartments",
+    "extends": "_bin.json",
+    "settings": {
+        "compartmentsX": 4,
+        "compartmentsY": 2,
+        "compartmentPockets": [
+            {
+                "x": 0,
+                "y": 0,
+                "width": 1,
+                "length": 1,
+                "depth": null,
+                "label": "",
+                "icon": "Default"
+            },
+            {
+                "x": 1,
+                "y": 0,
+                "width": 1,
+                "length": 1,
+                "depth": null,
+                "label": "",
+                "icon": "Default"
+            },
+            {
+                "x": 2,
+                "y": 0,
+                "width": 1,
+                "length": 1,
+                "depth": null,
+                "label": "",
+                "icon": "Default"
+            },
+            {
+                "x": 3,
+                "y": 0,
+                "width": 1,
+                "length": 1,
+                "depth": null,
+                "label": "",
+                "icon": "Default"
+            },
+            {
+                "x": 0,
+                "y": 1,
+                "width": 1,
+                "length": 1,
+                "depth": null,
+                "label": "",
+                "icon": "Default"
+            },
+            {
+                "x": 1,
+                "y": 1,
+                "width": 1,
+                "length": 1,
+                "depth": null,
+                "label": "",
+                "icon": "Default"
+            },
+            {
+                "x": 2,
+                "y": 1,
+                "width": 1,
+                "length": 1,
+                "depth": null,
+                "label": "",
+                "icon": "Default"
+            },
+            {
+                "x": 3,
+                "y": 1,
+                "width": 1,
+                "length": 1,
+                "depth": null,
+                "label": "",
+                "icon": "Default"
+            }
+        ]
+    }
+}

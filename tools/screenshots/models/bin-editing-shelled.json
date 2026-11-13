@@ -1,0 +1,9 @@
+{
+    "description": "README editing GIF: the 3 wide bin shelled",
+    "extends": "_bin.json",
+    "settings": {
+        "binWidth": 3.0,
+        "binType": "Shelled",
+        "isTabHollow": true
+    }
+}

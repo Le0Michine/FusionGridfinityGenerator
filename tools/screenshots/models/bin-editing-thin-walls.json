@@ -1,0 +1,10 @@
+{
+    "description": "README editing GIF: the shelled bin with 0.8 mm walls",
+    "extends": "_bin.json",
+    "settings": {
+        "binWidth": 3.0,
+        "wallThickness": 0.8,
+        "binType": "Shelled",
+        "isTabHollow": true
+    }
+}

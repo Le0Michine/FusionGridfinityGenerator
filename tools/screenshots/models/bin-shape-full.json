@@ -1,0 +1,7 @@
+{
+    "description": "README custom shape GIF: a 2.5x3 bin, every cell",
+    "extends": "_bin.json",
+    "settings": {
+        "binWidth": 2.5
+    }
+}

@@ -6,3 +6,4 @@ commandConfig
 *.wixpdb
 /dist
 tools/screenshots/.venv
+tools/screenshots/models-render.log

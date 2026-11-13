@@ -1,0 +1,186 @@
+{
+    "gifs": [
+        {
+            "name": "baseplate-types",
+            "frames": [
+                {
+                    "picture": "baseplate-light",
+                    "caption": "Light"
+                },
+                {
+                    "picture": "baseplate-skeletonized",
+                    "caption": "Skeletonized"
+                },
+                {
+                    "picture": "baseplate-full",
+                    "caption": "Full"
+                }
+            ],
+            "loopWith": "baseplate-types-dialog"
+        },
+        {
+            "name": "baseplate-connection-holes",
+            "frames": [
+                {
+                    "picture": "baseplate-skeletonized",
+                    "caption": "No connection holes"
+                },
+                {
+                    "picture": "baseplate-skeleton",
+                    "caption": "3.2 mm connection holes"
+                },
+                {
+                    "picture": "baseplate-connection-holes-5mm",
+                    "caption": "5 mm connection holes"
+                }
+            ],
+            "loopWith": "baseplate-connection-holes-dialog"
+        },
+        {
+            "name": "bin-bottom-options",
+            "frames": [
+                {
+                    "picture": "bin-solid-bottom",
+                    "caption": "Solid bottom"
+                },
+                {
+                    "picture": "bin-screw-holes",
+                    "caption": "With screw holes"
+                },
+                {
+                    "picture": "bin-magnet-cutouts",
+                    "caption": "With magnet cutouts"
+                },
+                {
+                    "picture": "bin-magnet-cutouts-with-tabs",
+                    "caption": "Magnet sockets with tabs"
+                },
+                {
+                    "picture": "bin-magnet-cutouts-and-screw-holes-with-groove",
+                    "caption": "Combined, with a groove"
+                }
+            ],
+            "loopWith": "bin-bottom-options-dialog"
+        },
+        {
+            "name": "bin-label-tab-options",
+            "frames": [
+                {
+                    "picture": "bin-label-tab-full",
+                    "caption": "Full length"
+                },
+                {
+                    "picture": "bin-label-tab-single-slot",
+                    "caption": "Single slot"
+                },
+                {
+                    "picture": "bin-label-tab-with-offset",
+                    "caption": "With offset"
+                },
+                {
+                    "picture": "bin-label-tab-angled",
+                    "caption": "Angled top"
+                }
+            ],
+            "loopWith": "bin-label-tab-options-dialog"
+        },
+        {
+            "name": "bin-label-options",
+            "frames": [
+                {
+                    "picture": "bin-label-blank",
+                    "caption": "Blank"
+                },
+                {
+                    "picture": "bin-label-text",
+                    "caption": "Text"
+                },
+                {
+                    "picture": "bin-label-icon",
+                    "caption": "Text and icon"
+                },
+                {
+                    "picture": "bin-label-engraved",
+                    "caption": "Engraved"
+                },
+                {
+                    "picture": "bin-label-embossed",
+                    "caption": "Embossed"
+                }
+            ],
+            "loopWith": "bin-label-options-dialog"
+        },
+        {
+            "name": "bin-half-grid",
+            "frames": [
+                {
+                    "picture": "bin-half-grid-off",
+                    "caption": "Whole bases"
+                },
+                {
+                    "picture": "bin-half-grid-on",
+                    "caption": "Half grid"
+                },
+                {
+                    "picture": "bin-half-grid-half-row",
+                    "caption": "2.5 wide, a row of half bases"
+                }
+            ],
+            "loopWith": "bin-half-grid-dialog"
+        },
+        {
+            "name": "bin-features",
+            "frames": [
+                {
+                    "picture": "hollow-bin",
+                    "caption": "2 wide"
+                },
+                {
+                    "picture": "bin-editing-wider",
+                    "caption": "3 wide"
+                },
+                {
+                    "picture": "bin-editing-shelled",
+                    "caption": "Shelled"
+                },
+                {
+                    "picture": "bin-editing-thin-walls",
+                    "caption": "0.8 mm walls"
+                }
+            ],
+            "loopWith": "bin-features-editing"
+        },
+        {
+            "name": "bin-custom-shape",
+            "frames": [
+                {
+                    "picture": "bin-shape-full",
+                    "caption": "Every cell"
+                },
+                {
+                    "picture": "bin-shape-drawn",
+                    "caption": "Cells left out"
+                }
+            ],
+            "loopWith": "bin-custom-shape-drawing"
+        },
+        {
+            "name": "bin-compartments",
+            "frames": [
+                {
+                    "picture": "bin-compartments-3x2",
+                    "caption": "3x2 compartments"
+                },
+                {
+                    "picture": "bin-compartments-merged",
+                    "caption": "Merged"
+                },
+                {
+                    "picture": "bin-compartments-named",
+                    "caption": "Labeled"
+                }
+            ],
+            "loopWith": "bin-compartments-merging"
+        }
+    ]
+}

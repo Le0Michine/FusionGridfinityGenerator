@@ -1,0 +1,7 @@
+{
+    "description": "README baseplate types: light",
+    "extends": "_baseplate-docs.json",
+    "settings": {
+        "plateType": "Light"
+    }
+}

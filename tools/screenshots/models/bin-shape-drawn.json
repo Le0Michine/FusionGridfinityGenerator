@@ -1,0 +1,38 @@
+{
+    "description": "README custom shape GIF: the 2.5x3 bin with the back of its half column left out",
+    "extends": "_bin.json",
+    "settings": {
+        "binWidth": 2.5,
+        "hasCustomShape": true,
+        "shapeCells": [
+            [
+                0,
+                0
+            ],
+            [
+                0,
+                1
+            ],
+            [
+                0,
+                2
+            ],
+            [
+                1,
+                0
+            ],
+            [
+                1,
+                1
+            ],
+            [
+                1,
+                2
+            ],
+            [
+                2,
+                0
+            ]
+        ]
+    }
+}

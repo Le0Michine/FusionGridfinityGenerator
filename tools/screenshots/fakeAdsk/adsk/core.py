@@ -404,6 +404,20 @@ class CommandCreatedEventArgs:
         self.command = command
 
 
+class InputChangedEventArgs:
+    def __init__(self, input: CommandInput, inputs: CommandInputs):
+        self.input = input
+        self.inputs = inputs
+        self.firingEvent = Anything()
+
+
+class ValidateInputsEventArgs:
+    def __init__(self, inputs: CommandInputs):
+        self.inputs = inputs
+        self.areInputsValid = True
+        self.firingEvent = Anything()
+
+
 class HTMLEventArgs:
     def __init__(self, browserInput: BrowserCommandInput, action: str, data: str):
         self.browserCommandInput = browserInput

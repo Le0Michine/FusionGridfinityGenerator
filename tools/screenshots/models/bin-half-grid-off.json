@@ -1,0 +1,9 @@
+{
+    "description": "README half grid GIF: a 2x1 bin on whole bases",
+    "extends": "_bin.json",
+    "view": "isoBottomRight",
+    "settings": {
+        "binLength": 1,
+        "binHeight": 2.5
+    }
+}

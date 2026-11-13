@@ -1,0 +1,7 @@
+{
+    "description": "README baseplate GIFs: skeletonized, without connection holes",
+    "extends": "_baseplate-docs.json",
+    "settings": {
+        "plateType": "Skeletonized"
+    }
+}

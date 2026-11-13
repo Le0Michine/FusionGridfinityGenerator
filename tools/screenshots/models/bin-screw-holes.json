@@ -1,0 +1,7 @@
+{
+    "description": "README bin bottom options: with screw holes",
+    "extends": "_bin-bottom.json",
+    "settings": {
+        "hasScrewHoles": true
+    }
+}

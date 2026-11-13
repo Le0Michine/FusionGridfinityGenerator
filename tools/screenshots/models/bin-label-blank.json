@@ -1,0 +1,10 @@
+{
+    "description": "README label GIF: a 2x1 bin with a blank label tab",
+    "extends": "_bin.json",
+    "settings": {
+        "binLength": 1,
+        "binHeight": 3,
+        "hasTab": true,
+        "tabLength": 2
+    }
+}

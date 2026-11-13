@@ -1,0 +1,8 @@
+{
+    "description": "A 3x2 bin, its long wall carries the label tab and the scoop",
+    "extends": "_bin.json",
+    "settings": {
+        "binWidth": 3,
+        "binLength": 2
+    }
+}

@@ -2,8 +2,9 @@
 Screenshots of the add-in's dialogs for docs and release notes, drawn outside Fusion in its dark and light themes.
 
 Each shot in a shots file sets the inputs of a command's dialog and takes all of it or the part with some inputs,
-with torn edges where it is cut, see README.md. The dialog is built by the command's own code, see dialogRecorder.py,
-and drawn by page/dialog.js in a browser, its pages are the add-in's own.
+with torn edges where it is cut, see README.md. A shot with steps is an animation of them, see animation.py. The
+dialog is built by the command's own code, see dialogRecorder.py, and drawn by page/dialog.js in a browser, its pages
+are the add-in's own.
 
     tools/screenshots/.venv/bin/python tools/screenshots/screenshots.py [shots.json] [--only NAME ...]
 """
@@ -14,11 +15,12 @@ import glob
 import http.server
 import json
 import os
-import pathlib
 import sys
 import threading
 
+import animation
 import dialogRecorder
+from dialogPage import DialogPage, FONT_URL
 
 SCREENSHOTS_DIR = dialogRecorder.SCREENSHOTS_DIR
 ROOT_DIR = dialogRecorder.ROOT_DIR
@@ -30,7 +32,6 @@ FONT_PATTERNS = [
     '~/Library/Application Support/Autodesk/webdeploy/production/*/*.app/Contents/Resources/FusionCDEHostApps/*/ArtifaktElement{weight}.*.woff2',
     '~/AppData/Local/Autodesk/webdeploy/production/*/FusionCDEHostApps/*/ArtifaktElement{weight}.*.woff2',
 ]
-FONT_URL = '/__fonts/'
 
 
 def findFonts(fontDir: str | None) -> dict[str, str]:
@@ -71,39 +72,10 @@ def serve(fonts: dict[str, str]) -> str:
     return f'http://127.0.0.1:{server.server_port}'
 
 
-def servedModel(model: dict, origin: str) -> dict:
-    """Files of the add-in from the server, pages load the dialog's font from it too"""
-    rootUri = pathlib.Path(ROOT_DIR).as_uri()
-
-    def served(value):
-        if isinstance(value, str):
-            return value.replace(rootUri, origin)
-        if isinstance(value, list):
-            return [served(item) for item in value]
-        if isinstance(value, dict):
-            return {key: served(item) for (key, item) in value.items()}
-        return value
-
-    def answer(text: str) -> str:
-        message = json.loads(text)
-        if isinstance(message, dict) and 'fontUrl' in message:
-            message['fontUrl'] = f'{origin}{FONT_URL}Medium'
-        return json.dumps(served(message))
-
-    def walk(inputs: list[dict]):
-        for input in inputs:
-            if input['type'] == 'browser' and input['answer'].startswith('{'):
-                input['answer'] = answer(input['answer'])
-            walk(input.get('children', []))
-
-    model = served(model)
-    walk(model['inputs'])
-    return model
-
-
 def outputPath(outputDir: str, shot: dict, theme: str, themes: list[str]) -> str:
     name = shot['name'] if len(themes) == 1 else f'{shot["name"]}-{theme}'
-    return os.path.join(outputDir, f'{name}.png')
+    extension = shot.get('format', 'gif') if shot.get('steps') else 'png'
+    return os.path.join(outputDir, f'{name}.{extension}')
 
 
 def launch(playwright):
@@ -133,35 +105,20 @@ def takeShots(shotsFile: str, only: list[str], outputDir: str | None, themes: li
     with sync_playwright() as playwright:
         browser = launch(playwright)
         for shot in shots:
-            defaults = shot.get('defaults')
-            model = dialogRecorder.record(
-                shot['command'],
-                shot.get('values'),
-                shot.get('globals'),
-                os.path.join(ROOT_DIR, defaults) if defaults else None,
-            )
-            model = servedModel(model, origin)
-            if shot.get('width'):
-                model['width'] = shot['width']
             shotThemes = themes or shot.get('themes') or config.get('themes') or THEMES
             for theme in shotThemes:
-                page = browser.new_page(
-                    color_scheme=theme,
-                    device_scale_factor=scale or shot.get('scale') or config.get('scale', 2),
-                    viewport={'width': model['width'] + 200, 'height': 900},
-                )
-                errors = []
-                page.on('pageerror', lambda error: errors.append(str(error)))
-                page.goto(f'{origin}/tools/screenshots/page/dialog.html')
-                page.evaluate('([model, shot]) => renderShot(model, shot)', [model, shot])
-                if errors:
-                    sys.exit(f'{shot["name"]} ({theme}): {errors[0]}')
                 # paths in the shots file are from the add-in folder
                 folder = os.path.join(ROOT_DIR, outputDir or shot.get('output') or config.get('output', 'documentation/assets/ui'))
                 path = outputPath(folder, shot, theme, shotThemes)
                 os.makedirs(os.path.dirname(path), exist_ok=True)
-                page.locator('.shot').screenshot(path=path, omit_background=True)
-                page.close()
+                shotScale = scale or shot.get('scale') or config.get('scale', 2)
+                if shot.get('steps'):
+                    animation.record(browser, origin, shot, theme, shotScale, path)
+                else:
+                    dialog = DialogPage(browser, origin, shot, theme, shotScale, shot.get('background'))
+                    dialog.call('([shot, region]) => frameShot(shot, region)', [shot, None])
+                    dialog.screenshot(path)
+                    dialog.close()
                 print(os.path.relpath(path, ROOT_DIR))
         browser.close()
 

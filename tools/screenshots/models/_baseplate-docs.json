@@ -1,0 +1,9 @@
+{
+    "description": "A 2x3 baseplate as in the README, for the baseplate types to extend",
+    "extends": "_baseplate.json",
+    "settings": {
+        "sizingMode": "Grid units",
+        "plateWidth": 2,
+        "plateLength": 3
+    }
+}

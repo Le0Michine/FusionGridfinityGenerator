@@ -1,0 +1,8 @@
+{
+    "description": "README bin bottom options: magnet sockets with tabs holding the magnets in",
+    "extends": "_bin-bottom.json",
+    "settings": {
+        "hasMagnetCutouts": true,
+        "hasMagnetCutoutsTabs": true
+    }
+}

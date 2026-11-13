@@ -23,6 +23,9 @@
     --scroll-thumb: #e2e2e2;
     --link: #0b6ec5;
     --shadow: rgba(0, 0, 0, 0.28);
+    --focus: #0696d7;
+    --selection: #c5e3f6;
+    --selection-text: #1f1f1f;
 }
 @media (prefers-color-scheme: dark) {
     :root {
@@ -45,6 +48,9 @@
         --scroll-thumb: #5c6c7f;
         --link: #5ec0f5;
         --shadow: rgba(0, 0, 0, 0.5);
+        --focus: #38abdf;
+        --selection: #2f6d96;
+        --selection-text: #ffffff;
     }
 }
 
@@ -284,4 +290,89 @@ iframe {
     width: 100%;
     border: none;
     background: transparent;
+}
+
+/* what an animation shows, see animation.py */
+[hidden] {
+    display: none !important;
+}
+.button:disabled {
+    opacity: 0.45;
+}
+.field.editing {
+    border-color: var(--focus);
+}
+.field .text.selected {
+    background: var(--selection);
+    color: var(--selection-text);
+}
+.field.editing .text:not(.selected)::after {
+    content: "";
+    display: inline-block;
+    width: 1px;
+    height: 15px;
+    margin-left: 1px;
+    vertical-align: -3px;
+    background: var(--field-text);
+}
+.dropdown-list {
+    position: absolute;
+    z-index: 5;
+    padding: 2px 0;
+    background: var(--field);
+    border: 1px solid var(--field-border);
+    box-shadow: 0 4px 10px var(--shadow);
+}
+.dropdown-list .item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    height: 24px;
+    padding: 0 6px;
+    color: var(--field-text);
+    white-space: nowrap;
+    overflow: hidden;
+}
+.dropdown-list .item.lit {
+    background: var(--selection);
+    color: var(--selection-text);
+}
+.dropdown-list .item img {
+    width: 16px;
+    height: 16px;
+}
+.dropdown-list .separator {
+    height: 1px;
+    margin: 2px 0;
+    background: var(--edge);
+}
+.cursor {
+    position: absolute;
+    z-index: 10;
+    pointer-events: none;
+}
+.cursor svg {
+    position: absolute;
+    left: -1px;
+    top: -1px;
+    fill: #000000;
+    stroke: #ffffff;
+    stroke-width: 1.2;
+    stroke-linejoin: round;
+    filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.35));
+}
+.cursor .press {
+    position: absolute;
+    left: -11px;
+    top: -11px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--focus);
+    opacity: 0;
+    transform: scale(0.5);
+}
+.cursor.pressed .press {
+    opacity: 0.35;
+    transform: scale(1);
 }

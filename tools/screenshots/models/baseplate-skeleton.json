@@ -1,0 +1,8 @@
+{
+    "description": "README baseplate types: skeleton with connection holes",
+    "extends": "_baseplate-docs.json",
+    "settings": {
+        "plateType": "Skeletonized",
+        "hasConnectionHoles": true
+    }
+}

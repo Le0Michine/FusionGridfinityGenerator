@@ -1,0 +1,7 @@
+{
+    "description": "README bin type options: shelled bin",
+    "extends": "_bin.json",
+    "settings": {
+        "binType": "Shelled"
+    }
+}

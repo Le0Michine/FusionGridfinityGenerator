@@ -1,0 +1,7 @@
+{
+    "description": "README bin type options: hollow bin",
+    "extends": "_bin.json",
+    "settings": {
+        "binType": "Hollow"
+    }
+}

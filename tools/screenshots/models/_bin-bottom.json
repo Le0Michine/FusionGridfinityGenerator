@@ -1,0 +1,25 @@
+{
+    "description": "A 1x1 bin seen from below, for the bin bottom options to extend",
+    "extends": "_bin.json",
+    "view": {
+        "eye": [
+            -100,
+            -100,
+            -250
+        ],
+        "target": [
+            0,
+            0,
+            0
+        ],
+        "up": [
+            0,
+            0,
+            1
+        ]
+    },
+    "settings": {
+        "binWidth": 1,
+        "binLength": 1
+    }
+}

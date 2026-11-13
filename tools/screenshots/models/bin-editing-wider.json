@@ -1,0 +1,7 @@
+{
+    "description": "README editing GIF: the dialog's bin 3 wide",
+    "extends": "_bin.json",
+    "settings": {
+        "binWidth": 3.0
+    }
+}

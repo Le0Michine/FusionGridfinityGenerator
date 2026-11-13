@@ -1,0 +1,7 @@
+{
+    "description": "README bin bottom options: with magnet cutouts",
+    "extends": "_bin-bottom.json",
+    "settings": {
+        "hasMagnetCutouts": true
+    }
+}
