@@ -1035,11 +1035,16 @@ def cutShapeWallJunctionPockets(
     baseWidth = baseConfiguration.baseWidth.asExpression()
     baseLength = baseConfiguration.baseLength.asExpression()
 
+    def gridOffset(baseUnit: Dim, count: int) -> Dim | float:
+        if count == 0:
+            return 0
+        return baseUnit * count if count != 1 else baseUnit
+
     used = []
     if len(sides) > 0:
-        columns = max(x for (x, _) in sides) + 1
-        rows = max(y for (_, y) in sides) + 1
-        # a cutter on every grid point up to the last junction along a side, the ones elsewhere are removed again
+        # one cutter at the origin, copied and moved by base units to each junction. Every feature keeps a reference
+        # of its own body, the bodies of a pattern with some removed lose theirs once it's recomputed, after the base
+        # units change
         cutter = createWallJunctionPocketCutter(
             Dim.length(origin.x),
             Dim.length(origin.y),
@@ -1048,29 +1053,23 @@ def cutShapeWallJunctionPockets(
             baseConfiguration.xyClearance,
             targetComponent,
         )
-        cutters = [cutter]
-        if columns > 1 or rows > 1:
-            pattern = patternUtils.recPatternGrid(
-                commonUtils.objectCollectionFromList([cutter]),
-                (columns, rows),
-                (baseWidth, baseLength),
-                targetComponent,
-                name='Wall junction pockets pattern',
-            )
-            # pattern bodies include the source cutter, the collection skips the duplicate
-            cutters = list(pattern.bodies) + [cutter]
-
-        kept = set(sides)
-        for body in cutters:
-            box = body.boundingBox
-            point = (
-                round(((box.minPoint.x + box.maxPoint.x) / 2 - origin.x) / baseConfiguration.baseWidth.value),
-                round(((box.minPoint.y + box.maxPoint.y) / 2 - origin.y) / baseConfiguration.baseLength.value),
-            )
-            if point in kept:
-                used.append(body)
+        for (index, (x, y)) in enumerate(sorted(sides)):
+            if index == len(sides) - 1:
+                body = cutter
             else:
-                targetComponent.features.removeFeatures.add(body).name = 'Wall junction pocket remove'
+                copyFeature = targetComponent.features.copyPasteBodies.add(cutter)
+                copyFeature.name = 'Wall junction pocket copy'
+                body = copyFeature.bodies.item(0)
+            if (x, y) != (0, 0):
+                moveInput = targetComponent.features.moveFeatures.createInput2(commonUtils.objectCollectionFromList([body]))
+                moveInput.defineAsTranslateXYZ(
+                    valueInput(gridOffset(baseWidth, x)),
+                    valueInput(gridOffset(baseLength, y)),
+                    valueInput(0),
+                    True,
+                )
+                targetComponent.features.moveFeatures.add(moveInput).name = f'Wall junction pocket move to {x}, {y}'
+            used.append(body)
 
     for ((x, y), openSide) in openings.items():
         used.append(createWallJunctionPocketCutter(
