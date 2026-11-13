@@ -65,7 +65,7 @@ class BinLabelInput():
         self.originX: Dim = None
         self.originY: Dim = None
         self.originZ: Dim = None
-        self.width: float = 0
+        self.width: Dim = None
         self.length: float = 0
         # turns the label down towards the front about its back edge, for tilted tab tops
         self.tiltAngle: float = 0
@@ -173,13 +173,15 @@ def createLabel(
     name: str,
 ) -> adsk.fusion.BRepBody:
     """Icon at the left as tall as the letters of the text after it, standing on their bottom, text alone is centered. Built as a separate body at the current label spot and
-    moved by how far the parametric spot is from it, then cut from or joined to the target body. A tilted label is laid out flat
-    and turned about its back edge before that move, so the move also takes its height.
+    moved by how far the parametric spot is from it, then cut from or joined to the target body. Its sketches lie on a plane
+    at the current height, so a change of the parameters only changes the move: a sketch that moves is recomputed, its
+    text with new curves, and the extrusion of the text loses them. A tilted label is laid out flat and turned about its
+    back edge before that move.
     Planes, sketches and features are named after the given name"""
     features = targetComponent.features
     isTilted = input.tiltAngle != 0
     labelPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
-    labelPlaneInput.setByOffset(targetComponent.xYConstructionPlane, valueInput(Dim.length(input.originZ.value) if isTilted else input.originZ))
+    labelPlaneInput.setByOffset(targetComponent.xYConstructionPlane, valueInput(Dim.length(input.originZ.value)))
     labelPlane = targetComponent.constructionPlanes.add(labelPlaneInput)
     labelPlane.name = f'{name} plane'
     labelPlane.isLightBulbOn = False
@@ -187,7 +189,7 @@ def createLabel(
     margin = const.BIN_LABEL_MARGIN
     contentMinX = input.originX.value + const.BIN_LABEL_SIDE_MARGIN
     contentMinY = input.originY.value + margin
-    contentWidth = input.width - const.BIN_LABEL_SIDE_MARGIN * 2
+    contentWidth = input.width.value - const.BIN_LABEL_SIDE_MARGIN * 2
     contentHeight = input.length - margin * 2
     profiles = adsk.core.ObjectCollection.create()
     iconPath = input.definition.iconPath
@@ -292,10 +294,14 @@ def createLabel(
         tiltFeature = features.moveFeatures.add(tiltInput)
         tiltFeature.name = f'{name} tilt'
 
-    # the label is laid out at the current spot, the move follows the parameters from there
-    shiftX = input.originX - Dim.length(input.originX.value)
+    # the label is laid out at the current spot, the move follows the parameters from there. Its size stays, text
+    # alone stays in the middle of the label area, an icon and its text at its left
+    if iconPath is None:
+        shiftX = input.originX + input.width / 2 - Dim.length(input.originX.value + input.width.value / 2)
+    else:
+        shiftX = input.originX - Dim.length(input.originX.value)
     shiftY = input.originY - Dim.length(input.originY.value)
-    shiftZ = input.originZ - Dim.length(input.originZ.value) if isTilted else Dim.length(0)
+    shiftZ = input.originZ - Dim.length(input.originZ.value)
     if shiftX.isExpression or shiftY.isExpression or shiftZ.isExpression:
         moveInput = features.moveFeatures.createInput2(commonUtils.objectCollectionFromList(labelBodies))
         moveInput.defineAsTranslateXYZ(valueInput(shiftX), valueInput(shiftY), valueInput(shiftZ), True)

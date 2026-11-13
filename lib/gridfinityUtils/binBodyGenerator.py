@@ -364,7 +364,7 @@ def createTabLabel(
     labelInput.originX = minX
     labelInput.originY = tabOriginY - Dim.length(labelLength)
     labelInput.originZ = tabOriginZ - Dim.length(tabTopClearance(style))
-    labelInput.width = (maxX - minX).value
+    labelInput.width = maxX - minX
     labelInput.length = labelLength
     labelInput.tiltAngle = tabTopAngle
     return createLabel(labelInput, targetBody, targetComponent, name=name)
