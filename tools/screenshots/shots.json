@@ -1,0 +1,63 @@
+{
+    "output": "documentation/assets/ui",
+    "shots": [
+        {
+            "name": "fusion-dialog-bin-generator",
+            "command": "bin",
+            "themes": ["light"]
+        },
+        {
+            "name": "fusion-dialog-baseplate-generator",
+            "command": "baseplate",
+            "themes": ["light"],
+            "values": {"print_bed_preset_dropdown": "Prusa XL (360 x 360 mm)", "print_bed_width": "360 mm", "print_bed_length": "360 mm"}
+        },
+        {
+            "name": "bin-uniform-compartments-options",
+            "command": "bin",
+            "themes": ["light"],
+            "values": {"compartments_grid_w": 4, "compartments_grid_l": 2},
+            "inputs": ["compartments_group:header", "compartments_grid_browser", "compartments_show_layout"]
+        },
+        {
+            "name": "bin-custom-compartments-variant-a-options",
+            "command": "bin",
+            "themes": ["light"],
+            "values": {"compartments_grid_w": 4, "compartments_grid_l": 6, "compartments_show_layout": true},
+            "globals": {"compartmentPockets": [
+                {"x": 0, "y": 0, "width": 2, "length": 2},
+                {"x": 0, "y": 2, "width": 1, "length": 4},
+                {"x": 1, "y": 2, "width": 1, "length": 4},
+                {"x": 2, "y": 0, "width": 2, "length": 5},
+                {"x": 2, "y": 5, "width": 2, "length": 1}
+            ]},
+            "inputs": ["compartments_group:header", "compartments_browser"]
+        },
+        {
+            "name": "bin-custom-compartments-variant-b-options",
+            "command": "bin",
+            "themes": ["light"],
+            "values": {"compartments_grid_w": 4, "compartments_grid_l": 6, "compartments_show_layout": true},
+            "globals": {"compartmentPockets": [
+                {"x": 0, "y": 0, "width": 1, "length": 1},
+                {"x": 1, "y": 0, "width": 1, "length": 1},
+                {"x": 2, "y": 0, "width": 1, "length": 1},
+                {"x": 3, "y": 0, "width": 1, "length": 1},
+                {"x": 0, "y": 1, "width": 4, "length": 1},
+                {"x": 0, "y": 2, "width": 1, "length": 4},
+                {"x": 1, "y": 2, "width": 1, "length": 4},
+                {"x": 2, "y": 2, "width": 1, "length": 3},
+                {"x": 3, "y": 2, "width": 1, "length": 4},
+                {"x": 2, "y": 5, "width": 2, "length": 1}
+            ]},
+            "inputs": ["compartments_group:header", "compartments_browser"]
+        },
+        {
+            "name": "bin-custom-shape",
+            "command": "bin",
+            "values": {"bin_width": 2.5, "custom_shape": true},
+            "globals": {"binShapeCells": [[0, 0], [1, 0], [2, 0], [0, 1], [1, 1], [2, 1], [0, 2], [1, 2]]},
+            "inputs": ["bin_dimensions_group"]
+        }
+    ]
+}

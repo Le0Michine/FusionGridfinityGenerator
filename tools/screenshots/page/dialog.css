@@ -1,0 +1,287 @@
+/* a Fusion command dialog, colors and sizes taken from screenshots of Fusion at 1x */
+@font-face { font-family: "Artifakt Element"; font-weight: 400; src: url("/__fonts/Regular"); }
+@font-face { font-family: "Artifakt Element"; font-weight: 500; src: url("/__fonts/Medium"); }
+@font-face { font-family: "Artifakt Element"; font-weight: 700; src: url("/__fonts/Bold"); }
+
+:root {
+    --panel: #f6f6f6;
+    --edge: #e6e6e6;
+    --text: #3c3c3c;
+    --muted: #8a8a8a;
+    --disabled: #b4b4b4;
+    --field: #ffffff;
+    --field-border: #e2e2e2;
+    --field-text: #444444;
+    --arrow: #6e6e6e;
+    --check: #ffffff;
+    --check-border: #d9d9d9;
+    --checked: #8b8b8b;
+    --checked-border: #8b8b8b;
+    --checkmark: #ffffff;
+    --button-border: #c2c2c2;
+    --scroll-track: #ececec;
+    --scroll-thumb: #e2e2e2;
+    --link: #0b6ec5;
+    --shadow: rgba(0, 0, 0, 0.28);
+}
+@media (prefers-color-scheme: dark) {
+    :root {
+        --panel: #404e5f;
+        --edge: #4f5e6f;
+        --text: #eef0f2;
+        --muted: #9aa3ad;
+        --disabled: #7d8896;
+        --field: #303c4a;
+        --field-border: #283542;
+        --field-text: #e8e9ea;
+        --arrow: #abb0b9;
+        --check: #4c5a6d;
+        --check-border: #708196;
+        --checked: #ffffff;
+        --checked-border: #bec1c7;
+        --checkmark: #404e5f;
+        --button-border: #8398ac;
+        --scroll-track: #4f5d6f;
+        --scroll-thumb: #5c6c7f;
+        --link: #5ec0f5;
+        --shadow: rgba(0, 0, 0, 0.5);
+    }
+}
+
+* {
+    box-sizing: border-box;
+}
+html, body {
+    margin: 0;
+    background: transparent;
+}
+body {
+    font: 500 13px "Artifakt Element", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+}
+
+/* what is captured, the margin leaves room for the shadow */
+.shot {
+    display: inline-block;
+    padding: 24px;
+}
+.frame {
+    filter: drop-shadow(0 2px 8px var(--shadow));
+}
+.viewport {
+    overflow: hidden;
+    position: relative;
+}
+
+.dialog {
+    position: relative;
+    background: var(--panel);
+    border: 1px solid var(--edge);
+}
+.title-bar {
+    display: flex;
+    align-items: center;
+    height: 24px;
+    padding: 0 8px;
+    gap: 10px;
+    border-bottom: 1px solid var(--edge);
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+.title-bar .title {
+    flex: 1;
+}
+.title-bar svg {
+    display: block;
+    fill: none;
+    stroke: var(--text);
+    stroke-width: 1.4;
+    opacity: 0.8;
+}
+.body {
+    position: relative;
+    overflow: hidden;
+}
+.scrollbar {
+    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    right: 5px;
+    width: 5px;
+    border-radius: 3px;
+    background: var(--scroll-track);
+}
+.scrollbar .thumb {
+    position: absolute;
+    left: 0;
+    right: 0;
+    border-radius: 3px;
+    background: var(--scroll-thumb);
+}
+.footer {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 22px;
+    height: 36px;
+    padding: 0 13px;
+    border-top: 1px solid var(--edge);
+}
+
+/* groups, a line between the dialog's own, nested ones are indented */
+.group.top + .group.top {
+    border-top: 1px solid var(--edge);
+}
+.group.top {
+    padding-bottom: 6px;
+}
+.group-header {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    height: 34px;
+    padding: 4px 12px 0 10px;
+    font-weight: 700;
+}
+.group:first-child > .group-header {
+    height: 31px;
+    padding-top: 1px;
+}
+.group-header svg {
+    fill: var(--text);
+    opacity: 0.85;
+}
+.group.nested > .group-header {
+    font-weight: 500;
+    height: 31px;
+    padding-top: 0;
+}
+.group.nested > .children .label {
+    padding-left: 12px;
+}
+
+/* a row has the label on the left and the input in a column on the right */
+.row {
+    display: grid;
+    grid-template-columns: 1fr 200px;
+    align-items: center;
+    column-gap: 4px;
+    min-height: 31px;
+    padding: 2px 32px 2px 12px;
+}
+.row.full {
+    grid-template-columns: 1fr;
+    padding-left: 8px;
+    padding-right: 30px;
+}
+.row.disabled .label,
+.row.disabled .field,
+.row.disabled .text-box {
+    color: var(--disabled);
+}
+.row.disabled .checkbox,
+.row.disabled .button,
+.row.disabled iframe {
+    opacity: 0.45;
+}
+.label {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+.field {
+    display: flex;
+    align-items: center;
+    height: 27px;
+    padding: 0 5px;
+    gap: 5px;
+    background: var(--field);
+    border: 1px solid var(--field-border);
+    color: var(--field-text);
+    white-space: nowrap;
+    overflow: hidden;
+}
+.field .text {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.field img {
+    width: 16px;
+    height: 16px;
+}
+.field svg {
+    flex: none;
+    fill: var(--arrow);
+}
+.spin {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    margin-right: -2px;
+}
+.spin span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 11px;
+    height: 10px;
+    border: 1px solid var(--edge);
+}
+.checkbox {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 15px;
+    height: 15px;
+    margin-left: 5px;
+    border: 1px solid var(--check-border);
+    border-radius: 2px;
+    background: var(--check);
+}
+.checkbox.checked {
+    background: var(--checked);
+    border-color: var(--checked-border);
+}
+.checkbox svg {
+    fill: none;
+    stroke: var(--checkmark);
+    stroke-width: 1.8;
+}
+.button {
+    height: 24px;
+    padding: 0 14px;
+    min-width: 43px;
+    font: inherit;
+    color: var(--text);
+    background: transparent;
+    border: 1px solid var(--button-border);
+    border-radius: 3px;
+    white-space: nowrap;
+}
+.text-box {
+    align-self: start;
+    padding: 4px 12px;
+    line-height: 17px;
+}
+.text-box a {
+    color: var(--link);
+}
+.row.text .label {
+    align-self: start;
+    padding-top: 4px;
+}
+.table {
+    display: grid;
+    align-items: center;
+    min-height: 27px;
+    padding-left: 2px;
+}
+iframe {
+    display: block;
+    width: 100%;
+    border: none;
+    background: transparent;
+}

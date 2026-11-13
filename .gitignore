@@ -5,3 +5,4 @@ commandConfig
 *.msi
 *.wixpdb
 /dist
+tools/screenshots/.venv
