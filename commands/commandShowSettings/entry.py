@@ -84,7 +84,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
         command.commandInputs.addTextBoxCommandInput(SETTINGS_TEXT_INPUT, '', 'Select a generated bin or baseplate.', 1, True)
         return
     (tagName, value) = tag
-    command.setDialogInitialSize(400, 500)
+    command.setDialogInitialSize(450, 500)
     textBox = command.commandInputs.addTextBoxCommandInput(
         SETTINGS_TEXT_INPUT,
         TAG_TITLES.get(tagName, CMD_NAME),

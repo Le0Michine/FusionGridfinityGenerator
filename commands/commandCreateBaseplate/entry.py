@@ -260,7 +260,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     futil.log(f'{CMD_NAME} Command Created Event')
     global uiState
 
-    args.command.setDialogInitialSize(400, 500)
+    args.command.setDialogInitialSize(450, 500)
     applySharedParameterDefaults()
 
     # https://help.autodesk.com/view/fusion360/ENU/?contextId=CommandInputs
