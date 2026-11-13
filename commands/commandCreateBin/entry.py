@@ -3,36 +3,24 @@ import os
 import pathlib
 import time
 import math
-import copy
 
 
 from ...lib import configUtils
 from ...lib import tagUtils
 from ...lib import settingsUtils
-from ...lib import placementUtils
 from ...lib import fusion360utils as futil
 from ... import config
-from ...lib.gridfinityUtils import combineUtils
-from ...lib.gridfinityUtils import geometryUtils
-from ...lib.gridfinityUtils import faceUtils
-from ...lib.gridfinityUtils import shellUtils
 from ...lib.gridfinityUtils import commonUtils
 from ...lib.gridfinityUtils import const
-from ...lib.gridfinityUtils import parameterUtils
 from ...lib.gridfinityUtils import sharedParameters
-from ...lib.gridfinityUtils.dim import Dim
-from ...lib.gridfinityUtils.baseGenerator import createFootGrid, cutBaseClearance, cutWallJunctionPockets, footCenters, createCellJointOrigins, keepBodiesInCells, cutOutsideShape, cutShapeWallJunctionPockets
-from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
-from ...lib.gridfinityUtils.binBodyGenerator import createGridfinityBinBody, createShapeCavity, binBodyTopHeight, createCompartmentCutout, compartmentCutoutFilletRadius, tabTopClearance, createTabLabel, hollowTabWallThickness
 from ...lib.gridfinityUtils import labelGenerator
 from ...lib.gridfinityUtils import compartmentLayout
 from ...lib.gridfinityUtils import binShape
 from ...lib.gridfinityUtils import binGrid
 from ...lib.gridfinityUtils import wallCreases
-from ...lib.gridfinityUtils.wallCreaseGenerator import createCreaseFolds
-from ...lib.gridfinityUtils.binBodyGeneratorInput import BinBodyGeneratorInput, BinBodyCompartmentDefinition
-from ...lib.gridfinityUtils.binBodyTabGeneratorInput import BinBodyTabGeneratorInput
-from ...lib.gridfinityUtils.binBodyTabGenerator import createGridfinityBinBodyTab, createTabHollowCuts, TabCavity, TabWallOpenings
+from .inputState import InputState
+from . import binBuilder
+from .binBuilder import BIN_TYPE_HOLLOW, BIN_TYPE_SHELLED, BIN_TYPE_SOLID
 from ...lib.ui.commandUiState import CommandUiState
 from ...lib.ui.defaultsButtons import addDefaultsButtonRow, defaultsButtonsHandlers, DEFAULTS_SAVE, DEFAULTS_FACTORY_RESET
 from ...lib.ui import browserPages
@@ -158,20 +146,6 @@ BIN_TYPE_DROPDOWN_ID = 'bin_type'
 BIN_SHAPE_CUSTOM_ID = 'custom_shape'
 BIN_SHAPE_BROWSER_ID = 'shape_browser'
 SHAPE_NOTE = 'Compartments, scoop and label tab are not built for custom shapes yet'
-BIN_TYPE_HOLLOW = 'Hollow'
-BIN_TYPE_SHELLED = 'Shelled'
-
-# default name of bins generated before tagging, keep as is even if the naming changes
-BIN_LEGACY_NAME_PREFIX = 'Gridfinity bin '
-
-# User parameter names are stored in user documents, keep these literal
-BIN_PARAMETER_BASE_NAME = 'gfBin'
-BIN_HEIGHT_PARAMETER = 'heightU'
-BIN_LABEL_PARAMETER = 'label'
-# per bin fallback for the shared height unit
-BIN_HEIGHT_UNIT_PARAMETER = 'heightUnit'
-BIN_PARAMETERS = [BIN_HEIGHT_PARAMETER, BIN_HEIGHT_UNIT_PARAMETER, sharedParameters.BASE_WIDTH_FALLBACK_PARAMETER, sharedParameters.BASE_LENGTH_FALLBACK_PARAMETER]
-BIN_TYPE_SOLID = 'Solid'
 
 INPUT_CHANGES_BUTTONS_BROWSER = 'input_changes_buttons'
 PRESERVE_CHAGES_RADIO_GROUP = 'preserve_changes'
@@ -204,25 +178,6 @@ def applySharedParameterDefaults():
         if value is not None:
             commandUIState.initValue(inputId, value, adsk.core.ValueCommandInput.classType())
             commonUtils.debugLog(f'{CMD_NAME} dialog default {inputId} = {value} from the shared parameter')
-
-def createLabelDefinition(
-    design: adsk.fusion.Design,
-    binParameterPrefix: str,
-    parameterName: str,
-    text: str,
-    icon: str,
-) -> labelGenerator.BinLabelDefinition | None:
-    """The text goes into a text parameter so the label can be edited later, nothing for a blank label"""
-    textParameter = None
-    if len(text.strip()) > 0:
-        textParameter = parameterUtils.addTextParameter(
-            design,
-            parameterUtils.parameterName(binParameterPrefix, parameterName),
-            text,
-            'Gridfinity bin label text',
-        )
-    definition = labelGenerator.BinLabelDefinition(textParameter, labelGenerator.iconPath(icon))
-    return None if definition.isEmpty else definition
 
 def refreshUi():
     global commandUIState
@@ -541,21 +496,16 @@ def isHalfGrid() -> bool:
     return commandUIState.getState(BIN_HALF_GRID_INPUT_ID)
 
 def gridDivisions() -> int:
-    """Grid cells per base unit of the bin outline, see binGrid.outlineDivisions"""
-    return binGrid.outlineDivisions(commandUIState.getState(BIN_WIDTH_INPUT_ID), commandUIState.getState(BIN_LENGTH_INPUT_ID), isHalfGrid())
+    return binBuilder.gridDivisions(getInputsState())
 
 def feetSize() -> tuple[float, float]:
-    """The bin size in feet, half ones in a half grid, ending in a half foot for a whole grid bin ending in a half"""
-    feetPerUnit = binGrid.feetPerUnit(isHalfGrid())
-    return (commandUIState.getState(BIN_WIDTH_INPUT_ID) * feetPerUnit, commandUIState.getState(BIN_LENGTH_INPUT_ID) * feetPerUnit)
+    return binBuilder.feetSize(getInputsState())
 
 def feetGridSize() -> tuple[int, int]:
-    """Columns and rows of feet, the shape is drawn in, a half foot counts as one"""
-    (columns, rows) = feetSize()
-    return (len(binGrid.footSpans(columns)), len(binGrid.footSpans(rows)))
+    return binBuilder.feetGridSize(getInputsState())
 
 def outlineCellsPerFoot() -> int:
-    return binGrid.outlineCellsPerFoot(commandUIState.getState(BIN_WIDTH_INPUT_ID), commandUIState.getState(BIN_LENGTH_INPUT_ID), isHalfGrid())
+    return binBuilder.outlineCellsPerFoot(getInputsState())
 
 def normalizeShapeCells():
     """Shape cells within the bin, every cell when the shape is first shown"""
@@ -569,50 +519,19 @@ def normalizeShapeCells():
         binShapeCells = binShape.rectangle(columns, rows)
 
 def shapeCells() -> list[tuple[int, int]]:
-    """Feet the bin stands on, as drawn, all of them without a custom shape, see feetGridSize"""
-    (columns, rows) = feetGridSize()
-    if not commandUIState.getState(BIN_SHAPE_CUSTOM_ID):
-        return binShape.rectangle(columns, rows)
-    return binShape.normalizeShape(binShapeCells, columns, rows)
+    return binBuilder.shapeCells(getInputsState())
 
 def outlineCells() -> list[tuple[int, int]]:
-    """Cells of the outline grid the bin covers, half cells in a half grid or for sizes ending in a half, see gridDivisions"""
-    return binShape.footShapeToOutline(shapeCells(), *feetSize(), outlineCellsPerFoot())
+    return binBuilder.outlineCells(getInputsState())
 
 def isShaped() -> bool:
-    """A custom shape leaving cells out, a full one builds a plain bin"""
-    return commandUIState.getState(BIN_SHAPE_CUSTOM_ID) and not binShape.isRectangle(shapeCells(), *feetGridSize())
+    return binBuilder.isShaped(getInputsState())
 
 def shapeError() -> str | None:
-    """Why the shaped bin can't be built, none when it can or the bin is a plain rectangle"""
-    if not isShaped():
-        return None
-    return binShape.shapeError(shapeCells())
+    return binBuilder.shapeError(getInputsState())
 
 def creaseLayout() -> list[tuple[wallCreases.WallSide, int]]:
-    """
-    Creased walls of the bin with their panel count, none when it gets no creases. A creased bin has a single compartment and a solid label tab,
-    the folds would run into dividers and tab hollows
-    """
-    binType = commandUIState.getState(BIN_TYPE_DROPDOWN_ID)
-    if not commandUIState.getState(BIN_GENERATE_BODY_INPUT_ID) or not commandUIState.getState(BIN_CREASES_INPUT_ID):
-        return []
-    if binType not in [BIN_TYPE_HOLLOW, BIN_TYPE_SHELLED]:
-        return []
-    if commandUIState.getState(BIN_HEIGHT_INPUT_ID) < commandUIState.getState(BIN_CREASE_MIN_HEIGHT_INPUT_ID):
-        return []
-    # the scoop braces the front wall already
-    hasScoop = commandUIState.getState(BIN_HAS_SCOOP_INPUT_ID) and binType == BIN_TYPE_HOLLOW and not isShaped()
-    # in outline grid cells, the lengths in base units scale along
-    divisions = gridDivisions()
-    return wallCreases.creaseLayout(
-        outlineCells(),
-        commandUIState.getState(BIN_BASE_WIDTH_UNIT_INPUT_ID) / divisions,
-        commandUIState.getState(BIN_BASE_LENGTH_UNIT_INPUT_ID) / divisions,
-        commandUIState.getState(BIN_CREASE_MIN_LENGTH_INPUT_ID) * divisions,
-        commandUIState.getState(BIN_CREASE_MAX_PANEL_LENGTH_INPUT_ID) * divisions,
-        hasScoop,
-    )
+    return binBuilder.creaseLayout(getInputsState())
 
 def shapeDrawingData() -> dict:
     (columns, rows) = feetGridSize()
@@ -1155,460 +1074,70 @@ def snapshotSettings(inputs: adsk.core.CommandInputs) -> list[dict]:
         settings.append({'title': 'Shape', 'items': [[f'Row {index}', row] for (index, row) in zip(reversed(range(1, len(rows) + 1)), rows)]})
     return settings
 
+def getInputsState() -> InputState:
+    def angle(inputId: str) -> float:
+        """Angles are kept as the expression typed in, see CommandUiState.onInputUpdate"""
+        return app.activeProduct.unitsManager.evaluateExpression(str(commandUIState.getState(inputId)), 'deg')
+    return InputState(
+        baseWidth=commandUIState.getState(BIN_BASE_WIDTH_UNIT_INPUT_ID),
+        baseLength=commandUIState.getState(BIN_BASE_LENGTH_UNIT_INPUT_ID),
+        heightUnit=commandUIState.getState(BIN_HEIGHT_UNIT_INPUT_ID),
+        xyClearance=commandUIState.getState(BIN_XY_CLEARANCE_INPUT_ID),
+        binWidth=commandUIState.getState(BIN_WIDTH_INPUT_ID),
+        binLength=commandUIState.getState(BIN_LENGTH_INPUT_ID),
+        binHeight=commandUIState.getState(BIN_HEIGHT_INPUT_ID),
+        isHalfGrid=isHalfGrid(),
+        wallThickness=commandUIState.getState(BIN_WALL_THICKNESS_INPUT_ID),
+        binType=commandUIState.getState(BIN_TYPE_DROPDOWN_ID),
+        generateBase=commandUIState.getState(BIN_GENERATE_BASE_INPUT_ID),
+        generateBody=commandUIState.getState(BIN_GENERATE_BODY_INPUT_ID),
+        hasJointOrigins=commandUIState.getState(BIN_JOINT_ORIGINS_INPUT_ID),
+        hasScrewHoles=commandUIState.getState(BIN_SCREW_HOLES_INPUT_ID),
+        screwHoleDiameter=commandUIState.getState(BIN_SCREW_DIAMETER_INPUT),
+        hasMagnetCutouts=commandUIState.getState(BIN_MAGNET_CUTOUTS_INPUT_ID),
+        hasMagnetCutoutsTabs=commandUIState.getState(BIN_MAGNET_CUTOUTS_TABS_INPUT_ID),
+        magnetCutoutDiameter=commandUIState.getState(BIN_MAGNET_DIAMETER_INPUT),
+        magnetCutoutDepth=commandUIState.getState(BIN_MAGNET_HEIGHT_INPUT),
+        hasLip=commandUIState.getState(BIN_WITH_LIP_INPUT_ID),
+        hasLipNotches=commandUIState.getState(BIN_WITH_LIP_NOTCHES_INPUT_ID),
+        hasScoop=commandUIState.getState(BIN_HAS_SCOOP_INPUT_ID),
+        scoopMaxRadius=commandUIState.getState(BIN_SCOOP_MAX_RADIUS_INPUT_ID),
+        hasTab=commandUIState.getState(BIN_HAS_TAB_INPUT_ID),
+        tabLength=commandUIState.getState(BIN_TAB_LENGTH_INPUT_ID),
+        tabWidth=commandUIState.getState(BIN_TAB_WIDTH_INPUT_ID),
+        tabPosition=commandUIState.getState(BIN_TAB_POSITION_INPUT_ID),
+        tabOverhangAngle=angle(BIN_TAB_ANGLE_INPUT_ID),
+        isTabHollow=commandUIState.getState(BIN_TAB_HOLLOW_INPUT_ID),
+        isTabOpenThroughSides=commandUIState.getState(BIN_TAB_HOLLOW_SIDES_INPUT_ID),
+        tabTopAngle=angle(BIN_TAB_TOP_ANGLE_INPUT_ID),
+        labelText=commandUIState.getState(BIN_TAB_LABEL_TEXT_INPUT_ID),
+        labelIcon=commandUIState.getState(BIN_TAB_LABEL_ICON_INPUT_ID),
+        labelStyle=commandUIState.getState(BIN_TAB_LABEL_STYLE_INPUT_ID),
+        isLabelBold=commandUIState.getState(BIN_TAB_LABEL_BOLD_INPUT_ID),
+        compartmentsX=commandUIState.getState(BIN_COMPARTMENTS_GRID_BASE_WIDTH_ID),
+        compartmentsY=commandUIState.getState(BIN_COMPARTMENTS_GRID_BASE_LENGTH_ID),
+        showCompartmentsLayout=commandUIState.getState(BIN_COMPARTMENTS_SHOW_LAYOUT_ID),
+        compartmentPockets=compartmentPockets,
+        hasCustomShape=commandUIState.getState(BIN_SHAPE_CUSTOM_ID),
+        shapeCells=binShapeCells,
+        hasCreases=commandUIState.getState(BIN_CREASES_INPUT_ID),
+        creaseDepth=commandUIState.getState(BIN_CREASE_DEPTH_INPUT_ID),
+        creaseMinLength=commandUIState.getState(BIN_CREASE_MIN_LENGTH_INPUT_ID),
+        creaseMaxPanelLength=commandUIState.getState(BIN_CREASE_MAX_PANEL_LENGTH_INPUT_ID),
+        creaseMinHeight=commandUIState.getState(BIN_CREASE_MIN_HEIGHT_INPUT_ID),
+    )
+
 def generateBin(args: adsk.core.CommandEventArgs):
     startTime = time.perf_counter()
-    inputs = args.command.commandInputs
+    settings = snapshotSettings(args.command.commandInputs)
     # the settings come first, so a failing build can be reproduced from the log
-    commonUtils.fileLog(f'{CMD_NAME} generating with settings:\n{settingsUtils.settingsText(snapshotSettings(inputs))}')
-    base_width_unit: adsk.core.ValueCommandInput = inputs.itemById(BIN_BASE_WIDTH_UNIT_INPUT_ID)
-    base_length_unit: adsk.core.ValueCommandInput = inputs.itemById(BIN_BASE_LENGTH_UNIT_INPUT_ID)
-    height_unit: adsk.core.ValueCommandInput = inputs.itemById(BIN_HEIGHT_UNIT_INPUT_ID)
-    xy_clearance: adsk.core.ValueCommandInput = inputs.itemById(BIN_XY_CLEARANCE_INPUT_ID)
-    bin_width: adsk.core.ValueCommandInput = inputs.itemById(BIN_WIDTH_INPUT_ID)
-    bin_length: adsk.core.ValueCommandInput = inputs.itemById(BIN_LENGTH_INPUT_ID)
-    bin_height: adsk.core.ValueCommandInput = inputs.itemById(BIN_HEIGHT_INPUT_ID)
-    bin_wall_thickness: adsk.core.ValueCommandInput = inputs.itemById(BIN_WALL_THICKNESS_INPUT_ID)
-    bin_screw_holes: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_SCREW_HOLES_INPUT_ID)
-    bin_generate_base: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_GENERATE_BASE_INPUT_ID)
-    bin_generate_body: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_GENERATE_BODY_INPUT_ID)
-    bin_magnet_cutouts: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_MAGNET_CUTOUTS_INPUT_ID)
-    bin_screw_hole_diameter: adsk.core.ValueCommandInput = inputs.itemById(BIN_SCREW_DIAMETER_INPUT)
-    bin_magnet_cutouts_tabs: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_MAGNET_CUTOUTS_TABS_INPUT_ID)
-    bin_magnet_cutout_diameter: adsk.core.ValueCommandInput = inputs.itemById(BIN_MAGNET_DIAMETER_INPUT)
-    bin_magnet_cutout_depth: adsk.core.ValueCommandInput = inputs.itemById(BIN_MAGNET_HEIGHT_INPUT)
-    with_lip: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_WITH_LIP_INPUT_ID)
-    with_lip_notches: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_WITH_LIP_NOTCHES_INPUT_ID)
-    has_scoop: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_SCOOP_INPUT_ID)
-    binScoopMaxRadius: adsk.core.ValueCommandInput = inputs.itemById(BIN_SCOOP_MAX_RADIUS_INPUT_ID)
-    hasTabInput: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_HAS_TAB_INPUT_ID)
-    binTabLength: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_LENGTH_INPUT_ID)
-    binTabWidth: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_WIDTH_INPUT_ID)
-    binTabPosition: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_POSITION_INPUT_ID)
-    binTabAngle: adsk.core.ValueCommandInput = inputs.itemById(BIN_TAB_ANGLE_INPUT_ID)
-    binTabHollow: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_TAB_HOLLOW_INPUT_ID)
-    labelTextInput: adsk.core.StringValueCommandInput = inputs.itemById(BIN_TAB_LABEL_TEXT_INPUT_ID)
-    labelIconInput: adsk.core.DropDownCommandInput = inputs.itemById(BIN_TAB_LABEL_ICON_INPUT_ID)
-    labelStyleInput: adsk.core.DropDownCommandInput = inputs.itemById(BIN_TAB_LABEL_STYLE_INPUT_ID)
-    labelBoldInput: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_TAB_LABEL_BOLD_INPUT_ID)
-    binTypeDropdownInput: adsk.core.DropDownCommandInput = inputs.itemById(BIN_TYPE_DROPDOWN_ID)
-    # creased bins have a single compartment and a solid tab, see creaseLayout
-    creases = creaseLayout()
-    compartmentsX: int = 1 if len(creases) > 0 else commandUIState.getState(BIN_COMPARTMENTS_GRID_BASE_WIDTH_ID)
-    compartmentsY: int = 1 if len(creases) > 0 else commandUIState.getState(BIN_COMPARTMENTS_GRID_BASE_LENGTH_ID)
-
-    isHollow = binTypeDropdownInput.selectedItem.name == BIN_TYPE_HOLLOW
-    isSolid = binTypeDropdownInput.selectedItem.name == BIN_TYPE_SOLID
-    isShelled = binTypeDropdownInput.selectedItem.name == BIN_TYPE_SHELLED
-    # a custom shape leaving cells out, without lip, scoop and tab for now. It's drawn in feet, its outline may be in half cells
-    cells = shapeCells()
-    shaped = isShaped()
-    outline = outlineCells()
-    cellsPerFoot = outlineCellsPerFoot()
-    # the bin size in feet, half ones in a half grid, the feet grid cells are as much smaller
-    halfGrid = isHalfGrid()
-    feetPerUnit = binGrid.feetPerUnit(halfGrid)
-    columns = bin_width.value * feetPerUnit
-    rows = bin_length.value * feetPerUnit
+    commonUtils.fileLog(f'{CMD_NAME} generating with settings:\n{settingsUtils.settingsText(settings)}')
+    state = getInputsState()
 
     try:
-        if shapeError() is not None:
-            raise ValueError(shapeError())
         des = adsk.fusion.Design.cast(app.activeProduct)
-        if des.designType == adsk.fusion.DesignTypes.DirectDesignType:
-            raise UnsupportedDesignTypeException('Timeline must be enabled for the generator to work, projects with disabled design history currently are not supported')
-        root = adsk.fusion.Component.cast(des.rootComponent)
-
-        xyClearance = xy_clearance.value
-        binName = 'Gridfinity bin {}x{}x{}{}'.format(
-            binGrid.formatSize(bin_length.value),
-            binGrid.formatSize(bin_width.value),
-            int(bin_height.value),
-            ' half grid' if halfGrid else '',
-        )
-
-        originalTimelineCount = des.timeline.count
-        if des.designIntent == adsk.fusion.DesignIntentTypes.HybridDesignIntentType:
-            # create new component, only allowed in hybrid intent type
-            newCmpOcc = adsk.fusion.Occurrences.cast(root.occurrences).addNewComponent(adsk.core.Matrix3D.create())
-            newCmpOcc.component.name = binName
-            newCmpOcc.activate()
-            gridfinityBinComponent: adsk.fusion.Component = newCmpOcc.component
-        else:
-            gridfinityBinComponent: adsk.fusion.Component = des.rootComponent
-        features: adsk.fusion.Features = gridfinityBinComponent.features
-
-        # pick the spot before generating, so none of this bin's geometry can count as an obstacle
-        binPlacement = placementUtils.findPlacement(
-            des,
-            tagUtils.TAG_BIN,
-            BIN_LEGACY_NAME_PREFIX,
-            (
-                0,
-                0,
-                bin_width.value * base_width_unit.value - xyClearance * 2,
-                bin_length.value * base_length_unit.value - xyClearance * 2,
-            ),
-            base_width_unit.value,
-            base_length_unit.value,
-        )
-
-        binParameterPrefix = parameterUtils.nextFreePrefix(des, BIN_PARAMETER_BASE_NAME, BIN_PARAMETERS)
-        (baseWidthParameter, baseLengthParameter) = sharedParameters.findOrCreateBaseUnitParameters(
-            des,
-            base_width_unit.value,
-            base_length_unit.value,
-            binParameterPrefix,
-            'bin',
-            CMD_NAME,
-        )
-        baseWidth = Dim.parameter(baseWidthParameter)
-        baseLength = Dim.parameter(baseLengthParameter)
-        gridWidth = baseWidth / feetPerUnit if halfGrid else baseWidth
-        gridLength = baseLength / feetPerUnit if halfGrid else baseLength
-        # user parameters driving the bin, kept in its tag to show with its settings
-        binParameters = [['Base width unit', baseWidthParameter.name], ['Base length unit', baseLengthParameter.name]]
-
-        # create base interface
-        baseGeneratorInput = BaseGeneratorInput()
-        baseGeneratorInput.originPoint = geometryUtils.createOffsetPoint(
-            gridfinityBinComponent.originConstructionPoint.geometry,
-            byX=-xyClearance,
-            byY=-xyClearance,
-        )
-        baseGeneratorInput.baseWidth = gridWidth
-        baseGeneratorInput.baseLength = gridLength
-        baseGeneratorInput.xyClearance = xyClearance
-        # half feet have no room for holes
-        baseGeneratorInput.hasScrewHoles = bin_screw_holes.value and not isShelled and not halfGrid
-        baseGeneratorInput.hasMagnetCutouts = bin_magnet_cutouts.value and not isShelled and not halfGrid
-        baseGeneratorInput.hasMagnetCutoutsTabs = bin_magnet_cutouts_tabs.value and not isShelled and not halfGrid
-        baseGeneratorInput.screwHolesDiameter = bin_screw_hole_diameter.value
-        baseGeneratorInput.magnetCutoutsDiameter = bin_magnet_cutout_diameter.value
-        baseGeneratorInput.magnetCutoutsDepth = bin_magnet_cutout_depth.value
-
-        # the grid of the outline, for the shape and creases, in half cells for a whole grid bin ending in a half, see gridDivisions
-        if gridDivisions() == feetPerUnit:
-            outlineGrid = baseGeneratorInput
-        else:
-            outlineGrid = copy.copy(baseGeneratorInput)
-            outlineGrid.baseWidth = baseWidth / gridDivisions()
-            outlineGrid.baseLength = baseLength / gridDivisions()
-
-        baseBodies: list[adsk.fusion.BRepBody]
-        if bin_generate_base.value:
-            baseBodies = createFootGrid(
-                baseGeneratorInput,
-                columns,
-                rows,
-                gridfinityBinComponent,
-            )
-            if shaped:
-                baseBodies = keepBodiesInCells(baseBodies, cells, baseGeneratorInput, gridfinityBinComponent, name='Foot outside shape remove')
-
-        # create bin body
-        binBodyInput = BinBodyGeneratorInput()
-        binBodyInput.hasLip = with_lip.value
-        binBodyInput.shapeCells = outline if shaped else None
-        binBodyInput.shapeCellsPerFoot = cellsPerFoot
-        binBodyInput.hasLipNotches = with_lip_notches.value
-        binBodyInput.binWidth = columns
-        binBodyInput.binLength = rows
-        binBodyInput.binHeight = Dim.number(bin_height.value)
-        binBodyInput.baseWidth = gridWidth
-        binBodyInput.baseLength = gridLength
-        binBodyInput.heightUnit = Dim.length(height_unit.value)
-        binBodyInput.xyClearance = xyClearance
-        binBodyInput.binCornerFilletRadius = const.BIN_CORNER_FILLET_RADIUS - xyClearance
-        # a shaped hollow bin gets its cavity once trimmed to the shape
-        binBodyInput.isSolid = isSolid or isShelled or shaped
-        binBodyInput.wallThickness = bin_wall_thickness.value
-        binBodyInput.hasScoop = has_scoop.value and isHollow and not shaped
-        binBodyInput.scoopMaxRadius = binScoopMaxRadius.value
-        binBodyInput.hasTab = hasTabInput.value and isHollow and not shaped
-        # in base units like the size, the body counts in feet
-        binBodyInput.tabLength = binTabLength.value * feetPerUnit
-        binBodyInput.tabWidth = binTabWidth.value
-        binBodyInput.tabPosition = binTabPosition.value * feetPerUnit
-        binBodyInput.tabOverhangAngle = binTabAngle.value
-        binBodyInput.isTabHollow = binTabHollow.value and len(creases) == 0
-        binBodyInput.isTabOpenThroughSides = inputs.itemById(BIN_TAB_HOLLOW_SIDES_INPUT_ID).value
-        binBodyInput.tabTopAngle = inputs.itemById(BIN_TAB_TOP_ANGLE_INPUT_ID).value
-        binBodyInput.labelStyle = labelStyleInput.selectedItem.name
-        binBodyInput.isLabelBold = labelBoldInput.value
-        binBodyInput.compartmentsByX = compartmentsX
-        binBodyInput.compartmentsByY = compartmentsY
-
-        # label text and icon per compartment, the label tab section fills in the ones left blank
-        # without the layout the grid is uniform, also for pockets saved with the layout hidden
-        pockets = compartmentLayout.normalizePockets(compartmentPockets if commandUIState.getState(BIN_COMPARTMENTS_SHOW_LAYOUT_ID) and len(creases) == 0 else [], compartmentsX, compartmentsY)
-        compartmentLabels: list[tuple[str, str]] = [(item['label'], item['icon']) for item in pockets]
-        # pockets come in pattern order, single full depth cells are built once and patterned
-        binBodyInput.isUniformCompartments = compartmentLayout.isUniform(pockets)
-        binBodyInput.compartments = []
-        for item in pockets:
-            compartment = BinBodyCompartmentDefinition(item['x'], item['y'], item['width'], item['length'])
-            if item['depth'] is not None:
-                compartment.depth = item['depth'] / 10
-            binBodyInput.compartments.append(compartment)
-
-        binBody: adsk.fusion.BRepBody
-
-        if bin_generate_body.value:
-            binBodyInput.binHeight = Dim.parameter(parameterUtils.addUnitlessParameter(
-                des,
-                parameterUtils.parameterName(binParameterPrefix, BIN_HEIGHT_PARAMETER),
-                bin_height.value,
-                'Gridfinity bin height, in height units',
-            ))
-            binParameters.append(['Bin height (u)', binBodyInput.binHeight.expression])
-            if binBodyInput.hasTab:
-                for compartmentIndex, compartment in enumerate(binBodyInput.compartments):
-                    (compartmentText, compartmentIcon) = compartmentLabels[compartmentIndex] if compartmentIndex < len(compartmentLabels) else ('', compartmentLayout.DEFAULT_ICON)
-                    compartment.label = createLabelDefinition(
-                        des,
-                        binParameterPrefix,
-                        BIN_LABEL_PARAMETER if len(binBodyInput.compartments) == 1 else f'{BIN_LABEL_PARAMETER}{compartmentIndex + 1}',
-                        compartmentText or labelTextInput.value,
-                        labelIconInput.selectedItem.name if compartmentIcon == compartmentLayout.DEFAULT_ICON else compartmentIcon,
-                    )
-                    if compartment.label is not None and compartment.label.textParameter is not None:
-                        binParameters.append([
-                            'Label' if len(binBodyInput.compartments) == 1 else f'Compartment {compartmentIndex + 1} label',
-                            compartment.label.textParameter.name,
-                        ])
-            binBodyInput.heightUnit = Dim.parameter(sharedParameters.findOrCreateSharedLengthParameter(
-                des,
-                tagUtils.TAG_HEIGHT_UNIT_PARAMETER,
-                sharedParameters.HEIGHT_UNIT_PARAMETER,
-                'height unit',
-                sharedParameters.HEIGHT_UNIT_MIN,
-                height_unit.value,
-                parameterUtils.parameterName(binParameterPrefix, BIN_HEIGHT_UNIT_PARAMETER),
-                'bin',
-                CMD_NAME,
-            ))
-            binParameters.append(['Height unit', binBodyInput.heightUnit.expression])
-            binBody = createGridfinityBinBody(
-                binBodyInput,
-                gridfinityBinComponent,
-            )
-        combineFeatures = gridfinityBinComponent.features.combineFeatures
-
-        # merge everything before the clearance cut, so the cut only has to reference the bin body
-        if bin_generate_body.value and bin_generate_base.value:
-            toolBodies = commonUtils.objectCollectionFromList(baseBodies)
-            combineFeatureInput = combineFeatures.createInput(binBody, toolBodies)
-            combineFeatures.add(combineFeatureInput).name = 'Bin body and feet join'
-            binBody.name = binName
-
-        # feet only touch each other along edges, so without a body they stay separate
-        clearanceBodies = [binBody] if bin_generate_body.value else baseBodies
-        if shaped and (bin_generate_body.value or bin_generate_base.value):
-            # the body is built over the whole grid, the outline trims it down to the shape
-            cutOutsideShape(outline, outlineGrid, clearanceBodies, gridfinityBinComponent, name='Outer clearance trim')
-        elif bin_generate_body.value or bin_generate_base.value:
-            cutBaseClearance(
-                baseGeneratorInput,
-                columns,
-                rows,
-                clearanceBodies,
-                gridfinityBinComponent,
-            )
-
-        if bin_generate_body.value and bin_generate_base.value and (shaped or not isShelled):
-            # curve up the gaps between feet along the walls instead of leaving flat overhangs,
-            # shaped bins need them at the inner corners whatever the type, the shell follows the pockets cut before it
-            if shaped:
-                cutShapeWallJunctionPockets(
-                    outlineGrid,
-                    outline,
-                    binBody,
-                    gridfinityBinComponent,
-                    (binGrid.footLines(columns, cellsPerFoot), binGrid.footLines(rows, cellsPerFoot)),
-                )
-            elif columns > 1 or rows > 1:
-                cutWallJunctionPockets(baseGeneratorInput, columns, rows, binBody, gridfinityBinComponent)
-
-        if shaped and isHollow and bin_generate_body.value:
-            cavity = createShapeCavity(
-                outline,
-                outlineGrid,
-                binBodyInput.wallThickness,
-                binBodyTopHeight(binBodyInput),
-                gridfinityBinComponent,
-                name='Cavity',
-            )
-            combineUtils.cutBody(binBody, commonUtils.objectCollectionFromList([cavity]), gridfinityBinComponent, name='Cavity cut')
-
-        if bin_generate_body.value and len(creases) > 0:
-            # panels from where the floor fillet ends up the inside of the wall to the body top
-            wallOffset = xyClearance + binBodyInput.wallThickness
-            creaseBottomZ = const.BIN_COMPARTMENT_BOTTOM_THICKNESS + compartmentCutoutFilletRadius(
-                binShape.cornerRadius(True, baseGeneratorInput.cornerFilletRadius, wallOffset)
-            )
-            creaseTopZ = binBodyTopHeight(binBodyInput)
-            creaseDepth = inputs.itemById(BIN_CREASE_DEPTH_INPUT_ID).value
-            if isHollow:
-                # the inside follows the dent, so the wall keeps its thickness, a shell does it by itself.
-                # Joined before the dent is cut, the dent goes deeper than the wall and would get filled back in
-                innerFolds = createCreaseFolds(creases, outlineGrid, wallOffset, creaseDepth, creaseBottomZ, creaseTopZ, gridfinityBinComponent, name='Wall crease inside')
-                combineUtils.joinBodies(binBody, commonUtils.objectCollectionFromList(innerFolds), gridfinityBinComponent, name='Wall creases inside join')
-            outerFolds = createCreaseFolds(creases, outlineGrid, xyClearance, creaseDepth, creaseBottomZ, creaseTopZ, gridfinityBinComponent, name='Wall crease')
-            combineUtils.cutBody(binBody, commonUtils.objectCollectionFromList(outerFolds), gridfinityBinComponent, name='Wall creases cut')
-
-        if isShelled and bin_generate_body.value:
-            # the body already stands the xy clearance in from the cell border, so the walls take the full thickness
-            # face.boundingBox.maxPoint.z ~ face.boundingBox.minPoint.z => face horizontal
-            # largest horizontal face
-            horizontalFaces = [face for face in binBody.faces if geometryUtils.isHorizontal(face)]
-            topFace = faceUtils.maxByArea(horizontalFaces)
-            topFaceMinPoint = topFace.boundingBox.minPoint
-            if binBodyInput.hasLip:
-                splitBodyFeatures = features.splitBodyFeatures
-                splitBodyInput = splitBodyFeatures.createInput(
-                    binBody,
-                    topFace,
-                    True
-                )
-                splitBodies = splitBodyFeatures.add(splitBodyInput)
-                splitBodies.name = 'Shell split at lip'
-                bottomBody = min(splitBodies.bodies, key=lambda x: x.boundingBox.minPoint.z)
-                topBody = max(splitBodies.bodies, key=lambda x: x.boundingBox.minPoint.z)
-                horizontalFaces = [face for face in bottomBody.faces if geometryUtils.isHorizontal(face)]
-                topFace = faceUtils.maxByArea(horizontalFaces)
-                shellUtils.simpleShell([topFace], binBodyInput.wallThickness, gridfinityBinComponent, name='Shell')
-                toolBodies = adsk.core.ObjectCollection.create()
-                toolBodies.add(topBody)
-                combineAfterShellFeatureInput = combineFeatures.createInput(bottomBody, toolBodies)
-                combineAfterShellFeature = combineFeatures.add(combineAfterShellFeatureInput)
-                combineAfterShellFeature.name = 'Shell and lip join'
-                binBody = combineAfterShellFeature.bodies.item(0)
-            else:
-                shellUtils.simpleShell([topFace], binBodyInput.wallThickness, gridfinityBinComponent, name='Shell')
-
-            if hasTabInput.value and not shaped:
-                compartmentTabInput = BinBodyTabGeneratorInput()
-                tabOriginX = Dim.length(binBodyInput.wallThickness) + binBodyInput.baseWidth * max(0, min(binBodyInput.tabPosition, binBodyInput.binWidth - binBodyInput.tabLength))
-                if binBodyInput.hasLip and binBodyInput.hasScoop:
-                    tabOriginY = Dim.length(const.BIN_LIP_WALL_THICKNESS)
-                else:
-                    # back wall, the shell keeps the outer size
-                    tabOriginY = binBodyInput.baseLength * binBodyInput.binLength - Dim.length(binBodyInput.xyClearance * 2)
-                tabOriginZ = binBodyTopHeight(binBodyInput)
-                compartmentTabInput.origin = adsk.core.Point3D.create(tabOriginX.value, tabOriginY.value, tabOriginZ.value)
-                compartmentTabInput.originX = tabOriginX
-                compartmentTabInput.originY = tabOriginY
-                compartmentTabInput.originZ = tabOriginZ
-                compartmentTabInput.length = binBodyInput.baseWidth * max(0, min(binBodyInput.tabLength, binBodyInput.binWidth)) - Dim.length(binBodyInput.wallThickness * 2 + binBodyInput.xyClearance * 2)
-                compartmentTabInput.width = binBodyInput.tabWidth
-                compartmentTabInput.overhangAngle = binBodyInput.tabOverhangAngle
-                compartmentTabInput.labelAngle = binBodyInput.tabTopAngle
-                compartmentTabInput.topClearance = tabTopClearance(binBodyInput.labelStyle)
-                tabBody = createGridfinityBinBodyTab(compartmentTabInput, gridfinityBinComponent, name='Label tab')
-
-                # trim the tab to the shell interior, its ends would otherwise poke out past the rounded outer corners,
-                # intersecting leaves a single body, so nothing has to be picked out of the pieces
-                shellThickness = Dim.length(binBodyInput.wallThickness)
-                shellInteriorCornerFilletRadius = binBodyInput.binCornerFilletRadius - binBodyInput.wallThickness
-                bodyWidth = binBodyInput.baseWidth * binBodyInput.binWidth - Dim.length(xyClearance * 2)
-                bodyLength = binBodyInput.baseLength * binBodyInput.binLength - Dim.length(xyClearance * 2)
-                shellInterior = createCompartmentCutout(
-                    binBodyInput.wallThickness,
-                    shellThickness,
-                    shellThickness,
-                    tabOriginZ,
-                    bodyWidth - shellThickness * 2,
-                    bodyLength - shellThickness * 2,
-                    tabOriginZ,
-                    shellInteriorCornerFilletRadius,
-                    False,
-                    0,
-                    False,
-                    gridfinityBinComponent,
-                    name='Shell interior',
-                )
-                intersectTabInput = combineFeatures.createInput(tabBody, commonUtils.objectCollectionFromList([shellInterior]))
-                intersectTabInput.operation = adsk.fusion.FeatureOperations.IntersectFeatureOperation
-                intersectTabInput.isKeepToolBodies = True
-                intersectTabFeature = combineFeatures.add(intersectTabInput)
-                intersectTabFeature.name = 'Label tab trim'
-                trimmedTabBodies = [body for body in list(intersectTabFeature.bodies) if not body.revisionId == shellInterior.revisionId]
-                tabHollowCuts: list[adsk.fusion.BRepBody] = []
-                if binBodyInput.isTabHollow:
-                    # the tab sits on the back wall, opened through it so the hollow isn't sealed
-                    shellInteriorMaxX = bodyWidth - shellThickness
-                    tabMaxX = tabOriginX + compartmentTabInput.length
-                    tabHollowCuts = createTabHollowCuts(
-                        compartmentTabInput,
-                        tabOriginX if tabOriginX.value >= shellThickness.value else shellThickness,
-                        tabMaxX if tabMaxX.value <= shellInteriorMaxX.value else shellInteriorMaxX,
-                        hollowTabWallThickness(shellThickness.value, binBodyInput.labelStyle),
-                        shellInterior,
-                        TabCavity(shellThickness, shellInteriorMaxX, bodyLength - shellThickness, compartmentCutoutFilletRadius(shellInteriorCornerFilletRadius)),
-                        TabWallOpenings(
-                            shellThickness.value * 2,
-                            back=True,
-                            minXSide=binBodyInput.isTabOpenThroughSides,
-                            maxXSide=binBodyInput.isTabOpenThroughSides,
-                        ),
-                        gridfinityBinComponent,
-                        name='Label tab',
-                    ).all()
-                gridfinityBinComponent.features.removeFeatures.add(shellInterior).name = 'Shell interior remove'
-                combineUtils.joinBodies(binBody, commonUtils.objectCollectionFromList(trimmedTabBodies), gridfinityBinComponent, name='Label tab join')
-                if len(tabHollowCuts) > 0:
-                    combineUtils.cutBody(binBody, commonUtils.objectCollectionFromList(tabHollowCuts), gridfinityBinComponent, name='Label tab hollow cut')
-
-                shelledLabel = createLabelDefinition(des, binParameterPrefix, BIN_LABEL_PARAMETER, labelTextInput.value, labelIconInput.selectedItem.name)
-                if shelledLabel is not None and shelledLabel.textParameter is not None:
-                    binParameters.append(['Label', shelledLabel.textParameter.name])
-                if shelledLabel is not None:
-                    createTabLabel(
-                        shelledLabel,
-                        binBodyInput.labelStyle,
-                        binBodyInput.isLabelBold,
-                        tabOriginX,
-                        tabOriginX + compartmentTabInput.length,
-                        tabOriginY,
-                        binBodyInput.tabWidth,
-                        tabOriginZ,
-                        binBody,
-                        gridfinityBinComponent,
-                        binBodyInput.tabTopAngle,
-                        name='Label',
-                    )
-
-        if bin_generate_body.value or bin_generate_base.value:
-            generatedBodies = [binBody] if bin_generate_body.value else baseBodies
-            if binPlacement != (0, 0):
-                placementUtils.moveBodies(generatedBodies, *binPlacement, gridfinityBinComponent, name='Bin placement')
-            # mark generated geometry so later bins can tell it apart from the rest of the design,
-            # with the settings it was generated with to show later
-            binSettings = snapshotSettings(inputs)
-            for body in generatedBodies:
-                tagUtils.tagBody(body, tagUtils.TAG_BIN, binSettings, binParameters)
-
-        if bin_generate_base.value and inputs.itemById(BIN_JOINT_ORIGINS_INPUT_ID).value:
-            # last, after the placement, joint origins sit on sketches which don't follow body moves
-            centers = footCenters(
-                gridWidth,
-                gridLength,
-                xyClearance,
-                columns,
-                rows,
-                Dim.length(binPlacement[0]) if binPlacement[0] != 0 else None,
-                Dim.length(binPlacement[1]) if binPlacement[1] != 0 else None,
-            )
-            createCellJointOrigins(
-                [center for center in centers if not shaped or (center[0], center[1]) in set(cells)],
-                gridfinityBinComponent,
-                name='Foot joint origin',
-            )
-
-        # group features in timeline
-        binGroup = des.timeline.timelineGroups.add(originalTimelineCount, des.timeline.count - 1)
-        binGroup.name = binName
-        futil.log(f'{CMD_NAME} {binName} generated in {time.perf_counter() - startTime:.3f}s')
+        binBuilder.buildBin(des, state, settings)
+        futil.log(f'{CMD_NAME} {binBuilder.binDisplayName(state)} generated in {time.perf_counter() - startTime:.3f}s')
     except UnsupportedDesignTypeException as err:
         args.executeFailed = True
         args.executeFailedMessage = 'Design type is unsupported. Projects with disabled design history are unsupported, please enable timeline feature to proceed.'
