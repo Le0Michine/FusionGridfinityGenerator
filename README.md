@@ -9,7 +9,7 @@ Each option is described in details on the project [wiki page](https://github.co
 
 Bin options | Baseplate options
 :-------------------------:|:-------------------------:
-![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/ui/fusion-dialog-bin-generator.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/ui/fusion-dialog-baseplate-generator.png)
+<img src="documentation/assets/ui/fusion-dialog-bin-generator.png" alt="Bin dialog"> | <img src="documentation/assets/ui/fusion-dialog-baseplate-generator.png" alt="Baseplate dialog">
 
 ### Baseplates
 - accepts amount of bases X and Y directions
@@ -20,11 +20,16 @@ Bin options | Baseplate options
 - size of magnet sockets and screw holes can be adjusted
 
 #### Baseplate types
-Light | Skeleton with connection holes | Full
-:-------------------------:|:-------------------------:|:-------------------------:
-![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/baseplate-light.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/baseplate-skeleton.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/baseplate-full.png)
+Result | Options
+:-------------------------:|:-------------------------:
+<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/baseplate-types-dark.gif"><img src="documentation/assets/gif/baseplate-types-light.gif" alt="Light, skeletonized and full baseplates"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/baseplate-types-dialog-dark.gif"><img src="documentation/assets/gif/baseplate-types-dialog-light.gif" alt="Picking each baseplate type"></picture>
 
-![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/gif/baseplate-creation.gif)
+#### Connection holes
+Skeletonized baseplates can have holes between them for a screw or a glued in pin, their size can be adjusted
+
+Result | Options
+:-------------------------:|:-------------------------:
+<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/baseplate-connection-holes-dark.gif"><img src="documentation/assets/gif/baseplate-connection-holes-light.gif" alt="A skeletonized baseplate without, with 3.2 mm and with 5 mm connection holes"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/baseplate-connection-holes-dialog-dark.gif"><img src="documentation/assets/gif/baseplate-connection-holes-dialog-light.gif" alt="Turning on connection holes and changing their diameter"></picture>
 
 ### Bins
 - accepts amount of bases X and Y directions
@@ -34,30 +39,44 @@ Light | Skeleton with connection holes | Full
 - lip can have notches preventing bins from sliding when stacked
 - wall thickness can be adjusted
 - magnet sockets can be customized to allow snug fit of the magnets, or a different size
+- magnet sockets can have tabs holding the magnets in
 - screw holes diameter can be adjusted
 - when magnet and screw holes are enabled together, a groove will be generated to help with printability
 - bin can be shelled with constant wall thickness to save printing time and filament
 - label tab can be generated (length, offset and overhang angle are adjustable)
 - label tab top can be tilted, and the tab can be hollow, opened through the back wall of the bin and optionally its side walls
 - allows generation of base or body separately, could be useful if need combine it with existing model
+- bins can take a custom shape drawn on the grid, such as an L or a T
 - compartments can be configured to use uniform scale
 - custom compartmens layout is based on the uniform grid and allows merging multiple cells together, specifying custom depth and position
 
+Result | Options
+:-------------------------:|:-------------------------:
+<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-features-dark.gif"><img src="documentation/assets/gif/bin-features-light.gif" alt="The bin at each change"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-features-editing-dark.gif"><img src="documentation/assets/gif/bin-features-editing-light.gif" alt="Changing the size, type and wall thickness of a bin"></picture>
+
 #### Bin bottom options
-Solid bottom | With screw holes | With magnet cutouts | Combined
-:-------------------------:|:-------------------------:|:-------------------------:|:-------------------------:
-![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-solid-bottom.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-screw-holes.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-magnet-cutouts.png)  | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-magnet-cutouts-and-screw-holes-with-groove.png)
+Result | Options
+:-------------------------:|:-------------------------:
+<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-bottom-options-dark.gif"><img src="documentation/assets/gif/bin-bottom-options-light.gif" alt="Bins with each bottom option"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-bottom-options-dialog-dark.gif"><img src="documentation/assets/gif/bin-bottom-options-dialog-light.gif" alt="Going through the bottom options in the dialog"></picture>
 
 #### Bin half base size
 
-Half base (21x21mm) |
-:---:
-![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-half-size-base.png)
+Result | Options
+:-------------------------:|:-------------------------:
+<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-half-grid-dark.gif"><img src="documentation/assets/gif/bin-half-grid-light.gif" alt="Bins on whole, half and a row of half bases"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-half-grid-dialog-dark.gif"><img src="documentation/assets/gif/bin-half-grid-dialog-light.gif" alt="Turning on half grid, then a size ending in a half"></picture>
 
 #### Bin type options
 Hollow bin | Shelled bin | Solid bin
 :-------------------------:|:-------------------------:|:-------------------------:
-![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/hollow-bin.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/shelled-bin.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/solid-bin.png)
+<img src="documentation/assets/models/hollow-bin.png" alt="Hollow bin"> | <img src="documentation/assets/models/shelled-bin.png" alt="Shelled bin"> | <img src="documentation/assets/models/solid-bin.png" alt="Solid bin">
+
+#### Custom bin shape
+
+The cells of the bin can be picked on its grid, for bins such as an L or a T.
+
+Result | Drawing the shape
+:-------------------------:|:-------------------------:
+<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-custom-shape-dark.gif"><img src="documentation/assets/gif/bin-custom-shape-light.gif" alt="The bin with every cell, then cells left out"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-custom-shape-drawing-dark.gif"><img src="documentation/assets/gif/bin-custom-shape-drawing-light.gif" alt="Drawing a bin shape"></picture>
 
 #### Bin compartments options
 
@@ -65,30 +84,43 @@ Detailed configuration options are on the [wiki](https://github.com/Le0Michine/F
 
 Uniform compartments | Custom compartments A | Custom compartments B
 :-------------------------:|:-------------------------:|:-------------------------:
-![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/ui/bin-uniform-compartments-options.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/ui/bin-custom-compartments-variant-a-options.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/ui/bin-custom-compartments-variant-b-options.png)
-![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-uniform-compartments.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-custom-compartments-variant-a.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-custom-compartments-variant-b.png)
+<img src="documentation/assets/ui/bin-uniform-compartments-options.png" alt="Uniform compartments options"> | <img src="documentation/assets/ui/bin-custom-compartments-variant-a-options.png" alt="Custom compartments A options"> | <img src="documentation/assets/ui/bin-custom-compartments-variant-b-options.png" alt="Custom compartments B options">
+<img src="documentation/assets/models/bin-uniform-compartments.png" alt="Bin with uniform compartments"> | <img src="documentation/assets/models/bin-custom-compartments-variant-a.png" alt="Bin with custom compartments A"> | <img src="documentation/assets/models/bin-custom-compartments-variant-b.png" alt="Bin with custom compartments B">
+
+Compartments are merged by dragging across the cells, and can be named for the label tab
+
+Result | Options
+:-------------------------:|:-------------------------:
+<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-compartments-dark.gif"><img src="documentation/assets/gif/bin-compartments-light.gif" alt="The bin as compartments are merged and labeled"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-compartments-merging-dark.gif"><img src="documentation/assets/gif/bin-compartments-merging-light.gif" alt="Merging compartments and naming one"></picture>
 
 #### Bin label tab configuration
-Full length | Single slot | With offset
-:-------------------------:|:-------------------------:|:-------------------------:
-![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-label-tab-full.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-label-tab-single-slot.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-label-tab-with-offset.png)
+Result | Options
+:-------------------------:|:-------------------------:
+<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-label-tab-options-dark.gif"><img src="documentation/assets/gif/bin-label-tab-options-light.gif" alt="Bins with each label tab"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-label-tab-options-dialog-dark.gif"><img src="documentation/assets/gif/bin-label-tab-options-dialog-light.gif" alt="Changing the label tab length and position in the dialog"></picture>
+
+#### Bin labels
+A label tab can carry text and an icon, outlined for a slicer to color it, engraved or embossed
+
+Result | Options
+:-------------------------:|:-------------------------:
+<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-label-options-dark.gif"><img src="documentation/assets/gif/bin-label-options-light.gif" alt="A label with text, an icon, engraved and embossed"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-label-options-dialog-dark.gif"><img src="documentation/assets/gif/bin-label-options-dialog-light.gif" alt="Typing label text, picking an icon and each label style"></picture>
 
 #### Bin scoop feature
 Scoop enabled | Scoop disabled
 :-------------------------:|:-------------------------:
-![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-scoop-on.png) | ![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/bin-scoop-off.png)
+<img src="documentation/assets/models/bin-scoop-on.png" alt="Bin with a scoop"> | <img src="documentation/assets/models/bin-scoop-off.png" alt="Bin without a scoop">
 
 
 #### Hollow bin
-![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/gif/bin-with-cutout-creation.gif)
+![](documentation/assets/gif/bin-with-cutout-creation.gif)
 
 #### Specialized Bin
 
 Creating a 4x2 bin to hold oversized volcano nozzle
-![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/gif/specialized-bin-nozzle-creation.gif)
+![](documentation/assets/gif/specialized-bin-nozzle-creation.gif)
 
 Bin for random round things
-![](https://raw.githubusercontent.com/Le0Michine/FusionGridfinityGenerator/master/documentation/assets/gif/specialized-bin-creation.gif)
+![](documentation/assets/gif/specialized-bin-creation.gif)
 
 ## Installation
 
