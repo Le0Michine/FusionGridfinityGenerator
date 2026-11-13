@@ -124,15 +124,32 @@ def compareSnapshot(folder: str, bodies: list[adsk.fusion.BRepBody]) -> list[Bod
         if expected is None:
             results.append(BodyResult(name, STATUS_FAIL, ['built, not in the snapshot']))
             continue
-        changes = fingerprintChanges(expected, fingerprint(body))
         reference = tbm.createFromFile(os.path.join(folder, expected['file'])).item(0)
+        results.append(compareBody(name, body, expected, reference))
+    return results
+
+def compareBody(name: str, body: adsk.fusion.BRepBody, expected: dict, reference: adsk.fusion.BRepBody) -> BodyResult:
+    """The body against the reference and its fingerprint, see compareSnapshot"""
+    changes = fingerprintChanges(expected, fingerprint(body))
+    try:
         missing = leftover(reference, body)
         extra = leftover(body, reference)
-        if missing is not None or extra is not None:
-            status = STATUS_FAIL
-        elif len(changes) > 0:
-            status = STATUS_REVIEW
-        else:
-            status = STATUS_PASS
-        results.append(BodyResult(name, status, [], changes, missing, extra, reference))
-    return results
+    except RuntimeError as err:
+        # Fusion can't subtract shapes with faces nearly on top of each other, they differ all the same
+        return BodyResult(name, STATUS_FAIL, [f'shapes not subtracted, they differ somewhere, {err}'], changes, reference=reference)
+    if missing is not None or extra is not None:
+        status = STATUS_FAIL
+    elif len(changes) > 0:
+        status = STATUS_REVIEW
+    else:
+        status = STATUS_PASS
+    return BodyResult(name, status, [], changes, missing, extra, reference)
+
+def compareBodies(bodies: list[adsk.fusion.BRepBody], references: list[adsk.fusion.BRepBody], label: str) -> list[BodyResult]:
+    """
+    Bodies against shapes built another way, paired by order, names may differ. The results are named after the
+    bodies with the label, a different number of bodies fails
+    """
+    if len(bodies) != len(references):
+        return [BodyResult(label, STATUS_FAIL, [f'{len(bodies)} bodies, {len(references)} {label}'])]
+    return [compareBody(f'{body.name} {label}', body, fingerprint(reference), reference) for (body, reference) in zip(bodies, references)]

@@ -120,3 +120,50 @@ def test_readme_lists_the_cases_as_they_are():
     with open(readme, encoding="utf-8") as file:
         written = file.read()
     assert written == cases.casesMarkdown(CASES_FOLDER), "tests/e2e/README.md is out of date, run python3 tests/e2e/write_readme.py"
+
+
+def write_case_data(tmp_path, data, name="case"):
+    path = tmp_path / f"{name}.json"
+    path.write_text(json.dumps(data))
+    return str(path)
+
+
+def test_parameters_come_in_mm_and_edit_the_state(tmp_path):
+    data = {"description": "a case", "generator": "bin", "settings": sample_settings(), "parameters": {"gfBaseWidth": 40, "gfHeightUnit": 5}}
+    case = cases.loadCase(write_case_data(tmp_path, data), STATE_CLASSES)
+    assert case.parameters == {"gfBaseWidth": pytest.approx(4.0), "gfHeightUnit": pytest.approx(0.5)}
+    edited = cases.editedState(case)
+    assert edited.baseWidth == pytest.approx(4.0)
+    assert edited.heightUnit == pytest.approx(0.5)
+    assert edited.baseLength == case.state.baseLength
+    assert case.state.baseWidth == pytest.approx(4.2)
+
+
+def test_a_case_without_parameters_has_none():
+    case = cases.loadCase(os.path.join(CASES_FOLDER, "bin_2x3x5_features.json"), STATE_CLASSES)
+    assert case.parameters == {}
+    assert cases.editedState(case) == case.state
+    assert "parameters" not in json.loads(cases.caseJson(case))
+
+
+def test_a_parameter_the_generator_has_not_is_an_error(tmp_path):
+    with open(os.path.join(CASES_FOLDER, "baseplate_2x2_light.json")) as file:
+        data = json.load(file)
+    data["parameters"] = {"gfHeightUnit": 7}
+    with pytest.raises(cases.TestCaseError, match="gfHeightUnit"):
+        cases.loadCase(write_case_data(tmp_path, data), STATE_CLASSES)
+
+
+@pytest.mark.parametrize("value", [0, -1, "40", True])
+def test_a_parameter_has_to_be_a_positive_length(tmp_path, value):
+    data = {"description": "a case", "generator": "bin", "settings": sample_settings(), "parameters": {"gfBaseWidth": value}}
+    with pytest.raises(cases.TestCaseError, match="gfBaseWidth"):
+        cases.loadCase(write_case_data(tmp_path, data), STATE_CLASSES)
+
+
+def test_written_parameters_read_back_and_are_listed_in_the_settings(tmp_path):
+    data = {"description": "a case", "generator": "bin", "settings": sample_settings(), "parameters": {"gfBaseLength": 50.5}}
+    case = cases.loadCase(write_case_data(tmp_path, data), STATE_CLASSES)
+    assert json.loads(cases.caseJson(case))["parameters"] == {"gfBaseLength": 50.5}
+    settings = cases.caseSettings(case)
+    assert dict(settings[2]["items"]) == {"gfBaseLength": "50.5"}

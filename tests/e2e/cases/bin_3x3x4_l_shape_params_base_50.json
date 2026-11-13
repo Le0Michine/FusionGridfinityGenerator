@@ -1,0 +1,77 @@
+{
+    "description": "L-shaped bin, base units raised to 50 mm",
+    "generator": "bin",
+    "settings": {
+        "baseWidth": 42.0,
+        "baseLength": 42.0,
+        "heightUnit": 7.0,
+        "xyClearance": 0.25,
+        "binWidth": 3,
+        "binLength": 3,
+        "binHeight": 4,
+        "isHalfGrid": false,
+        "wallThickness": 1.2,
+        "binType": "Hollow",
+        "generateBase": true,
+        "generateBody": true,
+        "hasJointOrigins": false,
+        "hasScrewHoles": false,
+        "screwHoleDiameter": 3.0,
+        "hasMagnetCutouts": false,
+        "hasMagnetCutoutsTabs": false,
+        "magnetCutoutDiameter": 6.5,
+        "magnetCutoutDepth": 2.4,
+        "hasLip": true,
+        "hasLipNotches": false,
+        "hasScoop": false,
+        "scoopMaxRadius": 25.0,
+        "hasTab": false,
+        "tabLength": 1,
+        "tabWidth": 13.0,
+        "tabPosition": 0,
+        "tabOverhangAngle": 45.0,
+        "isTabHollow": false,
+        "isTabOpenThroughSides": false,
+        "tabTopAngle": 0.0,
+        "labelText": "",
+        "labelIcon": "None",
+        "labelStyle": "Outline",
+        "isLabelBold": true,
+        "compartmentsX": 1,
+        "compartmentsY": 1,
+        "showCompartmentsLayout": false,
+        "compartmentPockets": [],
+        "hasCustomShape": true,
+        "shapeCells": [
+            [
+                0,
+                0
+            ],
+            [
+                1,
+                0
+            ],
+            [
+                2,
+                0
+            ],
+            [
+                0,
+                1
+            ],
+            [
+                0,
+                2
+            ]
+        ],
+        "hasCreases": false,
+        "creaseDepth": 2.0,
+        "creaseMinLength": 2.85,
+        "creaseMaxPanelLength": 4.75,
+        "creaseMinHeight": 10
+    },
+    "parameters": {
+        "gfBaseWidth": 50.0,
+        "gfBaseLength": 50.0
+    }
+}

@@ -41,13 +41,34 @@
             --pending-border: #9a7432;
         }
     }
-    /* a palette scrolls its page, dialog pages fit theirs */
+    /* a palette scrolls its page, dialog pages fit theirs. Only the page scrolls, the sticky header sticks to the
+       nearest box that could */
     html, body {
-        overflow: auto;
         background: var(--background);
+    }
+    html {
+        overflow: auto;
+    }
+    body {
+        overflow: visible;
     }
     body {
         padding: 12px;
+    }
+    /* the title, counts and controls stay in reach while the cases scroll under them. It covers the body's padding
+       above it, so nothing shows through there */
+    .sticky-header {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        margin: -12px -12px 10px;
+        padding: 12px 12px 0;
+        background: var(--background);
+        border-bottom: 1px solid var(--rule);
+    }
+    /* a case scrolled into view lands below the header, see render */
+    details.case {
+        scroll-margin-top: calc(var(--header-height, 0px) + 8px);
     }
     h1 {
         font-size: 15px;
@@ -153,6 +174,22 @@
         display: flex;
         gap: 6px;
         margin-bottom: 10px;
+    }
+    .filter {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    .filter input {
+        flex: 1;
+        min-width: 0;
+        font: inherit;
+        color: var(--text);
+        background: var(--card);
+        border: 1px solid var(--card-border);
+        border-radius: 3px;
+        padding: 3px 6px;
     }
     .views button.active {
         background: var(--button-pressed);
@@ -514,12 +551,62 @@
     // the report drawn last, and the case it showed in the viewport, the page scrolls to a newly shown one
     let current = null;
     let lastShown = null;
+    // the filter of the cases, kept for the next time the window opens
+    const FILTER_KEY = 'gridfinityTestsFilter';
+    let filterText = '';
+    try {
+        filterText = localStorage.getItem(FILTER_KEY) || '';
+    } catch (err) {
+        // no storage, the filter starts empty
+    }
+
+    // every word has to be in the name or the description
+    function matchesFilter(item) {
+        const text = `${item.name} ${item.description || ''}`.toLowerCase();
+        return filterText.toLowerCase().split(/\s+/).filter(Boolean).every((word) => text.includes(word));
+    }
+
+    function setFilter(value) {
+        filterText = value;
+        try {
+            localStorage.setItem(FILTER_KEY, value);
+        } catch (err) {
+            // kept for this page only
+        }
+        render(current);
+    }
+
+    function filterRow(shownCount, total) {
+        const row = element('div', 'filter');
+        const input = element('input');
+        input.id = 'filter';
+        input.type = 'search';
+        input.placeholder = 'Filter cases by name or description';
+        input.value = filterText;
+        input.addEventListener('input', () => setFilter(input.value));
+        input.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && input.value) {
+                event.preventDefault();
+                setFilter('');
+            }
+        });
+        row.appendChild(input);
+        if (filterText.trim()) {
+            row.appendChild(element('span', 'muted', `${shownCount} of ${total} shown`));
+        }
+        return row;
+    }
 
     function render(report) {
         current = report;
         const root = document.getElementById('report');
+        // typing in the filter redraws the page, the input keeps the focus and the caret
+        const focused = document.activeElement;
+        const filterFocus = focused && focused.id === 'filter' ? [focused.selectionStart, focused.selectionEnd] : null;
         root.replaceChildren();
-        root.appendChild(element('h1', '', report.title));
+        const header = element('div', 'sticky-header');
+        root.appendChild(header);
+        header.appendChild(element('h1', '', report.title));
 
         const summary = element('div', 'summary');
         for (const [status, count] of Object.entries(report.counts)) {
@@ -527,23 +614,34 @@
         }
         const took = report.seconds > 0 ? ` in ${report.seconds} s` : '';
         summary.appendChild(element('span', 'muted', `${report.cases.length} case(s)${took}`));
-        root.appendChild(summary);
+        header.appendChild(summary);
 
         const progress = report.progress;
         if (progress) {
             const track = element('div', 'progress-track busy');
             const bar = element('div', 'progress-bar');
             track.appendChild(bar);
-            root.appendChild(track);
+            header.appendChild(track);
             // the cases done, it steps up as each one finishes
             bar.style.width = `${(100 * progress.done) / progress.total}%`;
             const busy = RUNS[report.kind] ? RUNS[report.kind].busy : 'Building';
-            root.appendChild(element('div', 'progress-label', `${busy} ${progress.current}, ${progress.done + 1} of ${progress.total}`));
+            header.appendChild(element('div', 'progress-label', `${busy} ${progress.current}, ${progress.done + 1} of ${progress.total}`));
         }
 
         const toolbar = element('div', 'toolbar');
+        const filtering = filterText.trim() !== '';
+        const shownCases = report.cases.filter(matchesFilter);
         if (RUNS[report.kind]) {
-            toolbar.appendChild(runButton(RUNS[report.kind].all));
+            if (filtering) {
+                // the cases the filter shows, not those of deleted cases
+                const names = shownCases.filter((item) => item.status !== 'removed').map((item) => item.name);
+                const [label, tooltip, action] = RUNS[report.kind].one;
+                const button = runButton([`${label} ${names.length} shown`, `${tooltip}, for each case the filter shows`, action], { cases: names });
+                button.disabled = names.length === 0;
+                toolbar.appendChild(button);
+            } else {
+                toolbar.appendChild(runButton(RUNS[report.kind].all));
+            }
         }
         if (report.cases.some((item) => item.hasDocument)) {
             const close = element('button', '', 'Close test documents');
@@ -558,12 +656,13 @@
             toolbar.appendChild(back);
         }
         if (toolbar.children.length > 0) {
-            root.appendChild(toolbar);
+            header.appendChild(toolbar);
         }
 
         if (report.pending) {
-            root.appendChild(pendingBanner(report.pending));
+            header.appendChild(pendingBanner(report.pending));
         }
+        header.appendChild(filterRow(shownCases.length, report.cases.length));
         if (report.message) {
             root.appendChild(element('div', 'banner', report.message));
         }
@@ -579,7 +678,11 @@
             legend.style.marginBottom = '10px';
             root.appendChild(legend);
         }
-        for (const item of report.cases) {
+        document.documentElement.style.setProperty('--header-height', `${header.offsetHeight}px`);
+        if (filtering && shownCases.length === 0) {
+            root.appendChild(element('p', 'muted', 'No case matches the filter'));
+        }
+        for (const item of shownCases) {
             const card = caseCard(item, report.kind, item.name === report.shown);
             root.appendChild(card);
             if (item.name === report.shown && report.shown !== lastShown) {
@@ -587,6 +690,11 @@
             }
         }
         lastShown = report.shown;
+        if (filterFocus) {
+            const input = document.getElementById('filter');
+            input.focus();
+            input.setSelectionRange(filterFocus[0], filterFocus[1]);
+        }
         if (progress) {
             // nothing else runs until this run is done
             root.querySelectorAll('button').forEach((button) => (button.disabled = true));

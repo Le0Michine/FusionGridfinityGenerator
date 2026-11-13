@@ -33,6 +33,13 @@ CELL_LIST_FIELDS = {
     GENERATOR_BASEPLATE: set(),
 }
 
+# the shared user parameters a case may change after building, see lib/gridfinityUtils/sharedParameters.py, with the
+# setting each stands for. Keep the names literal, they're in user documents
+PARAMETER_FIELDS = {
+    GENERATOR_BIN: {'gfBaseWidth': 'baseWidth', 'gfBaseLength': 'baseLength', 'gfHeightUnit': 'heightUnit'},
+    GENERATOR_BASEPLATE: {'gfBaseWidth': 'baseWidth', 'gfBaseLength': 'baseLength'},
+}
+
 class TestCaseError(Exception):
     pass
 
@@ -43,6 +50,8 @@ class TestCase:
     description: str
     generator: str
     state: object
+    # shared parameters set after building, in cm, the result has to be the same as built with them, see editedState
+    parameters: dict[str, float] = dataclasses.field(default_factory=dict)
 
 def stateFromJson(generator: str, stateClass: type, settings: dict) -> object:
     """Every field of the state has to be there and nothing else, so a case never falls back to a default"""
@@ -73,6 +82,21 @@ def stateToJson(generator: str, state: object) -> dict:
         return fieldValue
     return {field.name: value(field.name, getattr(state, field.name)) for field in dataclasses.fields(state)}
 
+def parametersFromJson(generator: str, parameters: dict) -> dict[str, float]:
+    """Values in mm of the generator's shared parameters, in cm"""
+    unknown = [name for name in parameters if name not in PARAMETER_FIELDS[generator]]
+    if unknown:
+        raise TestCaseError(f'unknown parameters {unknown}, a {generator} has {sorted(PARAMETER_FIELDS[generator])}')
+    for (name, value) in parameters.items():
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+            raise TestCaseError(f'parameter {name} has to be a length in mm, not {value!r}')
+    return {name: value / 10 for (name, value) in parameters.items()}
+
+def editedState(case: TestCase) -> object:
+    """The settings the case would have built with its parameters set from the start"""
+    fields = PARAMETER_FIELDS[case.generator]
+    return dataclasses.replace(case.state, **{fields[name]: value for (name, value) in case.parameters.items()})
+
 def loadCase(path: str, stateClasses: dict[str, type]) -> TestCase:
     """stateClasses: the InputState class of each generator"""
     name = os.path.splitext(os.path.basename(path))[0]
@@ -83,21 +107,28 @@ def loadCase(path: str, stateClasses: dict[str, type]) -> TestCase:
         if generator not in stateClasses:
             raise TestCaseError(f'unknown generator {generator!r}')
         state = stateFromJson(generator, stateClasses[generator], data['settings'])
-    except (OSError, ValueError, KeyError, TypeError, TestCaseError) as err:
+        parameters = parametersFromJson(generator, data.get('parameters', {}))
+    except (OSError, ValueError, KeyError, TypeError, AttributeError, TestCaseError) as err:
         raise TestCaseError(f'case {name}: {err}') from err
-    return TestCase(name, data.get('description', ''), generator, state)
+    return TestCase(name, data.get('description', ''), generator, state, parameters)
 
 def loadCases(folder: str, stateClasses: dict[str, type]) -> list[TestCase]:
     """Cases of the folder by name"""
     paths = sorted(os.path.join(folder, fileName) for fileName in os.listdir(folder) if fileName.endswith('.json'))
     return [loadCase(path, stateClasses) for path in paths]
 
+def parametersToJson(case: TestCase) -> dict:
+    return {name: round(value * 10, 6) for (name, value) in case.parameters.items()}
+
 def caseJson(case: TestCase) -> str:
-    return json.dumps({
+    data = {
         'description': case.description,
         'generator': case.generator,
         'settings': stateToJson(case.generator, case.state),
-    }, indent=4, ensure_ascii=False) + '\n'
+    }
+    if case.parameters:
+        data['parameters'] = parametersToJson(case)
+    return json.dumps(data, indent=4, ensure_ascii=False) + '\n'
 
 # the case list in tests/e2e/README.md, see tests/e2e/write_readme.py
 GENERATOR_TITLES = {GENERATOR_BIN: 'Bins', GENERATOR_BASEPLATE: 'Baseplates'}
@@ -109,6 +140,9 @@ fingerprints and a preview picture.
 
 Run them in Fusion from Utilities > Add-ins with **Gridfinity tests: run**, record new snapshots with **Gridfinity
 tests: update snapshots**. The commands are there when the add-in runs from a git checkout.
+
+A case with parameters sets those shared user parameters once built, the snapshot is of the bodies Fusion recomputed,
+and a run also compares them with the case built with the new values from the start.
 
 This page is written from the case files, run `python3 tests/e2e/write_readme.py` after adding or changing one.
 """
@@ -131,7 +165,11 @@ def casesMarkdown(folder: str) -> str:
     for fileName in sorted(name for name in os.listdir(folder) if name.endswith('.json')):
         with open(os.path.join(folder, fileName), encoding='utf-8') as file:
             data = json.load(file)
-        cases.append((os.path.splitext(fileName)[0], fileName, data.get('generator', ''), data.get('description', '')))
+        description = data.get('description', '')
+        if data.get('parameters'):
+            edits = ', '.join(f'`{name}` {value:g} mm' for (name, value) in data['parameters'].items())
+            description += f'. Sets {edits} once built, a run compares that with a build using those values from the start'
+        cases.append((os.path.splitext(fileName)[0], fileName, data.get('generator', ''), description))
     lines = [README_INTRO]
     for (generator, title) in GENERATOR_TITLES.items():
         section = [case for case in cases if case[2] == generator]
@@ -150,4 +188,7 @@ def caseSettings(case: TestCase) -> list[dict]:
             'title': 'Settings, mm and degrees',
             'items': [[name, json.dumps(value, ensure_ascii=False)] for (name, value) in stateToJson(case.generator, case.state).items()],
         },
-    ]
+    ] + ([{
+        'title': 'Parameters set after building, mm',
+        'items': [[name, json.dumps(value)] for (name, value) in parametersToJson(case).items()],
+    }] if case.parameters else [])

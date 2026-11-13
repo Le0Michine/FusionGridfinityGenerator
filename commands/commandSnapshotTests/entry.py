@@ -81,6 +81,8 @@ PREVIEW_VIEW = 'isoTopRight'
 PREVIEW_COLOR = '#4e79a7'
 # the tabs of the test documents, before the case name
 DOCUMENT_PREFIX = 'Gridfinity test'
+# what the bodies of a case with parameters are compared with besides its snapshot, see buildWithParameters
+PARAMETERS_LABEL = 'vs built with the parameters'
 TEST_VISUAL_STYLE = adsk.core.VisualStyles.ShadedWithVisibleEdgesOnlyVisualStyle
 # appearances the test documents add for the differences, by role
 DIFF_APPEARANCES = {
@@ -191,7 +193,7 @@ def runReporting(name: str, onExecute):
         startTime = time.perf_counter()
         (kind, cases, pending, message) = onExecute()
         lastReport = report.report(kind, name, cases, time.perf_counter() - startTime, pending, message)
-        futil.log(report.reportText(lastReport), force_console=True)
+        log(report.reportText(lastReport))
         reportPalette.show(lastReport, {
             'show': showCaseDocument,
             'view': switchCaseView,
@@ -207,12 +209,45 @@ def runReporting(name: str, onExecute):
     except:
         ui.messageBox(f'{name}\n\nFailed:\n{traceback.format_exc()}', name)
 
+def log(message: str):
+    """The text commands window, in debug mode the Fusion log file too, to read a run back after"""
+    futil.log(message, force_console=True)
+    if config.DEBUG:
+        app.log(message, adsk.core.LogLevels.InfoLogLevel, adsk.core.LogTypes.FileLogType)
+
 def buildCase(case: testCases.TestCase) -> tuple[adsk.core.Document, list[adsk.fusion.BRepBody], list[str]]:
-    """The case built in a new document, so nothing else in a design moves it or lends it parameters, with its unhealthy timeline features"""
+    """
+    The case built in a new document, so nothing else in a design moves it or lends it parameters, its parameters set
+    after, with its unhealthy timeline features
+    """
+    (document, design) = newCaseDocument(case.name, f'{DOCUMENT_PREFIX} {case.name}')
+    bodies = buildBodies(design, case, case.state)
+    if case.parameters:
+        setParameters(design, case.parameters)
+        if not all(body.isValid for body in bodies):
+            raise ValueError('a body is gone after setting the parameters')
+    for body in bodies:
+        tagTestBody(body, case.name, ROLE_RECEIVED)
+    return (document, bodies, unhealthyFeatures(design.timeline))
+
+def buildWithParameters(case: testCases.TestCase) -> tuple[list[adsk.fusion.BRepBody], list[str]]:
+    """
+    Shapes in memory of the case built with its parameters from the start, what setting them has to come to, with the
+    unhealthy timeline features of their document, closed after
+    """
+    (document, design) = newCaseDocument(case.name, f'{DOCUMENT_PREFIX} {case.name} with parameters')
+    try:
+        bodies = buildBodies(design, case, testCases.editedState(case))
+        tbm = adsk.fusion.TemporaryBRepManager.get()
+        return ([tbm.copy(body) for body in bodies], unhealthyFeatures(design.timeline))
+    finally:
+        document.close(False)
+
+def newCaseDocument(caseName: str, title: str) -> tuple[adsk.core.Document, adsk.fusion.Design]:
     global building
     document = app.documents.add(adsk.core.DocumentTypes.FusionDesignDocumentType)
-    building = (case.name, document)
-    nameDocument(document, f'{DOCUMENT_PREFIX} {case.name}')
+    building = (caseName, document)
+    nameDocument(document, title)
     design = adsk.fusion.Design.cast(document.products.itemByProductType('DesignProductType'))
     design.designType = adsk.fusion.DesignTypes.ParametricDesignType
     # a new document takes the design intent of the preferences, only hybrid has room for a body and components side by side
@@ -221,14 +256,22 @@ def buildCase(case: testCases.TestCase) -> tuple[adsk.core.Document, list[adsk.f
             design.designIntent = adsk.fusion.DesignIntentTypes.HybridDesignIntentType
         except Exception as err:
             futil.log(f'{reportPalette.PALETTE_TITLE} test document stays {design.designIntent} design intent, {err}', force_console=True)
+    return (document, design)
+
+def buildBodies(design: adsk.fusion.Design, case: testCases.TestCase, state: object) -> list[adsk.fusion.BRepBody]:
     settings = testCases.caseSettings(case)
     if case.generator == testCases.GENERATOR_BIN:
-        bodies = binBuilder.buildBin(design, case.state, settings)
-    else:
-        bodies = baseplateBuilder.buildBaseplate(design, case.state, settings)
-    for body in bodies:
-        tagTestBody(body, case.name, ROLE_RECEIVED)
-    return (document, bodies, unhealthyFeatures(design.timeline))
+        return binBuilder.buildBin(design, state, settings)
+    return baseplateBuilder.buildBaseplate(design, state, settings)
+
+def setParameters(design: adsk.fusion.Design, parameters: dict[str, float]):
+    """User parameters set as a user would in Change Parameters, values in cm, Fusion recomputes the design"""
+    for (name, value) in parameters.items():
+        parameter = design.userParameters.itemByName(name)
+        if parameter is None:
+            raise ValueError(f'the design has no user parameter {name}')
+        parameter.expression = f'{round(value * 10, 6):g} mm'
+    adsk.doEvents()
 
 # what Fusion found wrong with a timeline feature. Groups and some other items are of unknown health, nothing to report
 HEALTH_NAMES = {
@@ -241,6 +284,8 @@ def unhealthyFeatures(timeline: adsk.fusion.Timeline) -> list[str]:
     # by feature and message, a feature in a group may be listed on its own as well, the group's name is kept. Fusion
     # refuses the timeline index of some features, it isn't used
     notes: dict[tuple[str, str], str] = {}
+    # what the unhealthy features refer to, for the log only
+    details: list[str] = []
     def look(items, groupName: str):
         for index in range(items.count):
             item = items.item(index)
@@ -252,9 +297,42 @@ def unhealthyFeatures(timeline: adsk.fusion.Timeline) -> list[str]:
                 key = (item.name, message)
                 if groupName or key not in notes:
                     place = f'{groupName} > {item.name}' if groupName else item.name
+                    if key not in notes:
+                        details.extend(featureDetails(item.entity))
                     notes[key] = f'timeline {place}, {HEALTH_NAMES[item.healthState]}: {message}'
     look(timeline, '')
+    caseName = building[0] if building is not None else ''
+    for note in notes.values():
+        log(f'{reportPalette.PALETTE_TITLE} {caseName} {note}')
+    for detail in details:
+        log(f'{reportPalette.PALETTE_TITLE} {caseName}   {detail}')
     return list(notes.values())
+
+def featureDetails(entity) -> list[str]:
+    """What an unhealthy feature refers to, for the log: an extrude's profiles and their sketch, a sketch's texts"""
+    lines = []
+    try:
+        extrude = adsk.fusion.ExtrudeFeature.cast(entity)
+        if extrude is not None:
+            profile = extrude.profile
+            items = [profile.item(index) for index in range(profile.count)] if isinstance(profile, adsk.core.ObjectCollection) else [profile]
+            lines.append(f'{extrude.name}: {len(items)} profile(s) {[item.objectType if item is not None else None for item in items]}')
+            for item in items:
+                sketch = getattr(item, 'parentSketch', None)
+                if sketch is not None:
+                    lines += featureDetails(sketch)
+                    break
+        sketch = adsk.fusion.Sketch.cast(entity)
+        if sketch is not None:
+            lines.append(f'sketch {sketch.name}: health {sketch.healthState}, {sketch.errorOrWarningMessage or "no message"}, '
+                f'{sketch.profiles.count} profile(s), {sketch.sketchCurves.count} curve(s), plane {sketch.referencePlane.objectType if sketch.referencePlane else None}')
+            for text in sketch.sketchTexts:
+                box = text.boundingBox
+                lines.append(f'  text {text.text!r} height {text.height * 10:g} mm, box ({box.minPoint.x * 10:.2f}, {box.minPoint.y * 10:.2f}) - '
+                    f'({box.maxPoint.x * 10:.2f}, {box.maxPoint.y * 10:.2f}) mm, {len(text.asCurves())} curve(s)')
+    except Exception as err:
+        lines.append(f'details not read, {err}')
+    return lines
 
 def buildFailure(case: testCases.TestCase, err: Exception) -> str:
     """
@@ -309,9 +387,17 @@ def runAll(_) -> dict | None:
     return queueJob(report.KIND_RUN, None)
 
 def runOne(data) -> dict | None:
-    """The Run button of a case"""
-    name = data.get('case') if isinstance(data, dict) else None
-    return queueJob(report.KIND_RUN, {name}) if name else None
+    """The Run button of a case, and Run all with a filter, for the cases it shows"""
+    names = selectedNames(data)
+    return queueJob(report.KIND_RUN, names) if names else None
+
+def selectedNames(data) -> set[str] | None:
+    """The page's case, or its cases, a list of names"""
+    if not isinstance(data, dict):
+        return None
+    if isinstance(data.get('cases'), list):
+        return {name for name in data['cases'] if isinstance(name, str)}
+    return {data['case']} if isinstance(data.get('case'), str) else None
 
 def queueJob(kind: str, names: set[str] | None) -> dict | None:
     """
@@ -373,9 +459,9 @@ def runSelected(names: set[str] | None) -> dict | None:
         caseReports = runCases(cases, progressShower(cases, startTime))
         message = ''
         if len(caseViews) > 0:
-            message = f'{len(caseViews)} document(s) of cases that did not pass are left open, switch what they show with Diff, Built and Snapshot'
+            message = f'{len(caseViews)} case document(s) left open, switch what they show with Diff, Built and Snapshot'
         lastReport = report.withCases(lastReport, caseReports, time.perf_counter() - startTime, message)
-        futil.log(report.reportText(lastReport), force_console=True)
+        log(report.reportText(lastReport))
     except:
         ui.messageBox(f'{RUN_CMD_NAME}\n\nFailed:\n{traceback.format_exc()}', RUN_CMD_NAME)
     return lastReport
@@ -390,22 +476,27 @@ def progressShower(cases: list[testCases.TestCase], startTime: float) -> Callabl
         reportPalette.update(lastReport)
     return showProgress
 
+def closeCaseDocument(name: str, originalDocument: adsk.core.Document | None) -> adsk.core.Document | None:
+    """The document left open for the case by a run or refresh before, the document to go back to after"""
+    previous = caseViews.pop(name, None)
+    if previous is not None and previous.document.isValid:
+        if originalDocument == previous.document:
+            originalDocument = None
+        previous.document.close(False)
+    return originalDocument
+
 def runCases(cases: list[testCases.TestCase], showProgress: Callable[[int, list[dict]], None]) -> list[dict]:
     """
     Each case built and compared with its snapshot. The document of a case run before is closed first, the document of
-    one that doesn't pass is left open showing the differences. showProgress gets the index of the case about to be
-    built and the reports of those before it
+    one that doesn't pass is left open showing the differences, a case run alone stays open all the same. showProgress
+    gets the index of the case about to be built and the reports of those before it
     """
     originalDocument = app.activeDocument
     caseReports = []
     for (index, case) in enumerate(cases):
         showProgress(index, caseReports)
-        previous = caseViews.pop(case.name, None)
-        if previous is not None and previous.document.isValid:
-            if originalDocument == previous.document:
-                originalDocument = None
-            previous.document.close(False)
-        caseReports.append(runCase(case))
+        originalDocument = closeCaseDocument(case.name, originalDocument)
+        caseReports.append(runCase(case, keepOpen=len(cases) == 1))
         adsk.doEvents()
     openDocuments = [caseViews[case.name].document for case in cases if case.name in caseViews]
     if len(openDocuments) > 0:
@@ -415,7 +506,7 @@ def runCases(cases: list[testCases.TestCase], showProgress: Callable[[int, list[
         originalDocument.activate()
     return caseReports
 
-def runCase(case: testCases.TestCase) -> dict:
+def runCase(case: testCases.TestCase, keepOpen: bool) -> dict:
     document = None
     notes = []
     try:
@@ -425,14 +516,25 @@ def runCase(case: testCases.TestCase) -> dict:
         notes += unhealthy
     except Exception as err:
         results = [snapshots.BodyResult('', snapshots.STATUS_FAIL, [f'build failed, {buildFailure(case, err)}'])]
+    if document is not None and case.parameters:
+        try:
+            (references, unhealthy) = buildWithParameters(case)
+            notes += [f'{PARAMETERS_LABEL}, {note}' for note in unhealthy]
+        except Exception as err:
+            references = None
+            results.append(snapshots.BodyResult(PARAMETERS_LABEL, snapshots.STATUS_FAIL, [f'build failed, {buildFailure(case, err)}']))
+        if references is not None:
+            results += snapshots.compareBodies(bodies, references, PARAMETERS_LABEL)
+        document.activate()
     status = snapshots.worstStatus([result.status for result in results] + ([snapshots.STATUS_FAIL] if notes else []))
     view = None
     if document is not None:
-        if status == snapshots.STATUS_PASS:
+        if status == snapshots.STATUS_PASS and not keepOpen:
             document.close(False)
         else:
             caseViews[case.name] = CaseView(case.name, document, bodies, results)
-            view = report.VIEW_DIFF
+            # a passing case has no differences to show
+            view = report.VIEW_DIFF if status != snapshots.STATUS_PASS else report.VIEW_BUILT
             try:
                 prepareCaseDocument(caseViews[case.name])
                 showView(caseViews[case.name], view)
@@ -703,9 +805,9 @@ def refreshAll(_) -> dict | None:
     return queueJob(report.KIND_UPDATE, None)
 
 def refreshOne(data) -> dict | None:
-    """The Refresh button of a case"""
-    name = data.get('case') if isinstance(data, dict) else None
-    return queueJob(report.KIND_UPDATE, {name}) if name else None
+    """The Refresh button of a case, and Refresh all with a filter, for the cases it shows"""
+    names = selectedNames(data)
+    return queueJob(report.KIND_UPDATE, names) if names else None
 
 def refreshSelected(names: set[str] | None) -> dict | None:
     """
@@ -746,7 +848,10 @@ def refreshSelected(names: set[str] | None) -> dict | None:
             pendingUpdate = {'staging': stagingFolder, 'apply': toApply, 'remove': toRemove, 'previews': toPreview}
             pending = {'replace': len(toApply), 'remove': len(toRemove), 'previews': len(toPreview), 'folder': SNAPSHOTS_FOLDER}
         lastReport = {**report.withCases(lastReport, caseReports, time.perf_counter() - startTime, message), 'pending': pending}
-        futil.log(report.reportText(lastReport), force_console=True)
+        if pendingUpdate is None:
+            # the new previews went with the staging folder
+            lastReport['cases'] = withSnapshotPreviews(lastReport['cases'])
+        log(report.reportText(lastReport))
     except:
         ui.messageBox(f'{UPDATE_CMD_NAME}\n\nFailed:\n{traceback.format_exc()}', UPDATE_CMD_NAME)
     return lastReport
@@ -755,15 +860,18 @@ def stageSnapshots(cases: list[testCases.TestCase], stagingFolder: str, showProg
     """
     The reports of the cases with their new snapshots in the staging folder, the names of those to copy in place, and
     of the unchanged ones whose snapshot has no preview yet, only the preview is copied. A preview of the same shape
-    is left as it is, it would change with how Fusion draws
+    is left as it is, it would change with how Fusion draws. A case refreshed alone stays open in the viewport
     """
     originalDocument = app.activeDocument
+    keepOpen = len(cases) == 1
     caseReports = []
     toApply = []
     toPreview = []
     for (index, case) in enumerate(cases):
         showProgress(index, caseReports)
+        originalDocument = closeCaseDocument(case.name, originalDocument)
         document = None
+        results = []
         currentFolder = os.path.join(SNAPSHOTS_FOLDER, case.name)
         try:
             (document, bodies, unhealthy) = buildCase(case)
@@ -791,9 +899,15 @@ def stageSnapshots(cases: list[testCases.TestCase], stagingFolder: str, showProg
         except Exception as err:
             caseReports.append(report.case(case.name, case.description, report.STATUS_FAIL, [], [f'build failed, its snapshot stays as it is, {buildFailure(case, err)}']))
         if document is not None:
-            document.close(False)
+            if keepOpen:
+                # listed as a run leaves a case, so it's highlighted as shown and closed with the others
+                caseViews[case.name] = CaseView(case.name, document, bodies, results)
+                document.activate()
+                frameBesidePalette()
+            else:
+                document.close(False)
         adsk.doEvents()
-    if originalDocument is not None and originalDocument.isValid:
+    if not keepOpen and originalDocument is not None and originalDocument.isValid:
         originalDocument.activate()
     return (caseReports, toApply, toPreview)
 
@@ -821,7 +935,7 @@ def applyPendingUpdate(_) -> dict | None:
         message += f'. {os.path.relpath(README_PATH, E2E_FOLDER)} not written, {err}'
     discardPendingUpdate()
     lastReport = {**lastReport, 'pending': None, 'message': message, 'cases': withSnapshotPreviews(lastReport['cases'])}
-    futil.log(message, force_console=True)
+    log(message)
     return lastReport
 
 def withSnapshotPreviews(cases: list[dict]) -> list[dict]:
