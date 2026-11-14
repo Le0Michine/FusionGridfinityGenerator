@@ -1,37 +1,29 @@
 import dataclasses
 import json
-import math
 import os
 
-# Shape test cases, one JSON file each, holding every setting of a bin or baseplate InputState by its field name.
-# Lengths are in mm and angles in degrees to read easily, the state keeps Fusion's cm and radians.
+# Shape test cases, one JSON file each, holding every setting of a bin or baseplate InputState by its field name,
+# in the config format of lib/configJson.py.
 # Kept free of Fusion imports so it can be unit tested, the state classes come in as an argument
 
-GENERATOR_BIN = 'bin'
-GENERATOR_BASEPLATE = 'baseplate'
+def _loadConfigJson():
+    """lib/configJson.py, also when the tests and tools load this file on its own, outside the add-in package"""
+    try:
+        from ...lib import configJson
+        return configJson
+    except ImportError:
+        import importlib.util
+        path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'lib', 'configJson.py')
+        spec = importlib.util.spec_from_file_location('configJson', path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
 
-# the rest are counts, base or height units, flags and names, kept as they are
-MM_FIELDS = {
-    GENERATOR_BIN: {
-        'baseWidth', 'baseLength', 'heightUnit', 'xyClearance', 'wallThickness', 'screwHoleDiameter',
-        'magnetCutoutDiameter', 'magnetCutoutDepth', 'scoopMaxRadius', 'tabWidth', 'creaseDepth',
-    },
-    GENERATOR_BASEPLATE: {
-        'baseWidth', 'baseLength', 'xyClearance', 'magnetSocketSize', 'magnetSocketDepth', 'screwHoleSize',
-        'screwHeadSize', 'paddingLeft', 'paddingTop', 'paddingRight', 'paddingBottom', 'extraBottomThickness',
-        'verticalClearance', 'connectionHoleSize', 'areaWidth', 'areaLength', 'fitTolerance', 'bedWidth',
-        'bedLength', 'bedMargin',
-    },
-}
-DEGREE_FIELDS = {
-    GENERATOR_BIN: {'tabOverhangAngle', 'tabTopAngle'},
-    GENERATOR_BASEPLATE: set(),
-}
-# lists of cells, JSON has no tuples
-CELL_LIST_FIELDS = {
-    GENERATOR_BIN: {'shapeCells'},
-    GENERATOR_BASEPLATE: set(),
-}
+configJson = _loadConfigJson()
+GENERATOR_BIN = configJson.GENERATOR_BIN
+GENERATOR_BASEPLATE = configJson.GENERATOR_BASEPLATE
+stateFromJson = configJson.stateFromJson
+stateToJson = configJson.stateToJson
 
 # the shared user parameters a case may change after building, see lib/gridfinityUtils/sharedParameters.py, with the
 # setting each stands for. Keep the names literal, they're in user documents
@@ -52,35 +44,6 @@ class TestCase:
     state: object
     # shared parameters set after building, in cm, the result has to be the same as built with them, see editedState
     parameters: dict[str, float] = dataclasses.field(default_factory=dict)
-
-def stateFromJson(generator: str, stateClass: type, settings: dict) -> object:
-    """Every field of the state has to be there and nothing else, so a case never falls back to a default"""
-    fieldNames = [field.name for field in dataclasses.fields(stateClass)]
-    missing = [name for name in fieldNames if name not in settings]
-    unknown = [name for name in settings if name not in fieldNames]
-    if missing or unknown:
-        raise TestCaseError(f'missing settings {missing}, unknown settings {unknown}')
-    def value(name: str):
-        if name in MM_FIELDS[generator]:
-            return settings[name] / 10
-        if name in DEGREE_FIELDS[generator]:
-            return settings[name] / 180 * math.pi
-        if name in CELL_LIST_FIELDS[generator]:
-            return [tuple(cell) for cell in settings[name]]
-        return settings[name]
-    return stateClass(**{name: value(name) for name in fieldNames})
-
-def stateToJson(generator: str, state: object) -> dict:
-    """Settings of a case file, rounded so float noise from the unit change doesn't show"""
-    def value(name: str, fieldValue):
-        if name in MM_FIELDS[generator]:
-            return round(fieldValue * 10, 6)
-        if name in DEGREE_FIELDS[generator]:
-            return round(fieldValue * 180 / math.pi, 6)
-        if name in CELL_LIST_FIELDS[generator]:
-            return [list(cell) for cell in fieldValue]
-        return fieldValue
-    return {field.name: value(field.name, getattr(state, field.name)) for field in dataclasses.fields(state)}
 
 def parametersFromJson(generator: str, parameters: dict) -> dict[str, float]:
     """Values in mm of the generator's shared parameters, in cm"""
@@ -108,7 +71,7 @@ def loadCase(path: str, stateClasses: dict[str, type]) -> TestCase:
             raise TestCaseError(f'unknown generator {generator!r}')
         state = stateFromJson(generator, stateClasses[generator], data['settings'])
         parameters = parametersFromJson(generator, data.get('parameters', {}))
-    except (OSError, ValueError, KeyError, TypeError, AttributeError, TestCaseError) as err:
+    except (OSError, ValueError, KeyError, TypeError, AttributeError, TestCaseError, configJson.ConfigError) as err:
         raise TestCaseError(f'case {name}: {err}') from err
     return TestCase(name, data.get('description', ''), generator, state, parameters)
 

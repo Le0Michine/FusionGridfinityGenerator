@@ -218,3 +218,15 @@ class TestManualPreviewStateBug:
         # updateValue on a non-existent key is a no-op — entry still absent
         state.updateValue("show_preview_manual", False)
         assert "show_preview_manual" not in state.inputState
+
+
+class TestCommandUiStateSetValue:
+    def test_sets_the_state_without_touching_a_registered_input(self):
+        state = CommandUiState("test")
+        state.initValue("flag", True, core.BoolValueCommandInput.classType())
+        inp = make_bool_input("flag", True)
+        state.registerCommandInput(inp)
+        state.setValue("flag", False)
+        assert state.getState("flag") is False
+        assert inp.value is True
+        assert state.inputState["flag"].type == core.BoolValueCommandInput.classType()

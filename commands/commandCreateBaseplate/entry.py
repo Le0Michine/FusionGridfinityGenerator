@@ -1,4 +1,5 @@
 import adsk.core, adsk.fusion, traceback
+import dataclasses
 import html
 import math
 import os
@@ -33,6 +34,8 @@ from .baseplateBuilder import (
 from . import printBeds
 from ...lib.ui.commandUiState import CommandUiState
 from ...lib.ui.defaultsButtons import addDefaultsButtonRow, defaultsButtonsHandlers, DEFAULTS_SAVE, DEFAULTS_FACTORY_RESET
+from ...lib.ui.buttonRow import addButtonRow
+from ...lib.ui import configButtons
 from ...lib.ui import selection
 from ...lib.ui import browserPages
 from ...lib.ui.unsupportedDesignTypeException import UnsupportedDesignTypeException
@@ -53,6 +56,8 @@ CMD_Description = ('Creates a gridfinity baseplate for bins to sit in.\n\n'
     'with half cells and padding taking up the rest. Magnet and screw holes and holes to connect the pieces are optional.')
 
 uiState = CommandUiState(CMD_NAME)
+# config the dialog opens with next, see startWithConfig
+pendingConfig: dict | None = None
 # bodies of the last build, selected and centered in the view when the dialog closes on OK, see command_destroy
 builtBodies: list[adsk.fusion.BRepBody] = []
 # Specify that the command will be promoted to the panel.
@@ -140,6 +145,43 @@ BASEPLATE_JOINT_ORIGINS_INPUT = 'has_joint_origins'
 BASEPLATE_CONNECTION_HOLE_DIAMETER_INPUT = 'connection_hole_diameter'
 
 INPUT_CHANGES_BUTTONS_BROWSER = 'input_changes_buttons'
+CONFIG_BUTTONS_BROWSER = 'config_buttons'
+
+# the input of each InputState field in the order of the fields, see getInputsState
+STATE_INPUT_IDS = [
+    BASEPLATE_BASE_UNIT_WIDTH_INPUT,
+    BASEPLATE_BASE_UNIT_LENGTH_INPUT,
+    BIN_XY_CLEARANCE_INPUT_ID,
+    BASEPLATE_WIDTH_INPUT,
+    BASEPLATE_LENGTH_INPUT,
+    BASEPLATE_TYPE_DROPDOWN,
+    BASEPLATE_WITH_MAGNETS_INPUT,
+    BASEPLATE_MAGNET_DIAMETER_INPUT,
+    BASEPLATE_MAGNET_HEIGHT_INPUT,
+    BASEPLATE_WITH_SCREWS_INPUT,
+    BASEPLATE_SCREW_DIAMETER_INPUT,
+    BASEPLATE_SCREW_HEIGHT_INPUT,
+    BASEPLATE_WITH_SIDE_PADDING_INPUT,
+    BASEPLATE_SIDE_PADDING_LEFT_INPUT,
+    BASEPLATE_SIDE_PADDING_TOP_INPUT,
+    BASEPLATE_SIDE_PADDING_RIGHT_INPUT,
+    BASEPLATE_SIDE_PADDING_BOTTOM_INPUT,
+    BASEPLATE_EXTRA_THICKNESS_INPUT,
+    BASEPLATE_BIN_Z_CLEARANCE_INPUT,
+    BASEPLATE_HAS_CONNECTION_HOLE_INPUT,
+    BASEPLATE_CONNECTION_HOLE_DIAMETER_INPUT,
+    SIZING_MODE_DROPDOWN,
+    FILL_AREA_WIDTH_INPUT,
+    FILL_AREA_LENGTH_INPUT,
+    FILL_FIT_TOLERANCE_INPUT,
+    PRINT_BED_WIDTH_INPUT,
+    PRINT_BED_LENGTH_INPUT,
+    PRINT_BED_MARGIN_INPUT,
+    FILL_ALIGN_X_DROPDOWN,
+    FILL_ALIGN_Y_DROPDOWN,
+    FILL_HALF_CELLS_INPUT,
+    BASEPLATE_JOINT_ORIGINS_INPUT,
+]
 
 SHOW_PREVIEW_INPUT = 'show_preview'
 PREVIEW_TIME_INPUT = 'preview_time'
@@ -245,6 +287,8 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
 
     args.command.setDialogInitialSize(450, 500)
     applySharedParameterDefaults()
+    # a clone keeps its own units
+    applyPendingConfig()
 
     # https://help.autodesk.com/view/fusion360/ENU/?contextId=CommandInputs
     inputs = args.command.commandInputs
@@ -451,6 +495,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     inputChangesGroup.isExpanded = uiState.getState(INPUT_CHANGES_GROUP)
     uiState.registerCommandInput(inputChangesGroup)
     addDefaultsButtonRow(inputChangesGroup.children, INPUT_CHANGES_BUTTONS_BROWSER)
+    addButtonRow(inputChangesGroup.children, CONFIG_BUTTONS_BROWSER)
 
     previewGroup = inputs.addGroupCommandInput(PREVIEW_GROUP, 'Preview')
     uiState.registerCommandInput(previewGroup)
@@ -579,8 +624,25 @@ def command_incoming_from_html(args: adsk.core.HTMLEventArgs):
         if uiState.getInput(SHOW_PREVIEW_INPUT).value:
             command.doExecutePreview()
 
+    def onLoadConfig(text: str, fileName: str):
+        inputsState = readConfig(text, f'Loaded "{fileName}"')
+        if inputsState is None:
+            return
+        applyInputsState(inputsState)
+        uiState.forceUIRefresh()
+        updateSizingModeInputs(command.commandInputs)
+        if uiState.getInput(SHOW_PREVIEW_INPUT).value:
+            command.doExecutePreview()
+
     if args.browserCommandInput.id == INPUT_CHANGES_BUTTONS_BROWSER:
         handlers = defaultsButtonsHandlers(onDefaults)
+    elif args.browserCommandInput.id == CONFIG_BUTTONS_BROWSER:
+        handlers = configButtons.configButtonsHandlers(
+            'baseplate',
+            lambda: configJson.configText(configJson.GENERATOR_BASEPLATE, configJson.stateToJson(configJson.GENERATOR_BASEPLATE, getInputsState()), tagUtils.getGeneratorVersion()),
+            lambda: baseplateName(getInputsState()),
+            onLoad=onLoadConfig,
+        )
     else:
         handlers = {browserPages.READY: lambda _: layoutData(getInputsState())}
     browserPages.handleMessage(args, handlers)
@@ -870,37 +932,42 @@ def saveUIInputsAsDefaults():
 
 def getInputsState():
     global uiState
-    return InputState(
-        uiState.getState(BASEPLATE_BASE_UNIT_WIDTH_INPUT),
-        uiState.getState(BASEPLATE_BASE_UNIT_LENGTH_INPUT),
-        uiState.getState(BIN_XY_CLEARANCE_INPUT_ID),
-        uiState.getState(BASEPLATE_WIDTH_INPUT),
-        uiState.getState(BASEPLATE_LENGTH_INPUT),
-        uiState.getState(BASEPLATE_TYPE_DROPDOWN),
-        uiState.getState(BASEPLATE_WITH_MAGNETS_INPUT),
-        uiState.getState(BASEPLATE_MAGNET_DIAMETER_INPUT),
-        uiState.getState(BASEPLATE_MAGNET_HEIGHT_INPUT),
-        uiState.getState(BASEPLATE_WITH_SCREWS_INPUT),
-        uiState.getState(BASEPLATE_SCREW_DIAMETER_INPUT),
-        uiState.getState(BASEPLATE_SCREW_HEIGHT_INPUT),
-        uiState.getState(BASEPLATE_WITH_SIDE_PADDING_INPUT),
-        uiState.getState(BASEPLATE_SIDE_PADDING_LEFT_INPUT),
-        uiState.getState(BASEPLATE_SIDE_PADDING_TOP_INPUT),
-        uiState.getState(BASEPLATE_SIDE_PADDING_RIGHT_INPUT),
-        uiState.getState(BASEPLATE_SIDE_PADDING_BOTTOM_INPUT),
-        uiState.getState(BASEPLATE_EXTRA_THICKNESS_INPUT),
-        uiState.getState(BASEPLATE_BIN_Z_CLEARANCE_INPUT),
-        uiState.getState(BASEPLATE_HAS_CONNECTION_HOLE_INPUT),
-        uiState.getState(BASEPLATE_CONNECTION_HOLE_DIAMETER_INPUT),
-        uiState.getState(SIZING_MODE_DROPDOWN),
-        uiState.getState(FILL_AREA_WIDTH_INPUT),
-        uiState.getState(FILL_AREA_LENGTH_INPUT),
-        uiState.getState(FILL_FIT_TOLERANCE_INPUT),
-        uiState.getState(PRINT_BED_WIDTH_INPUT),
-        uiState.getState(PRINT_BED_LENGTH_INPUT),
-        uiState.getState(PRINT_BED_MARGIN_INPUT),
-        uiState.getState(FILL_ALIGN_X_DROPDOWN),
-        uiState.getState(FILL_ALIGN_Y_DROPDOWN),
-        uiState.getState(FILL_HALF_CELLS_INPUT),
-        uiState.getState(BASEPLATE_JOINT_ORIGINS_INPUT),
-    )
+    return InputState(*[uiState.getState(inputId) for inputId in STATE_INPUT_IDS])
+
+def applyInputsState(inputsState: InputState):
+    """Sets the dialog state to a state from getInputsState, the inputs follow on forceUIRefresh"""
+    for (field, inputId) in zip(dataclasses.fields(InputState), STATE_INPUT_IDS):
+        uiState.setValue(inputId, getattr(inputsState, field.name))
+    # the bed size of a config is the preset's only when it matches
+    presetBedSize = printBeds.presetBedSize(uiState.getState(PRINT_BED_PRESET_DROPDOWN))
+    bedSize = (inputsState.bedWidth, inputsState.bedLength)
+    if presetBedSize is not None and not all(math.isclose(a, b, abs_tol=const.DEFAULT_FILTER_TOLERANCE) for (a, b) in zip(presetBedSize, bedSize)):
+        uiState.setValue(PRINT_BED_PRESET_DROPDOWN, printBeds.PRINT_BED_CUSTOM)
+
+def configChoices() -> dict[str, configJson.Choice]:
+    """The options of the dropdowns with the dialog's first defaults, see initUiState"""
+    return {
+        'plateType': configJson.Choice([BASEPLATE_TYPE_LIGHT, BASEPLATE_TYPE_SKELETONIZED, BASEPLATE_TYPE_FULL], BASEPLATE_TYPE_LIGHT),
+        'sizingMode': configJson.Choice([SIZING_MODE_GRID_UNITS, SIZING_MODE_FILL_AREA], SIZING_MODE_FILL_AREA),
+        'alignmentX': configJson.Choice(list(FILL_ALIGN_X_OPTIONS.keys()), 'Center'),
+        'alignmentY': configJson.Choice(list(FILL_ALIGN_Y_OPTIONS.keys()), 'Center'),
+    }
+
+def readConfig(text: str, source: str) -> InputState | None:
+    """The state of a config, none when it can't be read, see configButtons.readConfig"""
+    return configButtons.readConfig(text, source, configJson.GENERATOR_BASEPLATE, InputState, getInputsState(), configChoices())
+
+def startWithConfig(settings: dict):
+    """Opens the dialog with a config by field name, see configJson.stateToJson, settings it doesn't have stay"""
+    global pendingConfig
+    pendingConfig = settings
+    ui.commandDefinitions.itemById(CMD_ID).execute()
+
+def applyPendingConfig():
+    global pendingConfig
+    if pendingConfig is None:
+        return
+    inputsState = readConfig(configJson.configText(configJson.GENERATOR_BASEPLATE, pendingConfig), 'Cloned')
+    pendingConfig = None
+    if inputsState is not None:
+        applyInputsState(inputsState)

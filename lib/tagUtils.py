@@ -27,9 +27,10 @@ def getGeneratorVersion() -> str:
             _generatorVersion = ''
     return _generatorVersion
 
-def createTagValue(generatorVersion: str, settings: list[dict] = None, parameters: list[list[str]] = None) -> str:
+def createTagValue(generatorVersion: str, settings: list[dict] = None, parameters: list[list[str]] = None, config: dict = None) -> str:
     """Settings are the dialog inputs the body was generated with, as sections of label and value pairs,
-    parameters are label and name pairs of the user parameters driving it"""
+    parameters are label and name pairs of the user parameters driving it, config the settings to build it again
+    by field name, see configJson.stateToJson"""
     value = {
         'schemaVersion': TAG_SCHEMA_VERSION,
         'generatorVersion': generatorVersion,
@@ -38,6 +39,8 @@ def createTagValue(generatorVersion: str, settings: list[dict] = None, parameter
         value['settings'] = settings
     if parameters is not None:
         value['parameters'] = parameters
+    if config is not None:
+        value['config'] = config
     return json.dumps(value)
 
 def parseTagValue(value: str) -> dict:
@@ -48,8 +51,8 @@ def parseTagValue(value: str) -> dict:
         return {}
     return data if isinstance(data, dict) else {}
 
-def tagBody(body: adsk.fusion.BRepBody, tagName: str, settings: list[dict] = None, parameters: list[list[str]] = None):
-    body.attributes.add(TAG_GROUP, tagName, createTagValue(getGeneratorVersion(), settings, parameters))
+def tagBody(body: adsk.fusion.BRepBody, tagName: str, settings: list[dict] = None, parameters: list[list[str]] = None, config: dict = None):
+    body.attributes.add(TAG_GROUP, tagName, createTagValue(getGeneratorVersion(), settings, parameters, config))
 
 def readBodyTag(body: adsk.fusion.BRepBody) -> tuple[str, dict] | None:
     """Which generator tagged the body and the tag value, none for bodies it didn't generate"""

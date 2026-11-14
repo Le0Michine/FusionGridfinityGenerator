@@ -75,21 +75,74 @@ def configText(generator: str, settings: dict, generatorVersion: str = '') -> st
     data['settings'] = settings
     return json.dumps(data, indent=4, ensure_ascii=False) + '\n'
 
-def _kind(value) -> str:
-    if isinstance(value, bool):
-        return 'yes or no'
-    if isinstance(value, (int, float)):
-        return 'a number'
-    if isinstance(value, str):
-        return 'text'
-    if isinstance(value, list):
-        return 'a list'
-    return type(value).__name__
+@dataclasses.dataclass
+class Choice:
+    """The options a dropdown setting has, and the one a value it doesn't have becomes"""
+    options: list[str]
+    default: str
 
-def readConfig(text: str, generator: str, stateClass: type, current: object) -> tuple[object, list[str]]:
+@dataclasses.dataclass
+class ConfigNotes:
+    """What reading a config changed, see readConfig"""
+    # settings this version doesn't know
+    unknown: list[str] = dataclasses.field(default_factory=list)
+    # settings the file doesn't have with the current value they keep, as stateToJson has it
+    missing: list[tuple[str, object]] = dataclasses.field(default_factory=list)
+    # dropdown settings with an option they don't have, the value in the file and the default used
+    replaced: list[tuple[str, str, str]] = dataclasses.field(default_factory=list)
+
+    def isEmpty(self) -> bool:
+        return not (self.unknown or self.missing or self.replaced)
+
+def _typeName(fieldType) -> str:
+    if fieldType is bool:
+        return 'yes or no'
+    if fieldType is int:
+        return 'a whole number'
+    if fieldType is float:
+        return 'a number'
+    if fieldType is str:
+        return 'text'
+    if fieldType == list[tuple[int, int]]:
+        return 'a list of [x, y] cells'
+    if fieldType == list[dict]:
+        return 'a list of objects'
+    return str(fieldType)
+
+def _isNumber(value) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+def _fitsType(value, fieldType) -> bool:
+    """A JSON value for a state field of the type. Whole numbers may be written as 2.0"""
+    if fieldType is bool:
+        return isinstance(value, bool)
+    if fieldType is int:
+        return _isNumber(value) and float(value).is_integer()
+    if fieldType is float:
+        return _isNumber(value)
+    if fieldType is str:
+        return isinstance(value, str)
+    if fieldType == list[tuple[int, int]]:
+        return isinstance(value, list) and all(
+            isinstance(cell, list) and len(cell) == 2 and all(_fitsType(item, int) for item in cell) for cell in value
+        )
+    if fieldType == list[dict]:
+        return isinstance(value, list) and all(isinstance(item, dict) for item in value)
+    return False
+
+def _withType(value, fieldType):
+    if fieldType is int:
+        return int(value)
+    if fieldType == list[tuple[int, int]]:
+        return [[int(x), int(y)] for (x, y) in value]
+    return value
+
+def readConfig(text: str, generator: str, stateClass: type, current: object, choices: dict[str, Choice] = None) -> tuple[object, ConfigNotes]:
     """
-    The state of a config file for the generator, with the notes on what was left as it is. Settings the file doesn't
-    have, saved by an older version, keep their value from current, ones this version doesn't know are skipped
+    The state of a config file for the generator and what reading it changed. A value of the wrong type refuses the
+    file, ranges are left to the dialog. Settings the file doesn't have, saved by an older version, keep their value
+    from current, ones this version doesn't know are skipped, and a dropdown option that isn't in choices becomes
+    its default
     """
     try:
         data = json.loads(text)
@@ -100,24 +153,54 @@ def readConfig(text: str, generator: str, stateClass: type, current: object) -> 
     if data.get('generator') != generator:
         title = GENERATOR_TITLES.get(data.get('generator'))
         raise ConfigError(f'It\'s the config of a {title}, not of a {GENERATOR_TITLES[generator]}' if title else f'It isn\'t the config of a {GENERATOR_TITLES[generator]}')
-    settings = stateToJson(generator, current)
+    fieldTypes = {field.name: field.type for field in dataclasses.fields(stateClass)}
     loaded = data['settings']
-    wrongKinds = [
-        f'{name} has to be {_kind(settings[name])}, not {json.dumps(value)}'
+    wrongTypes = [
+        f'{name} has to be {_typeName(fieldTypes[name])}, not {json.dumps(value)}'
         for (name, value) in loaded.items()
-        if name in settings and _kind(value) != _kind(settings[name])
+        if name in fieldTypes and not _fitsType(value, fieldTypes[name])
     ]
-    if wrongKinds:
-        raise ConfigError(', '.join(wrongKinds))
-    notes = []
-    missing = [name for name in settings if name not in loaded]
-    if missing:
-        notes.append(f'kept the current {", ".join(missing)}')
-    unknown = [name for name in loaded if name not in settings]
-    if unknown:
-        notes.append(f'skipped unknown {", ".join(unknown)}')
-    settings.update({name: value for (name, value) in loaded.items() if name in settings})
-    try:
-        return (stateFromJson(generator, stateClass, settings), notes)
-    except (TypeError, ValueError) as err:
-        raise ConfigError(str(err)) from err
+    if wrongTypes:
+        raise ConfigError(', '.join(wrongTypes))
+    settings = stateToJson(generator, current)
+    notes = ConfigNotes(
+        unknown=[name for name in loaded if name not in fieldTypes],
+        missing=[(name, settings[name]) for name in fieldTypes if name not in loaded],
+    )
+    for (name, value) in loaded.items():
+        if name not in fieldTypes:
+            continue
+        choice = (choices or {}).get(name)
+        if choice is not None and value not in choice.options:
+            notes.replaced.append((name, value, choice.default))
+            value = choice.default
+        settings[name] = _withType(value, fieldTypes[name])
+    return (stateFromJson(generator, stateClass, settings), notes)
+
+def _displayValue(generator: str, name: str, value) -> str:
+    if isinstance(value, bool):
+        return 'yes' if value else 'no'
+    if isinstance(value, list):
+        return f'{len(value)} items'
+    if isinstance(value, str):
+        return f'"{value}"'
+    if name in MM_FIELDS[generator]:
+        return f'{value:g} mm'
+    if name in DEGREE_FIELDS[generator]:
+        return f'{value:g} deg'
+    return f'{value:g}'
+
+def notesText(generator: str, notes: ConfigNotes) -> str:
+    """What reading a config changed, a section per kind of change"""
+    sections = []
+    if notes.unknown:
+        sections.append('Not recognised, skipped:\n' + '\n'.join(f'  • {name}' for name in notes.unknown))
+    if notes.missing:
+        sections.append('Not in the file, kept the current value:\n' + '\n'.join(
+            f'  • {name} ({_displayValue(generator, name, value)})' for (name, value) in notes.missing
+        ))
+    if notes.replaced:
+        sections.append('Unknown option, used the default:\n' + '\n'.join(
+            f'  • {name} "{value}" → {default}' for (name, value, default) in notes.replaced
+        ))
+    return '\n\n'.join(sections)

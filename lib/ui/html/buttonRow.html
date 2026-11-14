@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="dialog.css">
+<style>
+    :root {
+        --text: #3c3c3c;
+    }
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --text: #e2e2e2;
+        }
+    }
+    html, body {
+        height: 100%;
+    }
+    body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 0 4px;
+    }
+    button {
+        flex: 0 1 auto;
+        min-width: 0;
+        height: 26px;
+        padding: 0 6px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+</style>
+</head>
+<body>
+<script src="fusionBridge.js"></script>
+<script>
+    // how long a button shows what its click answered, like Copied
+    const ANSWER_SHOWN_MS = 1500;
+
+    function draw(buttons) {
+        document.body.replaceChildren(...buttons.map((item) => {
+            const button = document.createElement('button');
+            button.textContent = item.label;
+            button.title = item.title;
+            button.addEventListener('click', () => {
+                fusionBridge.send('click', item.action).then((answer) => {
+                    if (typeof answer !== 'string') {
+                        return;
+                    }
+                    button.textContent = answer;
+                    setTimeout(() => { button.textContent = item.label; }, ANSWER_SHOWN_MS);
+                });
+            });
+            return button;
+        }));
+    }
+
+    fusionBridge.connect(draw);
+</script>
+</body>
+</html>

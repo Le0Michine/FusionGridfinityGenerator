@@ -39,14 +39,24 @@ def current():
     return case_state("bin_2x3x5_features.json", BIN, binState.InputState)
 
 
-def read(text, current, generator=BIN, stateClass=None):
-    return configJson.readConfig(text, generator, stateClass or binState.InputState, current)
+BIN_CHOICES = {
+    "binType": configJson.Choice(["Hollow", "Shelled", "Solid"], "Hollow"),
+    "labelIcon": configJson.Choice(["None", "screw"], "None"),
+}
+
+
+def read(text, current, generator=BIN, stateClass=None, choices=None):
+    return configJson.readConfig(text, generator, stateClass or binState.InputState, current, choices)
+
+
+def settings_text(**settings):
+    return json.dumps({"generator": BIN, "settings": settings})
 
 
 def test_saved_config_reads_back_to_the_same_state(current):
     text = configJson.configText(BIN, configJson.stateToJson(BIN, current), "1.7.0.0")
     (state, notes) = read(text, current)
-    assert notes == []
+    assert notes.isEmpty()
     for field in dataclasses.fields(state):
         expected = getattr(current, field.name)
         if isinstance(expected, float):
@@ -77,14 +87,15 @@ def test_missing_settings_keep_the_current_ones(current):
     assert state.binWidth == 4
     assert state.binLength == current.binLength
     assert state.wallThickness == pytest.approx(current.wallThickness)
-    assert any("kept the current" in note and "binLength" in note for note in notes)
+    assert ("binLength", current.binLength) in notes.missing
+    assert "binWidth" not in [name for (name, _) in notes.missing]
 
 
 def test_unknown_settings_are_skipped(current):
     (state, notes) = read(json.dumps({"generator": BIN, "settings": {"binWidth": 4, "hasLid": True}}), current)
     assert state.binWidth == 4
     assert not hasattr(state, "hasLid")
-    assert any("hasLid" in note for note in notes)
+    assert notes.unknown == ["hasLid"]
 
 
 def test_shape_cells_become_tuples(current):
@@ -95,7 +106,7 @@ def test_shape_cells_become_tuples(current):
 def test_test_case_files_load_as_configs(current):
     with open(os.path.join(CASES_FOLDER, "bin_2x3x5_features.json")) as file:
         (state, notes) = read(file.read(), current)
-    assert notes == []
+    assert notes.isEmpty()
     assert state == current
 
 
@@ -105,6 +116,11 @@ def test_test_case_files_load_as_configs(current):
     ({"binWidth": True}, "binWidth"),
     ({"labelText": 5}, "labelText"),
     ({"shapeCells": "all"}, "shapeCells"),
+    ({"shapeCells": [[0, 0, 1]]}, "shapeCells"),
+    ({"shapeCells": [[0, 0.5]]}, "shapeCells"),
+    ({"compartmentPockets": [1]}, "compartmentPockets"),
+    ({"compartmentsX": 2.5}, "compartmentsX"),
+    ({"compartmentsX": True}, "compartmentsX"),
 ])
 def test_settings_of_the_wrong_kind_are_refused(current, settings, name):
     with pytest.raises(configJson.ConfigError, match=name):
@@ -131,6 +147,66 @@ def test_baseplate_config_reads_back():
     current = case_state("baseplate_fill_area_pieces.json", BASEPLATE, baseplateState.InputState)
     text = configJson.configText(BASEPLATE, configJson.stateToJson(BASEPLATE, current))
     (state, notes) = read(text, current, BASEPLATE, baseplateState.InputState)
-    assert notes == []
+    assert notes.isEmpty()
     assert state.areaWidth == pytest.approx(current.areaWidth)
     assert state.sizingMode == current.sizingMode
+
+
+@pytest.mark.parametrize("value", ["NaN", "Infinity", "-Infinity"])
+def test_numbers_have_to_be_finite(current, value):
+    with pytest.raises(configJson.ConfigError, match="binHeight"):
+        read('{"generator": "bin", "settings": {"binHeight": %s}}' % value, current)
+
+
+def test_every_wrong_setting_is_named(current):
+    with pytest.raises(configJson.ConfigError) as err:
+        read(settings_text(hasLip=1, binWidth="2"), current)
+    assert "hasLip has to be yes or no" in str(err.value)
+    assert "binWidth has to be a number" in str(err.value)
+
+
+def test_whole_numbers_written_with_a_fraction_are_read(current):
+    (state, _) = read(settings_text(compartmentsX=3.0, shapeCells=[[1.0, 0]]), current)
+    assert state.compartmentsX == 3 and isinstance(state.compartmentsX, int)
+    assert state.shapeCells == [(1, 0)]
+
+
+def test_values_out_of_range_are_left_to_the_dialog(current):
+    (state, notes) = read(settings_text(wallThickness=-5, compartmentsX=0), current)
+    assert state.wallThickness == pytest.approx(-0.5)
+    assert state.compartmentsX == 0
+    assert notes.replaced == []
+
+
+def test_unknown_options_become_the_default(current):
+    (state, notes) = read(settings_text(binType="Bucket", labelIcon="screw-m3"), current, choices=BIN_CHOICES)
+    assert state.binType == "Hollow"
+    assert state.labelIcon == "None"
+    assert notes.replaced == [("binType", "Bucket", "Hollow"), ("labelIcon", "screw-m3", "None")]
+
+
+def test_known_options_are_kept(current):
+    (state, notes) = read(settings_text(binType="Solid", labelIcon="screw"), current, choices=BIN_CHOICES)
+    assert (state.binType, state.labelIcon) == ("Solid", "screw")
+    assert notes.replaced == []
+
+
+def test_options_arent_checked_without_choices(current):
+    (state, _) = read(settings_text(binType="Bucket"), current)
+    assert state.binType == "Bucket"
+
+
+def test_notes_list_every_change_by_kind(current):
+    (_, notes) = read(settings_text(binType="Bucket", hasLid=True), current, choices=BIN_CHOICES)
+    notes.missing = [("creaseDepth", 0.6), ("hasLip", True), ("shapeCells", [[0, 0]]), ("labelText", "M3"), ("binHeight", 5)]
+    text = configJson.notesText(BIN, notes)
+    assert text == "\n\n".join([
+        "Not recognised, skipped:\n  • hasLid",
+        "Not in the file, kept the current value:\n  • creaseDepth (0.6 mm)\n  • hasLip (yes)\n  • shapeCells (1 items)"
+        "\n  • labelText (\"M3\")\n  • binHeight (5)",
+        "Unknown option, used the default:\n  • binType \"Bucket\" → Hollow",
+    ])
+
+
+def test_no_notes_without_changes(current):
+    assert configJson.notesText(BIN, configJson.ConfigNotes()) == ""

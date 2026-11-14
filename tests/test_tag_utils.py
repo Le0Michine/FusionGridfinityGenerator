@@ -67,3 +67,13 @@ def test_settings_are_stored_when_given():
 
 def test_settings_are_left_out_when_not_given():
     assert "settings" not in tagUtils.parseTagValue(tagUtils.createTagValue("1.6.0.0"))
+
+
+def test_config_is_kept_to_build_the_body_again():
+    config = {"binWidth": 2, "shapeCells": [[0, 0]]}
+    tag = tagUtils.parseTagValue(tagUtils.createTagValue("1.6.0.0", config=config))
+    assert tag["config"] == config
+
+
+def test_config_is_left_out_when_not_given():
+    assert "config" not in tagUtils.parseTagValue(tagUtils.createTagValue("1.6.0.0"))

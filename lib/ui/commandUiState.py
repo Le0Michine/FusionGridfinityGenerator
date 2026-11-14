@@ -35,6 +35,10 @@ class CommandUiState:
         if inputId in self.commandInputs:
             self.updateInputFromState(self.commandInputs[inputId])
 
+    def setValue(self, inputId: str, inputValue: any):
+        """Only the state, for inputs that aren't there yet or are refreshed after, see forceUIRefresh"""
+        self.inputState[inputId].value = inputValue
+
     def initValues(self, inputValues: dict[str, any]):
         for v in inputValues.values():
             self.inputState[v['id']] = SingleInputState(v['id'], v['value'], v['type'])

@@ -24,6 +24,8 @@ from . import binBuilder
 from .binBuilder import BIN_TYPE_HOLLOW, BIN_TYPE_SHELLED, BIN_TYPE_SOLID
 from ...lib.ui.commandUiState import CommandUiState
 from ...lib.ui.defaultsButtons import addDefaultsButtonRow, defaultsButtonsHandlers, DEFAULTS_SAVE, DEFAULTS_FACTORY_RESET
+from ...lib.ui.buttonRow import addButtonRow
+from ...lib.ui import configButtons
 from ...lib.ui import selection
 from ...lib.ui import browserPages
 from ...lib.ui.unsupportedDesignTypeException import UnsupportedDesignTypeException
@@ -50,6 +52,8 @@ actualDimensionsTableUiState = CommandUiState(CMD_NAME)
 compartmentPockets: list[dict] = []
 # cells of a custom shaped bin, see binShape, empty while the bin is a plain rectangle
 binShapeCells: list[tuple[int, int]] = []
+# config the dialog opens with next, see startWithConfig
+pendingConfig: dict | None = None
 # bodies of the last build, selected and centered in the view when the dialog closes on OK, see command_destroy
 builtBodies: list[adsk.fusion.BRepBody] = []
 
@@ -154,7 +158,55 @@ BIN_SHAPE_CUSTOM_ID = 'custom_shape'
 BIN_SHAPE_BROWSER_ID = 'shape_browser'
 SHAPE_NOTE = 'Compartments, scoop and label tab are not built for custom shapes yet'
 
+# InputState fields kept as they are in the dialog state, see getInputsState
+STATE_INPUT_IDS = {
+    'baseWidth': BIN_BASE_WIDTH_UNIT_INPUT_ID,
+    'baseLength': BIN_BASE_LENGTH_UNIT_INPUT_ID,
+    'heightUnit': BIN_HEIGHT_UNIT_INPUT_ID,
+    'xyClearance': BIN_XY_CLEARANCE_INPUT_ID,
+    'binWidth': BIN_WIDTH_INPUT_ID,
+    'binLength': BIN_LENGTH_INPUT_ID,
+    'binHeight': BIN_HEIGHT_INPUT_ID,
+    'isHalfGrid': BIN_HALF_GRID_INPUT_ID,
+    'wallThickness': BIN_WALL_THICKNESS_INPUT_ID,
+    'binType': BIN_TYPE_DROPDOWN_ID,
+    'generateBase': BIN_GENERATE_BASE_INPUT_ID,
+    'generateBody': BIN_GENERATE_BODY_INPUT_ID,
+    'hasJointOrigins': BIN_JOINT_ORIGINS_INPUT_ID,
+    'hasScrewHoles': BIN_SCREW_HOLES_INPUT_ID,
+    'screwHoleDiameter': BIN_SCREW_DIAMETER_INPUT,
+    'hasMagnetCutouts': BIN_MAGNET_CUTOUTS_INPUT_ID,
+    'hasMagnetCutoutsTabs': BIN_MAGNET_CUTOUTS_TABS_INPUT_ID,
+    'magnetCutoutDiameter': BIN_MAGNET_DIAMETER_INPUT,
+    'magnetCutoutDepth': BIN_MAGNET_HEIGHT_INPUT,
+    'hasLip': BIN_WITH_LIP_INPUT_ID,
+    'hasLipNotches': BIN_WITH_LIP_NOTCHES_INPUT_ID,
+    'hasScoop': BIN_HAS_SCOOP_INPUT_ID,
+    'scoopMaxRadius': BIN_SCOOP_MAX_RADIUS_INPUT_ID,
+    'hasTab': BIN_HAS_TAB_INPUT_ID,
+    'tabLength': BIN_TAB_LENGTH_INPUT_ID,
+    'tabWidth': BIN_TAB_WIDTH_INPUT_ID,
+    'tabPosition': BIN_TAB_POSITION_INPUT_ID,
+    'isTabHollow': BIN_TAB_HOLLOW_INPUT_ID,
+    'isTabOpenThroughSides': BIN_TAB_HOLLOW_SIDES_INPUT_ID,
+    'labelText': BIN_TAB_LABEL_TEXT_INPUT_ID,
+    'labelIcon': BIN_TAB_LABEL_ICON_INPUT_ID,
+    'labelStyle': BIN_TAB_LABEL_STYLE_INPUT_ID,
+    'isLabelBold': BIN_TAB_LABEL_BOLD_INPUT_ID,
+    'hasCreases': BIN_CREASES_INPUT_ID,
+    'creaseDepth': BIN_CREASE_DEPTH_INPUT_ID,
+    'creaseMinLength': BIN_CREASE_MIN_LENGTH_INPUT_ID,
+    'creaseMaxPanelLength': BIN_CREASE_MAX_PANEL_LENGTH_INPUT_ID,
+    'creaseMinHeight': BIN_CREASE_MIN_HEIGHT_INPUT_ID,
+}
+# angles are kept as the expression typed in, see CommandUiState.onInputUpdate
+STATE_ANGLE_INPUT_IDS = {
+    'tabOverhangAngle': BIN_TAB_ANGLE_INPUT_ID,
+    'tabTopAngle': BIN_TAB_TOP_ANGLE_INPUT_ID,
+}
+
 INPUT_CHANGES_BUTTONS_BROWSER = 'input_changes_buttons'
+CONFIG_BUTTONS_BROWSER = 'config_buttons'
 PRESERVE_CHAGES_RADIO_GROUP = 'preserve_changes'
 PRESERVE_CHAGES_RADIO_GROUP_PRESERVE = 'Preserve inputs'
 PRESERVE_CHAGES_RADIO_GROUP_RESET = 'Reset inputs after creation'
@@ -625,6 +677,8 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
 
     args.command.setDialogInitialSize(450, 500)
     applySharedParameterDefaults()
+    # a clone keeps its own units
+    applyPendingConfig()
 
     # https://help.autodesk.com/view/fusion360/ENU/?contextId=CommandInputs
     inputs = args.command.commandInputs
@@ -838,6 +892,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     userChangesGroup.isExpanded = commandUIState.getState(USER_CHANGES_GROUP_ID)
     commandUIState.registerCommandInput(userChangesGroup)
     addDefaultsButtonRow(userChangesGroup.children, INPUT_CHANGES_BUTTONS_BROWSER)
+    addButtonRow(userChangesGroup.children, CONFIG_BUTTONS_BROWSER)
 
     previewGroup = inputs.addGroupCommandInput(PREVIEW_GROUP_ID, 'Preview')
     previewGroup.isExpanded = commandUIState.getState(PREVIEW_GROUP_ID)
@@ -977,8 +1032,23 @@ def pageHandlers(browserId: str, command: adsk.core.Command) -> dict[str, browse
         preview()
         return compartmentsDrawingData(browserId)
 
+    def onLoadConfig(text: str, fileName: str):
+        state = readConfig(text, f'Loaded "{fileName}"')
+        if state is None:
+            return
+        applyInputsState(state)
+        refreshUi()
+        preview()
+
     if browserId == INPUT_CHANGES_BUTTONS_BROWSER:
         return defaultsButtonsHandlers(onDefaults)
+    if browserId == CONFIG_BUTTONS_BROWSER:
+        return configButtons.configButtonsHandlers(
+            'bin',
+            lambda: configJson.configText(configJson.GENERATOR_BIN, configJson.stateToJson(configJson.GENERATOR_BIN, getInputsState()), tagUtils.getGeneratorVersion()),
+            lambda: binBuilder.binDisplayName(getInputsState()),
+            onLoad=onLoadConfig,
+        )
     if browserId == BIN_SHAPE_BROWSER_ID:
         return {browserPages.READY: lambda _: shapeDrawingData(), 'shape': onShape}
     return {browserPages.READY: lambda _: compartmentsDrawingData(browserId), 'pockets': onPockets, 'grid': onGrid}
@@ -1092,56 +1162,60 @@ def reportConfig(state: InputState | None) -> str | None:
 
 def getInputsState() -> InputState:
     def angle(inputId: str) -> float:
-        """Angles are kept as the expression typed in, see CommandUiState.onInputUpdate"""
         return app.activeProduct.unitsManager.evaluateExpression(str(commandUIState.getState(inputId)), 'deg')
     return InputState(
-        baseWidth=commandUIState.getState(BIN_BASE_WIDTH_UNIT_INPUT_ID),
-        baseLength=commandUIState.getState(BIN_BASE_LENGTH_UNIT_INPUT_ID),
-        heightUnit=commandUIState.getState(BIN_HEIGHT_UNIT_INPUT_ID),
-        xyClearance=commandUIState.getState(BIN_XY_CLEARANCE_INPUT_ID),
-        binWidth=commandUIState.getState(BIN_WIDTH_INPUT_ID),
-        binLength=commandUIState.getState(BIN_LENGTH_INPUT_ID),
-        binHeight=commandUIState.getState(BIN_HEIGHT_INPUT_ID),
-        isHalfGrid=isHalfGrid(),
-        wallThickness=commandUIState.getState(BIN_WALL_THICKNESS_INPUT_ID),
-        binType=commandUIState.getState(BIN_TYPE_DROPDOWN_ID),
-        generateBase=commandUIState.getState(BIN_GENERATE_BASE_INPUT_ID),
-        generateBody=commandUIState.getState(BIN_GENERATE_BODY_INPUT_ID),
-        hasJointOrigins=commandUIState.getState(BIN_JOINT_ORIGINS_INPUT_ID),
-        hasScrewHoles=commandUIState.getState(BIN_SCREW_HOLES_INPUT_ID),
-        screwHoleDiameter=commandUIState.getState(BIN_SCREW_DIAMETER_INPUT),
-        hasMagnetCutouts=commandUIState.getState(BIN_MAGNET_CUTOUTS_INPUT_ID),
-        hasMagnetCutoutsTabs=commandUIState.getState(BIN_MAGNET_CUTOUTS_TABS_INPUT_ID),
-        magnetCutoutDiameter=commandUIState.getState(BIN_MAGNET_DIAMETER_INPUT),
-        magnetCutoutDepth=commandUIState.getState(BIN_MAGNET_HEIGHT_INPUT),
-        hasLip=commandUIState.getState(BIN_WITH_LIP_INPUT_ID),
-        hasLipNotches=commandUIState.getState(BIN_WITH_LIP_NOTCHES_INPUT_ID),
-        hasScoop=commandUIState.getState(BIN_HAS_SCOOP_INPUT_ID),
-        scoopMaxRadius=commandUIState.getState(BIN_SCOOP_MAX_RADIUS_INPUT_ID),
-        hasTab=commandUIState.getState(BIN_HAS_TAB_INPUT_ID),
-        tabLength=commandUIState.getState(BIN_TAB_LENGTH_INPUT_ID),
-        tabWidth=commandUIState.getState(BIN_TAB_WIDTH_INPUT_ID),
-        tabPosition=commandUIState.getState(BIN_TAB_POSITION_INPUT_ID),
-        tabOverhangAngle=angle(BIN_TAB_ANGLE_INPUT_ID),
-        isTabHollow=commandUIState.getState(BIN_TAB_HOLLOW_INPUT_ID),
-        isTabOpenThroughSides=commandUIState.getState(BIN_TAB_HOLLOW_SIDES_INPUT_ID),
-        tabTopAngle=angle(BIN_TAB_TOP_ANGLE_INPUT_ID),
-        labelText=commandUIState.getState(BIN_TAB_LABEL_TEXT_INPUT_ID),
-        labelIcon=commandUIState.getState(BIN_TAB_LABEL_ICON_INPUT_ID),
-        labelStyle=commandUIState.getState(BIN_TAB_LABEL_STYLE_INPUT_ID),
-        isLabelBold=commandUIState.getState(BIN_TAB_LABEL_BOLD_INPUT_ID),
+        **{field: commandUIState.getState(inputId) for (field, inputId) in STATE_INPUT_IDS.items()},
+        **{field: angle(inputId) for (field, inputId) in STATE_ANGLE_INPUT_IDS.items()},
         compartmentsX=commandUIState.getState(BIN_COMPARTMENTS_GRID_BASE_WIDTH_ID),
         compartmentsY=commandUIState.getState(BIN_COMPARTMENTS_GRID_BASE_LENGTH_ID),
         showCompartmentsLayout=commandUIState.getState(BIN_COMPARTMENTS_SHOW_LAYOUT_ID),
         compartmentPockets=compartmentPockets,
         hasCustomShape=commandUIState.getState(BIN_SHAPE_CUSTOM_ID),
         shapeCells=binShapeCells,
-        hasCreases=commandUIState.getState(BIN_CREASES_INPUT_ID),
-        creaseDepth=commandUIState.getState(BIN_CREASE_DEPTH_INPUT_ID),
-        creaseMinLength=commandUIState.getState(BIN_CREASE_MIN_LENGTH_INPUT_ID),
-        creaseMaxPanelLength=commandUIState.getState(BIN_CREASE_MAX_PANEL_LENGTH_INPUT_ID),
-        creaseMinHeight=commandUIState.getState(BIN_CREASE_MIN_HEIGHT_INPUT_ID),
     )
+
+def applyInputsState(state: InputState):
+    """Sets the dialog state to a state from getInputsState, the inputs follow on refreshUi"""
+    global compartmentPockets
+    global binShapeCells
+    for (field, inputId) in STATE_INPUT_IDS.items():
+        commandUIState.setValue(inputId, getattr(state, field))
+    for (field, inputId) in STATE_ANGLE_INPUT_IDS.items():
+        commandUIState.setValue(inputId, f'{math.degrees(getattr(state, field)):g} deg')
+    commandUIState.setValue(BIN_COMPARTMENTS_GRID_BASE_WIDTH_ID, state.compartmentsX)
+    commandUIState.setValue(BIN_COMPARTMENTS_GRID_BASE_LENGTH_ID, state.compartmentsY)
+    commandUIState.setValue(BIN_COMPARTMENTS_SHOW_LAYOUT_ID, state.showCompartmentsLayout)
+    commandUIState.setValue(BIN_SHAPE_CUSTOM_ID, state.hasCustomShape)
+    compartmentPockets = list(state.compartmentPockets)
+    binShapeCells = list(state.shapeCells)
+
+def startWithConfig(settings: dict):
+    """Opens the dialog with a config by field name, see configJson.stateToJson, settings it doesn't have stay"""
+    global pendingConfig
+    pendingConfig = settings
+    ui.commandDefinitions.itemById(CMD_ID).execute()
+
+def configChoices() -> dict[str, configJson.Choice]:
+    """The options of the dropdowns with the dialog's first defaults, see initDefaultUiState"""
+    iconNames = [labelGenerator.LABEL_ICON_NONE] + [icon.name for group in labelGenerator.listIconGroups() for icon in group]
+    return {
+        'binType': configJson.Choice([BIN_TYPE_HOLLOW, BIN_TYPE_SHELLED, BIN_TYPE_SOLID], BIN_TYPE_HOLLOW),
+        'labelIcon': configJson.Choice(iconNames, labelGenerator.LABEL_ICON_NONE),
+        'labelStyle': configJson.Choice(labelGenerator.LABEL_STYLES, labelGenerator.LABEL_STYLE_OUTLINE),
+    }
+
+def readConfig(text: str, source: str) -> InputState | None:
+    """The state of a config, none when it can't be read, see configButtons.readConfig"""
+    return configButtons.readConfig(text, source, configJson.GENERATOR_BIN, InputState, getInputsState(), configChoices())
+
+def applyPendingConfig():
+    global pendingConfig
+    if pendingConfig is None:
+        return
+    state = readConfig(configJson.configText(configJson.GENERATOR_BIN, pendingConfig), 'Cloned')
+    pendingConfig = None
+    if state is not None:
+        applyInputsState(state)
 
 def generateBin(args: adsk.core.CommandEventArgs):
     startTime = time.perf_counter()

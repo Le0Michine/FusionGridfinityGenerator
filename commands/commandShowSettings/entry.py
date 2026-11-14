@@ -2,8 +2,14 @@ import adsk.core, adsk.fusion
 
 from ...lib import tagUtils
 from ...lib import settingsUtils
+from ...lib import configJson
 from ...lib import fusion360utils as futil
+from ...lib.ui import browserPages
+from ...lib.ui import configButtons
+from ...lib.ui.buttonRow import addButtonRow
 from ... import config
+from ..commandCreateBin import entry as binEntry
+from ..commandCreateBaseplate import entry as baseplateEntry
 
 app = adsk.core.Application.get()
 ui = app.userInterface
@@ -13,9 +19,15 @@ CMD_NAME = 'Gridfinity settings'
 CMD_Description = 'Show the settings this bin or baseplate was generated with'
 
 SETTINGS_TEXT_INPUT = 'settings_text'
+CONFIG_BUTTONS_BROWSER = 'config_buttons'
 TAG_TITLES = {
     tagUtils.TAG_BIN: 'Gridfinity bin',
     tagUtils.TAG_BASEPLATE: 'Gridfinity baseplate',
+}
+# the dialog each generator opens with a cloned config, see startWithConfig
+CLONE_COMMANDS = {
+    tagUtils.TAG_BIN: binEntry,
+    tagUtils.TAG_BASEPLATE: baseplateEntry,
 }
 # rows of the settings text box before it scrolls
 MAX_VISIBLE_ROWS = 30
@@ -93,3 +105,26 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
         True,
     )
     textBox.isFullWidth = True
+    config = value.get('config')
+    if not isinstance(config, dict):
+        # generated before the generator kept it
+        return
+    addButtonRow(command.commandInputs, CONFIG_BUTTONS_BROWSER)
+    futil.add_handler(command.incomingFromHTML, lambda args: command_incoming_from_html(args, tagName, value), local_handlers=local_handlers)
+    futil.add_handler(command.destroy, command_destroy, local_handlers=local_handlers)
+
+def command_incoming_from_html(args: adsk.core.HTMLEventArgs, tagName: str, value: dict):
+    # tag names are the generator names of configJson
+    generatorTitle = configJson.GENERATOR_TITLES[tagName]
+    configText = configJson.configText(tagName, value['config'], str(value.get('generatorVersion') or ''))
+    browserPages.handleMessage(args, configButtons.configButtonsHandlers(
+        generatorTitle,
+        lambda: configText,
+        lambda: TAG_TITLES[tagName],
+        onClone=lambda: CLONE_COMMANDS[tagName].startWithConfig(value['config']),
+    ))
+
+def command_destroy(args: adsk.core.CommandEventArgs):
+    global local_handlers
+    # the context menu handler stays for the next menu
+    local_handlers = [handler for handler in local_handlers if handler is markingMenuHandler]

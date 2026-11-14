@@ -1,6 +1,7 @@
 import adsk.core, adsk.fusion
 
 from ...lib import tagUtils
+from ...lib import configJson
 from ...lib import placementUtils
 from ...lib.gridfinityUtils.baseplateGenerator import createGridfinityBaseplate, createGridfinityBaseplateFill
 from ...lib.gridfinityUtils import baseplateLayout
@@ -236,7 +237,7 @@ def buildBaseplate(
         )
     # mark generated geometry so it can be told apart from the rest of the design
     for baseplateBody in baseplateBodies:
-        tagUtils.tagBody(baseplateBody, tagUtils.TAG_BASEPLATE, settings, baseplateParameters)
+        tagUtils.tagBody(baseplateBody, tagUtils.TAG_BASEPLATE, settings, baseplateParameters, configJson.stateToJson(configJson.GENERATOR_BASEPLATE, inputsState))
 
     if des.designType == adsk.fusion.DesignTypes.ParametricDesignType:
         # group features in timeline

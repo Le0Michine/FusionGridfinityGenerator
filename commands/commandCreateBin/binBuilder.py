@@ -2,6 +2,7 @@ import adsk.core, adsk.fusion
 import copy
 
 from ...lib import tagUtils
+from ...lib import configJson
 from ...lib import placementUtils
 from ...lib.gridfinityUtils import combineUtils
 from ...lib.gridfinityUtils import geometryUtils
@@ -530,7 +531,7 @@ def buildBin(
         # mark generated geometry so later bins can tell it apart from the rest of the design,
         # with the settings it was generated with to show later
         for body in generatedBodies:
-            tagUtils.tagBody(body, tagUtils.TAG_BIN, settings, binParameters)
+            tagUtils.tagBody(body, tagUtils.TAG_BIN, settings, binParameters, configJson.stateToJson(configJson.GENERATOR_BIN, state))
 
     if state.generateBase and state.hasJointOrigins:
         # last, after the placement, joint origins sit on sketches which don't follow body moves
