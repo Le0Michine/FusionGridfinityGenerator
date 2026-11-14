@@ -33,6 +33,7 @@ from .baseplateBuilder import (
 from . import printBeds
 from ...lib.ui.commandUiState import CommandUiState
 from ...lib.ui.defaultsButtons import addDefaultsButtonRow, defaultsButtonsHandlers, DEFAULTS_SAVE, DEFAULTS_FACTORY_RESET
+from ...lib.ui import selection
 from ...lib.ui import browserPages
 from ...lib.ui.unsupportedDesignTypeException import UnsupportedDesignTypeException
 from ...lib.ui import errorPalette
@@ -52,6 +53,8 @@ CMD_Description = ('Creates a gridfinity baseplate for bins to sit in.\n\n'
     'with half cells and padding taking up the rest. Magnet and screw holes and holes to connect the pieces are optional.')
 
 uiState = CommandUiState(CMD_NAME)
+# bodies of the last build, selected and centered in the view when the dialog closes on OK, see command_destroy
+builtBodies: list[adsk.fusion.BRepBody] = []
 # Specify that the command will be promoted to the panel.
 IS_PROMOTED = True
 
@@ -588,6 +591,9 @@ def command_destroy(args: adsk.core.CommandEventArgs):
     futil.log(f'{CMD_NAME} Command Destroy Event')
     global local_handlers
     local_handlers = []
+    if args.terminationReason == adsk.core.CommandTerminationReason.CompletedTerminationReason:
+        # once the command is over, so the selection stays
+        selection.showBuiltBodies(builtBodies)
     global uiState
 
 
@@ -758,11 +764,13 @@ def generateBaseplate(args: adsk.core.CommandEventArgs, isPreview: bool = False)
     # the settings come first, so a failing build can be reproduced from the log
     commonUtils.fileLog(f'{CMD_NAME} Generating baseplate{" preview" if isPreview else ""} with settings:\n{settingsUtils.settingsText(settings)}')
     inputsState = None
+    global builtBodies
+    builtBodies = []
 
     try:
         inputsState = getInputsState()
         des = adsk.fusion.Design.cast(app.activeProduct)
-        buildBaseplate(des, inputsState, settings, isPreview)
+        builtBodies = buildBaseplate(des, inputsState, settings, isPreview)
         futil.log(f'{CMD_NAME} {baseplateName(inputsState)} generated in {time.perf_counter() - startTime:.3f}s')
     except UnsupportedDesignTypeException as err:
         args.executeFailed = True

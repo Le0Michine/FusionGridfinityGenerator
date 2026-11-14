@@ -24,6 +24,7 @@ from . import binBuilder
 from .binBuilder import BIN_TYPE_HOLLOW, BIN_TYPE_SHELLED, BIN_TYPE_SOLID
 from ...lib.ui.commandUiState import CommandUiState
 from ...lib.ui.defaultsButtons import addDefaultsButtonRow, defaultsButtonsHandlers, DEFAULTS_SAVE, DEFAULTS_FACTORY_RESET
+from ...lib.ui import selection
 from ...lib.ui import browserPages
 from ...lib.ui.unsupportedDesignTypeException import UnsupportedDesignTypeException
 from ...lib.ui import errorPalette
@@ -49,6 +50,8 @@ actualDimensionsTableUiState = CommandUiState(CMD_NAME)
 compartmentPockets: list[dict] = []
 # cells of a custom shaped bin, see binShape, empty while the bin is a plain rectangle
 binShapeCells: list[tuple[int, int]] = []
+# bodies of the last build, selected and centered in the view when the dialog closes on OK, see command_destroy
+builtBodies: list[adsk.fusion.BRepBody] = []
 
 # Specify that the command will be promoted to the panel.
 IS_PROMOTED = True
@@ -986,6 +989,9 @@ def command_destroy(args: adsk.core.CommandEventArgs):
     futil.log(f'{CMD_NAME} Command Destroy Event "{args.terminationReason}"')
     global local_handlers
     local_handlers = []
+    if args.terminationReason == adsk.core.CommandTerminationReason.CompletedTerminationReason:
+        # once the command is over, so the selection stays
+        selection.showBuiltBodies(builtBodies)
 
 def onChangeValidate():
     global commandUIState
@@ -1143,11 +1149,13 @@ def generateBin(args: adsk.core.CommandEventArgs):
     # the settings come first, so a failing build can be reproduced from the log
     commonUtils.fileLog(f'{CMD_NAME} generating with settings:\n{settingsUtils.settingsText(settings)}')
     state = None
+    global builtBodies
+    builtBodies = []
 
     try:
         state = getInputsState()
         des = adsk.fusion.Design.cast(app.activeProduct)
-        binBuilder.buildBin(des, state, settings)
+        builtBodies = binBuilder.buildBin(des, state, settings)
         futil.log(f'{CMD_NAME} {binBuilder.binDisplayName(state)} generated in {time.perf_counter() - startTime:.3f}s')
     except UnsupportedDesignTypeException as err:
         args.executeFailed = True
