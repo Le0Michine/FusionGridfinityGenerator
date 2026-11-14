@@ -1,5 +1,6 @@
 import adsk.core, adsk.fusion, traceback, math
 import copy
+from typing import Callable
 import os
 
 from .sketchUtils import createRectangle
@@ -706,6 +707,65 @@ def createWallJunctionPocketCutter(
     combineUtils.cutBody(pocketBody, commonUtils.objectCollectionFromList(coneBodies), targetComponent, name='Wall junction pocket shape')
     return pocketBody
 
+def placeAtWallJunctions(
+    createAt: Callable[[Dim, Dim], adsk.fusion.BRepBody],
+    origin: adsk.core.Point3D,
+    baseWidth: Dim,
+    baseLength: Dim,
+    columns: float,
+    rows: float,
+    targetComponent: adsk.fusion.Component,
+    *,
+    name: str,
+) -> list[adsk.fusion.BRepBody]:
+    """A body at every point along the outer walls where feet meet, made once at the first junction of the front
+    wall and patterned along the walls. It has to be symmetric across the wall to serve both opposite ones.
+    Feet meet on every grid line from the origin, a half cell left over adds one more before its half feet, see createFootGrid"""
+    baseWidth = baseWidth.asExpression()
+    baseLength = baseLength.asExpression()
+    junctionsX = math.ceil(columns - 1e-6) - 1
+    junctionsY = math.ceil(rows - 1e-6) - 1
+    if junctionsX <= 0 and junctionsY <= 0:
+        return []
+
+    bodies: list[adsk.fusion.BRepBody] = []
+    frontBody = createAt(Dim.length(origin.x) + baseWidth, Dim.length(origin.y))
+    if junctionsY > 0:
+        # the first left wall junction is always one base back and up from the first front one
+        if junctionsX > 0:
+            copyFeature = targetComponent.features.copyPasteBodies.add(frontBody)
+            copyFeature.name = f'{name} copy'
+            sideBody = copyFeature.bodies.item(0)
+        else:
+            sideBody = frontBody
+        moveInput = targetComponent.features.moveFeatures.createInput2(commonUtils.objectCollectionFromList([sideBody]))
+        moveInput.defineAsTranslateXYZ(
+            valueInput(baseWidth * -1),
+            valueInput(baseLength),
+            valueInput(0),
+            True,
+        )
+        targetComponent.features.moveFeatures.add(moveInput).name = f'{name} move to left wall'
+        pattern = patternUtils.recPatternGrid(
+            commonUtils.objectCollectionFromList([sideBody]),
+            (2, junctionsY),
+            (baseWidth * columns, baseLength),
+            targetComponent,
+            name=f'{name}s left and right pattern',
+        )
+        # pattern bodies include the source body, the collection skips the duplicate
+        bodies += list(pattern.bodies) + [sideBody]
+    if junctionsX > 0:
+        pattern = patternUtils.recPatternGrid(
+            commonUtils.objectCollectionFromList([frontBody]),
+            (junctionsX, 2),
+            (baseWidth, baseLength * rows),
+            targetComponent,
+            name=f'{name}s front and back pattern',
+        )
+        bodies += list(pattern.bodies) + [frontBody]
+    return bodies
+
 def cutWallJunctionPockets(
     baseConfiguration: BaseGeneratorInput,
     columns: float,
@@ -713,59 +773,26 @@ def cutWallJunctionPockets(
     targetBody: adsk.fusion.BRepBody,
     targetComponent: adsk.fusion.Component,
 ) -> adsk.fusion.CombineFeature:
-    """Curves up the gaps between feet along all outer walls instead of leaving flat overhangs there.
-    Feet meet on every grid line, a half cell left over adds one more gap before its half feet, see createFootGrid"""
+    """Curves up the gaps between feet along all outer walls instead of leaving flat overhangs there, see placeAtWallJunctions"""
     origin = baseConfiguration.originPoint
-    baseWidth = baseConfiguration.baseWidth.asExpression()
-    baseLength = baseConfiguration.baseLength.asExpression()
-    junctionsX = math.ceil(columns - 1e-6) - 1
-    junctionsY = math.ceil(rows - 1e-6) - 1
-
     # cutters are symmetric, so one row of them serves both opposite walls
-    cutters: list[adsk.fusion.BRepBody] = []
-    frontCutter = createWallJunctionPocketCutter(
-        Dim.length(origin.x) + baseWidth,
-        Dim.length(origin.y),
-        origin.z,
-        baseConfiguration.cornerFilletRadius,
-        baseConfiguration.xyClearance,
+    cutters = placeAtWallJunctions(
+        lambda x, y: createWallJunctionPocketCutter(
+            x,
+            y,
+            origin.z,
+            baseConfiguration.cornerFilletRadius,
+            baseConfiguration.xyClearance,
+            targetComponent,
+        ),
+        origin,
+        baseConfiguration.baseWidth,
+        baseConfiguration.baseLength,
+        columns,
+        rows,
         targetComponent,
+        name='Wall junction pocket',
     )
-    if junctionsY > 0:
-        # the first left wall junction is always one base back and up from the first front one
-        if junctionsX > 0:
-            copyFeature = targetComponent.features.copyPasteBodies.add(frontCutter)
-            copyFeature.name = 'Wall junction pocket copy'
-            sideCutter = copyFeature.bodies.item(0)
-        else:
-            sideCutter = frontCutter
-        moveInput = targetComponent.features.moveFeatures.createInput2(commonUtils.objectCollectionFromList([sideCutter]))
-        moveInput.defineAsTranslateXYZ(
-            valueInput(baseWidth * -1),
-            valueInput(baseLength),
-            valueInput(0),
-            True,
-        )
-        targetComponent.features.moveFeatures.add(moveInput).name = 'Wall junction pocket move to left wall'
-        pattern = patternUtils.recPatternGrid(
-            commonUtils.objectCollectionFromList([sideCutter]),
-            (2, junctionsY),
-            (baseWidth * columns, baseLength),
-            targetComponent,
-            name='Wall junction pockets left and right pattern',
-        )
-        # pattern bodies include the source cutter, the collection skips the duplicate
-        cutters += list(pattern.bodies) + [sideCutter]
-    if junctionsX > 0:
-        pattern = patternUtils.recPatternGrid(
-            commonUtils.objectCollectionFromList([frontCutter]),
-            (junctionsX, 2),
-            (baseWidth, baseLength * rows),
-            targetComponent,
-            name='Wall junction pockets front and back pattern',
-        )
-        cutters += list(pattern.bodies) + [frontCutter]
-
     return combineUtils.cutBody(targetBody, commonUtils.objectCollectionFromList(cutters), targetComponent, name='Wall junction pockets cut')
 
 def cutOutsideRoundedRectangle(
@@ -1012,23 +1039,25 @@ def cutOutsideShape(
     cutExtrude.name = name
     return cutExtrude
 
-def cutShapeWallJunctionPockets(
+def placeAtShapeWallJunctions(
+    createAt: Callable[[Dim, Dim, tuple[int, int] | None], adsk.fusion.BRepBody],
     baseConfiguration: BaseGeneratorInput,
     cells: list[tuple[int, int]],
-    targetBody: adsk.fusion.BRepBody,
     targetComponent: adsk.fusion.Component,
     footLines: tuple[set[int], set[int]] = None,
-) -> adsk.fusion.CombineFeature | None:
+    *,
+    name: str,
+) -> list[adsk.fusion.BRepBody]:
     """
-    cutWallJunctionPockets for any shape, a pocket at every point of the outline where feet meet, see
-    binShape.wallJunctions. Inner corners get their own pockets, open towards the empty cell, see createWallJunctionPocketCutter.
-    With the grid lines where feet meet, see binGrid.footLines, an outline in half cells only gets pockets on those
+    placeAtWallJunctions for any shape, a body at every point of the outline where feet meet, see binShape.wallJunctions.
+    Inner corners get their own bodies, made with the direction of the empty cell beside them, see binShape.innerCornerOpenings.
+    With the grid lines where feet meet, see binGrid.footLines, an outline in half cells only gets them on those
     """
     junctions = binShape.wallJunctions(cells)
     if footLines is not None:
         junctions = [(x, y) for (x, y) in junctions if x in footLines[0] and y in footLines[1]]
     if len(junctions) == 0:
-        return None
+        return []
     openings = binShape.innerCornerOpenings(cells)
     sides = [point for point in junctions if point not in openings]
     origin = baseConfiguration.originPoint
@@ -1040,25 +1069,18 @@ def cutShapeWallJunctionPockets(
             return 0
         return baseUnit * count if count != 1 else baseUnit
 
-    used = []
+    bodies = []
     if len(sides) > 0:
-        # one cutter at the origin, copied and moved by base units to each junction. Every feature keeps a reference
+        # one body at the origin, copied and moved by base units to each junction. Every feature keeps a reference
         # of its own body, the bodies of a pattern with some removed lose theirs once it's recomputed, after the base
         # units change
-        cutter = createWallJunctionPocketCutter(
-            Dim.length(origin.x),
-            Dim.length(origin.y),
-            origin.z,
-            baseConfiguration.cornerFilletRadius,
-            baseConfiguration.xyClearance,
-            targetComponent,
-        )
+        source = createAt(Dim.length(origin.x), Dim.length(origin.y), None)
         for (index, (x, y)) in enumerate(sorted(sides)):
             if index == len(sides) - 1:
-                body = cutter
+                body = source
             else:
-                copyFeature = targetComponent.features.copyPasteBodies.add(cutter)
-                copyFeature.name = 'Wall junction pocket copy'
+                copyFeature = targetComponent.features.copyPasteBodies.add(source)
+                copyFeature.name = f'{name} copy'
                 body = copyFeature.bodies.item(0)
             if (x, y) != (0, 0):
                 moveInput = targetComponent.features.moveFeatures.createInput2(commonUtils.objectCollectionFromList([body]))
@@ -1068,17 +1090,45 @@ def cutShapeWallJunctionPockets(
                     valueInput(0),
                     True,
                 )
-                targetComponent.features.moveFeatures.add(moveInput).name = f'Wall junction pocket move to {x}, {y}'
-            used.append(body)
+                targetComponent.features.moveFeatures.add(moveInput).name = f'{name} move to {x}, {y}'
+            bodies.append(body)
 
     for ((x, y), openSide) in openings.items():
-        used.append(createWallJunctionPocketCutter(
+        bodies.append(createAt(
             Dim.length(origin.x) + (baseWidth * x if x != 1 else baseWidth),
             Dim.length(origin.y) + (baseLength * y if y != 1 else baseLength),
+            openSide,
+        ))
+    return bodies
+
+def cutShapeWallJunctionPockets(
+    baseConfiguration: BaseGeneratorInput,
+    cells: list[tuple[int, int]],
+    targetBody: adsk.fusion.BRepBody,
+    targetComponent: adsk.fusion.Component,
+    footLines: tuple[set[int], set[int]] = None,
+) -> adsk.fusion.CombineFeature | None:
+    """
+    cutWallJunctionPockets for any shape, see placeAtShapeWallJunctions. Pockets at inner corners are open towards
+    the empty cell, see createWallJunctionPocketCutter
+    """
+    origin = baseConfiguration.originPoint
+    cutters = placeAtShapeWallJunctions(
+        lambda x, y, openSide: createWallJunctionPocketCutter(
+            x,
+            y,
             origin.z,
             baseConfiguration.cornerFilletRadius,
             baseConfiguration.xyClearance,
             targetComponent,
             openSide,
-        ))
-    return combineUtils.cutBody(targetBody, commonUtils.objectCollectionFromList(used), targetComponent, name='Wall junction pockets cut')
+        ),
+        baseConfiguration,
+        cells,
+        targetComponent,
+        footLines,
+        name='Wall junction pocket',
+    )
+    if len(cutters) == 0:
+        return None
+    return combineUtils.cutBody(targetBody, commonUtils.objectCollectionFromList(cutters), targetComponent, name='Wall junction pockets cut')
