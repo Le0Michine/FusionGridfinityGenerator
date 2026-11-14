@@ -361,9 +361,9 @@ def buildBin(
             gridfinityBinComponent,
         )
 
-    if state.generateBody and state.generateBase and (shaped or not isShelled):
+    if state.generateBody and state.generateBase:
         # curve up the gaps between feet along the walls instead of leaving flat overhangs,
-        # shaped bins need them at the inner corners whatever the type, the shell follows the pockets cut before it
+        # shaped bins need them at the inner corners too, the shell follows the pockets cut before it
         if shaped:
             cutShapeWallJunctionPockets(
                 outlineGrid,
