@@ -11,6 +11,16 @@ from .dim import Dim, valueInput, applyTo
 app = adsk.core.Application.get()
 ui = app.userInterface
 
+def lipSocketTop(xyClearance: float) -> Dim:
+    """
+    Height of the lip socket top above the lip bottom. It sits lower than the base it's shaped after, so its 45 degree
+    face keeps the clearance from the grid's measured square to the face rather than straight across. Its walls stay
+    the clearance out, its bottom goes past the lip bottom, it only cuts the lip. Fed as an expression, so the formula
+    stays readable in the model
+    """
+    drop = Dim.length(xyClearance) * Dim.number(math.sqrt(2) - 1, '(sqrt(2) - 1)')
+    return Dim.length(const.BIN_BASE_HEIGHT).asExpression() - drop
+
 def createShapeLipSocket(
     input: BinBodyLipGeneratorInput,
     targetComponent: adsk.fusion.Component,
@@ -22,7 +32,7 @@ def createShapeLipSocket(
     """
     grid = baseGenerator.shapeGridInput(input.baseWidth, input.baseLength, input.xyClearance, input.shapeCellsPerFoot)
     planeInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
-    planeInput.setByOffset(targetComponent.xYConstructionPlane, valueInput(input.originZ + Dim.length(const.BIN_BASE_HEIGHT)))
+    planeInput.setByOffset(targetComponent.xYConstructionPlane, valueInput(input.originZ + lipSocketTop(input.xyClearance)))
     plane = targetComponent.constructionPlanes.add(planeInput)
     plane.name = 'Lip cutout plane'
     (sketch, _) = baseGenerator.createShapeOutlineSketch(
@@ -112,7 +122,7 @@ def createLipNotch(
 
     # where the socket's top section ends, box and cones start there
     notchPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
-    notchPlaneZ = input.originZ + lowerSectionsHeight
+    notchPlaneZ = input.originZ + lipSocketTop(input.xyClearance) - topSectionHeight
     notchPlaneInput.setByOffset(targetComponent.xYConstructionPlane, valueInput(notchPlaneZ))
     notchPlane = targetComponent.constructionPlanes.add(notchPlaneInput)
     notchPlane.name = 'Lip notch plane'
@@ -133,7 +143,7 @@ def createLipNotch(
         startX=cornerCenterX,
         startY=cornerCenterY,
     )
-    # down to the lip bottom and past the socket top, where neighbouring cones overlap, they only touch at the top
+    # down to the socket bottom and past the socket top, where neighbouring cones overlap, they only touch at the top
     # without a clearance and combine can't handle that
     boxExtrudeInput = features.extrudeFeatures.createInput(boxSketch.profiles.item(0), adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
     boxExtrudeInput.setTwoSidesExtent(
@@ -285,14 +295,15 @@ def createGridfinityBinBodyLip(
     if input.shapeCells is not None:
         lipCutout = createShapeLipSocket(input, targetComponent)
     else:
+        socketTop = lipSocketTop(input.xyClearance)
         lipCutoutInput = BaseGeneratorInput()
         lipCutoutInput.originPoint = geometryUtils.createOffsetPoint(
             input.origin,
             byX=-input.xyClearance * 2,
             byY=-input.xyClearance * 2,
-            byZ=const.BIN_BASE_HEIGHT
+            byZ=socketTop.value
         )
-        lipCutoutInput.originZ = input.originZ + Dim.length(const.BIN_BASE_HEIGHT)
+        lipCutoutInput.originZ = input.originZ + socketTop
         lipCutoutInput.baseWidth = input.baseWidth * input.binWidth + Dim.length(input.xyClearance * 2)
         lipCutoutInput.baseLength = input.baseLength * input.binLength + Dim.length(input.xyClearance * 2)
         lipCutoutInput.xyClearance = input.xyClearance
