@@ -61,6 +61,9 @@ class BinBodyGeneratorInput():
         self.isSolid = False
         self.hasLip = False
         self.hasLipNotches = False
+        # the inside of the lip bottom widened at 45 degrees, so it doesn't overhang a cavity under it. A solid bin
+        # has none, there it would only leave an undercut
+        self.hasLipBottomChamfer = True
         self.hasScoop = False
         self.scoopMaxRadius = const.BIN_SCOOP_MAX_RADIUS
         self.tabOverhangAngle = const.BIN_TAB_OVERHANG_ANGLE
@@ -178,6 +181,14 @@ class BinBodyGeneratorInput():
     @hasLip.setter
     def hasLip(self, value: bool):
         self._hasLip = value
+
+    @property
+    def hasLipBottomChamfer(self) -> bool:
+        return self._hasLipBottomChamfer
+
+    @hasLipBottomChamfer.setter
+    def hasLipBottomChamfer(self, value: bool):
+        self._hasLipBottomChamfer = value
 
     @property
     def hasScoop(self) -> bool:

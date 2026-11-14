@@ -104,7 +104,8 @@ def createGridfinityBinBody(
         lipInput.shapeCellsPerFoot = input.shapeCellsPerFoot
         lipBody = createGridfinityBinBodyLip(lipInput, targetComponent)
 
-        if input.wallThickness < const.BIN_LIP_WALL_THICKNESS and input.shapeCells is not None:
+        hasLipBottomChamfer = input.hasLipBottomChamfer and input.wallThickness < const.BIN_LIP_WALL_THICKNESS
+        if hasLipBottomChamfer and input.shapeCells is not None:
             # the inside of the walls widening at 45 degrees into the lip, so it doesn't overhang the cavity
             combineUtils.cutBody(
                 lipBody,
@@ -112,7 +113,7 @@ def createGridfinityBinBody(
                 targetComponent,
                 name='Lip bottom chamfer cut',
             )
-        elif input.wallThickness < const.BIN_LIP_WALL_THICKNESS:
+        elif hasLipBottomChamfer:
             lipBottomChamferSize = max(const.BIN_BODY_CUTOUT_BOTTOM_FILLET_RADIUS, input.binCornerFilletRadius - input.wallThickness)
             lipBottomChamferExtrude = extrudeUtils.createBoxAtPoint(
                 bodyWidth - wall * 2,

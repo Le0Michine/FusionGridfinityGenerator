@@ -265,6 +265,7 @@ def buildBin(
     binBodyInput.binCornerFilletRadius = const.BIN_CORNER_FILLET_RADIUS - xyClearance
     # a shaped hollow bin gets its cavity once trimmed to the shape
     binBodyInput.isSolid = isSolid or isShelled or shaped
+    binBodyInput.hasLipBottomChamfer = not isSolid
     binBodyInput.wallThickness = state.wallThickness
     binBodyInput.hasScoop = state.hasScoop and isHollow and not shaped
     binBodyInput.scoopMaxRadius = state.scoopMaxRadius
