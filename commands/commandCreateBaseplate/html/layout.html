@@ -233,7 +233,10 @@
         return { group: group, width: bounds.width + LABEL_PADDING_X * 2, height: bounds.height + LABEL_PADDING_Y * 2 };
     }
 
+    // padding labels are drawn as they fit along their strips, the ones left are returned to be checked against
+    // the other labels once all are drawn
     function drawPadding(piece, xyClearance, scale, width, height, group, svg) {
+        const labels = [];
         for (const strip of paddingStrips(piece, xyClearance)) {
             let x = strip.x * scale;
             let y = height - (strip.y + strip.length) * scale;
@@ -276,6 +279,27 @@
             label.group.setAttribute('transform', isSide
                 ? `translate(${centerX - (x + stripWidth / 2)} 0) rotate(-90 ${x + stripWidth / 2} ${centerY})`
                 : `translate(0 ${centerY - (y + stripHeight / 2)})`);
+            labels.push(label.group);
+        }
+        return labels;
+    }
+
+    function overlaps(first, second) {
+        return first.left < second.right && second.left < first.right && first.top < second.bottom && second.top < first.bottom;
+    }
+
+    // padding labels go first, on small grids the padding tells more than the cell count. A label running into one
+    // already placed is left out, a piece label then still has its tooltip on the piece
+    function placeLabels(pieceLabels, paddingLabels, svg) {
+        const placed = [];
+        for (const label of [...paddingLabels, ...pieceLabels]) {
+            const bounds = label.getBoundingClientRect();
+            if (placed.some((other) => overlaps(bounds, other))) {
+                label.remove();
+            } else {
+                svg.appendChild(label);
+                placed.push(bounds);
+            }
         }
     }
 
@@ -326,6 +350,8 @@
         }
 
         const socket = data.socket || {};
+        const pieceLabels = [];
+        const paddingLabels = [];
         data.pieces.forEach((piece, pieceIndex) => {
             // a single plate has no seams, an inset would only eat into its thin outer walls
             const inset = data.pieces.length > 1 ? SEAM_INSET : 0;
@@ -356,15 +382,16 @@
             svg.appendChild(clip);
             const paddingGroup = svgElement('g', { 'clip-path': `url(#${clipId})` });
             svg.appendChild(paddingGroup);
-            drawPadding(piece, data.xyClearance || 0, scale, width, height, paddingGroup, svg);
+            paddingLabels.push(...drawPadding(piece, data.xyClearance || 0, scale, width, height, paddingGroup, svg));
             // a single plate's edge needs no outline, the pieces of a fill do
             if (data.pieces.length > 1) {
                 svg.appendChild(svgElement('rect', { class: 'piece-outline', x: x, y: y, width: pieceWidth, height: pieceHeight, rx: 2 }));
             }
             if (pieceWidth >= 34 && pieceHeight >= 18) {
-                drawLabel(piece.label, x + pieceWidth / 2, y + pieceHeight / 2, svg);
+                pieceLabels.push(drawLabel(piece.label, x + pieceWidth / 2, y + pieceHeight / 2, svg).group);
             }
         });
+        placeLabels(pieceLabels, paddingLabels, svg);
 
     }
 

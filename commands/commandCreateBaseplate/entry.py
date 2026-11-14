@@ -734,15 +734,18 @@ def fillLayoutData(inputsState: InputState) -> dict:
         if shape not in shapes:
             shapes.append(shape)
         (minX, minY, maxX, maxY) = baseplateLayout.pieceOutline(layout, piece, baseWidth, baseLength, xyClearance)
-        cells = cellRects(inputsState, piece.cellOffsetX, piece.cellsX, piece.cellOffsetY, piece.cellsY, (
+        halfCells = (
             piece.isLeftEdge and layout.x.hasHalfCellsStart,
             piece.isRightEdge and layout.x.hasHalfCellsEnd,
             piece.isBottomEdge and layout.y.hasHalfCellsStart,
             piece.isTopEdge and layout.y.hasHalfCellsEnd,
-        ))
+        )
+        cells = cellRects(inputsState, piece.cellOffsetX, piece.cellsX, piece.cellOffsetY, piece.cellsY, halfCells)
+        # a row of half cells counts as half a unit, as 3x5.5
+        (sizeX, sizeY) = (piece.cellsX + (halfCells[0] + halfCells[1]) / 2, piece.cellsY + (halfCells[2] + halfCells[3]) / 2)
         pieces.append({
             **rect(minX, minY, maxX, maxY),
-            'label': f'{piece.cellsX}x{piece.cellsY}',
+            'label': f'{sizeX:g}x{sizeY:g}',
             'cells': [{**rect(*cell[:4]), 'holes': cell[4]} for cell in cells],
         })
     pieceCount = f'{len(layout.pieces)} piece' + ('s' if len(layout.pieces) > 1 else '')
@@ -753,7 +756,10 @@ def fillLayoutData(inputsState: InputState) -> dict:
         (layout.y.hasHalfCellsStart, 'front'),
         (layout.y.hasHalfCellsEnd, 'back'),
     ] if hasHalfCells]
-    halfCellsNote = f' + half cells {", ".join(halfCellSides)}' if len(halfCellSides) > 0 else ''
+    # the half rows are in the size, the note says where they are
+    halfCellsNote = f', half cells {", ".join(halfCellSides)}' if len(halfCellSides) > 0 else ''
+    plateX = layout.x.cells + (layout.x.hasHalfCellsStart + layout.x.hasHalfCellsEnd) / 2
+    plateY = layout.y.cells + (layout.y.hasHalfCellsStart + layout.y.hasHalfCellsEnd) / 2
     def padding(axis: baseplateLayout.AxisLayout) -> str:
         return f'{axis.paddingStart * 10:.1f} + {axis.paddingEnd * 10:.1f}'
     return {
@@ -761,7 +767,7 @@ def fillLayoutData(inputsState: InputState) -> dict:
         'socket': socketDrawingData(inputsState),
         'pieces': pieces,
         'caption': [
-            f'{inputsState.plateType} {layout.x.cells} x {layout.y.cells} u{halfCellsNote}, {pieceCount}{uniqueCount}',
+            f'{inputsState.plateType} {plateX:g} x {plateY:g} u{halfCellsNote}, {pieceCount}{uniqueCount}',
             f'padding X {padding(layout.x)} mm, Y {padding(layout.y)} mm'
             + (', turned 90° on the bed' if layout.isBedRotated else ''),
         ],
