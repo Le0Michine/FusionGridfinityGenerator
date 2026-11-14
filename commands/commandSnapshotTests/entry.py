@@ -112,6 +112,8 @@ caseViews: dict[str, CaseView] = {}
 # an update waiting for confirmation: its staging folder and the snapshots it replaces and removes
 pendingUpdate: dict | None = None
 lastReport: dict | None = None
+# the run a case's snapshot update started from, the tests go back to its results, see updateSnapshot
+runBeforeUpdate: dict | None = None
 # a run or refresh asked for in the report, its kind and case names, none for all of them. It's done in a custom event
 # once the page has its answer, so the page draws the progress meanwhile
 QUEUE_EVENT_ID = f'{config.COMPANY_NAME}_{config.ADDIN_NAME}_snapshotTestsQueue'
@@ -201,6 +203,7 @@ def runReporting(name: str, onExecute):
             'discard': discardUpdate,
             'runAll': runAll,
             'run': runOne,
+            'updateSnapshot': updateSnapshot,
             'tests': backToTests,
             'refreshAll': refreshAll,
             'refresh': refreshOne,
@@ -373,12 +376,18 @@ def bodyReports(results: list[snapshots.BodyResult], statuses: dict[str, str] = 
 def openTests() -> tuple:
     """
     The test window lists the cases to run one at a time or all together. Cases run before keep their results, as long
-    as the last report is of a run. An update waiting for confirmation is discarded, its report goes
+    as the last report is of a run or the update came from one, the cases it refreshed are to run again. An update
+    waiting for confirmation is discarded, its report goes
     """
+    global runBeforeUpdate
     discardPendingUpdate()
     previous = {}
     if lastReport is not None and lastReport['kind'] == report.KIND_RUN:
         previous = {item['name']: item for item in lastReport['cases']}
+    elif runBeforeUpdate is not None:
+        refreshed = {item['name'] for item in lastReport['cases'] if item['status'] != report.STATUS_UNTESTED} if lastReport is not None else set()
+        previous = {item['name']: item for item in runBeforeUpdate['cases'] if item['name'] not in refreshed}
+    runBeforeUpdate = None
     cases = [previous.get(case.name) or listedCase(case, report.STATUS_UNTESTED) for case in loadCases()]
     return (report.KIND_RUN, cases, None, '')
 
@@ -390,6 +399,18 @@ def runOne(data) -> dict | None:
     """The Run button of a case, and Run all with a filter, for the cases it shows"""
     names = selectedNames(data)
     return queueJob(report.KIND_RUN, names) if names else None
+
+def updateSnapshot(data) -> dict | None:
+    """
+    The Update snapshot button of a case that didn't pass, the update window refreshes it alone, its differences from
+    the current snapshot are shown to confirm. Back to tests brings the run's results back
+    """
+    global runBeforeUpdate
+    names = selectedNames(data)
+    if not names or queuedJob is not None or lastReport is None or lastReport['kind'] != report.KIND_RUN:
+        return None
+    runBeforeUpdate = lastReport
+    return queueJob(report.KIND_UPDATE, names)
 
 def selectedNames(data) -> set[str] | None:
     """The page's case, or its cases, a list of names"""

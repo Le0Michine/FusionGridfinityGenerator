@@ -426,6 +426,8 @@
             busy: 'Refreshing',
         },
     };
+    // a case of a run that didn't pass, refreshed alone in the update window to confirm its new snapshot
+    const UPDATE_ONE = ['Update snapshot', 'Build this case for a new snapshot and show how it differs from the current one, nothing is replaced before you confirm', 'updateSnapshot'];
 
     // the run redraws the report before each case, every button waits for the report it ends with
     function runButton([label, tooltip, action], data) {
@@ -459,6 +461,9 @@
         }
         if (RUNS[kind] && item.status !== 'removed') {
             summary.appendChild(runButton(RUNS[kind].one, { case: item.name }));
+        }
+        if (kind === 'run' && ['fail', 'review'].includes(item.status)) {
+            summary.appendChild(runButton(UPDATE_ONE, { case: item.name }));
         }
         if (item.hasDocument) {
             summary.appendChild(viewSwitch(item));
