@@ -9,6 +9,7 @@ from .commandShowSettings import entry as commandShowSettings
 from .commandSnapshotTests import entry as commandSnapshotTests
 from .commandModelScreenshots import entry as commandModelScreenshots
 from .. import config
+from ..lib.ui import errorPalette
 
 # TODO add imported modules to this list.
 # Fusion will automatically call the start() and stop() functions.
@@ -35,3 +36,4 @@ def start():
 def stop():
     for command in commands:
         command.stop()
+    errorPalette.stop()

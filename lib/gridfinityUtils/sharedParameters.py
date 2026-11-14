@@ -28,6 +28,28 @@ def findSharedParameter(design: adsk.fusion.Design, tagName: str, name: str) -> 
         return (taggedParameters[0][0], 'tagged')
     return (design.userParameters.itemByName(name), 'untagged, found by name')
 
+# what the shared parameters stand for, by their tag and name, see findSharedParameter
+SHARED_PARAMETERS = [
+    ('Base width unit', tagUtils.TAG_BASE_WIDTH_PARAMETER, BASE_WIDTH_PARAMETER),
+    ('Base length unit', tagUtils.TAG_BASE_LENGTH_PARAMETER, BASE_LENGTH_PARAMETER),
+    ('Height unit', tagUtils.TAG_HEIGHT_UNIT_PARAMETER, HEIGHT_UNIT_PARAMETER),
+]
+
+def describeSharedParameters(design: adsk.fusion.Design | None) -> list[list[str]]:
+    """Label and description pairs of the shared parameters as a build would find them, for an error report"""
+    if design is None:
+        return []
+    described = []
+    for (label, tagName, name) in SHARED_PARAMETERS:
+        (parameter, source) = findSharedParameter(design, tagName, name)
+        if parameter is None:
+            described.append([label, f'{name} not in the design'])
+        else:
+            # what the expression comes to, in the parameter's own unit, a unitless one has no unit to format with
+            value = design.unitsManager.formatInternalValue(parameter.value, parameter.unit, True) if parameter.unit else f'{parameter.value:g} without a unit'
+            described.append([label, f'{parameter.name} = {parameter.expression}, {value}, {source}'])
+    return described
+
 def usableSharedValue(design: adsk.fusion.Design, tagName: str, name: str, minimum: float) -> float | None:
     """Value of the shared parameter when it exists and would be used as is"""
     (parameter, _) = findSharedParameter(design, tagName, name)

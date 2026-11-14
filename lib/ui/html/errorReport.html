@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="dialog.css">
+<style>
+    :root {
+        --text: #3c3c3c;
+        --muted: #8a8a8a;
+        --background: #f5f5f5;
+        --card: #ffffff;
+        --card-border: #dcdcdc;
+        --error: #c62828;
+        --ok: #2e8b4a;
+    }
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --text: #dcdcdc;
+            --muted: #9a9a9a;
+            --background: #2b2b2b;
+            --card: #333333;
+            --card-border: #474747;
+            --error: #ff6b6b;
+            --ok: #5cc77a;
+        }
+    }
+    /* a palette scrolls its page, dialog pages fit theirs */
+    html, body {
+        background: var(--background);
+    }
+    html {
+        overflow: auto;
+    }
+    body {
+        overflow: visible;
+        padding: 12px;
+    }
+    h1 {
+        font-size: 15px;
+        margin: 0 0 6px;
+    }
+    .message {
+        color: var(--error);
+        font-weight: bold;
+        word-break: break-word;
+        margin-bottom: 8px;
+    }
+    .muted {
+        color: var(--muted);
+    }
+    .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+        margin: 10px 0;
+    }
+    #status.ok {
+        color: var(--ok);
+    }
+    #status.failed {
+        color: var(--error);
+    }
+    details {
+        border: 1px solid var(--card-border);
+        border-radius: 4px;
+        background: var(--card);
+        margin-bottom: 8px;
+    }
+    summary {
+        padding: 6px 10px;
+        cursor: pointer;
+        font-weight: bold;
+    }
+    pre, table {
+        margin: 0;
+        padding: 0 10px 8px;
+        font: 11px Menlo, Consolas, monospace;
+        white-space: pre-wrap;
+        word-break: break-all;
+        /* selectable to copy by hand when the buttons can't */
+        user-select: text;
+    }
+    table {
+        border-collapse: collapse;
+        display: block;
+    }
+    th {
+        text-align: left;
+        padding: 6px 0 2px;
+    }
+    td {
+        padding: 0 12px 0 0;
+        vertical-align: top;
+    }
+    /* holds the report for the browser's own copy, see copyHere */
+    #reportText {
+        position: fixed;
+        left: -10000px;
+        width: 10px;
+        height: 10px;
+    }
+    #reportText.shown {
+        position: static;
+        width: 100%;
+        height: 200px;
+        font: 11px Menlo, Consolas, monospace;
+        color: var(--text);
+        background: var(--card);
+        border: 1px solid var(--card-border);
+    }
+</style>
+</head>
+<body>
+<h1 id="title"></h1>
+<div class="message" id="message"></div>
+<div class="muted" id="environment"></div>
+<div class="actions">
+    <button id="copy">Copy report</button>
+    <button id="openIssue">Copy and open an issue</button>
+    <span id="status" class="muted"></span>
+</div>
+<details open>
+    <summary>Stack trace</summary>
+    <pre id="trace"></pre>
+</details>
+<details open>
+    <summary>Parameters</summary>
+    <table id="parameters"></table>
+</details>
+<details id="configSection">
+    <summary>Config</summary>
+    <pre id="config"></pre>
+</details>
+<textarea id="reportText" readonly></textarea>
+<script src="fusionBridge.js"></script>
+<script>
+    let report = null;
+
+    function render(data) {
+        report = data;
+        document.getElementById('title').textContent = data.title;
+        document.getElementById('message').textContent = data.message;
+        document.getElementById('environment').replaceChildren(...data.environment.map(([label, value]) => {
+            const line = document.createElement('div');
+            line.textContent = `${label}: ${value}`;
+            return line;
+        }));
+        document.getElementById('trace').textContent = data.trace;
+        const parameters = document.getElementById('parameters');
+        parameters.replaceChildren();
+        for (const [label, value] of data.parameters) {
+            const row = parameters.insertRow();
+            row.insertCell().textContent = label;
+            row.insertCell().textContent = value;
+        }
+        document.getElementById('configSection').hidden = !data.config;
+        document.getElementById('config').textContent = data.config || '';
+        document.getElementById('reportText').value = data.text;
+        showStatus('', '');
+    }
+
+    function showStatus(text, kind) {
+        const status = document.getElementById('status');
+        status.textContent = text;
+        status.className = kind || 'muted';
+    }
+
+    // the browser's own copy, when the add-in couldn't reach the system clipboard
+    function copyHere() {
+        const text = document.getElementById('reportText');
+        text.select();
+        try {
+            return document.execCommand('copy');
+        } catch (err) {
+            return false;
+        }
+    }
+
+    function copy(action) {
+        if (!report) {
+            return;
+        }
+        fusionBridge.send(action).then((answer) => {
+            if ((answer && answer.copied) || copyHere()) {
+                showStatus(action === 'openIssue' ? 'Copied, the issue has what fit in its link' : 'Copied, paste it into the issue', 'ok');
+            } else {
+                // the whole report shown selected, to copy by hand
+                document.getElementById('reportText').classList.add('shown');
+                document.getElementById('reportText').select();
+                showStatus('Couldn\'t copy, the report below is selected to copy it', 'failed');
+            }
+        });
+    }
+
+    document.getElementById('copy').addEventListener('click', () => copy('copy'));
+    document.getElementById('openIssue').addEventListener('click', () => copy('openIssue'));
+    fusionBridge.connect(render);
+</script>
+</body>
+</html>

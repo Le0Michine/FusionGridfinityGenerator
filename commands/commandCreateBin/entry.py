@@ -1,4 +1,5 @@
 import adsk.core, adsk.fusion, traceback
+import html
 import os
 import pathlib
 import time
@@ -25,6 +26,9 @@ from ...lib.ui.commandUiState import CommandUiState
 from ...lib.ui.defaultsButtons import addDefaultsButtonRow, defaultsButtonsHandlers, DEFAULTS_SAVE, DEFAULTS_FACTORY_RESET
 from ...lib.ui import browserPages
 from ...lib.ui.unsupportedDesignTypeException import UnsupportedDesignTypeException
+from ...lib.ui import errorPalette
+from ...lib import errorReport
+from ...lib import configJson
 
 app = adsk.core.Application.get()
 ui = app.userInterface
@@ -1074,6 +1078,12 @@ def snapshotSettings(inputs: adsk.core.CommandInputs) -> list[dict]:
         settings.append({'title': 'Shape', 'items': [[f'Row {index}', row] for (index, row) in zip(reversed(range(1, len(rows) + 1)), rows)]})
     return settings
 
+def reportConfig(state: InputState | None) -> str | None:
+    """The settings of a failed build as a config file, to build it again from the report"""
+    if state is None:
+        return None
+    return configJson.configText(configJson.GENERATOR_BIN, configJson.stateToJson(configJson.GENERATOR_BIN, state), tagUtils.getGeneratorVersion())
+
 def getInputsState() -> InputState:
     def angle(inputId: str) -> float:
         """Angles are kept as the expression typed in, see CommandUiState.onInputUpdate"""
@@ -1132,9 +1142,10 @@ def generateBin(args: adsk.core.CommandEventArgs):
     settings = snapshotSettings(args.command.commandInputs)
     # the settings come first, so a failing build can be reproduced from the log
     commonUtils.fileLog(f'{CMD_NAME} generating with settings:\n{settingsUtils.settingsText(settings)}')
-    state = getInputsState()
+    state = None
 
     try:
+        state = getInputsState()
         des = adsk.fusion.Design.cast(app.activeProduct)
         binBuilder.buildBin(des, state, settings)
         futil.log(f'{CMD_NAME} {binBuilder.binDisplayName(state)} generated in {time.perf_counter() - startTime:.3f}s')
@@ -1144,7 +1155,8 @@ def generateBin(args: adsk.core.CommandEventArgs):
         return False
     except Exception as err:
         args.executeFailed = True
-        args.executeFailedMessage = getErrorMessage()
+        args.executeFailedMessage = f'{html.escape(errorReport.errorMessage(err))}<br>See the {errorPalette.PALETTE_TITLE} panel to copy a report of it'
         futil.log(f'{CMD_NAME} Error occurred, {err}, {getErrorMessage()}')
+        errorPalette.show(f'{CMD_NAME} failed', err, reportConfig(state))
         return False
     return True
