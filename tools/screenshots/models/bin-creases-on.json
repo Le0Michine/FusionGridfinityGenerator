@@ -1,0 +1,7 @@
+{
+    "description": "README creases GIF: the tall 1x4 bin with its long walls folded in",
+    "extends": "bin-creases-off.json",
+    "settings": {
+        "hasCreases": true
+    }
+}

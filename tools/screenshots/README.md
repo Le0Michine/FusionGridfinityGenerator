@@ -119,7 +119,9 @@ for options shown side by side, such as the bin bottoms. The GIFs are listed in 
 milliseconds and `captionSize` are optional. `loopWith` names a dialog animation of `shots.json` going through the same
 options, for the two to be shown side by side. Its `model` steps say which picture goes with what the dialog shows,
 recording it saves when they happen to `timelines/<animation>-<theme>.json`, and the GIF fades to each picture at that
-moment and is as long, so both change and loop together. `hold` doesn't apply to it. Make the pictures in Fusion
+moment and is as long, so both change and loop together. `hold` doesn't apply to it. `"combine": true` puts the
+dialog animation beside the pictures in the GIF itself, for one image instead of a pair. The dialog animations are
+recorded to `tools/screenshots/dialogs`, which isn't kept in the repo, only the GIFs made from them are. Make the pictures in Fusion
 first, then
 
     tools/screenshots/.venv/bin/python tools/screenshots/modelGifs.py [--only bin-bottom-options]

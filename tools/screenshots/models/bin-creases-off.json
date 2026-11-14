@@ -1,0 +1,10 @@
+{
+    "description": "README creases GIF: a tall 1x4 bin with flat walls",
+    "extends": "_bin.json",
+    "settings": {
+        "binWidth": 1,
+        "binLength": 4,
+        "binHeight": 10,
+        "hasCreases": false
+    }
+}

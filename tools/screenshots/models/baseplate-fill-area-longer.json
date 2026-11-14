@@ -1,0 +1,7 @@
+{
+    "description": "README fill area GIF: the area made 300 mm long",
+    "extends": "baseplate-fill-area.json",
+    "settings": {
+        "areaLength": 300
+    }
+}

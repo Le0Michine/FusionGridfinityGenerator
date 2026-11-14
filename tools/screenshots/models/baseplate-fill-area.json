@@ -1,0 +1,10 @@
+{
+    "description": "README fill area GIF: a 450x200 mm area filled with a light baseplate, in pieces for a Prusa MK4 bed",
+    "extends": "_baseplate.json",
+    "settings": {
+        "areaWidth": 450,
+        "areaLength": 200,
+        "bedWidth": 250.0,
+        "bedLength": 210.0
+    }
+}

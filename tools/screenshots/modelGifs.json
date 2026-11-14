@@ -16,7 +16,35 @@
                     "caption": "Full"
                 }
             ],
-            "loopWith": "baseplate-types-dialog"
+            "loopWith": "baseplate-types-dialog",
+            "combine": true
+        },
+        {
+            "name": "baseplate-fill-area",
+            "frames": [
+                {
+                    "picture": "baseplate-light",
+                    "caption": "2x3 grid"
+                },
+                {
+                    "picture": "baseplate-fill-area",
+                    "caption": "450x200 mm area, Prusa MK4"
+                },
+                {
+                    "picture": "baseplate-fill-area-longer",
+                    "caption": "450x300 mm area"
+                },
+                {
+                    "picture": "baseplate-fill-area-prusa-mini",
+                    "caption": "Prusa MINI"
+                },
+                {
+                    "picture": "baseplate-fill-area-prusa-xl",
+                    "caption": "Prusa XL"
+                }
+            ],
+            "loopWith": "baseplate-fill-area-dialog",
+            "combine": true
         },
         {
             "name": "baseplate-connection-holes",
@@ -34,7 +62,8 @@
                     "caption": "5 mm connection holes"
                 }
             ],
-            "loopWith": "baseplate-connection-holes-dialog"
+            "loopWith": "baseplate-connection-holes-dialog",
+            "combine": true
         },
         {
             "name": "bin-bottom-options",
@@ -60,7 +89,27 @@
                     "caption": "Combined, with a groove"
                 }
             ],
-            "loopWith": "bin-bottom-options-dialog"
+            "loopWith": "bin-bottom-options-dialog",
+            "combine": true
+        },
+        {
+            "name": "bin-creases",
+            "frames": [
+                {
+                    "picture": "bin-creases-off",
+                    "caption": "Flat walls"
+                },
+                {
+                    "picture": "bin-creases-on",
+                    "caption": "Folded in"
+                },
+                {
+                    "picture": "bin-creases-panels",
+                    "caption": "Panels of 2 units"
+                }
+            ],
+            "loopWith": "bin-creases-dialog",
+            "combine": true
         },
         {
             "name": "bin-label-tab-options",
@@ -82,7 +131,8 @@
                     "caption": "Angled top"
                 }
             ],
-            "loopWith": "bin-label-tab-options-dialog"
+            "loopWith": "bin-label-tab-options-dialog",
+            "combine": true
         },
         {
             "name": "bin-label-options",
@@ -108,7 +158,8 @@
                     "caption": "Embossed"
                 }
             ],
-            "loopWith": "bin-label-options-dialog"
+            "loopWith": "bin-label-options-dialog",
+            "combine": true
         },
         {
             "name": "bin-half-grid",
@@ -126,7 +177,8 @@
                     "caption": "2.5 wide, a row of half bases"
                 }
             ],
-            "loopWith": "bin-half-grid-dialog"
+            "loopWith": "bin-half-grid-dialog",
+            "combine": true
         },
         {
             "name": "bin-features",
@@ -148,7 +200,8 @@
                     "caption": "0.8 mm walls"
                 }
             ],
-            "loopWith": "bin-features-editing"
+            "loopWith": "bin-features-editing",
+            "combine": true
         },
         {
             "name": "bin-custom-shape",
@@ -162,7 +215,8 @@
                     "caption": "Cells left out"
                 }
             ],
-            "loopWith": "bin-custom-shape-drawing"
+            "loopWith": "bin-custom-shape-drawing",
+            "combine": true
         },
         {
             "name": "bin-compartments",
@@ -180,7 +234,8 @@
                     "caption": "Labeled"
                 }
             ],
-            "loopWith": "bin-compartments-merging"
+            "loopWith": "bin-compartments-merging",
+            "combine": true
         }
     ]
 }

@@ -1,0 +1,8 @@
+{
+    "description": "README fill area GIF: the 450x300 mm area in pieces for a Prusa XL bed",
+    "extends": "baseplate-fill-area-longer.json",
+    "settings": {
+        "bedWidth": 360.0,
+        "bedLength": 360.0
+    }
+}

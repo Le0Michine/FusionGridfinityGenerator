@@ -49,6 +49,8 @@ GIF_PYTHON = os.path.join(SCREENSHOTS_FOLDER, '.venv', 'Scripts', 'python.exe') 
 GIF_COMMAND = [GIF_PYTHON, os.path.join(SCREENSHOTS_FOLDER, 'modelGifs.py'), '--dialogs']
 GIFS_FILE = os.path.join(SCREENSHOTS_FOLDER, 'modelGifs.json')
 GIF_FOLDER = os.path.join(ROOT_FOLDER, 'documentation', 'assets', 'gif')
+# dialog animations the GIFs are made from, recorded by screenshots.py and not kept in the repo
+DIALOGS_FOLDER = os.path.join(SCREENSHOTS_FOLDER, 'dialogs')
 GIF_THEMES = ['light', 'dark']
 GIF_TIMEOUT = 15 * 60
 # Fusion's Python settings would make the tool's Python load Fusion's libraries
@@ -166,7 +168,7 @@ def gifRows() -> list[dict]:
         for theme in GIF_THEMES:
             files[f'model-{theme}'] = savedFile(os.path.join(GIF_FOLDER, f'{gif["name"]}-{theme}.gif'))
             if gif.get('loopWith'):
-                files[f'dialog-{theme}'] = savedFile(os.path.join(GIF_FOLDER, f'{gif["loopWith"]}-{theme}.gif'))
+                files[f'dialog-{theme}'] = savedFile(os.path.join(DIALOGS_FOLDER, f'{gif["loopWith"]}-{theme}.gif'))
         made = files['model-light']
         rows.append({
             'name': gif['name'],

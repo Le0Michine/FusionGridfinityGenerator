@@ -1,0 +1,7 @@
+{
+    "description": "README creases GIF: the tall 1x4 bin with its long walls folded in panels of 2 units",
+    "extends": "bin-creases-on.json",
+    "settings": {
+        "creaseMaxPanelLength": 2
+    }
+}

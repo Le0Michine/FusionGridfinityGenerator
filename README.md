@@ -12,71 +12,85 @@ Bin options | Baseplate options
 <img src="documentation/assets/ui/fusion-dialog-bin-generator.png" alt="Bin dialog"> | <img src="documentation/assets/ui/fusion-dialog-baseplate-generator.png" alt="Baseplate dialog">
 
 ### Baseplates
-- accepts amount of bases X and Y directions
-- fill area mode takes the size of an area, e.g. a drawer, and a print bed, picked from popular printers or entered by hand, fits a grid into the area and splits it into pieces fitting the bed. The grid can be centered or pushed to a side, and space left past it can take a row of half cells instead of solid padding
-- base measurement can be changed, default is 42mm
-- there are options to generate thick plate with magnet or/and screw holes
-- thick plate can be skeletonized to reduce weight, it also allows room for connection holes which can be customized to fit certain screw size or glue in pin
-- size of magnet sockets and screw holes can be adjusted
+- **Size**
+  - number of bases along X and Y, or fill an area, e.g. a drawer, with the grid fitted into it
+  - base measurement can be changed, default is 42mm
+  - a filled area is split into pieces fitting the print bed, picked from popular printers or entered by hand, with a preview of the pieces
+  - the grid can be centered or pushed to a side, space left past it takes a row of half cells or solid padding
+- **Type**
+  - light, a thin plate to save filament
+  - full, a thick plate with room for magnets and screws
+  - skeletonized, a thick plate with its bottom cut away to save weight, leaving room for connection holes between plates for a screw or a glued in pin
+- **Features**
+  - magnet sockets and screw holes with countersunk heads, all adjustable in size
+  - padding on any side, extra bottom thickness and clearance under the bins
+  - joint origins at the bottom of every socket, to joint bins into it
+- **Settings** can be saved as the dialog defaults, saved to or loaded from a JSON file or copied to the clipboard
+
+#### Fill an area
+Enter the size of a drawer or any other area and pick your printer, the grid is fitted into the area and split into pieces fitting the print bed
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/baseplate-fill-area-dark.gif"><img src="documentation/assets/gif/baseplate-fill-area-light.gif" alt="Switching to fill area, entering the area length and switching between Prusa printers, with the baseplate pieces for each"></picture>
 
 #### Baseplate types
-Result | Options
-:-------------------------:|:-------------------------:
-<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/baseplate-types-dark.gif"><img src="documentation/assets/gif/baseplate-types-light.gif" alt="Light, skeletonized and full baseplates"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/baseplate-types-dialog-dark.gif"><img src="documentation/assets/gif/baseplate-types-dialog-light.gif" alt="Picking each baseplate type"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/baseplate-types-dark.gif"><img src="documentation/assets/gif/baseplate-types-light.gif" alt="Picking each baseplate type, with light, skeletonized and full baseplates"></picture>
 
 #### Connection holes
 Skeletonized baseplates can have holes between them for a screw or a glued in pin, their size can be adjusted
 
-Result | Options
-:-------------------------:|:-------------------------:
-<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/baseplate-connection-holes-dark.gif"><img src="documentation/assets/gif/baseplate-connection-holes-light.gif" alt="A skeletonized baseplate without, with 3.2 mm and with 5 mm connection holes"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/baseplate-connection-holes-dialog-dark.gif"><img src="documentation/assets/gif/baseplate-connection-holes-dialog-light.gif" alt="Turning on connection holes and changing their diameter"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/baseplate-connection-holes-dark.gif"><img src="documentation/assets/gif/baseplate-connection-holes-light.gif" alt="Turning on connection holes and changing their diameter, with a skeletonized baseplate without, with 3.2 mm and with 5 mm connection holes"></picture>
 
 ### Bins
-- accepts amount of bases X and Y directions
-- base measurement can be changed, default is 42mm for base width and 7mm for the unit of height
-- height is specified in base units, 1 unit will be added to the input to accomodate bin bottom
-- generated bins can have a lip for better stackability or a straight wall
-- lip can have notches preventing bins from sliding when stacked
-- wall thickness can be adjusted
-- magnet sockets can be customized to allow snug fit of the magnets, or a different size
-- magnet sockets can have tabs holding the magnets in
-- screw holes diameter can be adjusted
-- when magnet and screw holes are enabled together, a groove will be generated to help with printability
-- bin can be shelled with constant wall thickness to save printing time and filament
-- label tab can be generated (length, offset and overhang angle are adjustable)
-- label tab top can be tilted, and the tab can be hollow, opened through the back wall of the bin and optionally its side walls
-- allows generation of base or body separately, could be useful if need combine it with existing model
-- bins can take a custom shape drawn on the grid, such as an L or a T
-- compartments can be configured to use uniform scale
-- custom compartmens layout is based on the uniform grid and allows merging multiple cells together, specifying custom depth and position
+- **Size**
+  - width and length in bases, whole or half, height in height units, 1 unit is added to the height for the bin bottom
+  - base measurement can be changed, default is 42mm for base width and 7mm for the unit of height
+  - half grid puts the bin on half size feet, so it can sit offset by half a base on the baseplate
+  - you can play tetris with your bins defining custom shapes `▀█▀ █▄▄ ▄█▀ ██ ▀▀▀▀`
+- **Body**
+  - hollow, shelled with constant wall thickness to save printing time and filament, or solid as a start for specialized tool bins
+  - lip for stackability, with optional notches preventing stacked bins from sliding, or a straight wall
+  - long walls of tall hollow and shelled bins can be folded in along creases, origami style, greatly increasing stiffness
+  - base or body can be generated on their own, to combine them with an existing model
+- **Compartments** in a uniform layout, or an easy to use configurator for more complex, irregular ones
+- **Scoop** along the bin width, with an adjustable max radius
+- **Label tab**
+  - adjustable length, offset and overhang angle, top can be tilted to face the front
+  - can be hollow, opened through the back wall of the bin and optionally its side walls
+  - label with text and an icon, outlined for a slicer to color it, engraved or embossed
+  - label text can be changed later in the user parameters, without generating the bin again
+- **Base**
+  - magnet sockets, sized for a snug fit of the magnets, optionally with tabs holding them in
+  - screw holes of adjustable diameter, with a groove for printability when combined with magnet sockets
+  - joint origins at the bottom of every foot, to joint the bin into baseplate sockets
+- **Settings** can be saved as the dialog defaults, saved to or loaded from a JSON file, copied to the clipboard or cloned into a new bin
 
-Result | Options
-:-------------------------:|:-------------------------:
-<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-features-dark.gif"><img src="documentation/assets/gif/bin-features-light.gif" alt="The bin at each change"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-features-editing-dark.gif"><img src="documentation/assets/gif/bin-features-editing-light.gif" alt="Changing the size, type and wall thickness of a bin"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-features-dark.gif"><img src="documentation/assets/gif/bin-features-light.gif" alt="Changing the size, type and wall thickness of a bin, with the bin at each change"></picture>
 
 #### Bin bottom options
-Result | Options
-:-------------------------:|:-------------------------:
-<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-bottom-options-dark.gif"><img src="documentation/assets/gif/bin-bottom-options-light.gif" alt="Bins with each bottom option"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-bottom-options-dialog-dark.gif"><img src="documentation/assets/gif/bin-bottom-options-dialog-light.gif" alt="Going through the bottom options in the dialog"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-bottom-options-dark.gif"><img src="documentation/assets/gif/bin-bottom-options-light.gif" alt="Going through the bottom options in the dialog, with the bin for each"></picture>
 
 #### Bin half base size
 
-Result | Options
-:-------------------------:|:-------------------------:
-<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-half-grid-dark.gif"><img src="documentation/assets/gif/bin-half-grid-light.gif" alt="Bins on whole, half and a row of half bases"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-half-grid-dialog-dark.gif"><img src="documentation/assets/gif/bin-half-grid-dialog-light.gif" alt="Turning on half grid, then a size ending in a half"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-half-grid-dark.gif"><img src="documentation/assets/gif/bin-half-grid-light.gif" alt="Turning on half grid, then a size ending in a half, with bins on whole, half and a row of half bases"></picture>
 
 #### Bin type options
 Hollow bin | Shelled bin | Solid bin
 :-------------------------:|:-------------------------:|:-------------------------:
 <img src="documentation/assets/models/hollow-bin.png" alt="Hollow bin"> | <img src="documentation/assets/models/shelled-bin.png" alt="Shelled bin"> | <img src="documentation/assets/models/solid-bin.png" alt="Solid bin">
 
+#### Creased walls for stiffer bins
+
+Long walls of tall hollow and shelled bins are folded in along shallow creases, greatly increasing stiffness. Bins from the min height
+with a wall from the min length get them, walls are split into even panels up to the max panel length. The scoop wall
+stays flat, the scoop braces it, and a creased bin has a single compartment and a solid label tab
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-creases-dark.gif"><img src="documentation/assets/gif/bin-creases-light.gif" alt="Turning on creases and folding the walls in panels of 2 units, with the bin for each"></picture>
+
 #### Custom bin shape
 
 The cells of the bin can be picked on its grid, for bins such as an L or a T.
 
-Result | Drawing the shape
-:-------------------------:|:-------------------------:
-<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-custom-shape-dark.gif"><img src="documentation/assets/gif/bin-custom-shape-light.gif" alt="The bin with every cell, then cells left out"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-custom-shape-drawing-dark.gif"><img src="documentation/assets/gif/bin-custom-shape-drawing-light.gif" alt="Drawing a bin shape"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-custom-shape-dark.gif"><img src="documentation/assets/gif/bin-custom-shape-light.gif" alt="Drawing a bin shape, with the bin on every cell, then cells left out"></picture>
 
 #### Bin compartments options
 
@@ -89,21 +103,15 @@ Uniform compartments | Custom compartments A | Custom compartments B
 
 Compartments are merged by dragging across the cells, and can be named for the label tab
 
-Result | Options
-:-------------------------:|:-------------------------:
-<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-compartments-dark.gif"><img src="documentation/assets/gif/bin-compartments-light.gif" alt="The bin as compartments are merged and labeled"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-compartments-merging-dark.gif"><img src="documentation/assets/gif/bin-compartments-merging-light.gif" alt="Merging compartments and naming one"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-compartments-dark.gif"><img src="documentation/assets/gif/bin-compartments-light.gif" alt="Merging compartments and naming one, with the bin as compartments are merged and labeled"></picture>
 
 #### Bin label tab configuration
-Result | Options
-:-------------------------:|:-------------------------:
-<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-label-tab-options-dark.gif"><img src="documentation/assets/gif/bin-label-tab-options-light.gif" alt="Bins with each label tab"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-label-tab-options-dialog-dark.gif"><img src="documentation/assets/gif/bin-label-tab-options-dialog-light.gif" alt="Changing the label tab length and position in the dialog"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-label-tab-options-dark.gif"><img src="documentation/assets/gif/bin-label-tab-options-light.gif" alt="Changing the label tab length and position in the dialog, with the bin for each"></picture>
 
 #### Bin labels
 A label tab can carry text and an icon, outlined for a slicer to color it, engraved or embossed
 
-Result | Options
-:-------------------------:|:-------------------------:
-<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-label-options-dark.gif"><img src="documentation/assets/gif/bin-label-options-light.gif" alt="A label with text, an icon, engraved and embossed"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-label-options-dialog-dark.gif"><img src="documentation/assets/gif/bin-label-options-dialog-light.gif" alt="Typing label text, picking an icon and each label style"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-label-options-dark.gif"><img src="documentation/assets/gif/bin-label-options-light.gif" alt="Typing label text, picking an icon and each label style, with the bin at each change"></picture>
 
 #### Bin scoop feature
 Scoop enabled | Scoop disabled
@@ -160,13 +168,13 @@ To update the script download latest sources into the same location and relaunch
 
 ## Support the project
 
-The plugin is free. However, if you want to support the project you can do so by [buying me a coffe](https://www.buymeacoffee.com/levmishin) or subscribing on patreon https://www.patreon.com/levmishin.
+The plugin is free. However, if you want to support the project you can do so by [buying me a coffe](https://www.buymeacoffee.com/levmishin).
 
 ## Credits
 
 [Gridfinity](https://www.youtube.com/watch?v=ra_9zU-mnl8) by [Zack Freedman](https://www.youtube.com/c/ZackFreedman/about)
 
-This work is licensed under the same license as Gridfinity, being a
+This work is licensed under a
 [Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License][cc-by-nc-sa].
 
 [![CC BY-NC-SA 4.0][cc-by-nc-sa-image]][cc-by-nc-sa]

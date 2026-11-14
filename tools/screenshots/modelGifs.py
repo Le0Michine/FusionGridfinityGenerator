@@ -6,8 +6,8 @@ come from Fusion, see the model pictures section of README.md, so they share a v
 
 GIFs are listed in modelGifs.json, each is written for the light and the dark theme to documentation/assets/gif.
 A GIF with loopWith changes its pictures when the dialog animation it's shown beside does, by the timeline recording it
-saved, see animation.py. --dialogs first records the dialog animations, from shots.json. Fusion's palette of model pictures runs
-it with --dialogs after its pictures.
+saved, see animation.py. With combine, the dialog animation is put beside the pictures in the same GIF. --dialogs first
+records the dialog animations, from shots.json. Fusion's palette of model pictures runs it with --dialogs after its pictures.
 """
 
 import argparse
@@ -19,7 +19,7 @@ import sys
 from PIL import Image, ImageDraw, ImageFont
 
 from animation import FRAME_MS, GIF_BACKGROUNDS, save, timelinePath
-from screenshots import DEFAULT_SHOTS_FILE, findFonts, takeShots
+from screenshots import DEFAULT_SHOTS_FILE, findFonts, outputPath, takeShots
 
 TOOL_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(os.path.dirname(TOOL_DIR))
@@ -29,6 +29,8 @@ OUTPUT_DIR = os.path.join(ROOT_DIR, 'documentation', 'assets', 'gif')
 # GitHub's text colors of the themes
 CAPTION_COLORS = {'light': '#1f2328', 'dark': '#e6edf3'}
 DEFAULTS = {'size': 640, 'hold': 1600, 'fade': 400, 'captionSize': 30}
+# space between the pictures and the dialog of a combined GIF
+COMBINED_GAP = 32
 
 
 class GifError(Exception):
@@ -115,6 +117,49 @@ def timedFrames(pictures: list[Image.Image], label, gif: dict, times: dict) -> l
     return [frame for frame in frames if frame[1] > 0]
 
 
+def dialogFrames(gif: dict, theme: str) -> list[tuple[Image.Image, int]]:
+    """The frames of the dialog animation the GIF loops with, as recorded"""
+    with open(DEFAULT_SHOTS_FILE, encoding='utf-8') as file:
+        config = json.load(file)
+    shot = next((shot for shot in config['shots'] if shot['name'] == gif['loopWith']), None)
+    if shot is None:
+        raise GifError(f'{gif["name"]}: no dialog animation {gif["loopWith"]} in {DEFAULT_SHOTS_FILE}')
+    folder = os.path.join(ROOT_DIR, shot.get('output') or config.get('output', 'documentation/assets/ui'))
+    path = outputPath(folder, shot, theme, shot.get('themes') or config.get('themes') or ['dark', 'light'])
+    if not os.path.exists(path):
+        raise GifError(f'{gif["name"]}: no recording of {gif["loopWith"]}, record it first with --dialogs')
+    frames = []
+    with Image.open(path) as recording:
+        for index in range(recording.n_frames):
+            recording.seek(index)
+            frames.append((recording.convert('RGB'), recording.info['duration']))
+    return frames
+
+
+def combinedFrames(models: list[tuple[bytes, int]], dialogs: list[tuple[Image.Image, int]], theme: str) -> list[tuple[bytes, int]]:
+    """
+    The pictures with the dialog beside them, a frame whenever either changes. The shorter one holds its last frame
+    until the other ends
+    """
+    pictures = [(Image.open(io.BytesIO(data)), ms) for (data, ms) in models]
+    (left, right) = (pictures[0][0], dialogs[0][0])
+    size = (left.width + COMBINED_GAP + right.width, max(left.height, right.height))
+    ends = lambda frames: [sum(ms for (_, ms) in frames[:index + 1]) for index in range(len(frames))]
+    (pictureEnds, dialogEnds) = (ends(pictures), ends(dialogs))
+    frames = []
+    (shownPicture, shownDialog, at) = (0, 0, 0)
+    for end in sorted(set(pictureEnds) | set(dialogEnds)):
+        combined = Image.new('RGB', size, GIF_BACKGROUNDS[theme])
+        (picture, dialog) = (pictures[shownPicture][0], dialogs[shownDialog][0])
+        combined.paste(picture, (0, (size[1] - picture.height) // 2))
+        combined.paste(dialog, (picture.width + COMBINED_GAP, (size[1] - dialog.height) // 2))
+        frames.append((png(combined), end - at))
+        at = end
+        shownPicture = min(shownPicture + (end == pictureEnds[shownPicture]), len(pictures) - 1)
+        shownDialog = min(shownDialog + (end == dialogEnds[shownDialog]), len(dialogs) - 1)
+    return frames
+
+
 def makeGif(gif: dict, pictures: str, out: str, themes: list[str], fontDir: str | None) -> list[str]:
     gif = {**DEFAULTS, **gif}
     paths = [os.path.join(pictures, f'{item["picture"]}.png') for item in gif['frames']]
@@ -129,6 +174,8 @@ def makeGif(gif: dict, pictures: str, out: str, themes: list[str], fontDir: str 
         label = lambda image, index: captioned(image, captions[index], gif, theme, captionFont)
         path = os.path.join(out, f'{gif["name"]}-{theme}.gif')
         frames = timedFrames(stills, label, gif, timeline(gif, theme)) if gif.get('loopWith') else gifFrames(stills, label, gif)
+        if gif.get('combine'):
+            frames = combinedFrames(frames, dialogFrames(gif, theme), theme)
         save(frames, path)
         written.append(path)
     return written

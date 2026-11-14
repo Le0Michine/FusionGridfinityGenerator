@@ -54,7 +54,7 @@
         },
         {
             "name": "bin-custom-shape-drawing",
-            "output": "documentation/assets/gif",
+            "output": "tools/screenshots/dialogs",
             "command": "bin",
             "values": {"bin_width": 2.5},
             "inputs": ["bin_dimensions_group"],
@@ -71,7 +71,7 @@
         },
         {
             "name": "bin-features-editing",
-            "output": "documentation/assets/gif",
+            "output": "tools/screenshots/dialogs",
             "command": "bin",
             "inputs": ["bin_dimensions_group:header", "bin_wall_thickness"],
             "steps": [
@@ -86,7 +86,7 @@
         },
         {
             "name": "bin-compartments-merging",
-            "output": "documentation/assets/gif",
+            "output": "tools/screenshots/dialogs",
             "command": "bin",
             "values": {"compartments_grid_w": 3, "compartments_grid_l": 2, "compartments_show_layout": true, "bin_has_tab": true},
             "inputs": ["compartments_group:header", "compartments_browser"],
@@ -101,7 +101,7 @@
         },
         {
             "name": "bin-bottom-options-dialog",
-            "output": "documentation/assets/gif",
+            "output": "tools/screenshots/dialogs",
             "command": "bin",
             "inputs": ["bin_base_features_group:header", "magnet_height"],
             "steps": [
@@ -129,7 +129,7 @@
         },
         {
             "name": "bin-half-grid-dialog",
-            "output": "documentation/assets/gif",
+            "output": "tools/screenshots/dialogs",
             "command": "bin",
             "values": {"bin_width": 2, "bin_length": 1},
             "inputs": ["bin_dimensions_group:header", "half_grid"],
@@ -148,7 +148,7 @@
         },
         {
             "name": "baseplate-types-dialog",
-            "output": "documentation/assets/gif",
+            "output": "tools/screenshots/dialogs",
             "command": "baseplate",
             "values": {"sizing_mode_dropdown": "Grid units", "plate_width": 2, "plate_length": 3},
             "inputs": ["plate_features:header", "plate_type_dropdown"],
@@ -165,8 +165,32 @@
             ]
         },
         {
+            "name": "baseplate-fill-area-dialog",
+            "output": "tools/screenshots/dialogs",
+            "command": "baseplate",
+            "values": {"sizing_mode_dropdown": "Grid units", "plate_width": 2, "plate_length": 3, "fill_area_width": "450 mm", "fill_area_length": "200 mm", "print_bed_preset_dropdown": "Prusa MK3, MK4 (250 x 210 mm)", "print_bed_width": "250 mm", "print_bed_length": "210 mm", "xy_dimensions": true, "print_bed_group": true, "plate_features": false, "input_changes_group": false, "preview_group": false},
+            "inputs": ["xy_dimensions:header", "layout_browser"],
+            "steps": [
+                {"wait": 1200},
+                {"select": {"input": "sizing_mode_dropdown", "item": "Fill area"}},
+                {"model": 1},
+                {"wait": 1200},
+                {"type": {"input": "fill_area_length", "text": "300"}},
+                {"model": 2},
+                {"wait": 1200},
+                {"select": {"input": "print_bed_preset_dropdown", "item": "Prusa MINI (180 x 180 mm)"}},
+                {"model": 3},
+                {"wait": 1200},
+                {"select": {"input": "print_bed_preset_dropdown", "item": "Prusa XL (360 x 360 mm)"}},
+                {"model": 4},
+                {"wait": 1600},
+                {"select": {"input": "sizing_mode_dropdown", "item": "Grid units"}},
+                {"model": 0}
+            ]
+        },
+        {
             "name": "baseplate-connection-holes-dialog",
-            "output": "documentation/assets/gif",
+            "output": "tools/screenshots/dialogs",
             "command": "baseplate",
             "values": {"sizing_mode_dropdown": "Grid units", "plate_width": 2, "plate_length": 3, "plate_type_dropdown": "Skeletonized", "advanced_plate_size_group": true},
             "inputs": ["advanced_plate_size_group:header", "connection_hole_diameter"],
@@ -185,7 +209,7 @@
         },
         {
             "name": "bin-label-tab-options-dialog",
-            "output": "documentation/assets/gif",
+            "output": "tools/screenshots/dialogs",
             "command": "bin",
             "values": {"bin_width": 3, "bin_length": 2, "bin_has_tab": true, "bin_tab_length": 3, "bin_tab_position": 0},
             "inputs": ["bin_tab_features_group:header", "bin_tab_top_angle"],
@@ -207,8 +231,29 @@
             ]
         },
         {
+            "name": "bin-creases-dialog",
+            "output": "tools/screenshots/dialogs",
+            "command": "bin",
+            "values": {"bin_width": 1, "bin_length": 4, "bin_height": 10, "wall_creases": false},
+            "inputs": ["wall_creases", "wall_crease_min_height"],
+            "steps": [
+                {"wait": 1200},
+                {"click": "wall_creases"},
+                {"model": 1},
+                {"wait": 1200},
+                {"type": {"input": "wall_crease_max_panel_length", "text": "2"}},
+                {"model": 2},
+                {"wait": 1200},
+                {"type": {"input": "wall_crease_max_panel_length", "text": "4.75"}},
+                {"model": 1},
+                {"wait": 600},
+                {"click": "wall_creases"},
+                {"model": 0}
+            ]
+        },
+        {
             "name": "bin-label-options-dialog",
-            "output": "documentation/assets/gif",
+            "output": "tools/screenshots/dialogs",
             "command": "bin",
             "values": {"bin_width": 2, "bin_length": 1, "bin_height": 3, "bin_has_tab": true, "bin_tab_length": 2},
             "inputs": ["bin_tab_label_text", "bin_tab_label_bold"],
@@ -227,7 +272,11 @@
                 {"model": 4},
                 {"wait": 1200},
                 {"select": {"input": "bin_tab_label_style", "item": "Outline"}},
+                {"model": 2},
+                {"wait": 600},
                 {"select": {"input": "bin_tab_label_icon", "item": "None"}},
+                {"model": 1},
+                {"wait": 600},
                 {"type": {"input": "bin_tab_label_text", "text": ""}},
                 {"model": 0}
             ]
