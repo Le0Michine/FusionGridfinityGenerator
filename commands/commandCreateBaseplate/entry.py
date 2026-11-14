@@ -12,7 +12,6 @@ from ...lib import tagUtils
 from ...lib import settingsUtils
 from ...lib import fusion360utils as futil
 from ... import config
-from ...lib.gridfinityUtils.const import DIMENSION_DEFAULT_WIDTH_UNIT
 from ...lib.gridfinityUtils import baseplateLayout
 from ...lib.gridfinityUtils import const
 from ...lib.gridfinityUtils import commonUtils
@@ -43,6 +42,10 @@ from ...lib.ui.unsupportedDesignTypeException import UnsupportedDesignTypeExcept
 from ...lib.ui import errorPalette
 from ...lib import errorReport
 from ...lib import configJson
+from ...lib import defaultSettings
+
+# what the dialog starts with before saved defaults, see lib/defaultSettings.py
+DEFAULT_STATE = configJson.stateFromJson(configJson.GENERATOR_BASEPLATE, InputState, defaultSettings.BASEPLATE)
 
 app = adsk.core.Application.get()
 ui = app.userInterface
@@ -885,49 +888,48 @@ def initUiState():
     uiState.initValue(SIDE_PADDING_GROUP, True, adsk.core.GroupCommandInput.classType())
     uiState.initValue(PREVIEW_GROUP, True, adsk.core.GroupCommandInput.classType())
 
-    uiState.initValue(BASEPLATE_BASE_UNIT_WIDTH_INPUT, DIMENSION_DEFAULT_WIDTH_UNIT, adsk.core.ValueCommandInput.classType())
-    uiState.initValue(BASEPLATE_BASE_UNIT_LENGTH_INPUT, DIMENSION_DEFAULT_WIDTH_UNIT, adsk.core.ValueCommandInput.classType())
-    uiState.initValue(BIN_XY_CLEARANCE_INPUT_ID, const.BIN_XY_CLEARANCE, adsk.core.ValueCommandInput.classType())
-    uiState.initValue(BASEPLATE_WIDTH_INPUT, 2, adsk.core.IntegerSpinnerCommandInput.classType())
-    uiState.initValue(BASEPLATE_LENGTH_INPUT, 3, adsk.core.IntegerSpinnerCommandInput.classType())
-    uiState.initValue(BASEPLATE_TYPE_DROPDOWN, BASEPLATE_TYPE_LIGHT, adsk.core.DropDownCommandInput.classType())
+    uiState.initValue(BASEPLATE_BASE_UNIT_WIDTH_INPUT, DEFAULT_STATE.baseWidth, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_BASE_UNIT_LENGTH_INPUT, DEFAULT_STATE.baseLength, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(BIN_XY_CLEARANCE_INPUT_ID, DEFAULT_STATE.xyClearance, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_WIDTH_INPUT, DEFAULT_STATE.plateWidth, adsk.core.IntegerSpinnerCommandInput.classType())
+    uiState.initValue(BASEPLATE_LENGTH_INPUT, DEFAULT_STATE.plateLength, adsk.core.IntegerSpinnerCommandInput.classType())
+    uiState.initValue(BASEPLATE_TYPE_DROPDOWN, DEFAULT_STATE.plateType, adsk.core.DropDownCommandInput.classType())
 
-    uiState.initValue(SIZING_MODE_DROPDOWN, SIZING_MODE_FILL_AREA, adsk.core.DropDownCommandInput.classType())
-    uiState.initValue(FILL_AREA_WIDTH_INPUT, 40, adsk.core.ValueCommandInput.classType())
-    uiState.initValue(FILL_AREA_LENGTH_INPUT, 30, adsk.core.ValueCommandInput.classType())
-    uiState.initValue(FILL_FIT_TOLERANCE_INPUT, 0.1, adsk.core.ValueCommandInput.classType())
-    uiState.initValue(PLATE_CLEARANCE_INPUT, const.BASEPLATE_PLATE_CLEARANCE, adsk.core.ValueCommandInput.classType())
-    uiState.initValue(FILL_ALIGN_X_DROPDOWN, 'Center', adsk.core.DropDownCommandInput.classType())
-    uiState.initValue(FILL_ALIGN_Y_DROPDOWN, 'Center', adsk.core.DropDownCommandInput.classType())
-    uiState.initValue(FILL_HALF_CELLS_INPUT, True, adsk.core.BoolValueCommandInput.classType())
+    uiState.initValue(SIZING_MODE_DROPDOWN, DEFAULT_STATE.sizingMode, adsk.core.DropDownCommandInput.classType())
+    uiState.initValue(FILL_AREA_WIDTH_INPUT, DEFAULT_STATE.areaWidth, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(FILL_AREA_LENGTH_INPUT, DEFAULT_STATE.areaLength, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(FILL_FIT_TOLERANCE_INPUT, DEFAULT_STATE.fitTolerance, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(PLATE_CLEARANCE_INPUT, DEFAULT_STATE.plateClearance, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(FILL_ALIGN_X_DROPDOWN, DEFAULT_STATE.alignmentX, adsk.core.DropDownCommandInput.classType())
+    uiState.initValue(FILL_ALIGN_Y_DROPDOWN, DEFAULT_STATE.alignmentY, adsk.core.DropDownCommandInput.classType())
+    uiState.initValue(FILL_HALF_CELLS_INPUT, DEFAULT_STATE.useHalfCells, adsk.core.BoolValueCommandInput.classType())
     uiState.initValue(PRINT_BED_GROUP, True, adsk.core.GroupCommandInput.classType())
-    # a common bed size, the dropdown starts on custom, its first option
-    (defaultBedWidth, defaultBedLength) = printBeds.presetBedSize(printBeds.presetLabel('Bambu Lab A1, P1, X1'))
+    # the bed size is custom, its first option
     uiState.initValue(PRINT_BED_PRESET_DROPDOWN, printBeds.PRINT_BED_CUSTOM, adsk.core.DropDownCommandInput.classType())
-    uiState.initValue(PRINT_BED_WIDTH_INPUT, defaultBedWidth, adsk.core.ValueCommandInput.classType())
-    uiState.initValue(PRINT_BED_LENGTH_INPUT, defaultBedLength, adsk.core.ValueCommandInput.classType())
-    uiState.initValue(PRINT_BED_MARGIN_INPUT, 0.5, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(PRINT_BED_WIDTH_INPUT, DEFAULT_STATE.bedWidth, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(PRINT_BED_LENGTH_INPUT, DEFAULT_STATE.bedLength, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(PRINT_BED_MARGIN_INPUT, DEFAULT_STATE.bedMargin, adsk.core.ValueCommandInput.classType())
 
-    uiState.initValue(BASEPLATE_WITH_MAGNETS_INPUT, True, adsk.core.BoolValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_WITH_MAGNETS_INPUT, DEFAULT_STATE.hasMagnetSockets, adsk.core.BoolValueCommandInput.classType())
 
-    uiState.initValue(BASEPLATE_MAGNET_DIAMETER_INPUT, const.DIMENSION_MAGNET_CUTOUT_DIAMETER, adsk.core.ValueCommandInput.classType())
-    uiState.initValue(BASEPLATE_MAGNET_HEIGHT_INPUT, const.DIMENSION_MAGNET_CUTOUT_DEPTH, adsk.core.ValueCommandInput.classType())
-    uiState.initValue(BASEPLATE_WITH_SCREWS_INPUT, True, adsk.core.BoolValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_MAGNET_DIAMETER_INPUT, DEFAULT_STATE.magnetSocketSize, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_MAGNET_HEIGHT_INPUT, DEFAULT_STATE.magnetSocketDepth, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_WITH_SCREWS_INPUT, DEFAULT_STATE.hasScrewHoles, adsk.core.BoolValueCommandInput.classType())
 
-    uiState.initValue(BASEPLATE_WITH_SIDE_PADDING_INPUT, False, adsk.core.BoolValueCommandInput.classType())
-    uiState.initValue(BASEPLATE_SIDE_PADDING_LEFT_INPUT, 0, adsk.core.BoolValueCommandInput.classType())
-    uiState.initValue(BASEPLATE_SIDE_PADDING_TOP_INPUT, 0, adsk.core.BoolValueCommandInput.classType())
-    uiState.initValue(BASEPLATE_SIDE_PADDING_RIGHT_INPUT, 0, adsk.core.BoolValueCommandInput.classType())
-    uiState.initValue(BASEPLATE_SIDE_PADDING_BOTTOM_INPUT, 0, adsk.core.BoolValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_WITH_SIDE_PADDING_INPUT, DEFAULT_STATE.hasPadding, adsk.core.BoolValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_SIDE_PADDING_LEFT_INPUT, DEFAULT_STATE.paddingLeft, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_SIDE_PADDING_TOP_INPUT, DEFAULT_STATE.paddingTop, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_SIDE_PADDING_RIGHT_INPUT, DEFAULT_STATE.paddingRight, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_SIDE_PADDING_BOTTOM_INPUT, DEFAULT_STATE.paddingBottom, adsk.core.ValueCommandInput.classType())
 
-    uiState.initValue(BASEPLATE_SCREW_DIAMETER_INPUT, const.DIMENSION_PLATE_SCREW_HOLE_DIAMETER, adsk.core.ValueCommandInput.classType())
-    uiState.initValue(BASEPLATE_SCREW_HEIGHT_INPUT, const.DIMENSION_SCREW_HEAD_CUTOUT_DIAMETER, adsk.core.ValueCommandInput.classType())
-    uiState.initValue(BASEPLATE_EXTRA_THICKNESS_INPUT, const.BASEPLATE_EXTRA_HEIGHT, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_SCREW_DIAMETER_INPUT, DEFAULT_STATE.screwHoleSize, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_SCREW_HEIGHT_INPUT, DEFAULT_STATE.screwHeadSize, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_EXTRA_THICKNESS_INPUT, DEFAULT_STATE.extraBottomThickness, adsk.core.ValueCommandInput.classType())
 
-    uiState.initValue(BASEPLATE_BIN_Z_CLEARANCE_INPUT, const.BASEPLATE_BIN_Z_CLEARANCE, adsk.core.ValueCommandInput.classType())
-    uiState.initValue(BASEPLATE_HAS_CONNECTION_HOLE_INPUT, False, adsk.core.BoolValueCommandInput.classType())
-    uiState.initValue(BASEPLATE_JOINT_ORIGINS_INPUT, False, adsk.core.BoolValueCommandInput.classType())
-    uiState.initValue(BASEPLATE_CONNECTION_HOLE_DIAMETER_INPUT, const.DIMENSION_PLATE_CONNECTION_SCREW_HOLE_DIAMETER, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_BIN_Z_CLEARANCE_INPUT, DEFAULT_STATE.verticalClearance, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_HAS_CONNECTION_HOLE_INPUT, DEFAULT_STATE.hasConnectionHoles, adsk.core.BoolValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_JOINT_ORIGINS_INPUT, DEFAULT_STATE.hasJointOrigins, adsk.core.BoolValueCommandInput.classType())
+    uiState.initValue(BASEPLATE_CONNECTION_HOLE_DIAMETER_INPUT, DEFAULT_STATE.connectionHoleSize, adsk.core.ValueCommandInput.classType())
     uiState.initValue(SHOW_PREVIEW_INPUT, False, adsk.core.BoolValueCommandInput.classType())
 
     recordedDefaults = configUtils.readJsonConfig(UI_INPUT_DEFAULTS_CONFIG_PATH)
@@ -969,10 +971,10 @@ def applyInputsState(inputsState: InputState):
 def configChoices() -> dict[str, configJson.Choice]:
     """The options of the dropdowns with the dialog's first defaults, see initUiState"""
     return {
-        'plateType': configJson.Choice([BASEPLATE_TYPE_LIGHT, BASEPLATE_TYPE_SKELETONIZED, BASEPLATE_TYPE_FULL], BASEPLATE_TYPE_LIGHT),
-        'sizingMode': configJson.Choice([SIZING_MODE_FILL_AREA, SIZING_MODE_GRID_UNITS], SIZING_MODE_FILL_AREA),
-        'alignmentX': configJson.Choice(list(FILL_ALIGN_X_OPTIONS.keys()), 'Center'),
-        'alignmentY': configJson.Choice(list(FILL_ALIGN_Y_OPTIONS.keys()), 'Center'),
+        'plateType': configJson.Choice([BASEPLATE_TYPE_LIGHT, BASEPLATE_TYPE_SKELETONIZED, BASEPLATE_TYPE_FULL], DEFAULT_STATE.plateType),
+        'sizingMode': configJson.Choice([SIZING_MODE_FILL_AREA, SIZING_MODE_GRID_UNITS], DEFAULT_STATE.sizingMode),
+        'alignmentX': configJson.Choice(list(FILL_ALIGN_X_OPTIONS.keys()), DEFAULT_STATE.alignmentX),
+        'alignmentY': configJson.Choice(list(FILL_ALIGN_Y_OPTIONS.keys()), DEFAULT_STATE.alignmentY),
     }
 
 def readConfig(text: str, source: str) -> InputState | None:

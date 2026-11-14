@@ -32,6 +32,10 @@ from ...lib.ui.unsupportedDesignTypeException import UnsupportedDesignTypeExcept
 from ...lib.ui import errorPalette
 from ...lib import errorReport
 from ...lib import configJson
+from ...lib import defaultSettings
+
+# what the dialog starts with before saved defaults, see lib/defaultSettings.py
+DEFAULT_STATE = configJson.stateFromJson(configJson.GENERATOR_BIN, InputState, defaultSettings.BIN)
 
 app = adsk.core.Application.get()
 ui = app.userInterface
@@ -261,67 +265,65 @@ def initDefaultUiState():
     commandUIState.initValue(BIN_DIMENSIONS_GROUP, True, adsk.core.GroupCommandInput.classType())
     commandUIState.initValue(BIN_FEATURES_GROUP, True, adsk.core.GroupCommandInput.classType())
     commandUIState.initValue(BIN_COMPARTMENTS_GROUP_ID, True, adsk.core.GroupCommandInput.classType())
-    commandUIState.initValue(BIN_COMPARTMENTS_SHOW_LAYOUT_ID, False, adsk.core.BoolValueCommandInput.classType())
+    commandUIState.initValue(BIN_COMPARTMENTS_SHOW_LAYOUT_ID, DEFAULT_STATE.showCompartmentsLayout, adsk.core.BoolValueCommandInput.classType())
     commandUIState.initValue(BIN_SCOOP_GROUP_ID, True, adsk.core.GroupCommandInput.classType())
     commandUIState.initValue(BIN_TAB_FEATURES_GROUP_ID, True, adsk.core.GroupCommandInput.classType())
     commandUIState.initValue(BIN_BASE_FEATURES_GROUP_ID, True, adsk.core.GroupCommandInput.classType())
     commandUIState.initValue(USER_CHANGES_GROUP_ID, True, adsk.core.GroupCommandInput.classType())
     commandUIState.initValue(PREVIEW_GROUP_ID, True, adsk.core.GroupCommandInput.classType())
 
-    commandUIState.initValue(BIN_BASE_WIDTH_UNIT_INPUT_ID, const.DIMENSION_DEFAULT_WIDTH_UNIT, adsk.core.ValueCommandInput.classType())
-    commandUIState.initValue(BIN_BASE_LENGTH_UNIT_INPUT_ID, const.DIMENSION_DEFAULT_WIDTH_UNIT, adsk.core.ValueCommandInput.classType())
-    commandUIState.initValue(BIN_HEIGHT_UNIT_INPUT_ID, const.DIMENSION_DEFAULT_HEIGHT_UNIT, adsk.core.ValueCommandInput.classType())
-    commandUIState.initValue(BIN_XY_CLEARANCE_INPUT_ID, const.BIN_XY_CLEARANCE, adsk.core.ValueCommandInput.classType())
-    commandUIState.initValue(BIN_WIDTH_INPUT_ID, 2, adsk.core.FloatSpinnerCommandInput.classType())
-    commandUIState.initValue(BIN_LENGTH_INPUT_ID, 3, adsk.core.FloatSpinnerCommandInput.classType())
-    commandUIState.initValue(BIN_HALF_GRID_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
-    commandUIState.initValue(BIN_SHAPE_CUSTOM_ID, False, adsk.core.BoolValueCommandInput.classType())
-    commandUIState.initValue(BIN_HEIGHT_INPUT_ID, 5, adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_BASE_WIDTH_UNIT_INPUT_ID, DEFAULT_STATE.baseWidth, adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_BASE_LENGTH_UNIT_INPUT_ID, DEFAULT_STATE.baseLength, adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_HEIGHT_UNIT_INPUT_ID, DEFAULT_STATE.heightUnit, adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_XY_CLEARANCE_INPUT_ID, DEFAULT_STATE.xyClearance, adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_WIDTH_INPUT_ID, DEFAULT_STATE.binWidth, adsk.core.FloatSpinnerCommandInput.classType())
+    commandUIState.initValue(BIN_LENGTH_INPUT_ID, DEFAULT_STATE.binLength, adsk.core.FloatSpinnerCommandInput.classType())
+    commandUIState.initValue(BIN_HALF_GRID_INPUT_ID, DEFAULT_STATE.isHalfGrid, adsk.core.BoolValueCommandInput.classType())
+    commandUIState.initValue(BIN_SHAPE_CUSTOM_ID, DEFAULT_STATE.hasCustomShape, adsk.core.BoolValueCommandInput.classType())
+    commandUIState.initValue(BIN_HEIGHT_INPUT_ID, DEFAULT_STATE.binHeight, adsk.core.ValueCommandInput.classType())
 
-    commandUIState.initValue(BIN_GENERATE_BODY_INPUT_ID, True, adsk.core.BoolValueCommandInput.classType())
-    commandUIState.initValue(BIN_TYPE_DROPDOWN_ID, BIN_TYPE_HOLLOW, adsk.core.DropDownCommandInput.classType())
-    commandUIState.initValue(BIN_SHELL_ROUNDED_INPUT_ID, True, adsk.core.BoolValueCommandInput.classType())
-    commandUIState.initValue(BIN_WALL_THICKNESS_INPUT_ID, const.BIN_WALL_THICKNESS, adsk.core.ValueCommandInput.classType())
-    commandUIState.initValue(BIN_WITH_LIP_INPUT_ID, True, adsk.core.BoolValueCommandInput.classType())
-    commandUIState.initValue(BIN_WITH_LIP_NOTCHES_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
-    commandUIState.initValue(BIN_CREASES_INPUT_ID, True, adsk.core.BoolValueCommandInput.classType())
-    commandUIState.initValue(BIN_CREASE_DEPTH_INPUT_ID, const.BIN_CREASE_DEPTH, adsk.core.ValueCommandInput.classType())
-    commandUIState.initValue(BIN_CREASE_MIN_LENGTH_INPUT_ID, const.BIN_CREASE_MIN_LENGTH, adsk.core.ValueCommandInput.classType())
-    commandUIState.initValue(BIN_CREASE_MAX_PANEL_LENGTH_INPUT_ID, const.BIN_CREASE_MAX_PANEL_LENGTH, adsk.core.ValueCommandInput.classType())
-    commandUIState.initValue(BIN_CREASE_MIN_HEIGHT_INPUT_ID, const.BIN_CREASE_MIN_HEIGHT, adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_GENERATE_BODY_INPUT_ID, DEFAULT_STATE.generateBody, adsk.core.BoolValueCommandInput.classType())
+    commandUIState.initValue(BIN_TYPE_DROPDOWN_ID, DEFAULT_STATE.binType, adsk.core.DropDownCommandInput.classType())
+    commandUIState.initValue(BIN_SHELL_ROUNDED_INPUT_ID, DEFAULT_STATE.isShellRounded, adsk.core.BoolValueCommandInput.classType())
+    commandUIState.initValue(BIN_WALL_THICKNESS_INPUT_ID, DEFAULT_STATE.wallThickness, adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_WITH_LIP_INPUT_ID, DEFAULT_STATE.hasLip, adsk.core.BoolValueCommandInput.classType())
+    commandUIState.initValue(BIN_WITH_LIP_NOTCHES_INPUT_ID, DEFAULT_STATE.hasLipNotches, adsk.core.BoolValueCommandInput.classType())
+    commandUIState.initValue(BIN_CREASES_INPUT_ID, DEFAULT_STATE.hasCreases, adsk.core.BoolValueCommandInput.classType())
+    commandUIState.initValue(BIN_CREASE_DEPTH_INPUT_ID, DEFAULT_STATE.creaseDepth, adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_CREASE_MIN_LENGTH_INPUT_ID, DEFAULT_STATE.creaseMinLength, adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_CREASE_MAX_PANEL_LENGTH_INPUT_ID, DEFAULT_STATE.creaseMaxPanelLength, adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_CREASE_MIN_HEIGHT_INPUT_ID, DEFAULT_STATE.creaseMinHeight, adsk.core.ValueCommandInput.classType())
 
-    commandUIState.initValue(BIN_COMPARTMENTS_GRID_BASE_WIDTH_ID, 1, adsk.core.IntegerSpinnerCommandInput.classType())
-    commandUIState.initValue(BIN_COMPARTMENTS_GRID_BASE_LENGTH_ID, 1, adsk.core.IntegerSpinnerCommandInput.classType())
+    commandUIState.initValue(BIN_COMPARTMENTS_GRID_BASE_WIDTH_ID, DEFAULT_STATE.compartmentsX, adsk.core.IntegerSpinnerCommandInput.classType())
+    commandUIState.initValue(BIN_COMPARTMENTS_GRID_BASE_LENGTH_ID, DEFAULT_STATE.compartmentsY, adsk.core.IntegerSpinnerCommandInput.classType())
 
-    commandUIState.initValue(BIN_HAS_SCOOP_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
-    commandUIState.initValue(BIN_SCOOP_MAX_RADIUS_INPUT_ID, const.BIN_SCOOP_MAX_RADIUS, adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_HAS_SCOOP_INPUT_ID, DEFAULT_STATE.hasScoop, adsk.core.BoolValueCommandInput.classType())
+    commandUIState.initValue(BIN_SCOOP_MAX_RADIUS_INPUT_ID, DEFAULT_STATE.scoopMaxRadius, adsk.core.ValueCommandInput.classType())
 
-    commandUIState.initValue(BIN_HAS_TAB_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
-    commandUIState.initValue(BIN_TAB_LENGTH_INPUT_ID, 1, adsk.core.ValueCommandInput.classType())
-    commandUIState.initValue(BIN_TAB_WIDTH_INPUT_ID, const.BIN_TAB_WIDTH, adsk.core.ValueCommandInput.classType())
-    commandUIState.initValue(BIN_TAB_POSITION_INPUT_ID, 0, adsk.core.ValueCommandInput.classType())
-    commandUIState.initValue(BIN_TAB_ANGLE_INPUT_ID, '45 deg', adsk.core.ValueCommandInput.classType())
-    # follows the bin type when it changes, shelled bins get hollow tabs
-    commandUIState.initValue(BIN_TAB_HOLLOW_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
-    commandUIState.initValue(BIN_TAB_HOLLOW_SIDES_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
-    commandUIState.initValue(BIN_TAB_TOP_ANGLE_INPUT_ID, '0 deg', adsk.core.ValueCommandInput.classType())
-    commandUIState.initValue(BIN_TAB_LABEL_TEXT_INPUT_ID, '', adsk.core.StringValueCommandInput.classType())
-    commandUIState.initValue(BIN_TAB_LABEL_ICON_INPUT_ID, labelGenerator.LABEL_ICON_NONE, adsk.core.DropDownCommandInput.classType())
-    commandUIState.initValue(BIN_TAB_LABEL_STYLE_INPUT_ID, labelGenerator.LABEL_STYLE_OUTLINE, adsk.core.DropDownCommandInput.classType())
-    commandUIState.initValue(BIN_TAB_LABEL_BOLD_INPUT_ID, True, adsk.core.BoolValueCommandInput.classType())
+    commandUIState.initValue(BIN_HAS_TAB_INPUT_ID, DEFAULT_STATE.hasTab, adsk.core.BoolValueCommandInput.classType())
+    commandUIState.initValue(BIN_TAB_LENGTH_INPUT_ID, DEFAULT_STATE.tabLength, adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_TAB_WIDTH_INPUT_ID, DEFAULT_STATE.tabWidth, adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_TAB_POSITION_INPUT_ID, DEFAULT_STATE.tabPosition, adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_TAB_ANGLE_INPUT_ID, angleExpression(DEFAULT_STATE.tabOverhangAngle), adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_TAB_HOLLOW_INPUT_ID, DEFAULT_STATE.isTabHollow, adsk.core.BoolValueCommandInput.classType())
+    commandUIState.initValue(BIN_TAB_HOLLOW_SIDES_INPUT_ID, DEFAULT_STATE.isTabOpenThroughSides, adsk.core.BoolValueCommandInput.classType())
+    commandUIState.initValue(BIN_TAB_TOP_ANGLE_INPUT_ID, angleExpression(DEFAULT_STATE.tabTopAngle), adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_TAB_LABEL_TEXT_INPUT_ID, DEFAULT_STATE.labelText, adsk.core.StringValueCommandInput.classType())
+    commandUIState.initValue(BIN_TAB_LABEL_ICON_INPUT_ID, DEFAULT_STATE.labelIcon, adsk.core.DropDownCommandInput.classType())
+    commandUIState.initValue(BIN_TAB_LABEL_STYLE_INPUT_ID, DEFAULT_STATE.labelStyle, adsk.core.DropDownCommandInput.classType())
+    commandUIState.initValue(BIN_TAB_LABEL_BOLD_INPUT_ID, DEFAULT_STATE.isLabelBold, adsk.core.BoolValueCommandInput.classType())
 
-    commandUIState.initValue(BIN_GENERATE_BASE_INPUT_ID, True, adsk.core.BoolValueCommandInput.classType())
-    commandUIState.initValue(BIN_JOINT_ORIGINS_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
-    commandUIState.initValue(BIN_SCREW_HOLES_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
-    commandUIState.initValue(BIN_SCREW_DIAMETER_INPUT, const.DIMENSION_SCREW_HOLE_DIAMETER, adsk.core.ValueCommandInput.classType())
-    commandUIState.initValue(BIN_SCREW_DIAMETER_INPUT, const.DIMENSION_SCREW_HOLE_DIAMETER, adsk.core.ValueCommandInput.classType())
-    commandUIState.initValue(BIN_MAGNET_CUTOUTS_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
-    commandUIState.initValue(BIN_MAGNET_CUTOUTS_TABS_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())
-    commandUIState.initValue(BIN_MAGNET_DIAMETER_INPUT, const.DIMENSION_MAGNET_CUTOUT_DIAMETER, adsk.core.ValueCommandInput.classType())
-    commandUIState.initValue(BIN_MAGNET_HEIGHT_INPUT, const.DIMENSION_MAGNET_CUTOUT_DEPTH, adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_GENERATE_BASE_INPUT_ID, DEFAULT_STATE.generateBase, adsk.core.BoolValueCommandInput.classType())
+    commandUIState.initValue(BIN_JOINT_ORIGINS_INPUT_ID, DEFAULT_STATE.hasJointOrigins, adsk.core.BoolValueCommandInput.classType())
+    commandUIState.initValue(BIN_SCREW_HOLES_INPUT_ID, DEFAULT_STATE.hasScrewHoles, adsk.core.BoolValueCommandInput.classType())
+    commandUIState.initValue(BIN_SCREW_DIAMETER_INPUT, DEFAULT_STATE.screwHoleDiameter, adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_MAGNET_CUTOUTS_INPUT_ID, DEFAULT_STATE.hasMagnetCutouts, adsk.core.BoolValueCommandInput.classType())
+    commandUIState.initValue(BIN_MAGNET_CUTOUTS_TABS_INPUT_ID, DEFAULT_STATE.hasMagnetCutoutsTabs, adsk.core.BoolValueCommandInput.classType())
+    commandUIState.initValue(BIN_MAGNET_DIAMETER_INPUT, DEFAULT_STATE.magnetCutoutDiameter, adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_MAGNET_HEIGHT_INPUT, DEFAULT_STATE.magnetCutoutDepth, adsk.core.ValueCommandInput.classType())
 
-    compartmentPockets = []
-    binShapeCells = []
+    compartmentPockets = list(DEFAULT_STATE.compartmentPockets)
+    binShapeCells = list(DEFAULT_STATE.shapeCells)
     recordedDefaults = configUtils.readJsonConfig(UI_INPUT_DEFAULTS_CONFIG_PATH)
     if recordedDefaults is not None and recordedDefaults.get('static_ui') is not None:
         staticUiState = recordedDefaults['static_ui']
@@ -1184,13 +1186,17 @@ def applyInputsState(state: InputState):
     for (field, inputId) in STATE_INPUT_IDS.items():
         commandUIState.setValue(inputId, getattr(state, field))
     for (field, inputId) in STATE_ANGLE_INPUT_IDS.items():
-        commandUIState.setValue(inputId, f'{math.degrees(getattr(state, field)):g} deg')
+        commandUIState.setValue(inputId, angleExpression(getattr(state, field)))
     commandUIState.setValue(BIN_COMPARTMENTS_GRID_BASE_WIDTH_ID, state.compartmentsX)
     commandUIState.setValue(BIN_COMPARTMENTS_GRID_BASE_LENGTH_ID, state.compartmentsY)
     commandUIState.setValue(BIN_COMPARTMENTS_SHOW_LAYOUT_ID, state.showCompartmentsLayout)
     commandUIState.setValue(BIN_SHAPE_CUSTOM_ID, state.hasCustomShape)
     compartmentPockets = list(state.compartmentPockets)
     binShapeCells = list(state.shapeCells)
+
+def angleExpression(angle: float) -> str:
+    """An angle in radians as the dialog keeps it, see STATE_ANGLE_INPUT_IDS"""
+    return f'{math.degrees(angle):g} deg'
 
 def startWithConfig(settings: dict):
     """Opens the dialog with a config by field name, see configJson.stateToJson, settings it doesn't have stay"""
@@ -1202,9 +1208,9 @@ def configChoices() -> dict[str, configJson.Choice]:
     """The options of the dropdowns with the dialog's first defaults, see initDefaultUiState"""
     iconNames = [labelGenerator.LABEL_ICON_NONE] + [icon.name for group in labelGenerator.listIconGroups() for icon in group]
     return {
-        'binType': configJson.Choice([BIN_TYPE_HOLLOW, BIN_TYPE_SHELLED, BIN_TYPE_SOLID], BIN_TYPE_HOLLOW),
-        'labelIcon': configJson.Choice(iconNames, labelGenerator.LABEL_ICON_NONE),
-        'labelStyle': configJson.Choice(labelGenerator.LABEL_STYLES, labelGenerator.LABEL_STYLE_OUTLINE),
+        'binType': configJson.Choice([BIN_TYPE_HOLLOW, BIN_TYPE_SHELLED, BIN_TYPE_SOLID], DEFAULT_STATE.binType),
+        'labelIcon': configJson.Choice(iconNames, DEFAULT_STATE.labelIcon),
+        'labelStyle': configJson.Choice(labelGenerator.LABEL_STYLES, DEFAULT_STATE.labelStyle),
     }
 
 def readConfig(text: str, source: str) -> InputState | None:

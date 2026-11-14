@@ -22,6 +22,7 @@ def _load(name, *path):
 
 
 configJson = _load("configJson", "lib", "configJson.py")
+defaultSettings = _load("defaultSettings", "lib", "defaultSettings.py")
 binState = _load("binInputState", "commands", "commandCreateBin", "inputState.py")
 baseplateState = _load("baseplateInputState", "commands", "commandCreateBaseplate", "inputState.py")
 BIN = configJson.GENERATOR_BIN
@@ -29,8 +30,9 @@ BASEPLATE = configJson.GENERATOR_BASEPLATE
 
 
 def case_state(name, generator, stateClass):
+    """A test case, its settings over the defaults"""
     with open(os.path.join(CASES_FOLDER, name)) as file:
-        return configJson.stateFromJson(generator, stateClass, json.load(file)["settings"])
+        return configJson.stateFromJson(generator, stateClass, {**defaultSettings.SETTINGS[generator], **json.load(file)["settings"]})
 
 
 @pytest.fixture
@@ -104,9 +106,12 @@ def test_shape_cells_become_tuples(current):
 
 
 def test_test_case_files_load_as_configs(current):
+    """A case has only the settings it changes, the others keep the current values"""
     with open(os.path.join(CASES_FOLDER, "bin_2x3x5_features.json")) as file:
         (state, notes) = read(file.read(), current)
-    assert notes.isEmpty()
+    assert notes.unknown == [] and notes.replaced == []
+    assert "hasScoop" not in [name for (name, _) in notes.missing]
+    assert "wallThickness" in [name for (name, _) in notes.missing]
     assert state == current
 
 

@@ -3,22 +3,22 @@
         {
             "name": "Gridfinity baseplate 2x3",
             "file": "body1.smt",
-            "volume": 71152.165806,
-            "area": 29631.806708,
+            "volume": 72064.949806,
+            "area": 29816.298079,
             "bboxMin": [
-                -0.0,
-                0.0,
+                -0.2,
+                -0.2,
                 -11.4
             ],
             "bboxMax": [
-                125.5,
-                83.5,
+                125.7,
+                83.7,
                 -0.5
             ],
             "lumps": 1,
             "faces": 288,
-            "edges": 518,
-            "vertices": 352
+            "edges": 520,
+            "vertices": 360
         }
     ]
 }

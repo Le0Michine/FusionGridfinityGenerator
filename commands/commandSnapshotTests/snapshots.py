@@ -6,13 +6,16 @@ import shutil
 
 from . import testCases
 
-# Snapshot of a test case: each body it built saved to .smt, with a fingerprint of all of them in fingerprint.json.
-# A body is compared by its fingerprint and by subtracting it from its snapshot and the other way round,
-# see compareSnapshot for what each outcome means
+# Snapshot of a test case: each body it built saved to .smt, with a fingerprint of all of them in fingerprint.json
+# and every setting they were built with in settings.json. A body is compared by its fingerprint and by subtracting
+# it from its snapshot and the other way round, see compareSnapshot for what each outcome means
 
 FINGERPRINT_FILE = 'fingerprint.json'
 # a picture of the shapes to look at, not compared, see entry.takePreview
 PREVIEW_FILE = testCases.PREVIEW_FILE
+SETTINGS_FILE = testCases.SETTINGS_FILE
+# the result of the settings, apart from the bodies'
+SETTINGS_RESULT_NAME = 'Settings'
 # a leftover of a subtraction smaller than this counts as nothing, mm³
 LEFTOVER_TOLERANCE = 0.001
 # fingerprint numbers this close count as the same, relative to their size
@@ -57,8 +60,8 @@ def fingerprint(body: adsk.fusion.BRepBody) -> dict:
 def hasSnapshot(folder: str) -> bool:
     return os.path.isfile(os.path.join(folder, FINGERPRINT_FILE))
 
-def saveSnapshot(folder: str, bodies: list[adsk.fusion.BRepBody]):
-    """Replaces the snapshot in the folder with the bodies"""
+def saveSnapshot(folder: str, bodies: list[adsk.fusion.BRepBody], settings: dict):
+    """Replaces the snapshot in the folder with the bodies and the settings they were built with, see testCases.snapshotSettings"""
     if os.path.isdir(folder):
         shutil.rmtree(folder)
     os.makedirs(folder)
@@ -70,6 +73,22 @@ def saveSnapshot(folder: str, bodies: list[adsk.fusion.BRepBody]):
         entries.append({'name': body.name, 'file': fileName, **fingerprint(body)})
     with open(os.path.join(folder, FINGERPRINT_FILE), 'w', encoding='utf-8') as file:
         file.write(json.dumps({'bodies': entries}, indent=4, ensure_ascii=False) + '\n')
+    with open(os.path.join(folder, SETTINGS_FILE), 'w', encoding='utf-8') as file:
+        file.write(testCases.settingsText(settings))
+
+def compareSettings(folder: str, settings: dict) -> list[BodyResult]:
+    """
+    The settings against those of the snapshot, for review when they differ, a default changing among them. The shape
+    may stay the same, the snapshot is updated all the same so it tells what it was built with
+    """
+    path = os.path.join(folder, SETTINGS_FILE)
+    if not os.path.isfile(path):
+        return [BodyResult(SETTINGS_RESULT_NAME, STATUS_REVIEW, ['the snapshot has no settings, update it'])]
+    with open(path, encoding='utf-8') as file:
+        changes = testCases.settingChanges(json.load(file), settings)
+    if len(changes) == 0:
+        return []
+    return [BodyResult(SETTINGS_RESULT_NAME, STATUS_REVIEW, ['built with other settings than the snapshot'], changes)]
 
 def isClose(expected, actual) -> bool:
     if isinstance(expected, list):
@@ -103,10 +122,11 @@ def leftoverData(body: adsk.fusion.BRepBody | None) -> dict | None:
         'max': [round(v * 10, 2) for v in box.maxPoint.asArray()],
     }
 
-def compareSnapshot(folder: str, bodies: list[adsk.fusion.BRepBody]) -> list[BodyResult]:
+def compareSnapshot(folder: str, bodies: list[adsk.fusion.BRepBody], settings: dict) -> list[BodyResult]:
     """
-    Bodies against the snapshot, paired by name. Material left over by the subtraction either way fails, as does a body
-    missing on either side. Only the fingerprint changing, the shape staying, is for review
+    Bodies against the snapshot, paired by name, built with the settings, see compareSettings. Material left over by
+    the subtraction either way fails, as does a body missing on either side. Only the fingerprint changing, the shape
+    staying, is for review
     """
     if not hasSnapshot(folder):
         return [BodyResult('', STATUS_FAIL, ['no snapshot, run Gridfinity tests: update snapshots'])]
@@ -114,7 +134,7 @@ def compareSnapshot(folder: str, bodies: list[adsk.fusion.BRepBody]) -> list[Bod
         expectedBodies = {entry['name']: entry for entry in json.load(file)['bodies']}
     builtBodies = {body.name: body for body in bodies}
 
-    results = []
+    results = compareSettings(folder, settings)
     for name in expectedBodies:
         if name not in builtBodies:
             results.append(BodyResult(name, STATUS_FAIL, ['in the snapshot, not built']))

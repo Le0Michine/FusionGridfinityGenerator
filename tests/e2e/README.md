@@ -1,8 +1,10 @@
 # Shape snapshot tests
 
-Each case is a JSON file in [cases](cases) holding every setting of a bin or baseplate, lengths in mm and angles in
-degrees. Its snapshot in [snapshots](snapshots), a folder named after the case, has the shapes it built, their
-fingerprints and a preview picture.
+Each case is a JSON file in [cases](cases) holding the settings of a bin or baseplate that differ from the dialog's
+defaults in [lib/defaultSettings.py](../../lib/defaultSettings.py), lengths in mm and angles in degrees. Its snapshot in
+[snapshots](snapshots), a folder named after the case, has the shapes it built, their fingerprints, every setting they
+were built with and a preview picture. A run tells when the settings changed, a default changing among them, even
+when the shapes stay the same.
 
 Run them in Fusion from Utilities > Add-ins with **Gridfinity tests: run**, record new snapshots with **Gridfinity
 tests: update snapshots**. The commands are there when the add-in runs from a git checkout.
@@ -43,7 +45,7 @@ This page is written from the case files, run `python3 tests/e2e/write_readme.py
 | <img src="snapshots/bin_2x1x3_magnets_pull_tabs_screws_grooves/preview.png" width="120" alt="bin_2x1x3_magnets_pull_tabs_screws_grooves"> | [bin_2x1x3_magnets_pull_tabs_screws_grooves](cases/bin_2x1x3_magnets_pull_tabs_screws_grooves.json) | 2x1x3 bin with magnet holes opened to the side, screw holes and printability grooves |
 | <img src="snapshots/bin_2x1x3_magnets_screws_grooves/preview.png" width="120" alt="bin_2x1x3_magnets_screws_grooves"> | [bin_2x1x3_magnets_screws_grooves](cases/bin_2x1x3_magnets_screws_grooves.json) | 2x1x3 bin with magnet and screw holes, a printability groove bridges each magnet hole to its screw hole |
 | <img src="snapshots/bin_2x1x3_screws/preview.png" width="120" alt="bin_2x1x3_screws"> | [bin_2x1x3_screws](cases/bin_2x1x3_screws.json) | 2x1x3 bin with screw holes only |
-| <img src="snapshots/bin_2x1x3_shelled_notches/preview.png" width="120" alt="bin_2x1x3_shelled_notches"> | [bin_2x1x3_shelled_notches](cases/bin_2x1x3_shelled_notches.json) | 2x1x3 shelled bin with lip notches |
+| <img src="snapshots/bin_2x1x3_shelled_notches/preview.png" width="120" alt="bin_2x1x3_shelled_notches"> | [bin_2x1x3_shelled_notches](cases/bin_2x1x3_shelled_notches.json) | 2x1x3 shelled bin with lip notches, the sharp shell of Fusion instead of the rounded one |
 | <img src="snapshots/bin_2x1x3_wall_0_4/preview.png" width="120" alt="bin_2x1x3_wall_0_4"> | [bin_2x1x3_wall_0_4](cases/bin_2x1x3_wall_0_4.json) | 2x1x3 bin with the thinnest walls, 0.4 mm |
 | <img src="snapshots/bin_2x1x3_wall_1_9/preview.png" width="120" alt="bin_2x1x3_wall_1_9"> | [bin_2x1x3_wall_1_9](cases/bin_2x1x3_wall_1_9.json) | 2x1x3 bin with 1.9 mm walls, flush with the inside of the lip, still chamfered under it |
 | <img src="snapshots/bin_2x1x3_wall_2_15/preview.png" width="120" alt="bin_2x1x3_wall_2_15"> | [bin_2x1x3_wall_2_15](cases/bin_2x1x3_wall_2_15.json) | 2x1x3 bin with 2.15 mm walls, as thick as the lip wall, the first thickness without a chamfer under the lip |

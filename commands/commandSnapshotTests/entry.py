@@ -511,7 +511,7 @@ def runCase(case: testCases.TestCase, keepOpen: bool) -> dict:
     notes = []
     try:
         (document, bodies, unhealthy) = buildCase(case)
-        results = snapshots.compareSnapshot(os.path.join(SNAPSHOTS_FOLDER, case.name), bodies)
+        results = snapshots.compareSnapshot(os.path.join(SNAPSHOTS_FOLDER, case.name), bodies, testCases.snapshotSettings(case))
         # the shape may match all the same, the case fails for what Fusion found wrong in building it
         notes += unhealthy
     except Exception as err:
@@ -876,7 +876,7 @@ def stageSnapshots(cases: list[testCases.TestCase], stagingFolder: str, showProg
         try:
             (document, bodies, unhealthy) = buildCase(case)
             stagedFolder = os.path.join(stagingFolder, case.name)
-            snapshots.saveSnapshot(stagedFolder, bodies)
+            snapshots.saveSnapshot(stagedFolder, bodies, testCases.snapshotSettings(case))
             # saved all the same, the warning is for whoever reviews the change
             notes = [f'warning, {note}' for note in unhealthy]
             try:
@@ -888,7 +888,7 @@ def stageSnapshots(cases: list[testCases.TestCase], stagingFolder: str, showProg
                 caseReports.append(report.case(case.name, case.description, report.STATUS_NEW, [report.body(body.name, report.STATUS_NEW) for body in bodies], notes, previews=previews))
                 toApply.append(case.name)
             else:
-                results = snapshots.compareSnapshot(currentFolder, bodies)
+                results = snapshots.compareSnapshot(currentFolder, bodies, testCases.snapshotSettings(case))
                 status = UPDATE_STATUSES[snapshots.worstStatus([result.status for result in results])]
                 if status != report.STATUS_UNCHANGED:
                     toApply.append(case.name)
