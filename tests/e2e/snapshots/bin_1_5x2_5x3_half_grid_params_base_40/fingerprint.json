@@ -3,8 +3,8 @@
         {
             "name": "Gridfinity bin 2.5x1.5x3 half grid",
             "file": "body1.smt",
-            "volume": 33363.715312,
-            "area": 26281.677896,
+            "volume": 33324.366295,
+            "area": 26263.840021,
             "bboxMin": [
                 0.0,
                 0.0,
