@@ -338,7 +338,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     uiState.registerCommandInput(mainDimensionsGroup)
     sizingModeDropdown = mainDimensionsGroup.children.addDropDownCommandInput(SIZING_MODE_DROPDOWN, 'Sizing mode', adsk.core.DropDownStyles.TextListDropDownStyle)
     sizingModeDropdown.tooltip = "Fill area generates the grid for a whole area, e.g. a drawer, split into pieces fitting the print bed"
-    for sizingMode in [SIZING_MODE_GRID_UNITS, SIZING_MODE_FILL_AREA]:
+    for sizingMode in [SIZING_MODE_FILL_AREA, SIZING_MODE_GRID_UNITS]:
         sizingModeDropdown.listItems.add(sizingMode, uiState.getState(SIZING_MODE_DROPDOWN) == sizingMode)
     uiState.registerCommandInput(sizingModeDropdown)
 
@@ -970,7 +970,7 @@ def configChoices() -> dict[str, configJson.Choice]:
     """The options of the dropdowns with the dialog's first defaults, see initUiState"""
     return {
         'plateType': configJson.Choice([BASEPLATE_TYPE_LIGHT, BASEPLATE_TYPE_SKELETONIZED, BASEPLATE_TYPE_FULL], BASEPLATE_TYPE_LIGHT),
-        'sizingMode': configJson.Choice([SIZING_MODE_GRID_UNITS, SIZING_MODE_FILL_AREA], SIZING_MODE_FILL_AREA),
+        'sizingMode': configJson.Choice([SIZING_MODE_FILL_AREA, SIZING_MODE_GRID_UNITS], SIZING_MODE_FILL_AREA),
         'alignmentX': configJson.Choice(list(FILL_ALIGN_X_OPTIONS.keys()), 'Center'),
         'alignmentY': configJson.Choice(list(FILL_ALIGN_Y_OPTIONS.keys()), 'Center'),
     }
