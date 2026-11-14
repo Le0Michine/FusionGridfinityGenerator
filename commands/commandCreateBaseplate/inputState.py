@@ -35,6 +35,7 @@ class InputState:
     areaWidth: float
     areaLength: float
     fitTolerance: float
+    plateClearance: float
     bedWidth: float
     bedLength: float
     bedMargin: float

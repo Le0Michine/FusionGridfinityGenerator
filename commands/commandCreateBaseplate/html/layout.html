@@ -185,9 +185,9 @@
         mask.appendChild(cuts);
     }
 
-    // the strips of solid plate between the piece edges and its sockets, in mm like the pieces. Cells start
-    // the clearance before a plate without padding does, so a strip is the padding less the clearance
-    function paddingStrips(piece, xyClearance) {
+    // the strips of solid plate between the piece edges and its sockets, in mm like the pieces. The edge of a plate
+    // without padding is the edge clearance short of the cells, so a strip is the padding less the clearance
+    function paddingStrips(piece, edgeClearance) {
         const cells = piece.cells || [];
         if (cells.length === 0) {
             return [];
@@ -208,7 +208,7 @@
         return strips
             .map((strip) => {
                 const gap = strip.side === 'left' || strip.side === 'right' ? strip.width : strip.length;
-                return { ...strip, gap: gap, size: gap + xyClearance };
+                return { ...strip, gap: gap, size: gap + edgeClearance };
             })
             .filter((strip) => strip.gap > MIN_PADDING);
     }
@@ -235,9 +235,9 @@
 
     // padding labels are drawn as they fit along their strips, the ones left are returned to be checked against
     // the other labels once all are drawn
-    function drawPadding(piece, xyClearance, scale, width, height, group, svg) {
+    function drawPadding(piece, edgeClearance, scale, width, height, group, svg) {
         const labels = [];
-        for (const strip of paddingStrips(piece, xyClearance)) {
+        for (const strip of paddingStrips(piece, edgeClearance)) {
             let x = strip.x * scale;
             let y = height - (strip.y + strip.length) * scale;
             let stripWidth = strip.width * scale;
@@ -382,7 +382,7 @@
             svg.appendChild(clip);
             const paddingGroup = svgElement('g', { 'clip-path': `url(#${clipId})` });
             svg.appendChild(paddingGroup);
-            paddingLabels.push(...drawPadding(piece, data.xyClearance || 0, scale, width, height, paddingGroup, svg));
+            paddingLabels.push(...drawPadding(piece, data.edgeClearance || 0, scale, width, height, paddingGroup, svg));
             // a single plate's edge needs no outline, the pieces of a fill do
             if (data.pieces.length > 1) {
                 svg.appendChild(svgElement('rect', { class: 'piece-outline', x: x, y: y, width: pieceWidth, height: pieceHeight, rx: 2 }));

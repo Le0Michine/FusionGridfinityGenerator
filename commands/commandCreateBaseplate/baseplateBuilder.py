@@ -49,6 +49,10 @@ BASEPLATE_TYPE_SKELETONIZED = 'Skeletonized'
 
 FILL_PREVIEW_PIECE_GAP = 0.5
 
+def seamClearance(inputsState: InputState) -> float:
+    """How far a plate stops short of the cell border where it meets another, half the gap between them"""
+    return inputsState.plateClearance / 2
+
 def computeFillLayout(inputsState: InputState) -> baseplateLayout.FillLayout:
     return baseplateLayout.computeFillLayout(
         inputsState.areaWidth,
@@ -60,19 +64,26 @@ def computeFillLayout(inputsState: InputState) -> baseplateLayout.FillLayout:
         inputsState.baseWidth,
         inputsState.baseLength,
         inputsState.xyClearance,
+        seamClearance(inputsState),
         FILL_ALIGN_X_OPTIONS.get(inputsState.alignmentX, baseplateLayout.ALIGN_CENTER),
         FILL_ALIGN_Y_OPTIONS.get(inputsState.alignmentY, baseplateLayout.ALIGN_CENTER),
         inputsState.useHalfCells,
     )
 
 def gridPlateExtent(inputsState: InputState) -> tuple[float, float, float, float]:
-    """XY extent (minX, minY, maxX, maxY) of a grid units plate, where a plate without padding starts at the origin"""
+    """XY extent (minX, minY, maxX, maxY) of a grid units plate, in the generator coordinates where the cells start
+    the xy clearance before the origin. Grid units plates are glued side by side, so their edges stop the seam
+    clearance short of the cell border like fill pieces do on their seams"""
     hasPadding = inputsState.hasPadding
+    (cellsMinX, cellsMinY) = (-inputsState.xyClearance, -inputsState.xyClearance)
+    cellsMaxX = inputsState.plateWidth * inputsState.baseWidth - inputsState.xyClearance
+    cellsMaxY = inputsState.plateLength * inputsState.baseLength - inputsState.xyClearance
+    edgeClearance = seamClearance(inputsState)
     return (
-        -inputsState.paddingLeft if hasPadding else 0,
-        -inputsState.paddingBottom if hasPadding else 0,
-        inputsState.plateWidth * inputsState.baseWidth - inputsState.xyClearance * 2 + (inputsState.paddingRight if hasPadding else 0),
-        inputsState.plateLength * inputsState.baseLength - inputsState.xyClearance * 2 + (inputsState.paddingTop if hasPadding else 0),
+        cellsMinX + edgeClearance - (inputsState.paddingLeft if hasPadding else 0),
+        cellsMinY + edgeClearance - (inputsState.paddingBottom if hasPadding else 0),
+        cellsMaxX - edgeClearance + (inputsState.paddingRight if hasPadding else 0),
+        cellsMaxY - edgeClearance + (inputsState.paddingTop if hasPadding else 0),
     )
 
 def baseplateDisplayName(plateWidth: int, plateLength: int) -> str:
@@ -106,7 +117,7 @@ def buildBaseplate(
         (plateWidth, plateLength) = (fillLayout.x.cells, fillLayout.y.cells)
         hasPadding = True
         (paddingLeft, paddingTop, paddingRight, paddingBottom) = (fillLayout.x.paddingStart, fillLayout.y.paddingEnd, fillLayout.x.paddingEnd, fillLayout.y.paddingStart)
-        plateExtent = baseplateLayout.layoutOutline(fillLayout, inputsState.baseWidth, inputsState.baseLength, inputsState.xyClearance)
+        plateExtent = baseplateLayout.layoutOutline(fillLayout, inputsState.baseWidth, inputsState.baseLength, inputsState.xyClearance, seamClearance(inputsState))
     else:
         (plateWidth, plateLength) = (inputsState.plateWidth, inputsState.plateLength)
         hasPadding = inputsState.hasPadding
@@ -126,6 +137,9 @@ def buildBaseplate(
     baseplateGeneratorInput = BaseplateGeneratorInput()
 
     baseplateGeneratorInput.xyClearance = inputsState.xyClearance
+    baseplateGeneratorInput.seamClearance = seamClearance(inputsState)
+    # a fill keeps the bin clearance on its outer edges, they face the area walls
+    baseplateGeneratorInput.edgeClearance = inputsState.xyClearance if isFillArea else seamClearance(inputsState)
     baseplateGeneratorInput.baseplateWidth = plateWidth
     baseplateGeneratorInput.baseplateLength = plateLength
     baseplateGeneratorInput.hasExtendedBottom = not inputsState.plateType == BASEPLATE_TYPE_LIGHT

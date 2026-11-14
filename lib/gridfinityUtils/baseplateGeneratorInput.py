@@ -14,6 +14,10 @@ class BaseplateGeneratorInput():
         self.hasSkeletonizedBottom = True
         self.bottomExtensionHeight = const.BASEPLATE_EXTRA_HEIGHT
         self.xyClearance = const.BIN_XY_CLEARANCE
+        # how far pieces stop short of the cell border on the seams between them
+        self.seamClearance = const.BASEPLATE_PLATE_CLEARANCE / 2
+        # how far the plate edge stops short of the outer cell border, before the padding
+        self.edgeClearance = const.BIN_XY_CLEARANCE
         self.binZClearance = const.BASEPLATE_BIN_Z_CLEARANCE
         self.connectionScrewHolesDiameter = const.DIMENSION_PLATE_CONNECTION_SCREW_HOLE_DIAMETER
         self.cornerFilletRadius = const.BIN_CORNER_FILLET_RADIUS
@@ -69,6 +73,22 @@ class BaseplateGeneratorInput():
     @xyClearance.setter
     def xyClearance(self, value: float):
         self._xyClearance = value
+
+    @property
+    def seamClearance(self) -> float:
+        return self._seamClearance
+
+    @seamClearance.setter
+    def seamClearance(self, value: float):
+        self._seamClearance = value
+
+    @property
+    def edgeClearance(self) -> float:
+        return self._edgeClearance
+
+    @edgeClearance.setter
+    def edgeClearance(self, value: float):
+        self._edgeClearance = value
 
     @property
     def binZClearance(self) -> float:

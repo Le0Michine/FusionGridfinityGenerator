@@ -23,6 +23,7 @@ from .baseplateBuilder import (
     baseplateName,
     computeFillLayout,
     gridPlateExtent,
+    seamClearance,
     SIZING_MODE_GRID_UNITS,
     SIZING_MODE_FILL_AREA,
     FILL_ALIGN_X_OPTIONS,
@@ -109,6 +110,7 @@ SIZING_MODE_DROPDOWN = 'sizing_mode_dropdown'
 FILL_AREA_WIDTH_INPUT = 'fill_area_width'
 FILL_AREA_LENGTH_INPUT = 'fill_area_length'
 FILL_FIT_TOLERANCE_INPUT = 'fill_fit_tolerance'
+PLATE_CLEARANCE_INPUT = 'plate_clearance'
 FILL_HALF_CELLS_INPUT = 'fill_half_cells'
 FILL_ALIGN_X_DROPDOWN = 'fill_align_x'
 FILL_ALIGN_Y_DROPDOWN = 'fill_align_y'
@@ -174,6 +176,7 @@ STATE_INPUT_IDS = [
     FILL_AREA_WIDTH_INPUT,
     FILL_AREA_LENGTH_INPUT,
     FILL_FIT_TOLERANCE_INPUT,
+    PLATE_CLEARANCE_INPUT,
     PRINT_BED_WIDTH_INPUT,
     PRINT_BED_LENGTH_INPUT,
     PRINT_BED_MARGIN_INPUT,
@@ -320,8 +323,15 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     xyClearanceInput.isMinimumInclusive = True
     xyClearanceInput.maximumValue = 0.05
     xyClearanceInput.isMaximumInclusive = True
-    xyClearanceInput.tooltip = "Must be within range [0.1, 0.5]mm"
+    xyClearanceInput.tooltip = "Gap on each side between a bin and its cell, the sockets are made larger by it. Keep it the same as the bins' xy clearance. Must be within range [0.1, 0.5]mm"
     uiState.registerCommandInput(xyClearanceInput)
+    plateClearanceInput = basicSizesGroup.children.addValueInput(PLATE_CLEARANCE_INPUT, 'Clearance between plates (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(PLATE_CLEARANCE_INPUT)))
+    plateClearanceInput.minimumValue = 0.005
+    plateClearanceInput.isMinimumInclusive = True
+    plateClearanceInput.maximumValue = 0.05
+    plateClearanceInput.isMaximumInclusive = True
+    plateClearanceInput.tooltip = "Gap between fill pieces, or grid units plates, glued side by side. Each plate takes half of it on its edge. Must be within range [0.05, 0.5]mm"
+    uiState.registerCommandInput(plateClearanceInput)
 
     mainDimensionsGroup = inputs.addGroupCommandInput(XY_DIMENSIONS_GROUP, 'Main dimensions')
     mainDimensionsGroup.isExpanded = uiState.getState(XY_DIMENSIONS_GROUP)
@@ -475,11 +485,12 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     extraBottomThicknessInput.isMinimumInclusive = False
     uiState.registerCommandInput(extraBottomThicknessInput)
 
-    verticalClearanceInput = advancedPlateSizeGroup.children.addValueInput(BASEPLATE_BIN_Z_CLEARANCE_INPUT, 'Clearance between baseplate and bin', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BASEPLATE_BIN_Z_CLEARANCE_INPUT)))
+    verticalClearanceInput = advancedPlateSizeGroup.children.addValueInput(BASEPLATE_BIN_Z_CLEARANCE_INPUT, 'Vertical clearance under bins', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BASEPLATE_BIN_Z_CLEARANCE_INPUT)))
     verticalClearanceInput.minimumValue = 0
     verticalClearanceInput.isMinimumInclusive = True
     verticalClearanceInput.maximumValue = 0.3
     verticalClearanceInput.isMaximumInclusive = True
+    verticalClearanceInput.tooltip = "How much is cut off the top of the plate, so a bin sits on its feet in the sockets rather than on the ridges between them. Must be within range [0, 3]mm"
     uiState.registerCommandInput(verticalClearanceInput)
     
     generateBaseplateConnectionPinHoleInput = advancedPlateSizeGroup.children.addBoolValueInput(BASEPLATE_HAS_CONNECTION_HOLE_INPUT, 'Add connection holes',  True, '', uiState.getState(BASEPLATE_HAS_CONNECTION_HOLE_INPUT))
@@ -596,6 +607,8 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
         and inputsState.baseLength >= sharedParameters.BASE_UNIT_MIN \
         and inputsState.xyClearance >= 0.01 \
         and inputsState.xyClearance <= 0.05 \
+        and inputsState.plateClearance >= 0.005 \
+        and inputsState.plateClearance <= 0.05 \
         and inputsState.plateWidth > 0 \
         and inputsState.plateLength > 0 \
         and (not inputsState.hasMagnetSockets or (inputsState.magnetSocketSize <= 1 and inputsState.magnetSocketSize > 0 and inputsState.magnetSocketDepth > 0)) \
@@ -733,7 +746,7 @@ def fillLayoutData(inputsState: InputState) -> dict:
         shape = baseplateLayout.pieceShapeKey(piece)
         if shape not in shapes:
             shapes.append(shape)
-        (minX, minY, maxX, maxY) = baseplateLayout.pieceOutline(layout, piece, baseWidth, baseLength, xyClearance)
+        (minX, minY, maxX, maxY) = baseplateLayout.pieceOutline(layout, piece, baseWidth, baseLength, xyClearance, seamClearance(inputsState))
         halfCells = (
             piece.isLeftEdge and layout.x.hasHalfCellsStart,
             piece.isRightEdge and layout.x.hasHalfCellsEnd,
@@ -811,8 +824,10 @@ def gridLayoutData(inputsState: InputState) -> dict:
 
 def layoutData(inputsState: InputState) -> dict:
     data = fillLayoutData(inputsState) if inputsState.sizingMode == SIZING_MODE_FILL_AREA else gridLayoutData(inputsState)
-    # cells start the clearance before the plate does, the drawing adds it back to tell the padding
-    return {**data, 'xyClearance': inputsState.xyClearance * 10}
+    # the plate edge is a clearance short of the cells, the drawing adds it back to tell the padding. A fill keeps
+    # the bin clearance on its outer edges, a grid units plate the seam clearance
+    edgeClearance = inputsState.xyClearance if inputsState.sizingMode == SIZING_MODE_FILL_AREA else seamClearance(inputsState)
+    return {**data, 'edgeClearance': edgeClearance * 10}
 
 def updateSizingModeInputs(inputs: adsk.core.CommandInputs):
     """Shows the inputs of the selected sizing mode and refreshes the layout drawing"""
@@ -881,6 +896,7 @@ def initUiState():
     uiState.initValue(FILL_AREA_WIDTH_INPUT, 40, adsk.core.ValueCommandInput.classType())
     uiState.initValue(FILL_AREA_LENGTH_INPUT, 30, adsk.core.ValueCommandInput.classType())
     uiState.initValue(FILL_FIT_TOLERANCE_INPUT, 0.1, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(PLATE_CLEARANCE_INPUT, const.BASEPLATE_PLATE_CLEARANCE, adsk.core.ValueCommandInput.classType())
     uiState.initValue(FILL_ALIGN_X_DROPDOWN, 'Center', adsk.core.DropDownCommandInput.classType())
     uiState.initValue(FILL_ALIGN_Y_DROPDOWN, 'Center', adsk.core.DropDownCommandInput.classType())
     uiState.initValue(FILL_HALF_CELLS_INPUT, True, adsk.core.BoolValueCommandInput.classType())

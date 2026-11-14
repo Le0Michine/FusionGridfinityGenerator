@@ -23,10 +23,11 @@ baseplateLayout = _load_baseplate_layout()
 # Fusion internal units, cm
 BASE = 4.2
 CLEARANCE = 0.025
+SEAM_CLEARANCE = 0.01
 
 
 def layout(areaWidth, areaLength, bedWidth, bedLength, fitTolerance=0, bedMargin=0, **options):
-    return baseplateLayout.computeFillLayout(areaWidth, areaLength, fitTolerance, bedWidth, bedLength, bedMargin, BASE, BASE, CLEARANCE, **options)
+    return baseplateLayout.computeFillLayout(areaWidth, areaLength, fitTolerance, bedWidth, bedLength, bedMargin, BASE, BASE, CLEARANCE, SEAM_CLEARANCE, **options)
 
 
 class TestFitAxis:
@@ -68,29 +69,34 @@ class TestFitAxis:
 
 class TestSplitAxis:
     def test_fits_in_one_piece(self):
-        assert baseplateLayout.splitAxis(5, 0, 0, BASE, CLEARANCE, 25.6) == (5,)
+        assert baseplateLayout.splitAxis(5, 0, 0, BASE, CLEARANCE, SEAM_CLEARANCE, 25.6) == (5,)
 
     def test_cells_are_spread_evenly_with_bigger_pieces_in_the_middle(self):
-        assert baseplateLayout.splitAxis(13, 0, 0, BASE, CLEARANCE, 21) == (4, 5, 4)
+        assert baseplateLayout.splitAxis(13, 0, 0, BASE, CLEARANCE, SEAM_CLEARANCE, 21) == (4, 5, 4)
 
     def test_extra_cells_go_to_the_middle_first(self):
-        assert baseplateLayout.splitAxis(14, 0, 0, BASE, CLEARANCE, 21) == (5, 5, 4)
+        assert baseplateLayout.splitAxis(14, 0, 0, BASE, CLEARANCE, SEAM_CLEARANCE, 21) == (5, 5, 4)
 
     def test_padded_edge_pieces_hold_fewer_cells(self):
         # 2cm padding leaves room for 4 cells on the edge pieces, 5 in the middle
-        assert baseplateLayout.splitAxis(10, 2, 2, BASE, CLEARANCE, 21) == (3, 4, 3)
+        assert baseplateLayout.splitAxis(10, 2, 2, BASE, CLEARANCE, SEAM_CLEARANCE, 21) == (3, 4, 3)
 
     def test_whole_cells_exactly_matching_the_bed_fit(self):
-        # pieces are cut the clearance short on every side, so 5 cells fit a bed of exactly 5 units
-        assert baseplateLayout.splitAxis(15, 0, 0, BASE, CLEARANCE, 5 * BASE) == (5, 5, 5)
+        # pieces are cut a clearance short on every side, so 5 cells fit a bed of exactly 5 units
+        assert baseplateLayout.splitAxis(15, 0, 0, BASE, CLEARANCE, SEAM_CLEARANCE, 5 * BASE) == (5, 5, 5)
 
-    def test_seams_are_cut_by_the_clearance(self):
-        # 5 cells less the clearance on both sides is 20.95cm, just over a 20.9cm bed
-        assert baseplateLayout.splitAxis(10, 0, 0, BASE, CLEARANCE, 5 * BASE - 0.05) == (5, 5)
-        assert baseplateLayout.splitAxis(10, 0, 0, BASE, CLEARANCE, 5 * BASE - 0.06) == (3, 4, 3)
+    def test_seams_are_cut_by_the_seam_clearance(self):
+        # 5 cells less the xy clearance on the outer side and the seam clearance on the other is 20.965cm
+        assert baseplateLayout.splitAxis(10, 0, 0, BASE, CLEARANCE, SEAM_CLEARANCE, 5 * BASE - 0.035) == (5, 5)
+        assert baseplateLayout.splitAxis(10, 0, 0, BASE, CLEARANCE, SEAM_CLEARANCE, 5 * BASE - 0.04) == (3, 4, 3)
+
+    def test_inner_pieces_are_cut_by_the_seam_clearance_on_both_sides(self):
+        # a middle piece of 5 cells is 20.98cm, an edge one 20.965cm, so on a 20.97cm bed only the edge ones take 5
+        assert baseplateLayout.splitAxis(13, 0, 0, BASE, CLEARANCE, SEAM_CLEARANCE, 5 * BASE - 0.02) == (4, 5, 4)
+        assert baseplateLayout.splitAxis(13, 0, 0, BASE, CLEARANCE, SEAM_CLEARANCE, 5 * BASE - 0.03) == (5, 4, 4)
 
     def test_bed_too_small_for_padding_and_a_cell(self):
-        assert baseplateLayout.splitAxis(3, 3, 3, BASE, CLEARANCE, 6) is None
+        assert baseplateLayout.splitAxis(3, 3, 3, BASE, CLEARANCE, SEAM_CLEARANCE, 6) is None
 
 
 class TestComputeFillLayout:
@@ -151,7 +157,7 @@ class TestComputeFillLayout:
 class TestPieceOutline:
     def test_pieces_span_the_area_less_the_tolerance(self):
         result = layout(60.1, 40.1, 25.6, 25.6, fitTolerance=0.1)
-        outlines = [baseplateLayout.pieceOutline(result, piece, BASE, BASE, CLEARANCE) for piece in result.pieces]
+        outlines = [baseplateLayout.pieceOutline(result, piece, BASE, BASE, CLEARANCE, SEAM_CLEARANCE) for piece in result.pieces]
         minX = min(outline[0] for outline in outlines)
         maxX = max(outline[2] for outline in outlines)
         minY = min(outline[1] for outline in outlines)
@@ -160,11 +166,18 @@ class TestPieceOutline:
         # a plate without padding starts at the origin, so the outer padding reaches past it
         assert (minX, minY) == (pytest.approx(-result.x.paddingStart), pytest.approx(-result.y.paddingStart))
 
-    def test_seams_leave_twice_the_clearance(self):
+    def test_seams_leave_twice_the_seam_clearance(self):
         result = layout(60, 40, 25.6, 25.6)
-        first = baseplateLayout.pieceOutline(result, result.pieces[0], BASE, BASE, CLEARANCE)
-        second = baseplateLayout.pieceOutline(result, result.pieces[1], BASE, BASE, CLEARANCE)
-        assert second[0] - first[2] == pytest.approx(CLEARANCE * 2)
+        first = baseplateLayout.pieceOutline(result, result.pieces[0], BASE, BASE, CLEARANCE, SEAM_CLEARANCE)
+        second = baseplateLayout.pieceOutline(result, result.pieces[1], BASE, BASE, CLEARANCE, SEAM_CLEARANCE)
+        assert second[0] - first[2] == pytest.approx(SEAM_CLEARANCE * 2)
+
+    def test_seams_are_centered_on_the_cell_border(self):
+        # cells start the xy clearance before the origin, so the border after 5 cells is at 5 units less it
+        result = layout(60, 40, 25.6, 25.6)
+        first = baseplateLayout.pieceOutline(result, result.pieces[0], BASE, BASE, CLEARANCE, SEAM_CLEARANCE)
+        second = baseplateLayout.pieceOutline(result, result.pieces[1], BASE, BASE, CLEARANCE, SEAM_CLEARANCE)
+        assert (first[2] + second[0]) / 2 == pytest.approx(5 * BASE - CLEARANCE)
 
 
 class TestPieceShapeKey:
@@ -187,5 +200,5 @@ class TestHalfCellsInLayout:
     def test_outline_includes_half_cells_and_padding(self):
         area = 10 * BASE - CLEARANCE * 2 + 3
         result = layout(area, 4.2, 25.6, 25.6, useHalfCells=True, alignmentX=baseplateLayout.ALIGN_START)
-        (minX, _, maxX, _) = baseplateLayout.layoutOutline(result, BASE, BASE, CLEARANCE)
+        (minX, _, maxX, _) = baseplateLayout.layoutOutline(result, BASE, BASE, CLEARANCE, SEAM_CLEARANCE)
         assert (minX, maxX - minX) == (pytest.approx(0), pytest.approx(area))

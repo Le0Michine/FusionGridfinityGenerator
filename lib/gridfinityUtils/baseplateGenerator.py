@@ -25,8 +25,8 @@ def createBaseplateBodies(
     targetComponent: adsk.fusion.Component,
 ) -> list[adsk.fusion.BRepBody]:
     """
-    The whole plate, cut into the given pieces in place, or a single piece. Pieces end the xy clearance short of the cell
-    border on the seams, the same as a plate's outer edge. Connection holes go along the seams too.
+    The whole plate, cut into the given pieces in place, or a single piece. Pieces end the seam clearance short of the
+    cell border on the seams, like the plate's outer edge does the edge clearance. Connection holes go along the seams too.
     """
     timer = commonUtils.StepTimer('Baseplate {}x{}'.format(int(input.baseplateWidth), int(input.baseplateLength)))
     features = targetComponent.features
@@ -234,9 +234,6 @@ def createBaseplateBodies(
 
     timer.step('seed socket')
 
-    baseplateTrueWidth = input.baseWidth * input.baseplateWidth - Dim.length(input.xyClearance * 2)
-    baseplateTrueLength = input.baseLength * input.baseplateLength - Dim.length(input.xyClearance * 2)
-
     if not connectionHoleYTool is None and not connectionHoleXTool is None:
         holeToolsXFeature = patternUtils.recPattern(
             commonUtils.objectCollectionFromList(connectionHoleXTool.bodies),
@@ -338,16 +335,18 @@ def createBaseplateBodies(
     halfCellsBottom = input.baseLength / 2 if input.hasHalfCellsBottom else noHalfCells
     halfCellsTop = input.baseLength / 2 if input.hasHalfCellsTop else noHalfCells
 
-    # padding past the cells. Sockets overhang their cells by the xy clearance, but only within the top
-    # xy clearance depth, which the top clearance removes anyway unless it is set smaller
+    # padding past the cells, the plate edge is the edge clearance short of the outer cell border before it.
+    # Sockets overhang their cells by the xy clearance, but only within the top xy clearance depth, which the top
+    # clearance removes anyway unless it is set smaller
+    edgeClearance = Dim.length(input.edgeClearance)
     cellsMinX = clearance * -1 - halfCellsLeft
     cellsMaxX = input.baseWidth * input.baseplateWidth - clearance + halfCellsRight
     cellsMinY = clearance * -1 - halfCellsBottom
     cellsMaxY = input.baseLength * input.baseplateLength - clearance + halfCellsTop
-    outlineMinX = (paddingLeft + halfCellsLeft) * -1
-    outlineMaxX = baseplateTrueWidth + halfCellsRight + paddingRight
-    outlineMinY = (paddingBottom + halfCellsBottom) * -1
-    outlineMaxY = baseplateTrueLength + halfCellsTop + paddingTop
+    outlineMinX = cellsMinX + edgeClearance - paddingLeft
+    outlineMaxX = cellsMaxX - edgeClearance + paddingRight
+    outlineMinY = cellsMinY + edgeClearance - paddingBottom
+    outlineMaxY = cellsMaxY - edgeClearance + paddingTop
     paddingStrips = [
         ("Padding left", outlineMinX, outlineMinY, cellsMinX, outlineMaxY),
         ("Padding right", cellsMaxX, outlineMinY, outlineMaxX, outlineMaxY),
@@ -390,9 +389,10 @@ def createBaseplateBodies(
         timer.step('connection holes cut')
 
     # trims cells overhanging the plate edge and rounds the corners, of every piece at once
+    seamClearance = Dim.length(input.seamClearance)
     def axisRange(first: int, count: int, total: int, baseUnit: Dim, outlineMin: Dim, outlineMax: Dim) -> tuple[Dim, Dim]:
-        low = outlineMin if first == 0 else baseUnit * first
-        high = outlineMax if first + count == total else baseUnit * (first + count) - clearance * 2
+        low = outlineMin if first == 0 else baseUnit * first - clearance + seamClearance
+        high = outlineMax if first + count == total else baseUnit * (first + count) - clearance - seamClearance
         return (low, high)
     pieceOutlines: list[tuple[Dim, Dim, Dim, Dim]] = []
     for (firstColumn, columns, firstRow, rows) in pieces or [(0, input.baseplateWidth, 0, input.baseplateLength)]:
@@ -462,8 +462,8 @@ def createGridfinityBaseplateFill(
 ) -> list[tuple[baseplateLayout.FillPiece, adsk.fusion.BRepBody]]:
     """
     Baseplate pieces of a fill layout, built once as a plate of the whole grid with the input padding and half cells
-    on its outer sides, then cut into the pieces in place. Each piece is cut the xy clearance short of the cell border
-    on the seams, like a plate's outer edge.
+    on its outer sides, then cut into the pieces in place. Each piece is cut the seam clearance short of the cell border
+    on the seams.
     The piece gap spreads the pieces further apart, e.g. to tell them apart in the preview.
     """
     input.baseplateWidth = layout.x.cells

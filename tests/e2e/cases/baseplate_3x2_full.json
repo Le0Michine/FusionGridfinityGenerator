@@ -27,6 +27,7 @@
         "areaWidth": 400.0,
         "areaLength": 300.0,
         "fitTolerance": 1.0,
+        "plateClearance": 0.5,
         "bedWidth": 256.0,
         "bedLength": 256.0,
         "bedMargin": 5.0,

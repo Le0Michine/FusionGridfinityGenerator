@@ -73,13 +73,15 @@ def fitAxis(span: float, baseUnit: float, xyClearance: float, alignment: str, us
         (paddingStart, paddingEnd) = (leftover / 2, leftover / 2)
     return (cells, paddingStart, paddingEnd, hasHalfCellsStart, hasHalfCellsEnd)
 
-def splitAxis(cells: int, startExtent: float, endExtent: float, baseUnit: float, xyClearance: float, bedSize: float) -> tuple[int, ...] | None:
+def splitAxis(cells: int, startExtent: float, endExtent: float, baseUnit: float, xyClearance: float, seamClearance: float, bedSize: float) -> tuple[int, ...] | None:
     """Fewest pieces fitting the bed, cells spread as evenly as possible with the bigger pieces in the middle,
-    as the edge pieces also carry what the plate reaches past the whole cells. Inner piece sides have no padding,
-    so like a plain plate they stay the xy clearance short of the cell border and pieces keep the same gap between them as bins"""
+    as the edge pieces also carry what the plate reaches past the whole cells. Outer piece sides stay the xy clearance
+    short of the cell border like a plain plate, inner ones have no padding and stay the seam clearance short of it"""
     for count in range(1, cells + 1):
         def capacity(index: int) -> int:
-            extra = (startExtent if index == 0 else 0) + (endExtent if index == count - 1 else 0) - xyClearance * 2
+            startSide = startExtent - xyClearance if index == 0 else -seamClearance
+            endSide = endExtent - xyClearance if index == count - 1 else -seamClearance
+            extra = startSide + endSide
             return math.floor((bedSize - extra) / baseUnit + FIT_TOLERANCE)
         capacities = [capacity(index) for index in range(count)]
         if min(capacities) < 1 or sum(capacities) < cells:
@@ -95,10 +97,10 @@ def splitAxis(cells: int, startExtent: float, endExtent: float, baseUnit: float,
         return tuple(sizes)
     return None
 
-def layoutAxis(span: float, baseUnit: float, xyClearance: float, alignment: str, useHalfCells: bool, bedSize: float) -> AxisLayout | None:
+def layoutAxis(span: float, baseUnit: float, xyClearance: float, seamClearance: float, alignment: str, useHalfCells: bool, bedSize: float) -> AxisLayout | None:
     (cells, paddingStart, paddingEnd, hasHalfCellsStart, hasHalfCellsEnd) = fitAxis(span, baseUnit, xyClearance, alignment, useHalfCells)
     unsplit = AxisLayout(cells, paddingStart, paddingEnd, hasHalfCellsStart, hasHalfCellsEnd, ())
-    pieces = splitAxis(cells, unsplit.startExtent(baseUnit), unsplit.endExtent(baseUnit), baseUnit, xyClearance, bedSize)
+    pieces = splitAxis(cells, unsplit.startExtent(baseUnit), unsplit.endExtent(baseUnit), baseUnit, xyClearance, seamClearance, bedSize)
     return None if pieces is None else AxisLayout(cells, paddingStart, paddingEnd, hasHalfCellsStart, hasHalfCellsEnd, pieces)
 
 def computeFillLayout(
@@ -111,11 +113,13 @@ def computeFillLayout(
     baseWidth: float,
     baseLength: float,
     xyClearance: float,
+    seamClearance: float,
     alignmentX: str = ALIGN_CENTER,
     alignmentY: str = ALIGN_CENTER,
     useHalfCells: bool = False,
 ) -> FillLayout:
-    """Grid filling the area less the fit tolerance, aligned as asked and split into pieces fitting the print bed.
+    """Grid filling the area less the fit tolerance, aligned as asked and split into pieces fitting the print bed,
+    the seam clearance short of the cell border on the sides between them.
     The bed is tried both ways round, the one needing fewer pieces wins"""
     spanX = areaWidth - fitTolerance
     spanY = areaLength - fitTolerance
@@ -126,8 +130,8 @@ def computeFillLayout(
 
     candidates: list[tuple[AxisLayout, AxisLayout, bool]] = []
     for (bedX, bedY, isBedRotated) in [(usableWidth, usableLength, False), (usableLength, usableWidth, True)]:
-        x = layoutAxis(spanX, baseWidth, xyClearance, alignmentX, useHalfCells, bedX)
-        y = layoutAxis(spanY, baseLength, xyClearance, alignmentY, useHalfCells, bedY)
+        x = layoutAxis(spanX, baseWidth, xyClearance, seamClearance, alignmentX, useHalfCells, bedX)
+        y = layoutAxis(spanY, baseLength, xyClearance, seamClearance, alignmentY, useHalfCells, bedY)
         if x is not None and y is not None:
             candidates.append((x, y, isBedRotated))
     if len(candidates) == 0:
@@ -155,20 +159,21 @@ def pieceShapeKey(piece: FillPiece) -> tuple:
     """Pieces with the same key are identical, what a piece has past its whole cells only depends on its edges"""
     return (piece.cellsX, piece.cellsY, piece.isLeftEdge, piece.isRightEdge, piece.isBottomEdge, piece.isTopEdge)
 
-def pieceOutline(layout: FillLayout, piece: FillPiece, baseWidth: float, baseLength: float, xyClearance: float) -> tuple[float, float, float, float]:
+def pieceOutline(layout: FillLayout, piece: FillPiece, baseWidth: float, baseLength: float, xyClearance: float, seamClearance: float) -> tuple[float, float, float, float]:
     """XY extent (minX, minY, maxX, maxY) of an assembled piece, in the generator coordinates where a plate without
-    padding starts at the origin. Like such a plate, a piece is the xy clearance short of its cells on both sides"""
+    padding starts at the origin, so its cells start the xy clearance before it. Like such a plate, a piece is the
+    xy clearance short of its cells on the outer sides, and the seam clearance on the sides between pieces"""
     def axisOutline(axis: AxisLayout, cellOffset: int, cells: int, baseUnit: float, isStartEdge: bool, isEndEdge: bool) -> tuple[float, float]:
-        start = cellOffset * baseUnit - (axis.startExtent(baseUnit) if isStartEdge else 0)
-        end = (cellOffset + cells) * baseUnit - xyClearance * 2 + (axis.endExtent(baseUnit) if isEndEdge else 0)
+        start = -axis.startExtent(baseUnit) if isStartEdge else cellOffset * baseUnit - xyClearance + seamClearance
+        end = (cellOffset + cells) * baseUnit - xyClearance + (axis.endExtent(baseUnit) - xyClearance if isEndEdge else -seamClearance)
         return (start, end)
     (minX, maxX) = axisOutline(layout.x, piece.cellOffsetX, piece.cellsX, baseWidth, piece.isLeftEdge, piece.isRightEdge)
     (minY, maxY) = axisOutline(layout.y, piece.cellOffsetY, piece.cellsY, baseLength, piece.isBottomEdge, piece.isTopEdge)
     return (minX, minY, maxX, maxY)
 
-def layoutOutline(layout: FillLayout, baseWidth: float, baseLength: float, xyClearance: float) -> tuple[float, float, float, float]:
+def layoutOutline(layout: FillLayout, baseWidth: float, baseLength: float, xyClearance: float, seamClearance: float) -> tuple[float, float, float, float]:
     """XY extent of the whole assembled fill, in the same coordinates as the pieces"""
-    outlines = [pieceOutline(layout, piece, baseWidth, baseLength, xyClearance) for piece in layout.pieces]
+    outlines = [pieceOutline(layout, piece, baseWidth, baseLength, xyClearance, seamClearance) for piece in layout.pieces]
     return (
         min(outline[0] for outline in outlines),
         min(outline[1] for outline in outlines),
