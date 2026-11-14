@@ -1,4 +1,5 @@
 import adsk.core, adsk.fusion
+import os
 
 from ...lib import tagUtils
 from ...lib import settingsUtils
@@ -6,7 +7,6 @@ from ...lib import configJson
 from ...lib import fusion360utils as futil
 from ...lib.ui import browserPages
 from ...lib.ui import configButtons
-from ...lib.ui.buttonRow import addButtonRow
 from ... import config
 from ..commandCreateBin import entry as binEntry
 from ..commandCreateBaseplate import entry as baseplateEntry
@@ -17,9 +17,12 @@ ui = app.userInterface
 CMD_ID = f'{config.COMPANY_NAME}_{config.ADDIN_NAME}_cmdShowSettings'
 CMD_NAME = 'Gridfinity settings'
 CMD_Description = 'Show the settings this bin or baseplate was generated with'
+# a bin with a cog, shown beside the context menu item
+ICON_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources', '')
 
 SETTINGS_TEXT_INPUT = 'settings_text'
-CONFIG_BUTTONS_BROWSER = 'config_buttons'
+SETTINGS_BROWSER = 'settings'
+SETTINGS_HTML_URL = browserPages.pageUrl(__file__, 'settings.html')
 TAG_TITLES = {
     tagUtils.TAG_BIN: 'Gridfinity bin',
     tagUtils.TAG_BASEPLATE: 'Gridfinity baseplate',
@@ -29,8 +32,9 @@ CLONE_COMMANDS = {
     tagUtils.TAG_BIN: binEntry,
     tagUtils.TAG_BASEPLATE: baseplateEntry,
 }
-# rows of the settings text box before it scrolls
-MAX_VISIBLE_ROWS = 30
+# the page's height, what the dialog has room for at its initial size. Fusion makes a page as tall as its content up
+# to its maximum height and scrolls the dialog then, the page scrolls the settings itself, see html/settings.html
+PAGE_HEIGHT = 340
 
 local_handlers = []
 markingMenuHandler = None
@@ -62,7 +66,7 @@ def start():
     global markingMenuHandler
     cmd_def = ui.commandDefinitions.itemById(CMD_ID)
     if not cmd_def:
-        cmd_def = ui.commandDefinitions.addButtonDefinition(CMD_ID, CMD_NAME, CMD_Description)
+        cmd_def = ui.commandDefinitions.addButtonDefinition(CMD_ID, CMD_NAME, CMD_Description, ICON_FOLDER)
     futil.add_handler(cmd_def.commandCreated, command_created)
     markingMenuHandler = futil.add_handler(ui.markingMenuDisplaying, marking_menu_displaying, local_handlers=local_handlers)
 
@@ -97,32 +101,45 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
         return
     (tagName, value) = tag
     command.setDialogInitialSize(450, 500)
-    textBox = command.commandInputs.addTextBoxCommandInput(
-        SETTINGS_TEXT_INPUT,
-        TAG_TITLES.get(tagName, CMD_NAME),
-        settingsUtils.settingsHtml(value, parameterExpression),
-        min(MAX_VISIBLE_ROWS, settingsUtils.settingsLineCount(value)),
-        True,
-    )
-    textBox.isFullWidth = True
-    config = value.get('config')
-    if not isinstance(config, dict):
-        # generated before the generator kept it
-        return
-    addButtonRow(command.commandInputs, CONFIG_BUTTONS_BROWSER)
+    # the settings and their buttons in one page, the buttons stay above the settings as they scroll
+    browser = command.commandInputs.addBrowserCommandInput(SETTINGS_BROWSER, '', SETTINGS_HTML_URL, PAGE_HEIGHT, PAGE_HEIGHT)
+    browser.isFullWidth = True
     futil.add_handler(command.incomingFromHTML, lambda args: command_incoming_from_html(args, tagName, value), local_handlers=local_handlers)
     futil.add_handler(command.destroy, command_destroy, local_handlers=local_handlers)
 
 def command_incoming_from_html(args: adsk.core.HTMLEventArgs, tagName: str, value: dict):
+    browserPages.handleMessage(args, pageHandlers(tagName, value))
+
+def pageHandlers(tagName: str, value: dict) -> dict[str, browserPages.Handler]:
+    """
+    The page gets the settings and the config buttons, bodies generated before the generator kept the config have
+    none, see html/settings.html
+    """
+    page = {
+        'title': TAG_TITLES.get(tagName, CMD_NAME),
+        'settings': settingsUtils.settingsHtml(value, parameterExpression),
+        'buttons': [],
+    }
+    if not isinstance(value.get('config'), dict):
+        return {browserPages.READY: lambda _: page}
     # tag names are the generator names of configJson
-    generatorTitle = configJson.GENERATOR_TITLES[tagName]
     configText = configJson.configText(tagName, value['config'], str(value.get('generatorVersion') or ''))
-    browserPages.handleMessage(args, configButtons.configButtonsHandlers(
-        generatorTitle,
+    handlers = configButtons.configButtonsHandlers(
+        configJson.GENERATOR_TITLES[tagName],
         lambda: configText,
-        lambda: TAG_TITLES[tagName],
+        lambda: configFileName(tagName, value['config']),
         onClone=lambda: CLONE_COMMANDS[tagName].startWithConfig(value['config']),
-    ))
+    )
+    buttons = handlers[browserPages.READY]
+    return {**handlers, browserPages.READY: lambda data: {**page, 'buttons': buttons(data)}}
+
+def configFileName(tagName: str, settings: dict) -> str:
+    """The name the generator's dialog gives a saved file of these settings, the tag's title when it can't be read"""
+    try:
+        return CLONE_COMMANDS[tagName].configFileName(settings)
+    except Exception as err:
+        futil.log(f'{CMD_NAME} config file name not made, {err}')
+        return TAG_TITLES[tagName]
 
 def command_destroy(args: adsk.core.CommandEventArgs):
     global local_handlers

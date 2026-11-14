@@ -76,7 +76,7 @@ def settingsText(settings: list[dict]) -> str:
     return '\n'.join(lines)
 
 def settingsHtml(tag: dict, parameterExpression=None) -> str:
-    """Tag settings for a read only text box, with the user parameters the body is tied to
+    """Tag settings for the settings page, with the user parameters the body is tied to
     and their current expressions looked up by name, none when one is gone"""
     version = tag.get('generatorVersion') or 'unknown'
     lines = [f'<span style="color:#808080">Generated with version {html.escape(str(version))}</span>']
@@ -101,11 +101,3 @@ def settingsHtml(tag: dict, parameterExpression=None) -> str:
             if isinstance(item, list) and len(item) == 2:
                 lines.append(f'<br>{html.escape(str(item[0]))}: {html.escape(str(item[1]))}')
     return ''.join(lines)
-
-def settingsLineCount(tag: dict) -> int:
-    parameters = tag.get('parameters')
-    parameterLines = 2 + len(parameters) if isinstance(parameters, list) and len(parameters) > 0 else 0
-    settings = tag.get('settings')
-    if not isinstance(settings, list):
-        return 3 + parameterLines
-    return 1 + parameterLines + sum(2 + len(section.get('items', [])) for section in settings if isinstance(section, dict))

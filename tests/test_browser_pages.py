@@ -26,11 +26,12 @@ def _load(name: str):
 _load("dialogFont")
 pages = _load("browserPages")
 FONT = "file:///font.woff2"
+BOLD_FONT = "file:///bold.woff2"
 
 
 @pytest.fixture(autouse=True)
 def font(monkeypatch):
-    monkeypatch.setattr(pages, "dialogFontUrl", lambda: FONT)
+    monkeypatch.setattr(pages, "dialogFontUrl", lambda weight="Medium": BOLD_FONT if weight == "Bold" else FONT)
 
 
 class FakeBrowser:
@@ -52,7 +53,7 @@ def message(action: str, data: str):
 def test_answer_comes_with_the_font():
     args = message("cells", json.dumps([[0, 1]]))
     pages.handleMessage(args, {pages.READY: lambda _: {}, "cells": lambda cells: {"count": len(cells)}})
-    assert json.loads(args.returnData) == {"fontUrl": FONT, "data": {"count": 1}}
+    assert json.loads(args.returnData) == {"fontUrl": FONT, "boldFontUrl": BOLD_FONT, "data": {"count": 1}}
 
 
 def test_handler_without_answer_leaves_the_page_as_it_is():
@@ -86,7 +87,7 @@ def test_unknown_action_is_ignored():
 def test_update_comes_with_the_font():
     browser = FakeBrowser()
     pages.sendUpdate(browser, {"cells": []})
-    assert browser.sent == [("update", json.dumps({"fontUrl": FONT, "data": {"cells": []}}))]
+    assert browser.sent == [("update", json.dumps({"fontUrl": FONT, "boldFontUrl": BOLD_FONT, "data": {"cells": []}}))]
 
 
 def test_update_to_a_page_not_loaded_yet_is_dropped():

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../../../lib/ui/html/dialog.css">
+<style>
+    :root {
+        --text: #3c3c3c;
+        --rule: #dcdcdc;
+        --thumb: rgba(0, 0, 0, 0.3);
+    }
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --text: #e2e2e2;
+            --rule: #5a6270;
+            --thumb: rgba(255, 255, 255, 0.3);
+        }
+    }
+    /* the page is as tall as the browser input, the settings scroll below the buttons, so the dialog has nothing to
+       scroll and the buttons stay in reach */
+    html, body {
+        height: 100%;
+    }
+    body {
+        display: flex;
+        flex-direction: column;
+    }
+    #buttons {
+        flex: none;
+        display: flex;
+        justify-content: center;
+        gap: 8px;
+        padding: 2px 4px 6px;
+        border-bottom: 1px solid var(--rule);
+    }
+    #buttons:empty {
+        display: none;
+    }
+    #buttons button {
+        flex: 0 1 auto;
+        min-width: 0;
+        height: 26px;
+        padding: 0 6px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    #scroller {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+        /* a thin scrollbar that shows while the pointer is over the settings or they scroll, see the scroll listener */
+        scrollbar-width: thin;
+        scrollbar-color: transparent transparent;
+    }
+    #scroller:hover, #scroller.scrolling {
+        scrollbar-color: var(--thumb) transparent;
+    }
+    /* older Chromium draws scrollbars by these instead */
+    #scroller::-webkit-scrollbar {
+        width: 8px;
+    }
+    #scroller::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    #scroller::-webkit-scrollbar-thumb {
+        background: transparent;
+        border-radius: 4px;
+    }
+    #scroller:hover::-webkit-scrollbar-thumb, #scroller.scrolling::-webkit-scrollbar-thumb {
+        background: var(--thumb);
+    }
+    #title {
+        padding: 6px 4px 0;
+        font-weight: bold;
+    }
+    #settings {
+        padding: 6px 4px;
+        line-height: 1.4;
+        user-select: text;
+    }
+</style>
+</head>
+<body>
+<div id="buttons"></div>
+<div id="scroller">
+    <div id="title"></div>
+    <div id="settings"></div>
+</div>
+<script src="../../../lib/ui/html/fusionBridge.js"></script>
+<script>
+    // how long a button shows what its click answered, like Copied
+    const ANSWER_SHOWN_MS = 1500;
+
+    function drawButtons(buttons) {
+        document.getElementById('buttons').replaceChildren(...buttons.map((item) => {
+            const button = document.createElement('button');
+            button.textContent = item.label;
+            button.title = item.title;
+            button.addEventListener('click', () => {
+                fusionBridge.send('click', item.action).then((answer) => {
+                    if (typeof answer !== 'string') {
+                        return;
+                    }
+                    button.textContent = answer;
+                    setTimeout(() => { button.textContent = item.label; }, ANSWER_SHOWN_MS);
+                });
+            });
+            return button;
+        }));
+    }
+
+    // settings: escaped HTML from settingsUtils.settingsHtml, buttons: none for bodies generated without a config
+    function draw(data) {
+        drawButtons(data.buttons || []);
+        document.getElementById('title').textContent = data.title;
+        document.getElementById('settings').innerHTML = data.settings;
+    }
+
+    // the scrollbar shows while the settings scroll, by the wheel too, and hides this long after
+    const SCROLLBAR_SHOWN_MS = 1000;
+    const scroller = document.getElementById('scroller');
+    let hideScrollbar = null;
+    scroller.addEventListener('scroll', () => {
+        scroller.classList.add('scrolling');
+        clearTimeout(hideScrollbar);
+        hideScrollbar = setTimeout(() => scroller.classList.remove('scrolling'), SCROLLBAR_SHOWN_MS);
+    });
+
+    fusionBridge.connect(draw);
+</script>
+</body>
+</html>

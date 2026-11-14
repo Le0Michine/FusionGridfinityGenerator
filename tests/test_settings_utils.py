@@ -40,11 +40,6 @@ def test_bodies_from_before_settings_say_so():
     assert "weren't recorded" in text
 
 
-def test_line_count_covers_titles_and_items():
-    tag = {"settings": [{"title": "A", "items": [["x", "1"], ["y", "2"]]}, {"title": "B", "items": [["z", "3"]]}]}
-    assert settingsUtils.settingsLineCount(tag) == 1 + (2 + 2) + (2 + 1)
-
-
 def test_parameters_show_their_current_expression():
     tag = {"settings": [], "parameters": [["Bin height (u)", "gfBin1_heightU"], ["Label", "gfBin1_label"]]}
     text = settingsUtils.settingsHtml(tag, {"gfBin1_heightU": "6"}.get)

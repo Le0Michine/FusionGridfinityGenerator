@@ -1204,6 +1204,12 @@ def startWithConfig(settings: dict):
     pendingConfig = settings
     ui.commandDefinitions.itemById(CMD_ID).execute()
 
+def configFileName(settings: dict) -> str:
+    """The name a saved file of these settings starts with, as the dialog's Save to file names it"""
+    defaults = configJson.stateToJson(configJson.GENERATOR_BIN, DEFAULT_STATE)
+    known = {name: value for (name, value) in settings.items() if name in defaults}
+    return binBuilder.binDisplayName(configJson.stateFromJson(configJson.GENERATOR_BIN, InputState, {**defaults, **known}))
+
 def configChoices() -> dict[str, configJson.Choice]:
     """The options of the dropdowns with the dialog's first defaults, see initDefaultUiState"""
     iconNames = [labelGenerator.LABEL_ICON_NONE] + [icon.name for group in labelGenerator.listIconGroups() for icon in group]

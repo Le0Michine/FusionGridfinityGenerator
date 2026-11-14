@@ -26,7 +26,8 @@ def pageUrl(commandFile: str, name: str) -> str:
     return pathlib.Path(os.path.dirname(os.path.abspath(commandFile)), 'html', name).as_uri()
 
 def encode(data) -> str:
-    return json.dumps({'fontUrl': dialogFontUrl(), 'data': data})
+    # without a bold cut the page would draw bold text as the regular one
+    return json.dumps({'fontUrl': dialogFontUrl(), 'boldFontUrl': dialogFontUrl('Bold'), 'data': data})
 
 def sendUpdate(browserInput: adsk.core.BrowserCommandInput, data) -> None:
     """New data for a page to redraw from"""

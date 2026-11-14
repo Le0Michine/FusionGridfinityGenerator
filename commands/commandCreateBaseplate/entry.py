@@ -987,6 +987,12 @@ def startWithConfig(settings: dict):
     pendingConfig = settings
     ui.commandDefinitions.itemById(CMD_ID).execute()
 
+def configFileName(settings: dict) -> str:
+    """The name a saved file of these settings starts with, as the dialog's Save to file names it"""
+    defaults = configJson.stateToJson(configJson.GENERATOR_BASEPLATE, DEFAULT_STATE)
+    known = {name: value for (name, value) in settings.items() if name in defaults}
+    return baseplateName(configJson.stateFromJson(configJson.GENERATOR_BASEPLATE, InputState, {**defaults, **known}))
+
 def applyPendingConfig():
     global pendingConfig
     if pendingConfig is None:
