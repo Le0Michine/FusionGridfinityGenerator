@@ -16,6 +16,8 @@ class InputState:
     wallThickness: float
     # see binBuilder.BIN_TYPE_HOLLOW
     binType: str
+    # rounded shell type of Fusion instead of sharp, its simpler faces are easier to cut and combine with later
+    isShellRounded: bool
 
     generateBase: bool
     generateBody: bool

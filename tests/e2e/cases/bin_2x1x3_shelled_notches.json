@@ -12,6 +12,7 @@
         "isHalfGrid": false,
         "wallThickness": 1.2,
         "binType": "Shelled",
+        "isShellRounded": false,
         "generateBase": true,
         "generateBody": true,
         "hasJointOrigins": false,

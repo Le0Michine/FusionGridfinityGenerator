@@ -12,6 +12,7 @@
         "isHalfGrid": false,
         "wallThickness": 1.2,
         "binType": "Hollow",
+        "isShellRounded": false,
         "generateBase": false,
         "generateBody": true,
         "hasJointOrigins": false,

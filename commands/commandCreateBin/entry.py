@@ -108,6 +108,7 @@ BIN_REAL_DIMENSIONS_TABLE_TOTAL_WIDTH = "total_real_width"
 BIN_REAL_DIMENSIONS_TABLE_TOTAL_LENGTH = "total_real_length"
 BIN_REAL_DIMENSIONS_TABLE_TOTAL_HEIGHT = "total_real_height"
 BIN_WALL_THICKNESS_INPUT_ID = 'bin_wall_thickness'
+BIN_SHELL_ROUNDED_INPUT_ID = 'bin_shell_rounded'
 BIN_GENERATE_BASE_INPUT_ID = 'bin_generate_base'
 BIN_GENERATE_BODY_INPUT_ID = 'bin_generate_body'
 BIN_JOINT_ORIGINS_INPUT_ID = 'bin_joint_origins'
@@ -170,6 +171,7 @@ STATE_INPUT_IDS = {
     'isHalfGrid': BIN_HALF_GRID_INPUT_ID,
     'wallThickness': BIN_WALL_THICKNESS_INPUT_ID,
     'binType': BIN_TYPE_DROPDOWN_ID,
+    'isShellRounded': BIN_SHELL_ROUNDED_INPUT_ID,
     'generateBase': BIN_GENERATE_BASE_INPUT_ID,
     'generateBody': BIN_GENERATE_BODY_INPUT_ID,
     'hasJointOrigins': BIN_JOINT_ORIGINS_INPUT_ID,
@@ -278,6 +280,7 @@ def initDefaultUiState():
 
     commandUIState.initValue(BIN_GENERATE_BODY_INPUT_ID, True, adsk.core.BoolValueCommandInput.classType())
     commandUIState.initValue(BIN_TYPE_DROPDOWN_ID, BIN_TYPE_HOLLOW, adsk.core.DropDownCommandInput.classType())
+    commandUIState.initValue(BIN_SHELL_ROUNDED_INPUT_ID, True, adsk.core.BoolValueCommandInput.classType())
     commandUIState.initValue(BIN_WALL_THICKNESS_INPUT_ID, const.BIN_WALL_THICKNESS, adsk.core.ValueCommandInput.classType())
     commandUIState.initValue(BIN_WITH_LIP_INPUT_ID, True, adsk.core.BoolValueCommandInput.classType())
     commandUIState.initValue(BIN_WITH_LIP_NOTCHES_INPUT_ID, False, adsk.core.BoolValueCommandInput.classType())

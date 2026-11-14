@@ -421,7 +421,7 @@ def buildBin(
             topBody = max(splitBodies.bodies, key=lambda x: x.boundingBox.minPoint.z)
             horizontalFaces = [face for face in bottomBody.faces if geometryUtils.isHorizontal(face)]
             topFace = faceUtils.maxByArea(horizontalFaces)
-            shellUtils.simpleShell([topFace], binBodyInput.wallThickness, gridfinityBinComponent, name='Shell')
+            shellUtils.simpleShell([topFace], binBodyInput.wallThickness, gridfinityBinComponent, name='Shell', isRounded=state.isShellRounded)
             toolBodies = adsk.core.ObjectCollection.create()
             toolBodies.add(topBody)
             combineAfterShellFeatureInput = combineFeatures.createInput(bottomBody, toolBodies)
@@ -429,7 +429,7 @@ def buildBin(
             combineAfterShellFeature.name = 'Shell and lip join'
             binBody = combineAfterShellFeature.bodies.item(0)
         else:
-            shellUtils.simpleShell([topFace], binBodyInput.wallThickness, gridfinityBinComponent, name='Shell')
+            shellUtils.simpleShell([topFace], binBodyInput.wallThickness, gridfinityBinComponent, name='Shell', isRounded=state.isShellRounded)
 
         if state.hasTab and not shaped:
             compartmentTabInput = BinBodyTabGeneratorInput()
