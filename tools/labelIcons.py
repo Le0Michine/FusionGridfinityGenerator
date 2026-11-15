@@ -25,7 +25,8 @@ def hexagon(cx: float, cy: float, r: float, firstAngle: float = 0) -> str:
 def circle(cx: float, cy: float, r: float) -> str:
     return f'M{cx - r:.2f},{cy:.2f} A{r},{r} 0 1 0 {cx + r:.2f},{cy:.2f} A{r},{r} 0 1 0 {cx - r:.2f},{cy:.2f} Z'
 
-# screws are a side view with the head up next to a top view of the head with its hex socket
+# screws are a side view with the head up next to a top view of the head with its drive: a hex socket,
+# a phillips cross or a slot. Self tapping screws taper to a point, grub screws have no head
 SIDE_X, TOP_X, TOP_Y = 7, 66.5, 53.5
 
 def flipY(d: str) -> str:
@@ -49,6 +50,20 @@ def flipY(d: str) -> str:
 def socketTopView() -> str:
     return circle(TOP_X, TOP_Y, 26) + ' ' + hexagon(TOP_X, TOP_Y, 13.86, 30)
 
+def phillipsTopView() -> str:
+    (arm, half) = (16, 4)
+    points = [(half, half), (arm, half), (arm, -half), (half, -half), (half, -arm), (-half, -arm),
+              (-half, -half), (-arm, -half), (-arm, half), (-half, half), (-half, arm), (half, arm)]
+    cross = 'M' + ' L'.join(f'{TOP_X + px:.2f},{TOP_Y + py:.2f}' for (px, py) in points) + ' Z'
+    return circle(TOP_X, TOP_Y, 26) + ' ' + cross
+
+def slottedTopView() -> str:
+    # the slot stays inside the head, a slot through its edge would split the head in two
+    (length, half) = (19, 4)
+    slot = (f'M{TOP_X - length:.2f},{TOP_Y - half:.2f} L{TOP_X + length:.2f},{TOP_Y - half:.2f} '
+            f'L{TOP_X + length:.2f},{TOP_Y + half:.2f} L{TOP_X - length:.2f},{TOP_Y + half:.2f} Z')
+    return circle(TOP_X, TOP_Y, 26) + ' ' + slot
+
 def socketHeadScrew() -> str:
     x = lambda v: f'{SIDE_X + v:.2f}'
     side = (f'M{x(0)},89.5 L{x(0)},71.5 L{x(2)},69.5 L{x(7.5)},69.5 L{x(7.5)},23 L{x(10)},20.5 L{x(23)},20.5 L{x(25.5)},23 '
@@ -61,19 +76,51 @@ def domePoints(cx: float, cy: float, rx: float, ry: float, segments: int = 24) -
     points = [(cx + rx * math.cos(math.pi * i / segments), cy + ry * math.sin(math.pi * i / segments)) for i in range(1, segments + 1)]
     return ' '.join(f'L{px:.2f},{py:.2f}' for px, py in points)
 
-def buttonHeadScrew() -> str:
+def shankEnd(isPointed: bool) -> str:
+    """The bottom of the shank from its left side to its right, flat with chamfers or tapering to a point from halfway down"""
     x = lambda v: f'{SIDE_X + v:.2f}'
-    side = (f'M{x(0)},72.5 L{x(7.5)},72.5 L{x(7.5)},23 L{x(10)},20.5 L{x(23)},20.5 L{x(25.5)},23 L{x(25.5)},72.5 '
+    if isPointed:
+        return f'L{x(7.5)},42 L{x(16.5)},12 L{x(25.5)},42'
+    return f'L{x(7.5)},23 L{x(10)},20.5 L{x(23)},20.5 L{x(25.5)},23'
+
+def buttonHeadScrew(topView=socketTopView, isPointed: bool = False) -> str:
+    x = lambda v: f'{SIDE_X + v:.2f}'
+    side = (f'M{x(0)},72.5 L{x(7.5)},72.5 {shankEnd(isPointed)} L{x(25.5)},72.5 '
             f'L{x(33)},72.5 ' + domePoints(SIDE_X + 16.5, 72.5, 16.5, 17) + ' Z')
+    return flipY(side) + ' ' + topView()
+
+def countersunkScrew(topView=socketTopView, isPointed: bool = False) -> str:
+    x = lambda v: f'{SIDE_X + v:.2f}'
+    side = (f'M{x(0)},89.5 L{x(0)},86.5 L{x(7.5)},76 {shankEnd(isPointed)} '
+            f'L{x(25.5)},76 L{x(33)},86.5 L{x(33)},89.5 Z')
+    return flipY(side) + ' ' + topView()
+
+def grubScrew() -> str:
+    x = lambda v: f'{SIDE_X + v:.2f}'
+    # as wide as the shank of the other screws
+    side = (f'M{x(7.5)},72 L{x(7.5)},28 L{x(10)},25.5 L{x(23)},25.5 L{x(25.5)},28 '
+            f'L{x(25.5)},72 L{x(23)},74.5 L{x(10)},74.5 Z')
     return flipY(side) + ' ' + socketTopView()
 
 ICONS = {
     'screws': {
         'socket-head-screw': socketHeadScrew(),
         'button-head-screw': buttonHeadScrew(),
+        'button-head-phillips-screw': buttonHeadScrew(phillipsTopView),
+        'button-head-slotted-screw': buttonHeadScrew(slottedTopView),
+        'countersunk-screw': countersunkScrew(),
+        'countersunk-phillips-screw': countersunkScrew(phillipsTopView),
+        'countersunk-slotted-screw': countersunkScrew(slottedTopView),
+        'button-head-self-tapping-screw': buttonHeadScrew(isPointed=True),
+        'button-head-phillips-self-tapping-screw': buttonHeadScrew(phillipsTopView, isPointed=True),
+        'countersunk-self-tapping-screw': countersunkScrew(isPointed=True),
+        'countersunk-phillips-self-tapping-screw': countersunkScrew(phillipsTopView, isPointed=True),
+        'grub-screw': grubScrew(),
     },
     'nuts': {
         'hex-nut': hexagon(50, 50, 45) + ' ' + circle(50, 50, 22),
+        # the nylon insert shows as a ring inside the hole
+        'hex-locknut': hexagon(50, 50, 45) + ' ' + circle(50, 50, 32) + ' ' + circle(50, 50, 27) + ' ' + circle(50, 50, 20),
         'square-nut': 'M10,10 L90,10 L90,90 L10,90 Z ' + circle(50, 50, 22),
     },
     'washers': {
