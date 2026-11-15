@@ -109,3 +109,27 @@ def test_issue_is_labelled():
     import urllib.parse
     url = _report()["issueUrl"]
     assert urllib.parse.parse_qs(urllib.parse.urlparse(url).query)["labels"] == ["error report"]
+
+
+def test_rebuild_report_has_the_config_from_before():
+    report = errorReport.createReport(
+        "Gridfinity bin failed",
+        _failure(),
+        [],
+        '{"binWidth": 2.5}\n',
+        [],
+        '{"binWidth": 2}\n',
+    )
+    text = report["text"]
+    assert text.index('{"binWidth": 2.5}') < text.index("<summary>Config before the rebuild</summary>") < text.index('{"binWidth": 2}')
+
+
+def test_new_bin_report_has_no_config_from_before():
+    assert "Config before the rebuild" not in _report()["text"]
+
+
+def test_issue_link_leaves_out_both_configs_when_too_long():
+    report = errorReport.createReport("Gridfinity bin failed", _failure(), [], '{"a": "' + "x" * 5000 + '"}', [], '{"b": "' + "y" * 5000 + '"}')
+    body = _body(report["issueUrl"])
+    assert "<summary>Config" not in body
+    assert errorReport.LEFT_OUT_NOTE in body

@@ -132,6 +132,10 @@
     <summary>Config</summary>
     <pre id="config"></pre>
 </details>
+<details id="previousConfigSection">
+    <summary>Config before the rebuild</summary>
+    <pre id="previousConfig"></pre>
+</details>
 <textarea id="reportText" readonly></textarea>
 <script src="fusionBridge.js"></script>
 <script>
@@ -156,6 +160,9 @@
         }
         document.getElementById('configSection').hidden = !data.config;
         document.getElementById('config').textContent = data.config || '';
+        // only for a bin rebuilt in place
+        document.getElementById('previousConfigSection').hidden = !data.previousConfig;
+        document.getElementById('previousConfig').textContent = data.previousConfig || '';
         document.getElementById('reportText').value = data.text;
         showStatus('', '');
     }

@@ -7,6 +7,6 @@
         "binHeight": 3
     },
     "parameters": {
-        "gfHeightUnit": 10.0
+        "gfBin1_heightUnit": 10.0
     }
 }

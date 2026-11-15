@@ -77,3 +77,60 @@ def test_config_is_kept_to_build_the_body_again():
 
 def test_config_is_left_out_when_not_given():
     assert "config" not in tagUtils.parseTagValue(tagUtils.createTagValue("1.6.0.0"))
+
+
+class _FakeAttribute:
+    def __init__(self, parent, value):
+        self.parent = parent
+        self.value = value
+
+
+class _FakeAttributes:
+    def __init__(self):
+        self.byName = {}
+
+    def add(self, group, name, value):
+        self.byName[(group, name)] = value
+
+    def itemByName(self, group, name):
+        value = self.byName.get((group, name))
+        return _FakeAttribute(None, value) if value is not None else None
+
+
+class _FakeParameter:
+    def __init__(self, name):
+        self.name = name
+        self.attributes = _FakeAttributes()
+
+
+def test_body_id_and_parameter_field_and_owner_are_kept():
+    tag = tagUtils.parseTagValue(tagUtils.createTagValue("2.3.0.0", bodyId="gfBin3"))
+    assert tag["id"] == "gfBin3"
+    tag = tagUtils.parseTagValue(tagUtils.createTagValue("2.3.0.0", field="binHeight", owner="gfBin3"))
+    assert (tag["field"], tag["owner"]) == ("binHeight", "gfBin3")
+    assert "id" not in tag
+
+
+def test_a_parameter_tagged_again_keeps_the_last_field():
+    parameter = _FakeParameter("gfBin3_label")
+    tagUtils.tagParameterField(parameter, "labelText", "gfBin3")
+    tagUtils.tagParameterField(parameter, "compartmentPockets.0.label", "gfBin3")
+    assert tagUtils.readParameterField(parameter) == "compartmentPockets.0.label"
+    assert tagUtils.readParameterTag(parameter)["owner"] == "gfBin3"
+
+
+def test_an_untagged_parameter_has_no_field():
+    assert tagUtils.readParameterField(_FakeParameter("gfBaseWidth")) is None
+
+
+def test_owned_parameters_are_found_by_their_owner(monkeypatch):
+    parameters = [_FakeParameter("gfBin1_heightU"), _FakeParameter("gfBin2_heightU")]
+    tagUtils.tagParameterField(parameters[0], "binHeight", "gfBin1")
+    tagUtils.tagParameterField(parameters[1], "binHeight", "gfBin2")
+
+    class _Design:
+        def findAttributes(self, group, name):
+            return [_FakeAttribute(parameter, parameter.attributes.byName[(group, name)]) for parameter in parameters]
+
+    monkeypatch.setattr(tagUtils.adsk.fusion.UserParameter, "cast", staticmethod(lambda parent: parent), raising=False)
+    assert tagUtils.findOwnedParameters(_Design(), "gfBin2") == [(parameters[1], "binHeight")]

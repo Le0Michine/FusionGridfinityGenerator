@@ -3,10 +3,12 @@ import adsk.core, adsk.fusion
 from ...lib import tagUtils
 from ...lib import configJson
 from ...lib import placementUtils
+from ...lib import rebuildUtils
 from ...lib.gridfinityUtils.baseplateGenerator import createGridfinityBaseplate, createGridfinityBaseplateFill
 from ...lib.gridfinityUtils import baseplateLayout
 from ...lib.gridfinityUtils.baseGenerator import cellCenters, createCellJointOrigins
 from ...lib.gridfinityUtils.baseplateGeneratorInput import BaseplateGeneratorInput
+from ...lib.gridfinityUtils import commonUtils
 from ...lib.gridfinityUtils import const
 from ...lib.gridfinityUtils import parameterUtils
 from ...lib.gridfinityUtils import sharedParameters
@@ -35,6 +37,19 @@ BASEPLATE_PARAMETERS = [
     BASEPLATE_PADDING_RIGHT_PARAMETER,
     BASEPLATE_PADDING_BOTTOM_PARAMETER,
 ]
+
+# Labels of the parameters in the tag are stored in user documents, keep these literal. The config fields they stand
+# for, for baseplates built before their parameters were tagged with them, see tagUtils.tagParameterField
+PARAMETER_FIELDS = {
+    'Base width unit': 'baseWidth',
+    'Base length unit': 'baseLength',
+    'Padding left': 'paddingLeft',
+    'Padding top': 'paddingTop',
+    'Padding right': 'paddingRight',
+    'Padding bottom': 'paddingBottom',
+}
+# the move placing the baseplate, rebuilding in place reads the spot from it, see rebuildUtils
+BASEPLATE_PLACEMENT_FEATURE = 'Baseplate placement'
 
 SIZING_MODE_GRID_UNITS = 'Grid units'
 SIZING_MODE_FILL_AREA = 'Fill area'
@@ -100,10 +115,15 @@ def buildBaseplate(
     inputsState: InputState,
     settings: list[dict],
     isPreview: bool = False,
+    placement: tuple[float, float] | None = None,
+    parameterPrefix: str | None = None,
+    occurrenceTransform: adsk.core.Matrix3D | None = None,
 ) -> list[adsk.fusion.BRepBody]:
     """
-    Builds the baseplate into the design, tagged with the settings to show later, see settingsUtils.snapshotInputs.
-    A preview spreads fill pieces apart and goes without joint origins
+    Builds the baseplate into the design at the timeline marker, tagged with the settings to show later, see
+    settingsUtils.snapshotInputs. A preview spreads fill pieces apart and goes without joint origins. A baseplate
+    rebuilt in place keeps the placement, the parameters by their prefix and the transform of its component the old
+    one had, see rebuildUtils, a new one goes to a free spot
     """
     if des.designType == 0:
         raise UnsupportedDesignTypeException('Timeline must be enabled for the generator to work, projects with disabled design history currently are not supported')
@@ -124,10 +144,11 @@ def buildBaseplate(
         (paddingLeft, paddingTop, paddingRight, paddingBottom) = (inputsState.paddingLeft, inputsState.paddingTop, inputsState.paddingRight, inputsState.paddingBottom)
         plateExtent = gridPlateExtent(inputsState)
 
-    originalTimelineCount = des.timeline.count
+    # the marker is before the features after a baseplate rebuilt in place, at the end otherwise
+    originalTimelinePosition = des.timeline.markerPosition
     if des.designIntent == adsk.fusion.DesignIntentTypes.HybridDesignIntentType:
         # create new component, only allowed in hybrid intent type
-        newCmpOcc = adsk.fusion.Occurrences.cast(root.occurrences).addNewComponent(adsk.core.Matrix3D.create())
+        newCmpOcc = adsk.fusion.Occurrences.cast(root.occurrences).addNewComponent(occurrenceTransform or adsk.core.Matrix3D.create())
 
         newCmpOcc.component.name = plateName
         newCmpOcc.activate()
@@ -163,7 +184,7 @@ def buildBaseplate(
         baseplateGeneratorInput.hasHalfCellsTop = fillLayout.y.hasHalfCellsEnd
 
     # pick the spot before generating, so none of this baseplate's geometry can count as an obstacle
-    baseplatePlacement = placementUtils.findPlacement(
+    baseplatePlacement = placement or placementUtils.findPlacement(
         des,
         tagUtils.TAG_BASEPLATE,
         BASEPLATE_LEGACY_NAME_PREFIX,
@@ -172,7 +193,9 @@ def buildBaseplate(
         inputsState.baseLength,
     )
 
-    plateParameterPrefix = parameterUtils.nextFreePrefix(des, BASEPLATE_PARAMETER_BASE_NAME, BASEPLATE_PARAMETERS)
+    # the baseplate's id too, see tagUtils.tagBody, one on shared units without padding has no parameters to take it
+    reuseParameters = parameterPrefix is not None
+    plateParameterPrefix = parameterPrefix or parameterUtils.nextFreePrefix(des, BASEPLATE_PARAMETER_BASE_NAME, BASEPLATE_PARAMETERS, tagUtils.usedBodyIds(des, tagUtils.TAG_BASEPLATE))
     (baseWidthParameter, baseLengthParameter) = sharedParameters.findOrCreateBaseUnitParameters(
         des,
         inputsState.baseWidth,
@@ -180,7 +203,12 @@ def buildBaseplate(
         plateParameterPrefix,
         'baseplate',
         LOG_PREFIX,
+        reuseParameters,
     )
+    # its own units, when they differ from the shared ones, are tagged with the field they hold, see tagUtils.tagParameterField
+    for (parameter, field) in [(baseWidthParameter, 'baseWidth'), (baseLengthParameter, 'baseLength')]:
+        if parameter.name.startswith(f'{plateParameterPrefix}_'):
+            tagUtils.tagParameterField(parameter, field, plateParameterPrefix)
     baseplateGeneratorInput.baseWidth = Dim.parameter(baseWidthParameter)
     baseplateGeneratorInput.baseLength = Dim.parameter(baseLengthParameter)
     # user parameters driving the baseplate, kept in its tag to show with its settings
@@ -190,12 +218,16 @@ def buildBaseplate(
         """Unused sides stay plain values, so no parameter is left around that drives nothing"""
         if not hasPadding or value <= 0:
             return Dim.length(value)
-        return Dim.parameter(parameterUtils.addLengthParameter(
+        parameter = parameterUtils.addLengthParameter(
             des,
             parameterUtils.parameterName(plateParameterPrefix, name),
             value,
             f'Gridfinity baseplate {label} padding',
-        ))
+            reuseParameters,
+        )
+        # the parameter names of the paddings are their config fields
+        tagUtils.tagParameterField(parameter, name, plateParameterPrefix)
+        return Dim.parameter(parameter)
     baseplateGeneratorInput.paddingLeft = paddingDim(BASEPLATE_PADDING_LEFT_PARAMETER, 'left', paddingLeft)
     baseplateGeneratorInput.paddingTop = paddingDim(BASEPLATE_PADDING_TOP_PARAMETER, 'top', paddingTop)
     baseplateGeneratorInput.paddingRight = paddingDim(BASEPLATE_PADDING_RIGHT_PARAMETER, 'right', paddingRight)
@@ -228,7 +260,7 @@ def buildBaseplate(
         baseplateBodies = [baseplateBody]
         cellBlocks.append((0, 0, int(baseplateGeneratorInput.baseplateWidth), int(baseplateGeneratorInput.baseplateLength)))
     if baseplatePlacement != (0, 0):
-        placementUtils.moveBodies(baseplateBodies, *baseplatePlacement, gridfinityBaseplateComponent, name='Baseplate placement')
+        placementUtils.moveBodies(baseplateBodies, *baseplatePlacement, gridfinityBaseplateComponent, name=BASEPLATE_PLACEMENT_FEATURE)
     # last, after the placement, joint origins sit on sketches which don't follow body moves.
     # The preview spreads fill pieces apart and only shows the shape, it goes without them
     if not isPreview and inputsState.hasJointOrigins:
@@ -251,10 +283,40 @@ def buildBaseplate(
         )
     # mark generated geometry so it can be told apart from the rest of the design
     for baseplateBody in baseplateBodies:
-        tagUtils.tagBody(baseplateBody, tagUtils.TAG_BASEPLATE, settings, baseplateParameters, configJson.stateToJson(configJson.GENERATOR_BASEPLATE, inputsState))
+        tagUtils.tagBody(baseplateBody, tagUtils.TAG_BASEPLATE, settings, baseplateParameters, configJson.stateToJson(configJson.GENERATOR_BASEPLATE, inputsState), plateParameterPrefix)
 
     if des.designType == adsk.fusion.DesignTypes.ParametricDesignType:
         # group features in timeline
-        plateGroup = des.timeline.timelineGroups.add(originalTimelineCount, des.timeline.count - 1)
+        plateGroup = des.timeline.timelineGroups.add(originalTimelinePosition, des.timeline.markerPosition - 1)
         plateGroup.name = plateName
     return baseplateBodies
+
+def rebuildBaseplate(
+    des: adsk.fusion.Design,
+    body: adsk.fusion.BRepBody,
+    inputsState: InputState,
+    settings: list[dict],
+    isPreview: bool,
+) -> tuple[list[adsk.fusion.BRepBody], list[str]]:
+    """
+    Builds the baseplate in place of the one the body is of, keeping the features after it, see rebuildUtils.rebuild.
+    Returns the new bodies and what of the later features needs a look
+    """
+    target = rebuildUtils.findTarget(des, body, tagUtils.TAG_BASEPLATE, BASEPLATE_PLACEMENT_FEATURE)
+    prefix = rebuildUtils.bodyId(target.bodies[0], BASEPLATE_PARAMETER_BASE_NAME)
+    if not isPreview:
+        newConfig = configJson.stateToJson(configJson.GENERATOR_BASEPLATE, inputsState)
+        commonUtils.fileLog(f'{LOG_PREFIX} rebuilding {target.group.name} at {target.placement}, {rebuildUtils.configChanges(configJson.GENERATOR_BASEPLATE, target.bodies[0], newConfig)}')
+    return rebuildUtils.rebuild(
+        des,
+        target,
+        prefix,
+        BASEPLATE_PARAMETER_BASE_NAME,
+        isPreview,
+        lambda placement, parameterPrefix, transform: buildBaseplate(des, inputsState, settings, isPreview, placement, parameterPrefix, transform),
+        'baseplate',
+    )
+
+def configWithParameters(config: dict, parameters: list, findParameter) -> dict:
+    """The config a baseplate was built with, with the values its parameters have now, see rebuildUtils.configWithParameters"""
+    return rebuildUtils.configWithParameters(configJson.GENERATOR_BASEPLATE, config, parameters, findParameter, PARAMETER_FIELDS)

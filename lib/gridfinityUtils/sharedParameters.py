@@ -76,9 +76,11 @@ def findOrCreateSharedLengthParameter(
     fallbackName: str,
     owner: str,
     logPrefix: str,
+    reuseOwn: bool = False,
 ) -> adsk.fusion.UserParameter:
     """The tagged parameter wins, an untagged one with the same name is reused as is, otherwise a new one is created and tagged.
-    An existing one that isn't usable or differs from the dialog value is left alone and the owner gets its own parameter instead"""
+    An existing one that isn't usable or differs from the dialog value is left alone and the owner gets its own parameter instead,
+    the one it has already with reuseOwn, see parameterUtils.reusedParameter"""
     (parameter, source) = findSharedParameter(design, tagName, name)
     if parameter is None:
         parameter = parameterUtils.addLengthParameter(design, name, value, f'Gridfinity {label}, shared by all bins and baseplates')
@@ -92,7 +94,7 @@ def findOrCreateSharedLengthParameter(
     else:
         commonUtils.debugLog(f'{logPrefix} {label}: using existing shared parameter {parameter.name} = {parameter.expression} ({source})')
         return parameter
-    ownParameter = parameterUtils.addLengthParameter(design, fallbackName, value, f'Gridfinity {owner} {label}')
+    ownParameter = parameterUtils.addLengthParameter(design, fallbackName, value, f'Gridfinity {owner} {label}', reuseOwn)
     commonUtils.debugLog(f'{logPrefix} {label}: existing parameter {parameter.name} = {parameter.expression} ({source}) {reason}, created {ownParameter.name} = {ownParameter.expression} for this {owner}')
     return ownParameter
 
@@ -103,6 +105,7 @@ def findOrCreateBaseUnitParameters(
     ownParameterPrefix: str,
     owner: str,
     logPrefix: str,
+    reuseOwn: bool = False,
 ) -> tuple[adsk.fusion.UserParameter, adsk.fusion.UserParameter]:
     """Shared base width and length units, or ones of the owner's own named with the given prefix"""
     return (
@@ -116,6 +119,7 @@ def findOrCreateBaseUnitParameters(
             parameterUtils.parameterName(ownParameterPrefix, BASE_WIDTH_FALLBACK_PARAMETER),
             owner,
             logPrefix,
+            reuseOwn,
         ),
         findOrCreateSharedLengthParameter(
             design,
@@ -127,5 +131,6 @@ def findOrCreateBaseUnitParameters(
             parameterUtils.parameterName(ownParameterPrefix, BASE_LENGTH_FALLBACK_PARAMETER),
             owner,
             logPrefix,
+            reuseOwn,
         ),
     )

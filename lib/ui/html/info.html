@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="dialog.css">
+<style>
+    :root {
+        --text: #3c3c3c;
+        --link: #0696d7;
+    }
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --text: #e2e2e2;
+            --link: #4cb6ea;
+        }
+    }
+    #info {
+        padding: 2px 4px;
+        line-height: 1.4;
+        user-select: text;
+    }
+    /* a yellow warning sign before the line, as Fusion marks warnings */
+    .warning {
+        position: relative;
+        padding-left: 20px;
+    }
+    .warning::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 2px;
+        width: 15px;
+        height: 14px;
+        background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 15 14'%3E%3Cpath d='M7.5 0.8 14.4 13.2H0.6Z' fill='%23f5b400' stroke='%23b88700' stroke-width='0.8' stroke-linejoin='round'/%3E%3Cpath d='M6.8 4.6h1.4l-0.25 4.8h-0.9ZM6.75 10.4h1.5v1.5h-1.5Z' fill='%23262626'/%3E%3C/svg%3E") no-repeat;
+    }
+    a {
+        color: var(--link);
+    }
+</style>
+</head>
+<body>
+<div id="info"></div>
+<script src="fusionBridge.js"></script>
+<script>
+    const info = document.getElementById('info');
+
+    // the browser input takes the height of the text, it changes as the text wraps
+    let sentHeight = 0;
+    function sendHeight() {
+        const height = Math.ceil(info.getBoundingClientRect().height);
+        if (height > 0 && height !== sentHeight) {
+            sentHeight = height;
+            fusionBridge.send('height', height);
+        }
+    }
+
+    // html: the dialog's own text, see infoPage.py
+    function draw(data) {
+        info.innerHTML = data.html;
+        sendHeight();
+    }
+
+    // a link would open in the page itself, the dialog opens it in the browser
+    info.addEventListener('click', (event) => {
+        const link = event.target.closest('a[href]');
+        if (link) {
+            event.preventDefault();
+            fusionBridge.send('link', link.href);
+        }
+    });
+
+    // a new font or width wraps the text into another number of lines
+    fusionBridge.connect(draw, sendHeight);
+</script>
+</body>
+</html>

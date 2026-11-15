@@ -7,6 +7,7 @@ from ...lib import configJson
 from ...lib import fusion360utils as futil
 from ...lib.ui import browserPages
 from ...lib.ui import configButtons
+from ...lib.ui.buttonRow import Button
 from ... import config
 from ..commandCreateBin import entry as binEntry
 from ..commandCreateBaseplate import entry as baseplateEntry
@@ -32,17 +33,23 @@ CLONE_COMMANDS = {
     tagUtils.TAG_BIN: binEntry,
     tagUtils.TAG_BASEPLATE: baseplateEntry,
 }
+# generators that rebuild a body in place, see binEntry.startRebuild and baseplateEntry.startRebuild
+REBUILD_COMMANDS = {
+    tagUtils.TAG_BIN: binEntry,
+    tagUtils.TAG_BASEPLATE: baseplateEntry,
+}
+REBUILD_ACTION = 'rebuild'
 # the page's height, what the dialog has room for at its initial size. Fusion makes a page as tall as its content up
 # to its maximum height and scrolls the dialog then, the page scrolls the settings itself, see html/settings.html
 PAGE_HEIGHT = 340
 
 local_handlers = []
 markingMenuHandler = None
-# starting a command can clear the selection, so the tag is kept from when the menu opened
+# starting a command can clear the selection, so the body and its tag are kept from when the menu opened
 menuTag = None
 
-def selectedTag() -> tuple[str, dict] | None:
-    """Tag of the single selected generated body, also when one of its faces is selected"""
+def selectedTag() -> tuple[adsk.fusion.BRepBody, str, dict] | None:
+    """The single selected generated body, native, with its tag, also when one of its faces is selected"""
     if ui.activeSelections.count != 1:
         return None
     entity = ui.activeSelections.item(0).entity
@@ -55,7 +62,8 @@ def selectedTag() -> tuple[str, dict] | None:
     # bins in their own component are selected through an occurrence, the tag sits on the body itself
     if body.assemblyContext is not None:
         body = body.nativeObject
-    return tagUtils.readBodyTag(body)
+    tag = tagUtils.readBodyTag(body)
+    return (body, *tag) if tag is not None else None
 
 def parameterExpression(name: str) -> str | None:
     design = adsk.fusion.Design.cast(app.activeProduct)
@@ -99,18 +107,18 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     if tag is None:
         command.commandInputs.addTextBoxCommandInput(SETTINGS_TEXT_INPUT, '', 'Select a generated bin or baseplate.', 1, True)
         return
-    (tagName, value) = tag
+    (body, tagName, value) = tag
     command.setDialogInitialSize(450, 500)
     # the settings and their buttons in one page, the buttons stay above the settings as they scroll
     browser = command.commandInputs.addBrowserCommandInput(SETTINGS_BROWSER, '', SETTINGS_HTML_URL, PAGE_HEIGHT, PAGE_HEIGHT)
     browser.isFullWidth = True
-    futil.add_handler(command.incomingFromHTML, lambda args: command_incoming_from_html(args, tagName, value), local_handlers=local_handlers)
+    futil.add_handler(command.incomingFromHTML, lambda args: command_incoming_from_html(args, body, tagName, value), local_handlers=local_handlers)
     futil.add_handler(command.destroy, command_destroy, local_handlers=local_handlers)
 
-def command_incoming_from_html(args: adsk.core.HTMLEventArgs, tagName: str, value: dict):
-    browserPages.handleMessage(args, pageHandlers(tagName, value))
+def command_incoming_from_html(args: adsk.core.HTMLEventArgs, body: adsk.fusion.BRepBody, tagName: str, value: dict):
+    browserPages.handleMessage(args, pageHandlers(body, tagName, value))
 
-def pageHandlers(tagName: str, value: dict) -> dict[str, browserPages.Handler]:
+def pageHandlers(body: adsk.fusion.BRepBody, tagName: str, value: dict) -> dict[str, browserPages.Handler]:
     """
     The page gets the settings and the config buttons, bodies generated before the generator kept the config have
     none, see html/settings.html
@@ -123,12 +131,20 @@ def pageHandlers(tagName: str, value: dict) -> dict[str, browserPages.Handler]:
     if not isinstance(value.get('config'), dict):
         return {browserPages.READY: lambda _: page}
     # tag names are the generator names of configJson
+    generatorTitle = configJson.GENERATOR_TITLES[tagName]
+    moreButtons = []
+    if tagName in REBUILD_COMMANDS:
+        moreButtons.append((
+            Button(REBUILD_ACTION, 'Rebuild', f'Open the {generatorTitle} dialog with these settings to build this {generatorTitle} again in its place, keeping the features after it'),
+            lambda: REBUILD_COMMANDS[tagName].startRebuild(body, value),
+        ))
     configText = configJson.configText(tagName, value['config'], str(value.get('generatorVersion') or ''))
     handlers = configButtons.configButtonsHandlers(
-        configJson.GENERATOR_TITLES[tagName],
+        generatorTitle,
         lambda: configText,
         lambda: configFileName(tagName, value['config']),
         onClone=lambda: CLONE_COMMANDS[tagName].startWithConfig(value['config']),
+        moreButtons=moreButtons,
     )
     buttons = handlers[browserPages.READY]
     return {**handlers, browserPages.READY: lambda data: {**page, 'buttons': buttons(data)}}

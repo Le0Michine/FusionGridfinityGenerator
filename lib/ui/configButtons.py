@@ -37,11 +37,12 @@ def configButtonsHandlers(
     fileName: Callable[[], str],
     onLoad: Callable[[str, str], None] = None,
     onClone: Callable[[], None] = None,
+    moreButtons: list[tuple[Button, Callable[[], None]]] = [],
 ) -> dict[str, browserPages.Handler]:
     """
     Messages of a button row, see buttonRow.addButtonRow. configText is the config to save or copy, fileName the
     name a saved file starts with, onLoad gets the text and name of a file opened, onClone opens the dialog with the
-    config.
+    config. More buttons come after with what their click does.
     Load and clone have their buttons only when they're given
     """
     def onClick(action: str) -> str | None:
@@ -55,8 +56,13 @@ def configButtonsHandlers(
             return copyConfig(configText())
         elif action == CONFIG_CLONE:
             onClone()
+        else:
+            for (button, onMoreClick) in moreButtons:
+                if action == button.action:
+                    onMoreClick()
         return None
-    return buttonRowHandlers(configButtons(generatorTitle, onLoad is not None, onClone is not None), onClick)
+    buttons = configButtons(generatorTitle, onLoad is not None, onClone is not None) + [button for (button, _) in moreButtons]
+    return buttonRowHandlers(buttons, onClick)
 
 def saveConfigFile(text: str, fileName: str) -> None:
     global _lastFolder

@@ -29,7 +29,7 @@
         ]
     },
     "parameters": {
-        "gfBaseWidth": 50.0,
-        "gfBaseLength": 50.0
+        "gfBin1_baseWidth": 50.0,
+        "gfBin1_baseLength": 50.0
     }
 }

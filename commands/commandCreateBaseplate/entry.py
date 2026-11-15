@@ -19,6 +19,8 @@ from ...lib.gridfinityUtils import sharedParameters
 from .inputState import InputState
 from .baseplateBuilder import (
     buildBaseplate,
+    rebuildBaseplate,
+    configWithParameters,
     baseplateName,
     computeFillLayout,
     gridPlateExtent,
@@ -38,9 +40,11 @@ from ...lib.ui.buttonRow import addButtonRow
 from ...lib.ui import configButtons
 from ...lib.ui import selection
 from ...lib.ui import browserPages
+from ...lib.ui.infoPage import addInfoPage, infoPageHandlers, warningLine
 from ...lib.ui.unsupportedDesignTypeException import UnsupportedDesignTypeException
 from ...lib.ui import errorPalette
 from ...lib import errorReport
+from ...lib import rebuildUtils
 from ...lib import configJson
 from ...lib import defaultSettings
 
@@ -62,6 +66,21 @@ CMD_Description = ('Creates a gridfinity baseplate for bins to sit in.\n\n'
 uiState = CommandUiState(CMD_NAME)
 # config the dialog opens with next, see startWithConfig
 pendingConfig: dict | None = None
+# how the open dialog came to be, for the log and the report of a failed build, see buildWorkflow
+WORKFLOW_NEW = 'New baseplate'
+WORKFLOW_CLONE = 'Clone from the settings window'
+WORKFLOW_REBUILD = 'Rebuild in place from the settings window'
+dialogWorkflow = WORKFLOW_NEW
+# a body of the baseplate the dialog opens to rebuild next, see startRebuild, and the entity token of the one the
+# open dialog rebuilds, every preview is undone, the token finds the body again after. None while it makes a new one
+pendingRebuildBody: adsk.fusion.BRepBody | None = None
+rebuildBodyToken: str | None = None
+# features after the rebuilt baseplate that need a look, shown once the dialog closes
+rebuildNotes: list[str] = []
+# the info text of the open dialog, the page asks for it once loaded
+dialogInfo = ''
+# configs loaded from a file into the open dialog
+loadedConfigs: list[str] = []
 # bodies of the last build, selected and centered in the view when the dialog closes on OK, see command_destroy
 builtBodies: list[adsk.fusion.BRepBody] = []
 # Specify that the command will be promoted to the panel.
@@ -149,6 +168,7 @@ BASEPLATE_HAS_CONNECTION_HOLE_INPUT = 'has_connection_hole'
 BASEPLATE_JOINT_ORIGINS_INPUT = 'has_joint_origins'
 BASEPLATE_CONNECTION_HOLE_DIAMETER_INPUT = 'connection_hole_diameter'
 
+INFO_BROWSER = 'info_page'
 INPUT_CHANGES_BUTTONS_BROWSER = 'input_changes_buttons'
 CONFIG_BUTTONS_BROWSER = 'config_buttons'
 
@@ -294,6 +314,17 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     args.command.setDialogInitialSize(450, 500)
     applySharedParameterDefaults()
     # a clone keeps its own units
+    global dialogWorkflow
+    global rebuildBodyToken
+    global pendingRebuildBody
+    global dialogInfo
+    dialogWorkflow = WORKFLOW_REBUILD if pendingRebuildBody is not None else WORKFLOW_CLONE if pendingConfig is not None else WORKFLOW_NEW
+    loadedConfigs.clear()
+    rebuildBodyToken = pendingRebuildBody.entityToken if pendingRebuildBody is not None else None
+    dialogInfo = infoText()
+    if pendingRebuildBody is not None:
+        dialogInfo = warningLine(f'<b>Rebuilding {html.escape(pendingRebuildBody.name)}</b> in place, features after it in the timeline are kept.') + dialogInfo
+    pendingRebuildBody = None
     applyPendingConfig()
 
     # https://help.autodesk.com/view/fusion360/ENU/?contextId=CommandInputs
@@ -304,10 +335,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     infoGroup = inputs.addGroupCommandInput(INFO_GROUP, 'Info')
     infoGroup.isExpanded = uiState.getState(INFO_GROUP)
     uiState.registerCommandInput(infoGroup)
-    # as many rows as the text has lines, so the box takes no more room than it needs, and a row for the help line
-    # to wrap into, as the box keeps its height when the dialog is made narrower
-    info = infoText()
-    infoGroup.children.addTextBoxCommandInput("info_text", "Info", info, info.count('<br>') + 2, True)
+    addInfoPage(infoGroup.children, INFO_BROWSER)
 
     basicSizesGroup = inputs.addGroupCommandInput(BASIC_SIZES_GROUP, 'Basic size')
     basicSizesGroup.isExpanded = uiState.getState(BASIC_SIZES_GROUP)
@@ -644,13 +672,16 @@ def command_incoming_from_html(args: adsk.core.HTMLEventArgs):
         inputsState = readConfig(text, f'Loaded "{fileName}"')
         if inputsState is None:
             return
+        loadedConfigs.append(fileName)
         applyInputsState(inputsState)
         uiState.forceUIRefresh()
         updateSizingModeInputs(command.commandInputs)
         if uiState.getInput(SHOW_PREVIEW_INPUT).value:
             command.doExecutePreview()
 
-    if args.browserCommandInput.id == INPUT_CHANGES_BUTTONS_BROWSER:
+    if args.browserCommandInput.id == INFO_BROWSER:
+        handlers = infoPageHandlers(dialogInfo, args.browserCommandInput)
+    elif args.browserCommandInput.id == INPUT_CHANGES_BUTTONS_BROWSER:
         handlers = defaultsButtonsHandlers(onDefaults)
     elif args.browserCommandInput.id == CONFIG_BUTTONS_BROWSER:
         handlers = configButtons.configButtonsHandlers(
@@ -668,10 +699,20 @@ def command_incoming_from_html(args: adsk.core.HTMLEventArgs):
 def command_destroy(args: adsk.core.CommandEventArgs):
     futil.log(f'{CMD_NAME} Command Destroy Event')
     global local_handlers
+    global rebuildBodyToken
     local_handlers = []
+    rebuildBodyToken = None
     if args.terminationReason == adsk.core.CommandTerminationReason.CompletedTerminationReason:
         # once the command is over, so the selection stays
         selection.showBuiltBodies(builtBodies)
+        if len(rebuildNotes) > 0:
+            ui.messageBox(
+                'The baseplate was rebuilt. These features after it need a look, ones using a face or an edge of the '
+                'old baseplate need them picked again:\n\n' + '\n'.join(rebuildNotes),
+                CMD_NAME,
+                adsk.core.MessageBoxButtonTypes.OKButtonType,
+                adsk.core.MessageBoxIconTypes.WarningIconType,
+            )
     global uiState
 
 
@@ -848,15 +889,21 @@ def generateBaseplate(args: adsk.core.CommandEventArgs, isPreview: bool = False)
     startTime = time.perf_counter()
     settings = snapshotSettings(args.command.commandInputs)
     # the settings come first, so a failing build can be reproduced from the log
-    commonUtils.fileLog(f'{CMD_NAME} Generating baseplate{" preview" if isPreview else ""} with settings:\n{settingsUtils.settingsText(settings)}')
+    commonUtils.fileLog(f'{CMD_NAME} Generating baseplate, {buildWorkflow(isPreview)}, with settings:\n{settingsUtils.settingsText(settings)}')
     inputsState = None
     global builtBodies
+    global rebuildNotes
     builtBodies = []
+    rebuildNotes = []
 
     try:
         inputsState = getInputsState()
         des = adsk.fusion.Design.cast(app.activeProduct)
-        builtBodies = buildBaseplate(des, inputsState, settings, isPreview)
+        if rebuildBodyToken is not None:
+            body = rebuildUtils.findBodyByToken(des, rebuildBodyToken)
+            (builtBodies, rebuildNotes) = rebuildBaseplate(des, body, inputsState, settings, isPreview)
+        else:
+            builtBodies = buildBaseplate(des, inputsState, settings, isPreview)
         futil.log(f'{CMD_NAME} {baseplateName(inputsState)} generated in {time.perf_counter() - startTime:.3f}s')
     except UnsupportedDesignTypeException as err:
         args.executeFailed = True
@@ -865,9 +912,27 @@ def generateBaseplate(args: adsk.core.CommandEventArgs, isPreview: bool = False)
     except Exception as err:
         args.executeFailed = True
         args.executeFailedMessage = f'{html.escape(errorReport.errorMessage(err))}<br>See the {errorPalette.PALETTE_TITLE} panel to copy a report of it'
-        futil.log(f'{CMD_NAME} Error occurred, {err}, {getErrorMessage()}')
-        errorPalette.show(f'{CMD_NAME} failed', err, reportConfig(inputsState))
+        commonUtils.fileLog(f'{CMD_NAME} Error occurred, {err}, {getErrorMessage()}')
+        errorPalette.show(f'{CMD_NAME} failed', err, reportConfig(inputsState), buildWorkflow(isPreview), rebuiltConfig())
         return False
+
+def buildWorkflow(isPreview: bool) -> str:
+    """How the dialog came to build, like a clone's preview, with configs loaded into it"""
+    loaded = f', loaded {", ".join(loadedConfigs)}' if len(loadedConfigs) > 0 else ''
+    return f'{dialogWorkflow}{loaded}, {"preview" if isPreview else "OK"}'
+
+def rebuiltConfig() -> str | None:
+    """The config the baseplate being rebuilt was built with, from its tag, for the report of a failed rebuild"""
+    if rebuildBodyToken is None:
+        return None
+    try:
+        tag = tagUtils.readBodyTag(rebuildUtils.findBodyByToken(adsk.fusion.Design.cast(app.activeProduct), rebuildBodyToken))
+        if tag is None or not isinstance(tag[1].get('config'), dict):
+            return None
+        return configJson.configText(configJson.GENERATOR_BASEPLATE, tag[1]['config'], str(tag[1].get('generatorVersion') or ''))
+    except Exception as err:
+        futil.log(f'{CMD_NAME} config of the rebuilt baseplate not read, {err}')
+        return None
 
 def reportConfig(inputsState: InputState | None) -> str | None:
     """The settings of a failed build as a config file, to build it again from the report"""
@@ -987,6 +1052,17 @@ def startWithConfig(settings: dict):
     pendingConfig = settings
     ui.commandDefinitions.itemById(CMD_ID).execute()
 
+def startRebuild(body: adsk.fusion.BRepBody, tag: dict):
+    """
+    Opens the dialog with the settings of the baseplate the body is of, its tag value, to rebuild it in place, see
+    baseplateBuilder.rebuildBaseplate. Its parameters may have been changed since, their values replace the settings
+    """
+    global pendingRebuildBody
+    design = adsk.fusion.Design.cast(app.activeProduct)
+    settings = configWithParameters(tag['config'], tag.get('parameters'), design.userParameters.itemByName)
+    pendingRebuildBody = body
+    startWithConfig(settings)
+
 def configFileName(settings: dict) -> str:
     """The name a saved file of these settings starts with, as the dialog's Save to file names it"""
     defaults = configJson.stateToJson(configJson.GENERATOR_BASEPLATE, DEFAULT_STATE)
@@ -997,7 +1073,7 @@ def applyPendingConfig():
     global pendingConfig
     if pendingConfig is None:
         return
-    inputsState = readConfig(configJson.configText(configJson.GENERATOR_BASEPLATE, pendingConfig), 'Cloned')
+    inputsState = readConfig(configJson.configText(configJson.GENERATOR_BASEPLATE, pendingConfig), 'Rebuilding' if rebuildBodyToken is not None else 'Cloned')
     pendingConfig = None
     if inputsState is not None:
         applyInputsState(inputsState)

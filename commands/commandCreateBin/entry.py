@@ -28,9 +28,11 @@ from ...lib.ui.buttonRow import addButtonRow
 from ...lib.ui import configButtons
 from ...lib.ui import selection
 from ...lib.ui import browserPages
+from ...lib.ui.infoPage import addInfoPage, infoPageHandlers, warningLine
 from ...lib.ui.unsupportedDesignTypeException import UnsupportedDesignTypeException
 from ...lib.ui import errorPalette
 from ...lib import errorReport
+from ...lib import rebuildUtils
 from ...lib import configJson
 from ...lib import defaultSettings
 
@@ -58,6 +60,21 @@ compartmentPockets: list[dict] = []
 binShapeCells: list[tuple[int, int]] = []
 # config the dialog opens with next, see startWithConfig
 pendingConfig: dict | None = None
+# a body of the bin the dialog opens to rebuild next, see startRebuild, and the entity token of the one the open
+# dialog rebuilds, every preview is undone, the token finds the body again after. None while it makes a new bin
+pendingRebuildBody: adsk.fusion.BRepBody | None = None
+rebuildBodyToken: str | None = None
+# features after the rebuilt bin that need a look, shown once the dialog closes
+rebuildNotes: list[str] = []
+# the info text of the open dialog, the page asks for it once loaded
+dialogInfo = ''
+# how the open dialog came to be, for the log and the report of a failed build, see buildWorkflow
+WORKFLOW_NEW = 'New bin'
+WORKFLOW_CLONE = 'Clone from the settings window'
+WORKFLOW_REBUILD = 'Rebuild in place from the settings window'
+dialogWorkflow = WORKFLOW_NEW
+# configs loaded from a file into the open dialog
+loadedConfigs: list[str] = []
 # bodies of the last build, selected and centered in the view when the dialog closes on OK, see command_destroy
 builtBodies: list[adsk.fusion.BRepBody] = []
 
@@ -211,6 +228,7 @@ STATE_ANGLE_INPUT_IDS = {
     'tabTopAngle': BIN_TAB_TOP_ANGLE_INPUT_ID,
 }
 
+INFO_BROWSER = 'info_page'
 INPUT_CHANGES_BUTTONS_BROWSER = 'input_changes_buttons'
 CONFIG_BUTTONS_BROWSER = 'config_buttons'
 PRESERVE_CHAGES_RADIO_GROUP = 'preserve_changes'
@@ -230,7 +248,10 @@ def infoText():
     return f"{INFO_TEXT}<br><span style=\"color:#808080; font-size:small\">Version {version}</span>" if version else INFO_TEXT
 
 def applySharedParameterDefaults():
-    """Usable shared units of the design replace the remembered inputs, so new bins match the existing ones by default"""
+    """
+    Usable shared units of the design replace the remembered inputs, so new bins match its baseplates by default.
+    Bins have units of their own, the bin is built with these values, not tied to them
+    """
     design = adsk.fusion.Design.cast(app.activeProduct)
     if design is None:
         return
@@ -681,6 +702,15 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     global actualDimensionsTableUiState
 
     args.command.setDialogInitialSize(450, 500)
+    global rebuildBodyToken
+    global pendingRebuildBody
+    global dialogInfo
+    global dialogWorkflow
+    dialogWorkflow = WORKFLOW_REBUILD if pendingRebuildBody is not None else WORKFLOW_CLONE if pendingConfig is not None else WORKFLOW_NEW
+    loadedConfigs.clear()
+    rebuildBodyToken = pendingRebuildBody.entityToken if pendingRebuildBody is not None else None
+    rebuildName = pendingRebuildBody.name if pendingRebuildBody is not None else None
+    pendingRebuildBody = None
     applySharedParameterDefaults()
     # a clone keeps its own units
     applyPendingConfig()
@@ -691,10 +721,11 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     defaultLengthUnits = app.activeProduct.unitsManager.defaultLengthUnits
 
     infoGroup = inputs.addGroupCommandInput(INFO_GROUP, 'Info')
-    # as many rows as the text has lines, so the box takes no more room than it needs, and a row for the help line
-    # to wrap into, as the box keeps its height when the dialog is made narrower
-    info = infoText()
-    infoGroup.children.addTextBoxCommandInput("info_text", "Info", info, info.count('<br>') + 2, True)
+    dialogInfo = infoText()
+    if rebuildName is not None:
+        dialogInfo = warningLine(f'<b>Rebuilding {html.escape(rebuildName)}</b> in place, features after it in the timeline are kept. '
+            'Changing only what its parameters hold, like its height or label, sets them instead.') + dialogInfo
+    addInfoPage(infoGroup.children, INFO_BROWSER)
     infoGroup.isExpanded = commandUIState.getState(INFO_GROUP)
     commandUIState.registerCommandInput(infoGroup)
 
@@ -924,7 +955,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
 # is immediately called after the created event not command inputs were created for the dialog.
 def command_execute(args: adsk.core.CommandEventArgs):
     futil.log(f'{CMD_NAME} Command Execute Event')
-    generateBin(args)
+    generateBin(args, False)
 
 # This event handler is called when the command needs to compute a new preview in the graphics window.
 def command_preview(args: adsk.core.CommandEventArgs):
@@ -935,8 +966,10 @@ def command_preview(args: adsk.core.CommandEventArgs):
         showPreviewManual: adsk.core.BoolValueCommandInput = inputs.itemById(SHOW_PREVIEW_MANUAL_INPUT)
         if showPreview.value or showPreviewManual.value:
             startTime = time.perf_counter()
-            args.isValidResult = generateBin(args)
-            showPreviewTime(inputs, time.perf_counter() - startTime, args.isValidResult)
+            isBuilt = generateBin(args, True)
+            # OK keeps a valid preview instead of building again, a rebuild's preview is only a look at the new bin
+            args.isValidResult = isBuilt and rebuildBodyToken is None
+            showPreviewTime(inputs, time.perf_counter() - startTime, isBuilt)
             showPreviewManual.value = False
             commandUIState.onInputUpdate(showPreviewManual)
     else:
@@ -1041,10 +1074,13 @@ def pageHandlers(browserId: str, command: adsk.core.Command) -> dict[str, browse
         state = readConfig(text, f'Loaded "{fileName}"')
         if state is None:
             return
+        loadedConfigs.append(fileName)
         applyInputsState(state)
         refreshUi()
         preview()
 
+    if browserId == INFO_BROWSER:
+        return infoPageHandlers(dialogInfo, command.commandInputs.itemById(INFO_BROWSER))
     if browserId == INPUT_CHANGES_BUTTONS_BROWSER:
         return defaultsButtonsHandlers(onDefaults)
     if browserId == CONFIG_BUTTONS_BROWSER:
@@ -1063,10 +1099,20 @@ def command_destroy(args: adsk.core.CommandEventArgs):
     # General logging for debug.
     futil.log(f'{CMD_NAME} Command Destroy Event "{args.terminationReason}"')
     global local_handlers
+    global rebuildBodyToken
     local_handlers = []
+    rebuildBodyToken = None
     if args.terminationReason == adsk.core.CommandTerminationReason.CompletedTerminationReason:
         # once the command is over, so the selection stays
         selection.showBuiltBodies(builtBodies)
+        if len(rebuildNotes) > 0:
+            ui.messageBox(
+                'The bin was rebuilt. These features after it need a look, ones using a face or an edge of the old bin '
+                'need them picked again:\n\n' + '\n'.join(rebuildNotes),
+                CMD_NAME,
+                adsk.core.MessageBoxButtonTypes.OKButtonType,
+                adsk.core.MessageBoxIconTypes.WarningIconType,
+            )
 
 def onChangeValidate():
     global commandUIState
@@ -1165,6 +1211,24 @@ def reportConfig(state: InputState | None) -> str | None:
         return None
     return configJson.configText(configJson.GENERATOR_BIN, configJson.stateToJson(configJson.GENERATOR_BIN, state), tagUtils.getGeneratorVersion())
 
+def buildWorkflow(isPreview: bool) -> str:
+    """How the dialog came to build, like a clone's preview or the OK of a rebuild, with configs loaded into it"""
+    loaded = f', loaded {", ".join(loadedConfigs)}' if len(loadedConfigs) > 0 else ''
+    return f'{dialogWorkflow}{loaded}, {"preview" if isPreview else "OK"}'
+
+def rebuiltConfig() -> str | None:
+    """The config the bin being rebuilt was built with, from its tag, for the report of a failed rebuild"""
+    if rebuildBodyToken is None:
+        return None
+    try:
+        tag = tagUtils.readBodyTag(findRebuildBody(adsk.fusion.Design.cast(app.activeProduct)))
+        if tag is None or not isinstance(tag[1].get('config'), dict):
+            return None
+        return configJson.configText(configJson.GENERATOR_BIN, tag[1]['config'], str(tag[1].get('generatorVersion') or ''))
+    except Exception as err:
+        futil.log(f'{CMD_NAME} config of the rebuilt bin not read, {err}')
+        return None
+
 def getInputsState() -> InputState:
     def angle(inputId: str) -> float:
         return app.activeProduct.unitsManager.evaluateExpression(str(commandUIState.getState(inputId)), 'deg')
@@ -1204,6 +1268,20 @@ def startWithConfig(settings: dict):
     pendingConfig = settings
     ui.commandDefinitions.itemById(CMD_ID).execute()
 
+def startRebuild(body: adsk.fusion.BRepBody, tag: dict):
+    """
+    Opens the dialog with the settings of the bin the body is of, its tag value, to rebuild it in place, see
+    binBuilder.rebuildBin. Its parameters may have been changed since, their values replace the settings
+    """
+    global pendingRebuildBody
+    design = adsk.fusion.Design.cast(app.activeProduct)
+    settings = binBuilder.configWithParameters(tag['config'], tag.get('parameters'), design.userParameters.itemByName)
+    pendingRebuildBody = body
+    startWithConfig(settings)
+
+def findRebuildBody(design: adsk.fusion.Design) -> adsk.fusion.BRepBody:
+    return rebuildUtils.findBodyByToken(design, rebuildBodyToken)
+
 def configFileName(settings: dict) -> str:
     """The name a saved file of these settings starts with, as the dialog's Save to file names it"""
     defaults = configJson.stateToJson(configJson.GENERATOR_BIN, DEFAULT_STATE)
@@ -1227,24 +1305,29 @@ def applyPendingConfig():
     global pendingConfig
     if pendingConfig is None:
         return
-    state = readConfig(configJson.configText(configJson.GENERATOR_BIN, pendingConfig), 'Cloned')
+    state = readConfig(configJson.configText(configJson.GENERATOR_BIN, pendingConfig), 'Rebuilding' if rebuildBodyToken is not None else 'Cloned')
     pendingConfig = None
     if state is not None:
         applyInputsState(state)
 
-def generateBin(args: adsk.core.CommandEventArgs):
+def generateBin(args: adsk.core.CommandEventArgs, isPreview: bool):
     startTime = time.perf_counter()
     settings = snapshotSettings(args.command.commandInputs)
     # the settings come first, so a failing build can be reproduced from the log
-    commonUtils.fileLog(f'{CMD_NAME} generating with settings:\n{settingsUtils.settingsText(settings)}')
+    commonUtils.fileLog(f'{CMD_NAME} generating, {buildWorkflow(isPreview)}, with settings:\n{settingsUtils.settingsText(settings)}')
     state = None
     global builtBodies
+    global rebuildNotes
     builtBodies = []
+    rebuildNotes = []
 
     try:
         state = getInputsState()
         des = adsk.fusion.Design.cast(app.activeProduct)
-        builtBodies = binBuilder.buildBin(des, state, settings)
+        if rebuildBodyToken is not None:
+            (builtBodies, rebuildNotes) = binBuilder.rebuildBin(des, findRebuildBody(des), state, settings, isPreview)
+        else:
+            builtBodies = binBuilder.buildBin(des, state, settings)
         futil.log(f'{CMD_NAME} {binBuilder.binDisplayName(state)} generated in {time.perf_counter() - startTime:.3f}s')
     except UnsupportedDesignTypeException as err:
         args.executeFailed = True
@@ -1253,7 +1336,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
     except Exception as err:
         args.executeFailed = True
         args.executeFailedMessage = f'{html.escape(errorReport.errorMessage(err))}<br>See the {errorPalette.PALETTE_TITLE} panel to copy a report of it'
-        futil.log(f'{CMD_NAME} Error occurred, {err}, {getErrorMessage()}')
-        errorPalette.show(f'{CMD_NAME} failed', err, reportConfig(state))
+        commonUtils.fileLog(f'{CMD_NAME} Error occurred, {err}, {getErrorMessage()}')
+        errorPalette.show(f'{CMD_NAME} failed', err, reportConfig(state), buildWorkflow(isPreview), rebuiltConfig())
         return False
     return True

@@ -10,8 +10,8 @@
         "compartmentsX": 2
     },
     "parameters": {
-        "gfBaseWidth": 45.0,
-        "gfBaseLength": 38.0,
-        "gfHeightUnit": 6.0
+        "gfBin1_baseWidth": 45.0,
+        "gfBin1_baseLength": 38.0,
+        "gfBin1_heightUnit": 6.0
     }
 }

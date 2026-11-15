@@ -8,7 +8,7 @@
         "isHalfGrid": true
     },
     "parameters": {
-        "gfBaseWidth": 40.0,
-        "gfBaseLength": 40.0
+        "gfBin1_baseWidth": 40.0,
+        "gfBin1_baseLength": 40.0
     }
 }

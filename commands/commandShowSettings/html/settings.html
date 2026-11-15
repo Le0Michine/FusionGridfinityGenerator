@@ -28,8 +28,10 @@
     #buttons {
         flex: none;
         display: flex;
+        /* four buttons don't fit a narrow dialog in a row */
+        flex-wrap: wrap;
         justify-content: center;
-        gap: 8px;
+        gap: 6px 8px;
         padding: 2px 4px 6px;
         border-bottom: 1px solid var(--rule);
     }

@@ -216,9 +216,9 @@ def write_case_data(tmp_path, data, name="case"):
 
 
 def test_parameters_come_in_mm_and_edit_the_state(tmp_path):
-    data = {"description": "a case", "generator": "bin", "settings": sample_settings(), "parameters": {"gfBaseWidth": 40, "gfHeightUnit": 5}}
+    data = {"description": "a case", "generator": "bin", "settings": sample_settings(), "parameters": {"gfBin1_baseWidth": 40, "gfBin1_heightUnit": 5}}
     case = cases.loadCase(write_case_data(tmp_path, data), STATE_CLASSES)
-    assert case.parameters == {"gfBaseWidth": pytest.approx(4.0), "gfHeightUnit": pytest.approx(0.5)}
+    assert case.parameters == {"gfBin1_baseWidth": pytest.approx(4.0), "gfBin1_heightUnit": pytest.approx(0.5)}
     edited = cases.editedState(case)
     assert edited.baseWidth == pytest.approx(4.0)
     assert edited.heightUnit == pytest.approx(0.5)
@@ -236,21 +236,21 @@ def test_a_case_without_parameters_has_none():
 def test_a_parameter_the_generator_has_not_is_an_error(tmp_path):
     with open(os.path.join(CASES_FOLDER, "baseplate_2x2_light.json")) as file:
         data = json.load(file)
-    data["parameters"] = {"gfHeightUnit": 7}
-    with pytest.raises(cases.TestCaseError, match="gfHeightUnit"):
+    data["parameters"] = {"gfBin1_heightUnit": 7}
+    with pytest.raises(cases.TestCaseError, match="gfBin1_heightUnit"):
         cases.loadCase(write_case_data(tmp_path, data), STATE_CLASSES)
 
 
 @pytest.mark.parametrize("value", [0, -1, "40", True])
 def test_a_parameter_has_to_be_a_positive_length(tmp_path, value):
-    data = {"description": "a case", "generator": "bin", "settings": sample_settings(), "parameters": {"gfBaseWidth": value}}
-    with pytest.raises(cases.TestCaseError, match="gfBaseWidth"):
+    data = {"description": "a case", "generator": "bin", "settings": sample_settings(), "parameters": {"gfBin1_baseWidth": value}}
+    with pytest.raises(cases.TestCaseError, match="gfBin1_baseWidth"):
         cases.loadCase(write_case_data(tmp_path, data), STATE_CLASSES)
 
 
 def test_written_parameters_read_back_and_are_listed_in_the_settings(tmp_path):
-    data = {"description": "a case", "generator": "bin", "settings": sample_settings(), "parameters": {"gfBaseLength": 50.5}}
+    data = {"description": "a case", "generator": "bin", "settings": sample_settings(), "parameters": {"gfBin1_baseLength": 50.5}}
     case = cases.loadCase(write_case_data(tmp_path, data), STATE_CLASSES)
-    assert json.loads(cases.caseJson(case))["parameters"] == {"gfBaseLength": 50.5}
+    assert json.loads(cases.caseJson(case))["parameters"] == {"gfBin1_baseLength": 50.5}
     settings = cases.caseSettings(case)
-    assert dict(settings[2]["items"]) == {"gfBaseLength": "50.5"}
+    assert dict(settings[2]["items"]) == {"gfBin1_baseLength": "50.5"}

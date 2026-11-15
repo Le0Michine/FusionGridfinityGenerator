@@ -70,3 +70,73 @@ def test_text_expression_is_a_quoted_literal():
 
 def test_text_expression_swaps_inner_quotes():
     assert parameterUtils.textExpression("Leo's bits") == "'Leo’s bits'"
+
+
+class _FakeParameter:
+    def __init__(self, name, value, expression, textValue=''):
+        self.name = name
+        self.value = value
+        self.expression = expression
+        self.textValue = textValue
+
+
+class _FakeParameters:
+    def __init__(self, parameters=()):
+        self.byName = {parameter.name: parameter for parameter in parameters}
+        self.added = []
+
+    def itemByName(self, name):
+        return self.byName.get(name)
+
+    def add(self, name, valueInput, unit, comment):
+        self.added.append(name)
+        return _FakeParameter(name, 0, '')
+
+
+class _FakeParametersDesign:
+    def __init__(self, parameters=()):
+        self.userParameters = _FakeParameters(parameters)
+
+
+def test_reuse_keeps_an_expression_that_comes_to_the_value():
+    parameter = _FakeParameter("gfBin1_heightU", 6, "gfOther * 2")
+    design = _FakeParametersDesign([parameter])
+    assert parameterUtils.addUnitlessParameter(design, "gfBin1_heightU", 6, "", reuse=True) is parameter
+    assert parameter.expression == "gfOther * 2"
+    assert design.userParameters.added == []
+
+
+def test_reuse_sets_a_changed_value():
+    parameter = _FakeParameter("gfBin1_heightU", 6, "6")
+    design = _FakeParametersDesign([parameter])
+    parameterUtils.addUnitlessParameter(design, "gfBin1_heightU", 4, "", reuse=True)
+    assert parameter.expression == "4"
+
+
+def test_reuse_sets_a_changed_length_in_mm():
+    parameter = _FakeParameter("gfBin1_baseWidth", 4.2, "42 mm")
+    design = _FakeParametersDesign([parameter])
+    parameterUtils.addLengthParameter(design, "gfBin1_baseWidth", 4.0, "", reuse=True)
+    assert parameter.expression == "40 mm"
+
+
+def test_reuse_sets_a_changed_text():
+    parameter = _FakeParameter("gfBin1_label", 0, "'M3'", "M3")
+    design = _FakeParametersDesign([parameter])
+    parameterUtils.addTextParameter(design, "gfBin1_label", "M3", "", reuse=True)
+    assert parameter.expression == "'M3'"
+    parameterUtils.addTextParameter(design, "gfBin1_label", "Leo's", "", reuse=True)
+    assert parameter.expression == "'Leo’s'"
+
+
+def test_reuse_adds_a_missing_parameter(monkeypatch):
+    valueInput = type("ValueInput", (), {"createByString": staticmethod(lambda expression: expression)})
+    monkeypatch.setattr(parameterUtils.adsk.core, "ValueInput", valueInput, raising=False)
+    design = _FakeParametersDesign()
+    parameterUtils.addUnitlessParameter(design, "gfBin1_heightU", 6, "", reuse=True)
+    assert design.userParameters.added == ["gfBin1_heightU"]
+
+
+def test_a_prefix_taken_as_a_body_id_is_skipped():
+    design = _FakeDesign()
+    assert parameterUtils.nextFreePrefix(design, "gfPlate", ["paddingLeft"], {"gfPlate1"}) == "gfPlate2"

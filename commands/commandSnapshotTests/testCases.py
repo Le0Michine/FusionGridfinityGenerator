@@ -30,10 +30,11 @@ stateToJson = configJson.stateToJson
 # by generator
 DEFAULT_SETTINGS = defaultSettings.SETTINGS
 
-# the shared user parameters a case may change after building, see lib/gridfinityUtils/sharedParameters.py, with the
-# setting each stands for. Keep the names literal, they're in user documents
+# the user parameters a case may change after building, with the setting each stands for. Keep the names literal,
+# they're in user documents. A bin has units of its own, the first bin of a case's new document is numbered 1, see
+# binBuilder.BIN_PARAMETERS, baseplates share theirs, see lib/gridfinityUtils/sharedParameters.py
 PARAMETER_FIELDS = {
-    GENERATOR_BIN: {'gfBaseWidth': 'baseWidth', 'gfBaseLength': 'baseLength', 'gfHeightUnit': 'heightUnit'},
+    GENERATOR_BIN: {'gfBin1_baseWidth': 'baseWidth', 'gfBin1_baseLength': 'baseLength', 'gfBin1_heightUnit': 'heightUnit'},
     GENERATOR_BASEPLATE: {'gfBaseWidth': 'baseWidth', 'gfBaseLength': 'baseLength'},
 }
 
@@ -47,11 +48,11 @@ class TestCase:
     description: str
     generator: str
     state: object
-    # shared parameters set after building, in cm, the result has to be the same as built with them, see editedState
+    # parameters set after building, in cm, the result has to be the same as built with them, see editedState
     parameters: dict[str, float] = dataclasses.field(default_factory=dict)
 
 def parametersFromJson(generator: str, parameters: dict) -> dict[str, float]:
-    """Values in mm of the generator's shared parameters, in cm"""
+    """Values in mm of the generator's parameters, in cm"""
     unknown = [name for name in parameters if name not in PARAMETER_FIELDS[generator]]
     if unknown:
         raise TestCaseError(f'unknown parameters {unknown}, a {generator} has {sorted(PARAMETER_FIELDS[generator])}')
@@ -118,7 +119,7 @@ when the shapes stay the same.
 Run them in Fusion from Utilities > Add-ins with **Gridfinity tests: run**, record new snapshots with **Gridfinity
 tests: update snapshots**. The commands are there when the add-in runs from a git checkout.
 
-A case with parameters sets those shared user parameters once built, the snapshot is of the bodies Fusion recomputed,
+A case with parameters sets those user parameters once built, the snapshot is of the bodies Fusion recomputed,
 and a run also compares them with the case built with the new values from the start.
 
 This page is written from the case files, run `python3 tests/e2e/write_readme.py` after adding or changing one.

@@ -17,12 +17,20 @@ def errorMessage(err: BaseException) -> str:
     """The last line of a traceback, the error's type and what it says"""
     return traceback.format_exception_only(type(err), err)[-1].strip()
 
-def createReport(title: str, err: BaseException, parameters: list[list[str]], config: str | None, environment: list[list[str]]) -> dict:
+def createReport(
+    title: str,
+    err: BaseException,
+    parameters: list[list[str]],
+    config: str | None,
+    environment: list[list[str]],
+    previousConfig: str | None = None,
+) -> dict:
     """
     What the palette's page draws, with the report to copy. parameters are label and value pairs, the shared user
     parameters of the design, see sharedParameters.describeSharedParameters, config the inputs as a config file to build
     it again, see configJson.configText, none when they couldn't be read. environment are label and value pairs, the
-    versions of the add-in and Fusion and what of the design changes how things get built
+    versions of the add-in and Fusion and what of the design changes how things get built. previousConfig is the config
+    a bin rebuilt in place was built with before, to build it as it was and rebuild it the same way
     """
     report = {
         'title': title,
@@ -31,6 +39,7 @@ def createReport(title: str, err: BaseException, parameters: list[list[str]], co
         'environment': environment,
         'parameters': parameters,
         'config': config,
+        'previousConfig': previousConfig,
         'issuesUrl': ISSUES_URL,
     }
     report['text'] = reportText(report)
@@ -39,7 +48,8 @@ def createReport(title: str, err: BaseException, parameters: list[list[str]], co
 
 def reportText(report: dict, config: str | None = None, trace: str | None = None, note: str = '') -> str:
     """Markdown for a GitHub issue, the long parts fold so the issue reads well. config and trace are the report's
-    unless given, an empty one is left out"""
+    unless given, an empty one is left out, the config from before a rebuild goes with the config"""
+    previousConfig = report.get('previousConfig') if config is None else None
     config = report['config'] if config is None else config
     trace = report['trace'] if trace is None else trace
     fence = '```'
@@ -59,6 +69,8 @@ def reportText(report: dict, config: str | None = None, trace: str | None = None
         lines.extend(['', '**Parameters**', '', *[f'- {label}: `{value}`' for (label, value) in report['parameters']]])
     if config:
         lines.extend(['', '<details><summary>Config</summary>', '', f'{fence}json', config.rstrip(), fence, '</details>'])
+    if previousConfig:
+        lines.extend(['', '<details><summary>Config before the rebuild</summary>', '', f'{fence}json', previousConfig.rstrip(), fence, '</details>'])
     if note:
         lines.extend(['', note])
     return '\n'.join(lines) + '\n'

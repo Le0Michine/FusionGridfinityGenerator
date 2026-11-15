@@ -7,7 +7,7 @@
         "binHeight": 3
     },
     "parameters": {
-        "gfBaseWidth": 40.0,
-        "gfBaseLength": 50.0
+        "gfBin1_baseWidth": 40.0,
+        "gfBin1_baseLength": 50.0
     }
 }

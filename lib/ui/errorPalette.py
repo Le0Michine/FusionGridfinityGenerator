@@ -61,12 +61,16 @@ def environment(design: adsk.fusion.Design | None) -> list[list[str]]:
         ['Timeline', read(lambda: f'yes, {design.timeline.count} features' if design.designType == adsk.fusion.DesignTypes.ParametricDesignType else 'no, direct modeling')],
     ]
 
-def show(title: str, err: BaseException, buildConfig: str | None):
-    """Shows the error with the design's shared parameters, buildConfig is what was built, see errorReport.createReport"""
+def show(title: str, err: BaseException, buildConfig: str | None, workflow: str, previousConfig: str | None = None):
+    """
+    Shows the error with the design's shared parameters, buildConfig is what was built, workflow how it came to be
+    built, like a new bin's preview or the OK of a rebuild, previousConfig what a bin rebuilt in place was built with
+    before, see errorReport.createReport
+    """
     global currentReport
     try:
         design = adsk.fusion.Design.cast(app.activeProduct)
-        currentReport = errorReport.createReport(title, err, sharedParameters.describeSharedParameters(design), buildConfig, environment(design))
+        currentReport = errorReport.createReport(title, err, sharedParameters.describeSharedParameters(design), buildConfig, [['Workflow', workflow]] + environment(design), previousConfig)
         palette = ui.palettes.itemById(PALETTE_ID)
         if palette is None:
             palette = ui.palettes.add(PALETTE_ID, PALETTE_TITLE, PAGE_URL, True, True, True, WIDTH, HEIGHT)
