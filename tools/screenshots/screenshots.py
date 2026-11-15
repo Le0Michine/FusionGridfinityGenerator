@@ -86,6 +86,19 @@ def launch(playwright):
         return playwright.chromium.launch()
 
 
+def takeMenuShot(browser, origin: str, shot: dict, theme: str, scale: float, path: str):
+    """Fusion's right-click menu with the items of the shot, drawn by page/menu.js"""
+    page = browser.new_page(color_scheme=theme, device_scale_factor=scale, viewport={'width': 800, 'height': 1200})
+    errors = []
+    page.on('pageerror', lambda error: errors.append(str(error)))
+    page.goto(f'{origin}/tools/screenshots/page/menu.html')
+    page.evaluate('shot => renderMenu(shot)', shot)
+    if errors:
+        raise RuntimeError(f'{shot["name"]}: {errors[0]}')
+    page.locator('.shot').screenshot(path=path, omit_background=True, animations='disabled')
+    page.close()
+
+
 def takeShots(shotsFile: str, only: list[str], outputDir: str | None, themes: list[str] | None, scale: float | None, fontDir: str | None):
     from playwright.sync_api import sync_playwright
 
@@ -112,7 +125,9 @@ def takeShots(shotsFile: str, only: list[str], outputDir: str | None, themes: li
                 path = outputPath(folder, shot, theme, shotThemes)
                 os.makedirs(os.path.dirname(path), exist_ok=True)
                 shotScale = scale or shot.get('scale') or config.get('scale', 2)
-                if shot.get('steps'):
+                if shot.get('menu'):
+                    takeMenuShot(browser, origin, shot, theme, shotScale, path)
+                elif shot.get('steps'):
                     animation.record(browser, origin, shot, theme, shotScale, path)
                 else:
                     dialog = DialogPage(browser, origin, shot, theme, shotScale, shot.get('background'))

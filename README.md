@@ -131,6 +131,11 @@ Creating a 4x2 bin to hold oversized volcano nozzle
 Bin for random round things
 ![](documentation/assets/gif/specialized-bin-creation.gif)
 
+### Settings and rebuild
+Right-click a generated bin or baseplate for its settings or to rebuild it in place with changed settings. The settings window shows what it was built with, saves them to a file, copies or clones them
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/ui/context-menu-gridfinity-scene-dark.png"><img src="documentation/assets/ui/context-menu-gridfinity-scene-light.png" alt="Fusion's right-click menu opened on a bin, the pointer on Gridfinity rebuild below Gridfinity settings" width="508"></picture>
+
 ## Installation
 
 ### Via Autodesk App Store
