@@ -172,7 +172,7 @@ def createLabel(
     *,
     name: str,
 ) -> adsk.fusion.BRepBody:
-    """Icon at the left as tall as the letters of the text after it, standing on their bottom, text alone is centered. Built as a separate body at the current label spot and
+    """Icon at the left as tall as the letters can be at most, the text after it standing on its bottom, text alone is centered. Built as a separate body at the current label spot and
     moved by how far the parametric spot is from it, then cut from or joined to the target body. Its sketches lie on a plane
     at the current height, so a change of the parameters only changes the move: a sketch that moves is recomputed, its
     text with new curves, and the extrusion of the text loses them. A tilted label is laid out flat and turned about its
@@ -203,9 +203,11 @@ def createLabel(
         iconSketch.name = f'{name} icon sketch'
         iconAspect = _iconAspect(iconSketch, iconPath) or 1
 
-    # the icon is as tall as the letters, so both grow and shrink together. Letters start as tall as
-    # the label allows, then everything scales down until the icon, gap and text fit the label width
+    # the icon keeps the size of the tallest letters, the letters start as tall as the label allows and
+    # shrink until they fit the label width left after the icon and gap
     iconSize = contentHeight * const.BIN_LABEL_TEXT_HEIGHT_RATIO
+    if iconPath is not None:
+        iconSize = min(iconSize, contentWidth / iconAspect)
     textWidth = 0
     if len(text) > 0:
         textSketch: adsk.fusion.Sketch = targetComponent.sketches.add(labelPlane)
@@ -214,14 +216,13 @@ def createLabel(
         measured = _measureText(textSketch, text, textHeight, input.isBold)
         if measured is not None and measured[1] > 0:
             (measuredWidth, measuredHeight) = measured
-            iconShare = measuredHeight * iconAspect
+            iconWidth = iconSize * iconAspect if iconPath is not None else 0
             scale = min(
                 contentHeight * const.BIN_LABEL_TEXT_HEIGHT_RATIO / measuredHeight,
-                (contentWidth - gap) / (measuredWidth + iconShare),
+                max(contentWidth - iconWidth - gap, 0) / measuredWidth,
             )
             textHeight *= scale
             textWidth = measuredWidth * scale
-            iconSize = measuredHeight * scale
     elif iconPath is not None:
         iconSize = min(contentHeight, contentWidth / iconAspect)
 
@@ -231,21 +232,24 @@ def createLabel(
 
     if len(text) > 0:
         textMinX = groupMinX + (iconSize * iconAspect + gap if iconPath is not None else 0)
-        sketchText = _addText(
-            textSketch,
-            text,
-            textHeight,
-            adsk.core.Point3D.create(textMinX, contentMinY, 0),
-            adsk.core.Point3D.create(contentMinX + contentWidth, contentMinY + contentHeight, 0),
-            input.isBold,
-            iconPath is None,
-        )
+        def addLabelText(shiftY: float) -> adsk.fusion.SketchText:
+            return _addText(
+                textSketch,
+                text,
+                textHeight,
+                adsk.core.Point3D.create(textMinX, contentMinY + shiftY, 0),
+                adsk.core.Point3D.create(contentMinX + contentWidth, contentMinY + contentHeight + shiftY, 0),
+                input.isBold,
+                iconPath is None,
+            )
+        sketchText = addLabelText(0)
+        # the letters stand on the bottom of the icon, where they come out in the box is only known once they're there
+        letterBounds = _curveBounds(sketchText.asCurves()) if iconPath is not None else None
+        if letterBounds is not None and abs(letterBounds[1] - iconMinY) > const.DEFAULT_FILTER_TOLERANCE:
+            sketchText.deleteMe()
+            sketchText = addLabelText(iconMinY - letterBounds[1])
         sketchText.textParameter.expression = textParameter.name
         profiles.add(sketchText)
-        # the icon stands on the bottom of the letters as they came out
-        letterBounds = _curveBounds(sketchText.asCurves())
-        if letterBounds is not None:
-            iconMinY = letterBounds[1]
 
     if iconPath is not None:
         _importIcon(iconSketch, iconPath, groupMinX, iconMinY, iconSize)

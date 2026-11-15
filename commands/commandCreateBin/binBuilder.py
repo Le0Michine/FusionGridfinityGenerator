@@ -660,8 +660,8 @@ def parameterEdits(
     """
     The parameters to set and their new expressions when every setting the rebuild changes is one of the bin's own
     parameters, so setting them builds the same bin a rebuild would. None when it has to be rebuilt: a shared unit,
-    of a bin built before bins had units of their own, would change every bin built on it, a blank label has no
-    parameter, a height can turn the creases on or off
+    of a bin built before bins had units of their own, would change every bin built on it, a new label text has to be
+    fitted to the label, a height can turn the creases on or off
     """
     tag = tagUtils.readBodyTag(body)
     if tag is None or not isinstance(tag[1].get('config'), dict):
@@ -687,9 +687,8 @@ def parameterEdits(
     for name in changed:
         for parameter in parametersByField[name]:
             if name == 'labelText':
-                if len(state.labelText.strip()) == 0 or len(oldState.labelText.strip()) == 0:
-                    return None
-                expression = parameterUtils.textExpression(state.labelText)
+                # the text size is set to fit the text when the label is built, new text needs it fitted again
+                return None
             elif name in configJson.MM_FIELDS[configJson.GENERATOR_BIN]:
                 if rebuildUtils.prefixOf([parameter.name], BIN_PARAMETER_BASE_NAME) is None:
                     return None
