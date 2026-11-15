@@ -20,6 +20,12 @@ CMD_NAME = 'Gridfinity settings'
 CMD_Description = 'Show the settings this bin or baseplate was generated with'
 # a bin with a cog, shown beside the context menu item
 ICON_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources', '')
+# the context menu item opening the generator's dialog to rebuild the body, as the Rebuild button of the window does
+REBUILD_CMD_ID = f'{config.COMPANY_NAME}_{config.ADDIN_NAME}_cmdRebuild'
+REBUILD_CMD_NAME = 'Gridfinity rebuild'
+# a bin with a wrench
+REBUILD_ICON_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources', 'rebuild', '')
+REBUILD_CMD_DESCRIPTION = 'Open the generator dialog with the settings of this bin or baseplate to build it again in its place, keeping the features after it'
 
 SETTINGS_TEXT_INPUT = 'settings_text'
 SETTINGS_BROWSER = 'settings'
@@ -65,6 +71,14 @@ def selectedTag() -> tuple[adsk.fusion.BRepBody, str, dict] | None:
     tag = tagUtils.readBodyTag(body)
     return (body, *tag) if tag is not None else None
 
+def canRebuild(tag: tuple[adsk.fusion.BRepBody, str, dict] | None) -> bool:
+    """Bodies generated before the generator kept the config can't be rebuilt"""
+    return tag is not None and tag[1] in REBUILD_COMMANDS and isinstance(tag[2].get('config'), dict)
+
+def startRebuild(tag: tuple[adsk.fusion.BRepBody, str, dict]):
+    (body, tagName, value) = tag
+    REBUILD_COMMANDS[tagName].startRebuild(body, value)
+
 def parameterExpression(name: str) -> str | None:
     design = adsk.fusion.Design.cast(app.activeProduct)
     parameter = design.userParameters.itemByName(name) if design is not None else None
@@ -76,6 +90,10 @@ def start():
     if not cmd_def:
         cmd_def = ui.commandDefinitions.addButtonDefinition(CMD_ID, CMD_NAME, CMD_Description, ICON_FOLDER)
     futil.add_handler(cmd_def.commandCreated, command_created)
+    rebuild_def = ui.commandDefinitions.itemById(REBUILD_CMD_ID)
+    if not rebuild_def:
+        rebuild_def = ui.commandDefinitions.addButtonDefinition(REBUILD_CMD_ID, REBUILD_CMD_NAME, REBUILD_CMD_DESCRIPTION, REBUILD_ICON_FOLDER)
+    futil.add_handler(rebuild_def.commandCreated, rebuild_command_created)
     markingMenuHandler = futil.add_handler(ui.markingMenuDisplaying, marking_menu_displaying, local_handlers=local_handlers)
 
 def stop():
@@ -83,9 +101,10 @@ def stop():
     if markingMenuHandler is not None:
         ui.markingMenuDisplaying.remove(markingMenuHandler)
         markingMenuHandler = None
-    command_definition = ui.commandDefinitions.itemById(CMD_ID)
-    if command_definition:
-        command_definition.deleteMe()
+    for cmdId in [CMD_ID, REBUILD_CMD_ID]:
+        command_definition = ui.commandDefinitions.itemById(cmdId)
+        if command_definition:
+            command_definition.deleteMe()
 
 def marking_menu_displaying(args: adsk.core.MarkingMenuEventArgs):
     global menuTag
@@ -96,6 +115,8 @@ def marking_menu_displaying(args: adsk.core.MarkingMenuEventArgs):
         controls = args.linearMarkingMenu.controls
         controls.addSeparator()
         controls.addCommand(ui.commandDefinitions.itemById(CMD_ID))
+        if canRebuild(menuTag):
+            controls.addCommand(ui.commandDefinitions.itemById(REBUILD_CMD_ID))
     except Exception as err:
         futil.log(f'{CMD_NAME} context menu failed, {err}')
 
@@ -114,6 +135,17 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     browser.isFullWidth = True
     futil.add_handler(command.incomingFromHTML, lambda args: command_incoming_from_html(args, body, tagName, value), local_handlers=local_handlers)
     futil.add_handler(command.destroy, command_destroy, local_handlers=local_handlers)
+
+def rebuild_command_created(args: adsk.core.CommandCreatedEventArgs):
+    """Opens the generator's dialog in place of this command, which has nothing to show"""
+    tag = selectedTag() or menuTag
+    try:
+        if not canRebuild(tag):
+            ui.messageBox('Select a generated bin or baseplate to rebuild.', REBUILD_CMD_NAME)
+            return
+        startRebuild(tag)
+    except Exception as err:
+        futil.handle_error(f'{REBUILD_CMD_NAME} failed, {err}', show_message_box=True)
 
 def command_incoming_from_html(args: adsk.core.HTMLEventArgs, body: adsk.fusion.BRepBody, tagName: str, value: dict):
     browserPages.handleMessage(args, pageHandlers(body, tagName, value))
@@ -136,7 +168,7 @@ def pageHandlers(body: adsk.fusion.BRepBody, tagName: str, value: dict) -> dict[
     if tagName in REBUILD_COMMANDS:
         moreButtons.append((
             Button(REBUILD_ACTION, 'Rebuild', f'Open the {generatorTitle} dialog with these settings to build this {generatorTitle} again in its place, keeping the features after it'),
-            lambda: REBUILD_COMMANDS[tagName].startRebuild(body, value),
+            lambda: startRebuild((body, tagName, value)),
         ))
     configText = configJson.configText(tagName, value['config'], str(value.get('generatorVersion') or ''))
     handlers = configButtons.configButtonsHandlers(
