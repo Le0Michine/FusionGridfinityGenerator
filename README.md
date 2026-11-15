@@ -62,7 +62,7 @@ Skeletonized baseplates can have holes between them for a screw or a glued in pi
   - magnet sockets, sized for a snug fit of the magnets, optionally with tabs holding them in
   - screw holes of adjustable diameter, with a groove for printability when combined with magnet sockets
   - joint origins at the bottom of every foot, to joint the bin into baseplate sockets
-- **Settings** can be saved as the dialog defaults, saved to or loaded from a JSON file, copied to the clipboard or cloned into a new bin
+- **Settings** can be saved as the dialog defaults, saved to or loaded from a JSON file, copied to the clipboard or cloned into a new bin, also from its right-click menu
 - **Rebuild** a generated bin or baseplate with changed settings, from its right-click menu or its settings window, it's built again at its place in the timeline and the features after it keep working on the new body. Features picked on a face or an edge of the old body are listed to pick again. For a bin, changing only what its parameters hold, like the height or label text, sets them instead, without building it again
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-features-dark.gif"><img src="documentation/assets/gif/bin-features-light.gif" alt="Changing the size, type and wall thickness of a bin, with the bin at each change"></picture>
@@ -132,9 +132,9 @@ Bin for random round things
 ![](documentation/assets/gif/specialized-bin-creation.gif)
 
 ### Settings and rebuild
-Right-click a generated bin or baseplate for its settings or to rebuild it in place with changed settings. The settings window shows what it was built with, saves them to a file, copies or clones them
+Right-click a generated bin or baseplate for its settings, to rebuild it in place with changed settings or to clone it into a new one. The settings window shows what it was built with, saves them to a file, copies or clones them
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/ui/context-menu-gridfinity-scene-dark.png"><img src="documentation/assets/ui/context-menu-gridfinity-scene-light.png" alt="Fusion's right-click menu opened on a bin, the pointer on Gridfinity rebuild below Gridfinity settings" width="508"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/ui/context-menu-gridfinity-scene-dark.png"><img src="documentation/assets/ui/context-menu-gridfinity-scene-light.png" alt="Fusion's right-click menu opened on a bin, the pointer on Gridfinity clone below Gridfinity settings and Gridfinity rebuild" width="508"></picture>
 
 ## Installation
 

@@ -26,6 +26,12 @@ REBUILD_CMD_NAME = 'Gridfinity rebuild'
 # a bin with a wrench
 REBUILD_ICON_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources', 'rebuild', '')
 REBUILD_CMD_DESCRIPTION = 'Open the generator dialog with the settings of this bin or baseplate to build it again in its place, keeping the features after it'
+# the context menu item opening the generator's dialog with these settings for a new body, as the Clone button of the window does
+CLONE_CMD_ID = f'{config.COMPANY_NAME}_{config.ADDIN_NAME}_cmdClone'
+CLONE_CMD_NAME = 'Gridfinity clone'
+# a bin with two sheets, a copy
+CLONE_ICON_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources', 'clone', '')
+CLONE_CMD_DESCRIPTION = 'Open the generator dialog with the settings of this bin or baseplate to build a new one'
 
 SETTINGS_TEXT_INPUT = 'settings_text'
 SETTINGS_BROWSER = 'settings'
@@ -75,6 +81,10 @@ def canRebuild(tag: tuple[adsk.fusion.BRepBody, str, dict] | None) -> bool:
     """Bodies generated before the generator kept the config can't be rebuilt"""
     return tag is not None and tag[1] in REBUILD_COMMANDS and isinstance(tag[2].get('config'), dict)
 
+def canClone(tag: tuple[adsk.fusion.BRepBody, str, dict] | None) -> bool:
+    """Bodies generated before the generator kept the config can't be cloned"""
+    return tag is not None and tag[1] in CLONE_COMMANDS and isinstance(tag[2].get('config'), dict)
+
 def startRebuild(tag: tuple[adsk.fusion.BRepBody, str, dict]):
     (body, tagName, value) = tag
     REBUILD_COMMANDS[tagName].startRebuild(body, value)
@@ -94,6 +104,10 @@ def start():
     if not rebuild_def:
         rebuild_def = ui.commandDefinitions.addButtonDefinition(REBUILD_CMD_ID, REBUILD_CMD_NAME, REBUILD_CMD_DESCRIPTION, REBUILD_ICON_FOLDER)
     futil.add_handler(rebuild_def.commandCreated, rebuild_command_created)
+    clone_def = ui.commandDefinitions.itemById(CLONE_CMD_ID)
+    if not clone_def:
+        clone_def = ui.commandDefinitions.addButtonDefinition(CLONE_CMD_ID, CLONE_CMD_NAME, CLONE_CMD_DESCRIPTION, CLONE_ICON_FOLDER)
+    futil.add_handler(clone_def.commandCreated, clone_command_created)
     markingMenuHandler = futil.add_handler(ui.markingMenuDisplaying, marking_menu_displaying, local_handlers=local_handlers)
 
 def stop():
@@ -101,7 +115,7 @@ def stop():
     if markingMenuHandler is not None:
         ui.markingMenuDisplaying.remove(markingMenuHandler)
         markingMenuHandler = None
-    for cmdId in [CMD_ID, REBUILD_CMD_ID]:
+    for cmdId in [CMD_ID, REBUILD_CMD_ID, CLONE_CMD_ID]:
         command_definition = ui.commandDefinitions.itemById(cmdId)
         if command_definition:
             command_definition.deleteMe()
@@ -117,6 +131,8 @@ def marking_menu_displaying(args: adsk.core.MarkingMenuEventArgs):
         controls.addCommand(ui.commandDefinitions.itemById(CMD_ID))
         if canRebuild(menuTag):
             controls.addCommand(ui.commandDefinitions.itemById(REBUILD_CMD_ID))
+        if canClone(menuTag):
+            controls.addCommand(ui.commandDefinitions.itemById(CLONE_CMD_ID))
     except Exception as err:
         futil.log(f'{CMD_NAME} context menu failed, {err}')
 
@@ -146,6 +162,18 @@ def rebuild_command_created(args: adsk.core.CommandCreatedEventArgs):
         startRebuild(tag)
     except Exception as err:
         futil.handle_error(f'{REBUILD_CMD_NAME} failed, {err}', show_message_box=True)
+
+def clone_command_created(args: adsk.core.CommandCreatedEventArgs):
+    """Opens the generator's dialog in place of this command, which has nothing to show"""
+    tag = selectedTag() or menuTag
+    try:
+        if not canClone(tag):
+            ui.messageBox('Select a generated bin or baseplate to clone.', CLONE_CMD_NAME)
+            return
+        (_, tagName, value) = tag
+        CLONE_COMMANDS[tagName].startWithConfig(value['config'])
+    except Exception as err:
+        futil.handle_error(f'{CLONE_CMD_NAME} failed, {err}', show_message_box=True)
 
 def command_incoming_from_html(args: adsk.core.HTMLEventArgs, body: adsk.fusion.BRepBody, tagName: str, value: dict):
     browserPages.handleMessage(args, pageHandlers(body, tagName, value))
