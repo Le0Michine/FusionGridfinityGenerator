@@ -72,7 +72,6 @@ def computeFillLayout(inputsState: InputState) -> baseplateLayout.FillLayout:
     return baseplateLayout.computeFillLayout(
         inputsState.areaWidth,
         inputsState.areaLength,
-        inputsState.fitTolerance,
         inputsState.bedWidth,
         inputsState.bedLength,
         inputsState.bedMargin,

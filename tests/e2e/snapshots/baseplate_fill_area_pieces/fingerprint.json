@@ -3,11 +3,11 @@
         {
             "name": "Gridfinity baseplate 2x4 (1-1)",
             "file": "body1.smt",
-            "volume": 21997.351633,
-            "area": 20503.33698,
+            "volume": 22751.751633,
+            "area": 20847.151194,
             "bboxMin": [
                 0.0,
-                -31.5,
+                -32.5,
                 -5.0
             ],
             "bboxMax": [
@@ -23,15 +23,15 @@
         {
             "name": "Gridfinity baseplate 2x3 (2-1)",
             "file": "body2.smt",
-            "volume": 19288.431116,
-            "area": 16902.510791,
+            "volume": 20401.231116,
+            "area": 17414.139218,
             "bboxMin": [
                 167.8,
-                -31.5,
+                -32.5,
                 -5.0
             ],
             "bboxMax": [
-                299.0,
+                300.0,
                 83.7,
                 -0.5
             ],
@@ -63,15 +63,15 @@
         {
             "name": "Gridfinity baseplate 2x3 (2-2)",
             "file": "body4.smt",
-            "volume": 9652.2206,
-            "area": 10700.499305,
+            "volume": 10028.6206,
+            "area": 10876.313518,
             "bboxMin": [
                 167.8,
                 83.8,
                 -5.0
             ],
             "bboxMax": [
-                299.0,
+                300.0,
                 167.5,
                 -0.5
             ],

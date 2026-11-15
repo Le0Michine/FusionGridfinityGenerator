@@ -131,7 +131,6 @@ SIZING_MODE_DROPDOWN = 'sizing_mode_dropdown'
 
 FILL_AREA_WIDTH_INPUT = 'fill_area_width'
 FILL_AREA_LENGTH_INPUT = 'fill_area_length'
-FILL_FIT_TOLERANCE_INPUT = 'fill_fit_tolerance'
 PLATE_CLEARANCE_INPUT = 'plate_clearance'
 FILL_HALF_CELLS_INPUT = 'fill_half_cells'
 FILL_ALIGN_X_DROPDOWN = 'fill_align_x'
@@ -146,7 +145,7 @@ LAYOUT_BROWSER = 'layout_browser'
 
 # inputs only one of the sizing modes uses
 GRID_UNITS_MODE_INPUTS = [BASEPLATE_WIDTH_INPUT, BASEPLATE_LENGTH_INPUT, SIDE_PADDING_GROUP]
-FILL_AREA_MODE_INPUTS = [FILL_AREA_WIDTH_INPUT, FILL_AREA_LENGTH_INPUT, FILL_FIT_TOLERANCE_INPUT, FILL_ALIGN_X_DROPDOWN, FILL_ALIGN_Y_DROPDOWN, FILL_HALF_CELLS_INPUT, PRINT_BED_GROUP]
+FILL_AREA_MODE_INPUTS = [FILL_AREA_WIDTH_INPUT, FILL_AREA_LENGTH_INPUT, FILL_ALIGN_X_DROPDOWN, FILL_ALIGN_Y_DROPDOWN, FILL_HALF_CELLS_INPUT, PRINT_BED_GROUP]
 
 BASEPLATE_WITH_MAGNETS_INPUT = 'with_magnet_cutouts'
 BASEPLATE_MAGNET_DIAMETER_INPUT = 'magnet_diameter'
@@ -198,7 +197,6 @@ STATE_INPUT_IDS = [
     SIZING_MODE_DROPDOWN,
     FILL_AREA_WIDTH_INPUT,
     FILL_AREA_LENGTH_INPUT,
-    FILL_FIT_TOLERANCE_INPUT,
     PLATE_CLEARANCE_INPUT,
     PRINT_BED_WIDTH_INPUT,
     PRINT_BED_LENGTH_INPUT,
@@ -386,11 +384,6 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     fillAreaLengthInput.minimumValue = 0
     fillAreaLengthInput.isMinimumInclusive = False
     uiState.registerCommandInput(fillAreaLengthInput)
-    fillFitToleranceInput = mainDimensionsGroup.children.addValueInput(FILL_FIT_TOLERANCE_INPUT, 'Fit tolerance', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(FILL_FIT_TOLERANCE_INPUT)))
-    fillFitToleranceInput.minimumValue = 0
-    fillFitToleranceInput.isMinimumInclusive = True
-    fillFitToleranceInput.tooltip = "Total gap left between the plate and the area walls on each axis"
-    uiState.registerCommandInput(fillFitToleranceInput)
     for (inputId, label, options) in [
         (FILL_ALIGN_X_DROPDOWN, 'Grid position, X', FILL_ALIGN_X_OPTIONS),
         (FILL_ALIGN_Y_DROPDOWN, 'Grid position, Y', FILL_ALIGN_Y_OPTIONS),
@@ -779,9 +772,9 @@ def fillLayoutData(inputsState: InputState) -> dict:
         return {'error': error}
     layout = computeFillLayout(inputsState)
     (baseWidth, baseLength, xyClearance) = (inputsState.baseWidth, inputsState.baseLength, inputsState.xyClearance)
-    # the plate reaches past the origin, the fit tolerance is left around it
-    originX = layout.x.startExtent(baseWidth) + inputsState.fitTolerance / 2
-    originY = layout.y.startExtent(baseLength) + inputsState.fitTolerance / 2
+    # the plate reaches past the origin
+    originX = layout.x.startExtent(baseWidth)
+    originY = layout.y.startExtent(baseLength)
     def rect(minX: float, minY: float, maxX: float, maxY: float) -> dict:
         return {'x': (minX + originX) * 10, 'y': (minY + originY) * 10, 'width': (maxX - minX) * 10, 'length': (maxY - minY) * 10}
     shapes: list[tuple] = []
@@ -963,7 +956,6 @@ def initUiState():
     uiState.initValue(SIZING_MODE_DROPDOWN, DEFAULT_STATE.sizingMode, adsk.core.DropDownCommandInput.classType())
     uiState.initValue(FILL_AREA_WIDTH_INPUT, DEFAULT_STATE.areaWidth, adsk.core.ValueCommandInput.classType())
     uiState.initValue(FILL_AREA_LENGTH_INPUT, DEFAULT_STATE.areaLength, adsk.core.ValueCommandInput.classType())
-    uiState.initValue(FILL_FIT_TOLERANCE_INPUT, DEFAULT_STATE.fitTolerance, adsk.core.ValueCommandInput.classType())
     uiState.initValue(PLATE_CLEARANCE_INPUT, DEFAULT_STATE.plateClearance, adsk.core.ValueCommandInput.classType())
     uiState.initValue(FILL_ALIGN_X_DROPDOWN, DEFAULT_STATE.alignmentX, adsk.core.DropDownCommandInput.classType())
     uiState.initValue(FILL_ALIGN_Y_DROPDOWN, DEFAULT_STATE.alignmentY, adsk.core.DropDownCommandInput.classType())

@@ -26,8 +26,8 @@ CLEARANCE = 0.025
 SEAM_CLEARANCE = 0.01
 
 
-def layout(areaWidth, areaLength, bedWidth, bedLength, fitTolerance=0, bedMargin=0, **options):
-    return baseplateLayout.computeFillLayout(areaWidth, areaLength, fitTolerance, bedWidth, bedLength, bedMargin, BASE, BASE, CLEARANCE, SEAM_CLEARANCE, **options)
+def layout(areaWidth, areaLength, bedWidth, bedLength, bedMargin=0, **options):
+    return baseplateLayout.computeFillLayout(areaWidth, areaLength, bedWidth, bedLength, bedMargin, BASE, BASE, CLEARANCE, SEAM_CLEARANCE, **options)
 
 
 class TestFitAxis:
@@ -100,8 +100,8 @@ class TestSplitAxis:
 
 
 class TestComputeFillLayout:
-    def test_grid_is_centered_in_the_area_less_the_tolerance(self):
-        result = layout(60.1, 40.1, 25.6, 25.6, fitTolerance=0.1)
+    def test_grid_is_centered_in_the_area(self):
+        result = layout(60, 40, 25.6, 25.6)
         assert (result.x.cells, result.y.cells) == (14, 9)
         assert (result.x.paddingStart, result.x.paddingEnd) == (pytest.approx(0.625), pytest.approx(0.625))
         assert result.y.paddingStart == pytest.approx((40 - (9 * BASE - CLEARANCE * 2)) / 2)
@@ -155,8 +155,8 @@ class TestComputeFillLayout:
 
 
 class TestPieceOutline:
-    def test_pieces_span_the_area_less_the_tolerance(self):
-        result = layout(60.1, 40.1, 25.6, 25.6, fitTolerance=0.1)
+    def test_pieces_span_the_area(self):
+        result = layout(60, 40, 25.6, 25.6)
         outlines = [baseplateLayout.pieceOutline(result, piece, BASE, BASE, CLEARANCE, SEAM_CLEARANCE) for piece in result.pieces]
         minX = min(outline[0] for outline in outlines)
         maxX = max(outline[2] for outline in outlines)

@@ -106,7 +106,6 @@ def layoutAxis(span: float, baseUnit: float, xyClearance: float, seamClearance: 
 def computeFillLayout(
     areaWidth: float,
     areaLength: float,
-    fitTolerance: float,
     bedWidth: float,
     bedLength: float,
     bedMargin: float,
@@ -118,11 +117,10 @@ def computeFillLayout(
     alignmentY: str = ALIGN_CENTER,
     useHalfCells: bool = False,
 ) -> FillLayout:
-    """Grid filling the area less the fit tolerance, aligned as asked and split into pieces fitting the print bed,
+    """Grid filling the area, aligned as asked and split into pieces fitting the print bed,
     the seam clearance short of the cell border on the sides between them.
     The bed is tried both ways round, the one needing fewer pieces wins"""
-    spanX = areaWidth - fitTolerance
-    spanY = areaLength - fitTolerance
+    (spanX, spanY) = (areaWidth, areaLength)
     if fitAxis(spanX, baseWidth, xyClearance, alignmentX, False)[0] < 1 or fitAxis(spanY, baseLength, xyClearance, alignmentY, False)[0] < 1:
         raise FillLayoutError('The area is too small to fit a single cell')
     usableWidth = bedWidth - bedMargin * 2

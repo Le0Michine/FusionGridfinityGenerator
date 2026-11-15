@@ -23,7 +23,6 @@
     "sizingMode": "Fill area",
     "areaWidth": 300.0,
     "areaLength": 200.0,
-    "fitTolerance": 1.0,
     "plateClearance": 0.1,
     "bedWidth": 180.0,
     "bedLength": 180.0,

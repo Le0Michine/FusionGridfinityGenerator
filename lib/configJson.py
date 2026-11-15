@@ -19,7 +19,7 @@ MM_FIELDS = {
     GENERATOR_BASEPLATE: {
         'baseWidth', 'baseLength', 'xyClearance', 'magnetSocketSize', 'magnetSocketDepth', 'screwHoleSize',
         'screwHeadSize', 'paddingLeft', 'paddingTop', 'paddingRight', 'paddingBottom', 'extraBottomThickness',
-        'verticalClearance', 'connectionHoleSize', 'areaWidth', 'areaLength', 'fitTolerance', 'plateClearance',
+        'verticalClearance', 'connectionHoleSize', 'areaWidth', 'areaLength', 'plateClearance',
         'bedWidth', 'bedLength', 'bedMargin',
     },
 }

@@ -82,7 +82,6 @@ BASEPLATE = {
     'sizingMode': 'Fill area',
     'areaWidth': 400.0,
     'areaLength': 300.0,
-    'fitTolerance': 1.0,
     # gap between baseplates glued side by side, each takes half of it on its edge. Closer than bins are to each other
     'plateClearance': 0.1,
     # a common bed size, of the Bambu Lab A1, P1 and X1, the bed dropdown starts on custom
