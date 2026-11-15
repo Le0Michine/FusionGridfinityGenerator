@@ -13,7 +13,6 @@ from ...lib.gridfinityUtils import shellUtils
 from ...lib.gridfinityUtils import commonUtils
 from ...lib.gridfinityUtils import const
 from ...lib.gridfinityUtils import parameterUtils
-from ...lib.gridfinityUtils import sharedParameters
 from ...lib.gridfinityUtils.dim import Dim
 from ...lib.gridfinityUtils.baseGenerator import createFootGrid, cutBaseClearance, cutWallJunctionPockets, footCenters, createCellJointOrigins, keepBodiesInCells, cutOutsideShape, cutShapeWallJunctionPockets
 from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
@@ -45,10 +44,10 @@ BIN_LEGACY_NAME_PREFIX = 'Gridfinity bin '
 BIN_PARAMETER_BASE_NAME = 'gfBin'
 BIN_HEIGHT_PARAMETER = 'heightU'
 BIN_LABEL_PARAMETER = 'label'
-# the units of the bin, its own like the rest, named as the fallbacks of bins built on shared units before
+# the units of the bin, its own like the rest
 BIN_HEIGHT_UNIT_PARAMETER = 'heightUnit'
-BIN_BASE_WIDTH_PARAMETER = sharedParameters.BASE_WIDTH_FALLBACK_PARAMETER
-BIN_BASE_LENGTH_PARAMETER = sharedParameters.BASE_LENGTH_FALLBACK_PARAMETER
+BIN_BASE_WIDTH_PARAMETER = 'baseWidth'
+BIN_BASE_LENGTH_PARAMETER = 'baseLength'
 BIN_PARAMETERS = [BIN_HEIGHT_PARAMETER, BIN_HEIGHT_UNIT_PARAMETER, BIN_BASE_WIDTH_PARAMETER, BIN_BASE_LENGTH_PARAMETER]
 
 # Labels of the parameters in the tag are stored in user documents, keep these literal

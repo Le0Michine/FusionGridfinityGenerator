@@ -31,11 +31,11 @@ stateToJson = configJson.stateToJson
 DEFAULT_SETTINGS = defaultSettings.SETTINGS
 
 # the user parameters a case may change after building, with the setting each stands for. Keep the names literal,
-# they're in user documents. A bin has units of its own, the first bin of a case's new document is numbered 1, see
-# binBuilder.BIN_PARAMETERS, baseplates share theirs, see lib/gridfinityUtils/sharedParameters.py
+# they're in user documents. Bins and baseplates have units of their own, the first of a case's new document is
+# numbered 1, see binBuilder.BIN_PARAMETERS and baseplateBuilder.BASEPLATE_PARAMETERS
 PARAMETER_FIELDS = {
     GENERATOR_BIN: {'gfBin1_baseWidth': 'baseWidth', 'gfBin1_baseLength': 'baseLength', 'gfBin1_heightUnit': 'heightUnit'},
-    GENERATOR_BASEPLATE: {'gfBaseWidth': 'baseWidth', 'gfBaseLength': 'baseLength'},
+    GENERATOR_BASEPLATE: {'gfPlate1_baseWidth': 'baseWidth', 'gfPlate1_baseLength': 'baseLength'},
 }
 
 class TestCaseError(Exception):

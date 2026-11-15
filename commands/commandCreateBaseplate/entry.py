@@ -15,7 +15,6 @@ from ... import config
 from ...lib.gridfinityUtils import baseplateLayout
 from ...lib.gridfinityUtils import const
 from ...lib.gridfinityUtils import commonUtils
-from ...lib.gridfinityUtils import sharedParameters
 from .inputState import InputState
 from .baseplateBuilder import (
     buildBaseplate,
@@ -290,28 +289,12 @@ def stop():
 
 # Function that is called when a user clicks the corresponding button in the UI.
 # This defines the contents of the command dialog and connects to the command related events.
-def applySharedParameterDefaults():
-    """Usable shared units of the design replace the remembered inputs, so new baseplates match the existing bins by default"""
-    design = adsk.fusion.Design.cast(app.activeProduct)
-    if design is None:
-        return
-    (baseWidth, baseLength) = sharedParameters.usableSharedBaseUnits(design)
-    for (inputId, value) in [
-        (BASEPLATE_BASE_UNIT_WIDTH_INPUT, baseWidth),
-        (BASEPLATE_BASE_UNIT_LENGTH_INPUT, baseLength),
-    ]:
-        if value is not None:
-            uiState.initValue(inputId, value, adsk.core.ValueCommandInput.classType())
-            commonUtils.debugLog(f'{CMD_NAME} dialog default {inputId} = {value} from the shared parameter')
-
 def command_created(args: adsk.core.CommandCreatedEventArgs):
     # General logging for debug.
     futil.log(f'{CMD_NAME} Command Created Event')
     global uiState
 
     args.command.setDialogInitialSize(450, 500)
-    applySharedParameterDefaults()
-    # a clone keeps its own units
     global dialogWorkflow
     global rebuildBodyToken
     global pendingRebuildBody
@@ -339,11 +322,11 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     basicSizesGroup.isExpanded = uiState.getState(BASIC_SIZES_GROUP)
     uiState.registerCommandInput(basicSizesGroup)
     baseWidthUnitInput = basicSizesGroup.children.addValueInput(BASEPLATE_BASE_UNIT_WIDTH_INPUT, 'Base width unit, X (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BASEPLATE_BASE_UNIT_WIDTH_INPUT)))
-    baseWidthUnitInput.minimumValue = sharedParameters.BASE_UNIT_MIN
+    baseWidthUnitInput.minimumValue = const.BASE_UNIT_MIN
     baseWidthUnitInput.isMinimumInclusive = True
     uiState.registerCommandInput(baseWidthUnitInput)
     baseLengthUnitInput = basicSizesGroup.children.addValueInput(BASEPLATE_BASE_UNIT_LENGTH_INPUT, 'Base length unit, Y (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BASEPLATE_BASE_UNIT_LENGTH_INPUT)))
-    baseLengthUnitInput.minimumValue = sharedParameters.BASE_UNIT_MIN
+    baseLengthUnitInput.minimumValue = const.BASE_UNIT_MIN
     baseLengthUnitInput.isMinimumInclusive = True
     uiState.registerCommandInput(baseLengthUnitInput)
 
@@ -627,8 +610,8 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
     inputsState = getInputsState()
     
     # Verify the validity of the input values. This controls if the OK button is enabled or not.
-    INPUTS_VALID = inputsState.baseWidth >= sharedParameters.BASE_UNIT_MIN \
-        and inputsState.baseLength >= sharedParameters.BASE_UNIT_MIN \
+    INPUTS_VALID = inputsState.baseWidth >= const.BASE_UNIT_MIN \
+        and inputsState.baseLength >= const.BASE_UNIT_MIN \
         and inputsState.xyClearance >= 0.01 \
         and inputsState.xyClearance <= 0.05 \
         and inputsState.plateClearance >= 0.005 \

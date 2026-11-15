@@ -11,7 +11,6 @@ from ...lib.gridfinityUtils.baseplateGeneratorInput import BaseplateGeneratorInp
 from ...lib.gridfinityUtils import commonUtils
 from ...lib.gridfinityUtils import const
 from ...lib.gridfinityUtils import parameterUtils
-from ...lib.gridfinityUtils import sharedParameters
 from ...lib.gridfinityUtils.dim import Dim
 from ...lib.ui.unsupportedDesignTypeException import UnsupportedDesignTypeException
 from .inputState import InputState
@@ -25,13 +24,15 @@ BASEPLATE_LEGACY_NAME_PREFIX = 'Gridfinity baseplate '
 
 # User parameter names are stored in user documents, keep these literal
 BASEPLATE_PARAMETER_BASE_NAME = 'gfPlate'
+BASEPLATE_BASE_WIDTH_PARAMETER = 'baseWidth'
+BASEPLATE_BASE_LENGTH_PARAMETER = 'baseLength'
 BASEPLATE_PADDING_LEFT_PARAMETER = 'paddingLeft'
 BASEPLATE_PADDING_TOP_PARAMETER = 'paddingTop'
 BASEPLATE_PADDING_RIGHT_PARAMETER = 'paddingRight'
 BASEPLATE_PADDING_BOTTOM_PARAMETER = 'paddingBottom'
 BASEPLATE_PARAMETERS = [
-    sharedParameters.BASE_WIDTH_FALLBACK_PARAMETER,
-    sharedParameters.BASE_LENGTH_FALLBACK_PARAMETER,
+    BASEPLATE_BASE_WIDTH_PARAMETER,
+    BASEPLATE_BASE_LENGTH_PARAMETER,
     BASEPLATE_PADDING_LEFT_PARAMETER,
     BASEPLATE_PADDING_TOP_PARAMETER,
     BASEPLATE_PADDING_RIGHT_PARAMETER,
@@ -192,22 +193,18 @@ def buildBaseplate(
         inputsState.baseLength,
     )
 
-    # the baseplate's id too, see tagUtils.tagBody, one on shared units without padding has no parameters to take it
+    # the baseplate's id too, see tagUtils.tagBody
     reuseParameters = parameterPrefix is not None
     plateParameterPrefix = parameterPrefix or parameterUtils.nextFreePrefix(des, BASEPLATE_PARAMETER_BASE_NAME, BASEPLATE_PARAMETERS, tagUtils.usedBodyIds(des, tagUtils.TAG_BASEPLATE))
-    (baseWidthParameter, baseLengthParameter) = sharedParameters.findOrCreateBaseUnitParameters(
-        des,
-        inputsState.baseWidth,
-        inputsState.baseLength,
-        plateParameterPrefix,
-        'baseplate',
-        LOG_PREFIX,
-        reuseParameters,
-    )
-    # its own units, when they differ from the shared ones, are tagged with the field they hold, see tagUtils.tagParameterField
-    for (parameter, field) in [(baseWidthParameter, 'baseWidth'), (baseLengthParameter, 'baseLength')]:
-        if parameter.name.startswith(f'{plateParameterPrefix}_'):
-            tagUtils.tagParameterField(parameter, field, plateParameterPrefix)
+
+    def ownParameter(name: str, value: float, comment: str) -> adsk.fusion.UserParameter:
+        """Every baseplate has parameters of its own, changing one baseplate's parameters changes no other, the
+        names are their config fields, see tagUtils.tagParameterField"""
+        parameter = parameterUtils.addLengthParameter(des, parameterUtils.parameterName(plateParameterPrefix, name), value, comment, reuseParameters)
+        tagUtils.tagParameterField(parameter, name, plateParameterPrefix)
+        return parameter
+    baseWidthParameter = ownParameter(BASEPLATE_BASE_WIDTH_PARAMETER, inputsState.baseWidth, 'Gridfinity baseplate base width unit')
+    baseLengthParameter = ownParameter(BASEPLATE_BASE_LENGTH_PARAMETER, inputsState.baseLength, 'Gridfinity baseplate base length unit')
     baseplateGeneratorInput.baseWidth = Dim.parameter(baseWidthParameter)
     baseplateGeneratorInput.baseLength = Dim.parameter(baseLengthParameter)
     # user parameters driving the baseplate, kept in its tag to show with its settings
@@ -217,16 +214,7 @@ def buildBaseplate(
         """Unused sides stay plain values, so no parameter is left around that drives nothing"""
         if not hasPadding or value <= 0:
             return Dim.length(value)
-        parameter = parameterUtils.addLengthParameter(
-            des,
-            parameterUtils.parameterName(plateParameterPrefix, name),
-            value,
-            f'Gridfinity baseplate {label} padding',
-            reuseParameters,
-        )
-        # the parameter names of the paddings are their config fields
-        tagUtils.tagParameterField(parameter, name, plateParameterPrefix)
-        return Dim.parameter(parameter)
+        return Dim.parameter(ownParameter(name, value, f'Gridfinity baseplate {label} padding'))
     baseplateGeneratorInput.paddingLeft = paddingDim(BASEPLATE_PADDING_LEFT_PARAMETER, 'left', paddingLeft)
     baseplateGeneratorInput.paddingTop = paddingDim(BASEPLATE_PADDING_TOP_PARAMETER, 'top', paddingTop)
     baseplateGeneratorInput.paddingRight = paddingDim(BASEPLATE_PADDING_RIGHT_PARAMETER, 'right', paddingRight)

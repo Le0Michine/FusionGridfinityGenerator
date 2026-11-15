@@ -6,9 +6,6 @@ import os
 TAG_GROUP = 'LevMishin.GridfinityGenerator'
 TAG_BIN = 'bin'
 TAG_BASEPLATE = 'baseplate'
-TAG_HEIGHT_UNIT_PARAMETER = 'heightUnitParameter'
-TAG_BASE_WIDTH_PARAMETER = 'baseWidthParameter'
-TAG_BASE_LENGTH_PARAMETER = 'baseLengthParameter'
 # on a user parameter of a bin, the config field its value is, see tagParameterField
 TAG_PARAMETER_FIELD = 'parameterField'
 
@@ -89,9 +86,6 @@ def findTaggedBodies(design: adsk.fusion.Design, tagName: str) -> list[tuple[ads
             taggedBodies.append((body, parseTagValue(attribute.value)))
     return taggedBodies
 
-def tagParameter(parameter: adsk.fusion.UserParameter, tagName: str):
-    parameter.attributes.add(TAG_GROUP, tagName, createTagValue(getGeneratorVersion()))
-
 def tagParameterField(parameter: adsk.fusion.UserParameter, field: str, owner: str):
     """
     The config field the parameter's value is, see configJson.stateToJson, like binHeight, or an item's field by its
@@ -123,11 +117,3 @@ def usedBodyIds(design: adsk.fusion.Design, tagName: str) -> set[str]:
     """The ids of the bodies with the tag, so a new one gets another, see tagBody"""
     return {str(tag['id']) for (_, tag) in findTaggedBodies(design, tagName) if tag.get('id')}
 
-def findTaggedParameters(design: adsk.fusion.Design, tagName: str) -> list[tuple[adsk.fusion.UserParameter, dict]]:
-    """Found by tag rather than by name, so a renamed parameter is still recognized"""
-    taggedParameters = []
-    for attribute in design.findAttributes(TAG_GROUP, tagName):
-        parameter = adsk.fusion.UserParameter.cast(attribute.parent)
-        if parameter is not None:
-            taggedParameters.append((parameter, parseTagValue(attribute.value)))
-    return taggedParameters

@@ -20,14 +20,12 @@ def errorMessage(err: BaseException) -> str:
 def createReport(
     title: str,
     err: BaseException,
-    parameters: list[list[str]],
     config: str | None,
     environment: list[list[str]],
     previousConfig: str | None = None,
 ) -> dict:
     """
-    What the palette's page draws, with the report to copy. parameters are label and value pairs, the shared user
-    parameters of the design, see sharedParameters.describeSharedParameters, config the inputs as a config file to build
+    What the palette's page draws, with the report to copy. config the inputs as a config file to build
     it again, see configJson.configText, none when they couldn't be read. environment are label and value pairs, the
     versions of the add-in and Fusion and what of the design changes how things get built. previousConfig is the config
     a bin rebuilt in place was built with before, to build it as it was and rebuild it the same way
@@ -37,7 +35,6 @@ def createReport(
         'message': errorMessage(err),
         'trace': ''.join(traceback.format_exception(type(err), err, err.__traceback__)).rstrip(),
         'environment': environment,
-        'parameters': parameters,
         'config': config,
         'previousConfig': previousConfig,
         'issuesUrl': ISSUES_URL,
@@ -65,8 +62,6 @@ def reportText(report: dict, config: str | None = None, trace: str | None = None
         fence,
         '</details>',
     ]
-    if report['parameters']:
-        lines.extend(['', '**Parameters**', '', *[f'- {label}: `{value}`' for (label, value) in report['parameters']]])
     if config:
         lines.extend(['', '<details><summary>Config</summary>', '', f'{fence}json', config.rstrip(), fence, '</details>'])
     if previousConfig:

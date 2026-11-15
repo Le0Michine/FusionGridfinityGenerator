@@ -124,10 +124,6 @@
     <summary>Stack trace</summary>
     <pre id="trace"></pre>
 </details>
-<details open>
-    <summary>Parameters</summary>
-    <table id="parameters"></table>
-</details>
 <details id="configSection">
     <summary>Config</summary>
     <pre id="config"></pre>
@@ -151,13 +147,6 @@
             return line;
         }));
         document.getElementById('trace').textContent = data.trace;
-        const parameters = document.getElementById('parameters');
-        parameters.replaceChildren();
-        for (const [label, value] of data.parameters) {
-            const row = parameters.insertRow();
-            row.insertCell().textContent = label;
-            row.insertCell().textContent = value;
-        }
         document.getElementById('configSection').hidden = !data.config;
         document.getElementById('config').textContent = data.config || '';
         // only for a bin rebuilt in place

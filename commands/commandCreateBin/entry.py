@@ -13,7 +13,6 @@ from ...lib import fusion360utils as futil
 from ... import config
 from ...lib.gridfinityUtils import commonUtils
 from ...lib.gridfinityUtils import const
-from ...lib.gridfinityUtils import sharedParameters
 from ...lib.gridfinityUtils import labelGenerator
 from ...lib.gridfinityUtils import compartmentLayout
 from ...lib.gridfinityUtils import binShape
@@ -246,24 +245,6 @@ INFO_TEXT = ("<b>Help:</b> Info for inputs can be found "
 def infoText():
     version = tagUtils.getGeneratorVersion()
     return f"{INFO_TEXT}<br><span style=\"color:#808080; font-size:small\">Version {version}</span>" if version else INFO_TEXT
-
-def applySharedParameterDefaults():
-    """
-    Usable shared units of the design replace the remembered inputs, so new bins match its baseplates by default.
-    Bins have units of their own, the bin is built with these values, not tied to them
-    """
-    design = adsk.fusion.Design.cast(app.activeProduct)
-    if design is None:
-        return
-    (baseWidth, baseLength) = sharedParameters.usableSharedBaseUnits(design)
-    for (inputId, value) in [
-        (BIN_BASE_WIDTH_UNIT_INPUT_ID, baseWidth),
-        (BIN_BASE_LENGTH_UNIT_INPUT_ID, baseLength),
-        (BIN_HEIGHT_UNIT_INPUT_ID, sharedParameters.usableSharedHeightUnit(design)),
-    ]:
-        if value is not None:
-            commandUIState.initValue(inputId, value, adsk.core.ValueCommandInput.classType())
-            commonUtils.debugLog(f'{CMD_NAME} dialog default {inputId} = {value} from the shared parameter')
 
 def refreshUi():
     global commandUIState
@@ -711,8 +692,6 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     rebuildBodyToken = pendingRebuildBody.entityToken if pendingRebuildBody is not None else None
     rebuildName = pendingRebuildBody.name if pendingRebuildBody is not None else None
     pendingRebuildBody = None
-    applySharedParameterDefaults()
-    # a clone keeps its own units
     applyPendingConfig()
 
     # https://help.autodesk.com/view/fusion360/ENU/?contextId=CommandInputs
@@ -733,15 +712,15 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     basicSizesGroup.isExpanded = commandUIState.getState(BIN_BASIC_SIZES_GROUP)
     commandUIState.registerCommandInput(basicSizesGroup)
     baseWidthUnitInput = basicSizesGroup.children.addValueInput(BIN_BASE_WIDTH_UNIT_INPUT_ID, 'Base width unit (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_BASE_WIDTH_UNIT_INPUT_ID)))
-    baseWidthUnitInput.minimumValue = sharedParameters.BASE_UNIT_MIN
+    baseWidthUnitInput.minimumValue = const.BASE_UNIT_MIN
     baseWidthUnitInput.isMinimumInclusive = True
     commandUIState.registerCommandInput(baseWidthUnitInput)
     baseLengthUnitInput = basicSizesGroup.children.addValueInput(BIN_BASE_LENGTH_UNIT_INPUT_ID, 'Base length unit (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_BASE_LENGTH_UNIT_INPUT_ID)))
-    baseLengthUnitInput.minimumValue = sharedParameters.BASE_UNIT_MIN
+    baseLengthUnitInput.minimumValue = const.BASE_UNIT_MIN
     baseLengthUnitInput.isMinimumInclusive = True
     commandUIState.registerCommandInput(baseLengthUnitInput)
     binHeightUnitInput = basicSizesGroup.children.addValueInput(BIN_HEIGHT_UNIT_INPUT_ID, 'Bin height unit (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_HEIGHT_UNIT_INPUT_ID)))
-    binHeightUnitInput.minimumValue = sharedParameters.HEIGHT_UNIT_MIN
+    binHeightUnitInput.minimumValue = const.HEIGHT_UNIT_MIN
     binHeightUnitInput.isMinimumInclusive = True
     commandUIState.registerCommandInput(binHeightUnitInput)
     xyClearanceInput = basicSizesGroup.children.addValueInput(BIN_XY_CLEARANCE_INPUT_ID, 'Bin xy clearance (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_XY_CLEARANCE_INPUT_ID)))

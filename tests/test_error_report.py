@@ -27,11 +27,10 @@ def _failure():
         return err
 
 
-def _report(config='{"generator": "bin"}\n', parameters=None):
+def _report(config='{"generator": "bin"}\n'):
     return errorReport.createReport(
         "Gridfinity bin failed",
         _failure(),
-        [["Base width unit", "gfBaseWidth = 42 mm, 42 mm, tagged"]] if parameters is None else parameters,
         config,
         [["Add-in version", "2.2.0.0"], ["Fusion version", "2.0.1"]],
     )
@@ -49,19 +48,17 @@ def test_report_has_the_error_with_where_it_failed():
     assert report["trace"].endswith("ValueError: wall too thin")
 
 
-def test_text_has_versions_trace_parameters_and_config():
+def test_text_has_versions_trace_and_config():
     text = _report()["text"]
     assert text.startswith("**Gridfinity bin failed**: `ValueError: wall too thin`")
     assert "- Add-in version: 2.2.0.0" in text
     assert "- Fusion version: 2.0.1" in text
     assert "in build" in text
-    assert "- Base width unit: `gfBaseWidth = 42 mm, 42 mm, tagged`" in text
     assert '```json\n{"generator": "bin"}\n```' in text
 
 
 def test_text_leaves_out_what_could_not_be_read():
-    text = _report(config=None, parameters=[])["text"]
-    assert "**Parameters**" not in text
+    text = _report(config=None)["text"]
     assert "<summary>Config</summary>" not in text
     assert "<summary>Stack trace</summary>" in text
 
@@ -82,7 +79,7 @@ def test_issue_link_leaves_out_the_config_when_too_long():
     body = _body(report["issueUrl"])
     assert len(report["issueUrl"]) <= errorReport.MAX_ISSUE_URL_LENGTH
     assert "<summary>Config</summary>" not in body
-    assert "gfBaseWidth = 42 mm" in body
+    assert "- Add-in version: 2.2.0.0" in body
     assert "ValueError: wall too thin" in body
     assert errorReport.LEFT_OUT_NOTE in body
 
@@ -115,7 +112,6 @@ def test_rebuild_report_has_the_config_from_before():
     report = errorReport.createReport(
         "Gridfinity bin failed",
         _failure(),
-        [],
         '{"binWidth": 2.5}\n',
         [],
         '{"binWidth": 2}\n',
@@ -129,7 +125,7 @@ def test_new_bin_report_has_no_config_from_before():
 
 
 def test_issue_link_leaves_out_both_configs_when_too_long():
-    report = errorReport.createReport("Gridfinity bin failed", _failure(), [], '{"a": "' + "x" * 5000 + '"}', [], '{"b": "' + "y" * 5000 + '"}')
+    report = errorReport.createReport("Gridfinity bin failed", _failure(), '{"a": "' + "x" * 5000 + '"}', [], '{"b": "' + "y" * 5000 + '"}')
     body = _body(report["issueUrl"])
     assert "<summary>Config" not in body
     assert errorReport.LEFT_OUT_NOTE in body

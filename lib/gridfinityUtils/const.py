@@ -1,5 +1,9 @@
 import adsk.core, adsk.fusion, traceback
 
+# smallest units the dialogs accept
+HEIGHT_UNIT_MIN = 0.5
+BASE_UNIT_MIN = 1
+
 BIN_XY_CLEARANCE = 0.025
 BIN_CORNER_FILLET_RADIUS = 0.4
 

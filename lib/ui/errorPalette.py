@@ -5,7 +5,6 @@ import webbrowser
 
 from ...lib import fusion360utils as futil
 from ...lib import clipboard, errorReport, tagUtils
-from ...lib.gridfinityUtils import sharedParameters
 from ... import config
 from . import browserPages
 
@@ -63,14 +62,14 @@ def environment(design: adsk.fusion.Design | None) -> list[list[str]]:
 
 def show(title: str, err: BaseException, buildConfig: str | None, workflow: str, previousConfig: str | None = None):
     """
-    Shows the error with the design's shared parameters, buildConfig is what was built, workflow how it came to be
+    Shows the error, buildConfig is what was built, workflow how it came to be
     built, like a new bin's preview or the OK of a rebuild, previousConfig what a bin rebuilt in place was built with
     before, see errorReport.createReport
     """
     global currentReport
     try:
         design = adsk.fusion.Design.cast(app.activeProduct)
-        currentReport = errorReport.createReport(title, err, sharedParameters.describeSharedParameters(design), buildConfig, [['Workflow', workflow]] + environment(design), previousConfig)
+        currentReport = errorReport.createReport(title, err, buildConfig, [['Workflow', workflow]] + environment(design), previousConfig)
         palette = ui.palettes.itemById(PALETTE_ID)
         if palette is None:
             palette = ui.palettes.add(PALETTE_ID, PALETTE_TITLE, PAGE_URL, True, True, True, WIDTH, HEIGHT)

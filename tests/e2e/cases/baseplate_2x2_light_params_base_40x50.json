@@ -8,7 +8,7 @@
         "sizingMode": "Grid units"
     },
     "parameters": {
-        "gfBaseWidth": 40.0,
-        "gfBaseLength": 50.0
+        "gfPlate1_baseWidth": 40.0,
+        "gfPlate1_baseLength": 50.0
     }
 }
