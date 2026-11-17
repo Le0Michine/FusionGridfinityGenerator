@@ -32,14 +32,15 @@ STATUS_FAILED = 'failed'
 
 palette_handlers = []
 # the rows of the page in sections: presets with a name, description, picture with file and url, status and message,
-# and GIFs with their files by kind and theme
+# still dialog screenshots with their files by theme, and GIFs with their files by kind and theme
 ITEMS = 'items'
+SHOTS = 'shots'
 GIFS = 'gifs'
-state: dict = {ITEMS: [], GIFS: [], 'message': '', 'busy': False}
-# set by the command, gets the names of the presets whose pictures are asked for and if the GIFs are, and asks for the
-# presets to be read again.
+state: dict = {ITEMS: [], SHOTS: [], GIFS: [], 'message': '', 'busy': False}
+# set by the command, gets the names of the presets whose pictures are asked for, of the GIFs and of the screenshots,
+# and asks for the presets to be read again.
 # They are called while the page waits for its answer, they change the state without sending it, the answer has it
-onRequest: Callable[[list[str], list[str]], None] = lambda names, gifs: None
+onRequest: Callable[[list[str], list[str], list[str]], None] = lambda names, gifs, shots: None
 onReload: Callable[[], None] = lambda: None
 # set by the command, the folders the pictures are saved to
 pictureFolders: Callable[[], list[str]] = lambda: []
@@ -105,11 +106,11 @@ def openWithSystem(path: str):
 
 def openSaved(name: str, section: str, which: str | None):
     """
-    A preset's saved picture, or a GIF's file by kind and theme, in the computer's viewer. By name, the page doesn't
-    pick files
+    A preset's saved picture, or a GIF's or screenshot's file by kind and theme, in the computer's viewer. By name, the
+    page doesn't pick files
     """
     row = item(name, section) or {}
-    saved = row.get('files', {}).get(which) if section == GIFS else row.get('picture')
+    saved = row.get('files', {}).get(which) if section in [GIFS, SHOTS] else row.get('picture')
     if saved is not None and os.path.exists(saved['file']):
         openWithSystem(saved['file'])
 
@@ -128,7 +129,7 @@ def palette_incoming_from_html(args: adsk.core.HTMLEventArgs):
         elif args.action == pictureJobs.PICTURE:
             pictureJobs.answer(data)
         elif args.action == 'render':
-            onRequest(data.get('names', []), data.get('gifs', []))
+            onRequest(data.get('names', []), data.get('gifs', []), data.get('shots', []))
             answer = {'state': state}
         elif args.action == 'reload':
             onReload()

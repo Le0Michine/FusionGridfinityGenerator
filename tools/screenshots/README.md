@@ -132,7 +132,11 @@ writes `documentation/assets/gif/<name>-light.gif` and `-dark.gif`, on GitHub's 
 transparent. `--pictures` takes the pictures from another folder, `--dialogs` records the dialog animations of
 `loopWith` first. A GIF missing a picture is reported and the others are still made.
 
-The palette in Fusion lists the GIFs after the presets, each with its dialog animation in Fusion's theme, the pictures
+The palette also lists the still screenshots of `shots.json`, the ones without `steps`, after the presets, each
+with **Create** or **Refresh** that runs `screenshots.py --only <name>`. **Refresh all** takes them after the pictures,
+as a menu over the viewport shows one, and before the GIFs.
+
+The palette in Fusion lists the GIFs after the presets and screenshots, each with its dialog animation in Fusion's theme, the pictures
 it still needs, or that its pictures changed since it was made. Its **Create** or **Refresh** makes the pictures it
 needs, then the GIF. The palette runs this script with `--dialogs` for it, once per GIF so its row shows the one being made, after **Refresh all** and for **Make GIFs**, with the Python of
 `tools/screenshots/.venv`, so the screenshot tool has to be set up as above. Its output goes to the log of the

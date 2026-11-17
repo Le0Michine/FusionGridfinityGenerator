@@ -1,4 +1,5 @@
 import adsk.core, adsk.fusion, traceback
+import dataclasses
 import json
 import os
 import pathlib
@@ -49,6 +50,12 @@ GIF_PYTHON = os.path.join(SCREENSHOTS_FOLDER, '.venv', 'Scripts', 'python.exe') 
 GIF_COMMAND = [GIF_PYTHON, os.path.join(SCREENSHOTS_FOLDER, 'modelGifs.py'), '--dialogs']
 GIFS_FILE = os.path.join(SCREENSHOTS_FOLDER, 'modelGifs.json')
 GIF_FOLDER = os.path.join(ROOT_FOLDER, 'documentation', 'assets', 'gif')
+# still screenshots of the dialogs and menus in shots.json, taken by the same tool, the animations go with the GIFs
+SHOT_COMMAND = [GIF_PYTHON, os.path.join(SCREENSHOTS_FOLDER, 'screenshots.py')]
+SHOTS_FILE = os.path.join(SCREENSHOTS_FOLDER, 'shots.json')
+# as screenshots.py has them
+SHOT_THEMES = ['dark', 'light']
+SHOT_OUTPUT = os.path.join('documentation', 'assets', 'ui')
 # dialog animations the GIFs are made from, recorded by screenshots.py and not kept in the repo
 DIALOGS_FOLDER = os.path.join(SCREENSHOTS_FOLDER, 'dialogs')
 GIF_THEMES = ['light', 'dark']
@@ -64,6 +71,8 @@ local_handlers = []
 queue_handlers = []
 # presets whose pictures are asked for, and if they are being made
 queue: list[str] = []
+# dialog screenshots asked for, by name, taken after the pictures, a menu over the viewport shows one
+shotQueue: list[str] = []
 # GIFs asked for, by name, made after the pictures
 gifQueue: list[str] = []
 isRunning = False
@@ -112,6 +121,8 @@ def stop():
     app.unregisterCustomEvent(QUEUE_EVENT_ID)
     queue_handlers = []
     queue.clear()
+    shotQueue.clear()
+    gifQueue.clear()
 
 # without inputs Fusion executes the command right away, no dialog
 def command_created(args: adsk.core.CommandCreatedEventArgs):
@@ -180,6 +191,30 @@ def gifRows() -> list[dict]:
         })
     return rows
 
+def shotDescription(shot: dict) -> str:
+    """What a still screenshot of shots.json shows"""
+    if shot.get('menu'):
+        return 'Right-click menu over the viewport' if shot['menu'].get('scene') else 'Right-click menu'
+    inputs = shot.get('inputs')
+    if not inputs:
+        return f'Whole {shot["command"]} dialog'
+    shown = [input.split(':')[0] for input in inputs]
+    return f'{shot["command"].capitalize()} dialog, {shown[0]}' + (f' to {shown[-1]}' if len(shown) > 1 else '')
+
+def shotRows() -> list[dict]:
+    """The still screenshots of shots.json, their files by theme, as screenshots.py names them"""
+    with open(SHOTS_FILE, encoding='utf-8') as file:
+        shots = json.load(file)
+    rows = []
+    for shot in shots['shots']:
+        if shot.get('steps'):
+            continue
+        themes = shot.get('themes') or shots.get('themes') or SHOT_THEMES
+        folder = os.path.join(ROOT_FOLDER, shot.get('output') or shots.get('output') or SHOT_OUTPUT)
+        files = {theme: savedFile(os.path.join(folder, f'{shot["name"] if len(themes) == 1 else shot["name"] + "-" + theme}.png')) for theme in themes}
+        rows.append({'name': shot['name'], 'description': shotDescription(shot), 'files': files})
+    return rows
+
 def pictureFolders() -> list[str]:
     """The folders the presets save to, the default one when the presets can't be read"""
     try:
@@ -197,15 +232,24 @@ def reloadItems(notify: bool = True):
         return
     picturesPalette.setItems([{'name': preset.name, 'description': preset.description, 'picture': savedPicture(preset)} for preset in items], notify=False)
     try:
+        picturesPalette.setItems(shotRows(), section=picturesPalette.SHOTS, notify=False)
+    except (OSError, ValueError, KeyError) as err:
+        picturesPalette.setBusy(isRunning, f'{os.path.relpath(SHOTS_FILE, ROOT_FOLDER)}: {err}', notify=False)
+    try:
         picturesPalette.setItems(gifRows(), section=picturesPalette.GIFS, notify=notify)
     except (OSError, ValueError, KeyError) as err:
         picturesPalette.setBusy(isRunning, f'{os.path.relpath(GIFS_FILE, ROOT_FOLDER)}: {err}', notify)
 
-def request(names: list[str], gifs: list[str]):
+def request(names: list[str], gifs: list[str], shots: list[str] = []):
     """
-    Pictures and GIFs asked for in the palette, made one after the other, the palette's answer shows them waiting. GIFs
-    are made after the pictures, with the pictures they still miss
+    Pictures, dialog screenshots and GIFs asked for in the palette, made one after the other, the palette's answer shows
+    them waiting. Screenshots are taken after the pictures, a menu shows one, GIFs are made last, with the pictures they
+    still miss
     """
+    for shot in shots:
+        if shot not in shotQueue:
+            shotQueue.append(shot)
+            picturesPalette.setStatus(shot, picturesPalette.STATUS_QUEUED, section=picturesPalette.SHOTS, notify=False)
     for gif in picturesPalette.state[picturesPalette.GIFS]:
         if gif['name'] in gifs:
             names = [*names, *(picture for picture in gif['missing'] if picture not in names)]
@@ -230,17 +274,22 @@ def queue_custom_event(args: adsk.core.CustomEventArgs):
     message = ''
     try:
         app.lightingEnvironment = getattr(adsk.core.LightingEnvironments, VIEWPORT_LIGHTING)
-        # GIFs asked for while pictures are made wait for them, they show the pictures
-        while queue or gifQueue:
+        # screenshots and GIFs asked for while pictures are made wait for them, they show the pictures
+        while queue or shotQueue or gifQueue:
             if queue:
                 name = queue.pop(0)
                 picturesPalette.setBusy(True, f'Making picture {done + 1} of {done + 1 + len(queue)}')
                 makePicture(name)
                 done += 1
+            elif shotQueue:
+                names = shotQueue[:]
+                shotQueue.clear()
+                message = makeWithTool(SHOT_KIND, names)
             else:
                 names = gifQueue[:]
                 gifQueue.clear()
-                message = makeGifs(names)
+                gifMessage = makeWithTool(GIF_KIND, names)
+                message = f'{message}. {gifMessage}' if message else gifMessage
     except:
         writeLog(traceback.format_exc())
     finally:
@@ -250,47 +299,61 @@ def queue_custom_event(args: adsk.core.CustomEventArgs):
         isRunning = False
         picturesPalette.setBusy(False, message)
 
-def makeGifs(names: list[str]) -> str:
+@dataclasses.dataclass
+class ToolKind:
+    """What the screenshot tool makes for a section of the palette, see makeWithTool"""
+    section: str
+    # a GIF, a dialog screenshot
+    what: str
+    command: list[str]
+    # the extension of its files and the folder they're said to be in
+    extension: str
+    folder: str
+
+GIF_KIND = ToolKind(picturesPalette.GIFS, 'GIF', GIF_COMMAND, '.gif', os.path.relpath(GIF_FOLDER, ROOT_FOLDER))
+SHOT_KIND = ToolKind(picturesPalette.SHOTS, 'dialog screenshot', SHOT_COMMAND, '.png', SHOT_OUTPUT)
+
+def makeWithTool(kind: ToolKind, names: list[str]) -> str:
     """
-    GIFs of modelGifs.json with the dialog animations they loop with, one at a time so their rows say which is being
-    made and how each went. The result says how all did
+    GIFs of modelGifs.json with the dialog animations they loop with, or screenshots of shots.json, one at a time so
+    their rows say which is being made and how each went. The result says how all did
     """
     if not os.path.exists(GIF_PYTHON):
         message = f'no {os.path.relpath(GIF_PYTHON, ROOT_FOLDER)}, set up the screenshot tool as in tools/screenshots/README.md'
         for name in names:
-            picturesPalette.setStatus(name, picturesPalette.STATUS_FAILED, message, section=picturesPalette.GIFS, notify=False)
-        return f'GIFs not made, {message}'
+            picturesPalette.setStatus(name, picturesPalette.STATUS_FAILED, message, section=kind.section, notify=False)
+        return f'{kind.what[0].upper()}{kind.what[1:]}s not made, {message}'
     for name in names:
-        picturesPalette.setStatus(name, picturesPalette.STATUS_QUEUED, section=picturesPalette.GIFS, notify=False)
+        picturesPalette.setStatus(name, picturesPalette.STATUS_QUEUED, section=kind.section, notify=False)
     started = time.monotonic()
     (made, failed) = (0, [])
     for (index, name) in enumerate(names):
         if time.monotonic() - started > GIF_TIMEOUT:
-            picturesPalette.setStatus(name, picturesPalette.STATUS_FAILED, 'not made, the GIFs took too long', section=picturesPalette.GIFS, notify=False)
+            picturesPalette.setStatus(name, picturesPalette.STATUS_FAILED, f'not made, the {kind.what}s took too long', section=kind.section, notify=False)
             failed.append(name)
             continue
-        picturesPalette.setStatus(name, picturesPalette.STATUS_RENDERING, section=picturesPalette.GIFS, notify=False)
-        failure = makeGif(name, f'Making GIF {index + 1} of {len(names)}', started)
+        picturesPalette.setStatus(name, picturesPalette.STATUS_RENDERING, section=kind.section, notify=False)
+        failure = runTool(kind, name, f'Making {kind.what} {index + 1} of {len(names)}', started)
         # the row gets the new files
         reloadItems(notify=False)
         if failure:
             failed.append(name)
         else:
             made += 1
-        picturesPalette.setStatus(name, picturesPalette.STATUS_FAILED if failure else picturesPalette.STATUS_SAVED, failure or '', section=picturesPalette.GIFS, notify=False)
+        picturesPalette.setStatus(name, picturesPalette.STATUS_FAILED if failure else picturesPalette.STATUS_SAVED, failure or '', section=kind.section, notify=False)
     seconds = int(time.monotonic() - started)
     if failed:
-        return f'Made {made} GIFs in {seconds} s, {len(failed)} failed: {", ".join(failed)}'
-    return f'Made {made} GIFs in {seconds} s, in documentation/assets/gif'
+        return f'Made {made} {kind.what}s in {seconds} s, {len(failed)} failed: {", ".join(failed)}'
+    return f'Made {made} {kind.what}s in {seconds} s, in {kind.folder}'
 
-def makeGif(name: str, message: str, started: float) -> str | None:
-    """A GIF with its dialog animation by running modelGifs.py, what kept it from being made, if anything"""
+def runTool(kind: ToolKind, name: str, message: str, started: float) -> str | None:
+    """A GIF or screenshot by running the screenshot tool for it, what kept it from being made, if anything"""
     environment = {key: value for (key, value) in os.environ.items() if key not in FUSION_PYTHON_VARIABLES}
     outputPath = os.path.join(tempfile.gettempdir(), 'gridfinity-gifs.log')
     with open(outputPath, 'w', encoding='utf-8') as output:
         # no console window flashing up on Windows
         flags = subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
-        process = subprocess.Popen([*GIF_COMMAND, '--only', name], cwd=ROOT_FOLDER, env=environment, stdout=output, stderr=subprocess.STDOUT, creationflags=flags)
+        process = subprocess.Popen([*kind.command, '--only', name], cwd=ROOT_FOLDER, env=environment, stdout=output, stderr=subprocess.STDOUT, creationflags=flags)
         (shown, elapsed) = (-1, 0)
         # Fusion keeps drawing and the palette answering while it is made
         while process.poll() is None:
@@ -306,16 +369,18 @@ def makeGif(name: str, message: str, started: float) -> str | None:
             time.sleep(0.1)
     with open(outputPath, encoding='utf-8', errors='replace') as file:
         lines = [line.strip() for line in file if line.strip()]
-    writeLog(f'GIF {name}\n' + '\n'.join(lines))
+    writeLog(f'{kind.what} {name}\n' + '\n'.join(lines))
     if elapsed > GIF_TIMEOUT:
         return 'took too long and was stopped'
-    # the script says what kept a GIF from being made on a line starting with its name
+    # the GIF script says what kept a GIF from being made on a line starting with its name
     failure = next((line[len(name) + 2:] for line in lines if line.startswith(f'{name}: ')), None)
     if failure:
         return failure
-    if process.returncode != 0 or not any(os.path.basename(line).startswith(f'{name}-') and line.endswith('.gif') for line in lines):
+    # the tool lists the files it saved, named by the GIF or shot, with its theme for both themes
+    saved = [line for line in lines if line.endswith(kind.extension) and os.path.splitext(os.path.basename(line))[0] in [name, f'{name}-light', f'{name}-dark']]
+    if process.returncode != 0 or not saved:
         # the last lines say what went wrong, a traceback ends with its error
-        problems = [line for line in lines if not line.endswith('.gif')]
+        problems = [line for line in lines if not line.endswith(kind.extension)]
         return ' '.join(problems[-3:]) or 'not made'
     return None
 

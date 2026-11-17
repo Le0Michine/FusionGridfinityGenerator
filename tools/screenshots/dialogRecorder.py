@@ -248,8 +248,9 @@ def _describe(input) -> dict:
         return {**common, 'type': 'textbox', 'html': input.formattedText, 'rows': input.numRows}
     if isinstance(input, adsk.core.DropDownCommandInput):
         selected = input.selectedItem
-        items = [{'name': item.name, 'icon': _icon(item.icon), 'separator': item.isSeparator} for item in input.listItems]
-        return {**common, 'type': 'dropdown', 'text': selected.name if selected else '', 'icon': _icon(selected.icon if selected else ''), 'items': items}
+        items = [{'name': item.name, 'icon': _icon(item.icon), 'iconDark': _icon(item.icon, '-dark'), 'separator': item.isSeparator} for item in input.listItems]
+        selectedIcon = selected.icon if selected else ''
+        return {**common, 'type': 'dropdown', 'text': selected.name if selected else '', 'icon': _icon(selectedIcon), 'iconDark': _icon(selectedIcon, '-dark'), 'items': items}
     if isinstance(input, adsk.core.BrowserCommandInput):
         return {**common, 'type': 'browser', 'url': input.htmlFileURL, 'height': input.minimumHeight}
     if isinstance(input, adsk.core.TableCommandInput):
@@ -259,9 +260,9 @@ def _describe(input) -> dict:
     raise TypeError(f'Can\'t draw {input.id}, a {type(input).__name__}')
 
 
-def _icon(folder: str) -> str:
-    """The icon an item shows from its resource folder"""
-    path = os.path.join(folder, '16x16.png') if folder else ''
+def _icon(folder: str, theme: str = '') -> str:
+    """The icon an item shows from its resource folder, -dark the one Fusion shows in its dark theme"""
+    path = os.path.join(folder, f'16x16{theme}.png') if folder else ''
     return pathlib.Path(path).as_uri() if path and os.path.isfile(path) else ''
 
 

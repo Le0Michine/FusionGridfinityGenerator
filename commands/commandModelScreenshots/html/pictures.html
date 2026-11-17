@@ -153,7 +153,7 @@
         padding-bottom: 4px;
         font-weight: bold;
     }
-    .section:empty, #gifs:empty {
+    .section:empty, #gifs:empty, #shots:empty {
         display: none;
     }
     .needs {
@@ -199,17 +199,19 @@
     <span class="buttons">
         <button id="open-folder" title="Shows the folder of the pictures in Finder or Explorer">Open location</button>
         <button id="make-gifs" title="Makes the GIFs of modelGifs.json from the saved pictures, with the dialog animations they go with">Make GIFs</button>
-        <button id="refresh-all" title="Makes the pictures of every preset again, from their files, then the GIFs">Refresh all</button>
+        <button id="refresh-all" title="Makes the pictures of every preset again, from their files, then the dialog screenshots and the GIFs">Refresh all</button>
     </span>
 </div>
 <!-- how far the pictures are can't be told, the bar only shows that they are being made -->
 <div id="track" class="progress-track indeterminate"><div class="progress-bar"></div></div>
 <div id="message"></div>
 <div id="search-row">
-    <input id="search" type="search" placeholder="Search presets and GIFs by name">
+    <input id="search" type="search" placeholder="Search pictures, screenshots and GIFs by name">
     <span id="search-count"></span>
 </div>
 <div id="items"></div>
+<div class="section" id="shots-title">Dialog screenshots</div>
+<div id="shots"></div>
 <div class="section" id="gifs-title">GIFs</div>
 <div id="gifs"></div>
 <div id="viewer">
@@ -244,8 +246,28 @@
     }
 
     // the answer is the rows with what was asked for waiting
-    function request(names, gifs) {
-        fusionBridge.send('render', { names: names, gifs: gifs }).then((data) => data && update(data));
+    function request(names, gifs, shots) {
+        fusionBridge.send('render', { names: names, gifs: gifs, shots: shots || [] }).then((data) => data && update(data));
+    }
+
+    // a screenshot taken in one theme only shows that one
+    function shotFile(shot) {
+        return shot.files[theme()] || Object.values(shot.files).find(Boolean) || null;
+    }
+
+    function shotWhich(shot) {
+        return shot.files[theme()] ? theme() : Object.keys(shot.files).find((key) => shot.files[key]);
+    }
+
+    function shotRow(shot) {
+        const row = document.createElement('div');
+        row.className = 'item';
+        const saved = shotFile(shot);
+        row.append(
+            thumbnail(saved, 'No screenshot', () => view(shot, 'shots')),
+            textOf(shot, saved ? 'Refresh' : 'Create', 'Takes the screenshot from shots.json, without Fusion', () => request([], [], [shot.name])),
+        );
+        return row;
     }
 
     function thumbnail(saved, empty, onClick) {
@@ -352,10 +374,13 @@
         document.getElementById('refresh-all').disabled = state.items.length === 0;
         document.getElementById('make-gifs').disabled = state.gifs.length === 0;
         const items = state.items.filter(matchesSearch);
+        const shots = (state.shots || []).filter(matchesSearch);
         const gifs = state.gifs.filter(matchesSearch);
-        const total = state.items.length + state.gifs.length;
-        document.getElementById('search-count').textContent = searchText.trim() ? `${items.length + gifs.length} of ${total} shown` : '';
+        const total = state.items.length + (state.shots || []).length + state.gifs.length;
+        document.getElementById('search-count').textContent = searchText.trim() ? `${items.length + shots.length + gifs.length} of ${total} shown` : '';
         document.getElementById('items').replaceChildren(...items.map(pictureRow));
+        document.getElementById('shots-title').textContent = shots.length ? 'Dialog screenshots' : '';
+        document.getElementById('shots').replaceChildren(...shots.map(shotRow));
         document.getElementById('gifs-title').textContent = gifs.length ? 'GIFs' : '';
         document.getElementById('gifs').replaceChildren(...gifs.map(gifRow));
         if (viewing) {
@@ -374,6 +399,9 @@
     function viewed(item, section) {
         if (section === 'items') {
             return item.picture ? [{ saved: item.picture }] : [];
+        }
+        if (section === 'shots') {
+            return shotFile(item) ? [{ saved: shotFile(item), which: shotWhich(item) }] : [];
         }
         return ['model', 'dialog'].map((kind) => ({ saved: item.files[`${kind}-${theme()}`], which: `${kind}-${theme()}` })).filter((each) => each.saved);
     }
@@ -398,7 +426,7 @@
     }
 
     document.getElementById('refresh-all').addEventListener('click', () => {
-        request(state.items.map((item) => item.name), state.gifs.map((gif) => gif.name));
+        request(state.items.map((item) => item.name), state.gifs.map((gif) => gif.name), (state.shots || []).map((shot) => shot.name));
     });
     document.getElementById('open-folder').addEventListener('click', () => fusionBridge.send('openFolder'));
     document.getElementById('make-gifs').addEventListener('click', () => request([], state.gifs.map((gif) => gif.name)));

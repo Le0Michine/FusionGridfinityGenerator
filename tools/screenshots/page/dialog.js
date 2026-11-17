@@ -3,6 +3,11 @@
 // screenshots.py provides. An animation changes the dialog in place, see animation.py, pages keep their state
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
+// an item's icon in the dialog's theme, Fusion shows the -dark one of a resource folder in its dark theme
+function themedIcon(item) {
+    return (window.matchMedia('(prefers-color-scheme: dark)').matches && item.iconDark) || item.icon;
+}
+
 function element(tag, className, text) {
     const node = document.createElement(tag);
     if (className) {
@@ -110,7 +115,7 @@ function drawInput(input) {
         const field = textField(input.text, ICONS.dropdown());
         if (input.icon) {
             const image = element('img');
-            image.src = input.icon;
+            image.src = themedIcon(input);
             field.prepend(image);
         }
         const node = labelled(input, field);
@@ -330,7 +335,7 @@ function openDropdown(id, highlighted) {
         node.dataset.name = item.name;
         if (item.icon) {
             const image = element('img');
-            image.src = item.icon;
+            image.src = themedIcon(item);
             node.append(image);
         }
         node.append(element('span', '', item.name));
