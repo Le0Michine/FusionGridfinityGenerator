@@ -61,10 +61,17 @@ markingMenuHandler = None
 menuTag = None
 
 def selectedTag() -> tuple[adsk.fusion.BRepBody, str, dict] | None:
-    """The single selected generated body, native, with its tag, also when one of its faces is selected"""
+    """
+    The single selected generated body, native, with its tag, also when one of its faces is selected, or the component
+    of a hybrid design it was generated in
+    """
     if ui.activeSelections.count != 1:
         return None
     entity = ui.activeSelections.item(0).entity
+    occurrence = adsk.fusion.Occurrence.cast(entity)
+    component = occurrence.component if occurrence is not None else adsk.fusion.Component.cast(entity)
+    if component is not None:
+        return componentTag(component)
     body = adsk.fusion.BRepBody.cast(entity)
     if body is None:
         face = adsk.fusion.BRepFace.cast(entity)
@@ -76,6 +83,11 @@ def selectedTag() -> tuple[adsk.fusion.BRepBody, str, dict] | None:
         body = body.nativeObject
     tag = tagUtils.readBodyTag(body)
     return (body, *tag) if tag is not None else None
+
+def componentTag(component: adsk.fusion.Component) -> tuple[adsk.fusion.BRepBody, str, dict] | None:
+    """The generated body of a component with its tag, none unless it holds exactly one, its bodies are native"""
+    tags = [(body, *tag) for body in component.bRepBodies if (tag := tagUtils.readBodyTag(body)) is not None]
+    return tags[0] if len(tags) == 1 else None
 
 def canRebuild(tag: tuple[adsk.fusion.BRepBody, str, dict] | None) -> bool:
     """Bodies generated before the generator kept the config can't be rebuilt"""
