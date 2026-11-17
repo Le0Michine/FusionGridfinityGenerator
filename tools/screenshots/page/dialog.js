@@ -37,6 +37,9 @@ const ICONS = {
     check: () => icon(11, 11, '<path d="M2 5.8 L4.5 8.2 L9.2 2.8"/>'),
     minimize: () => icon(9, 9, '<path d="M1 4.5 h7"/>'),
     dock: () => icon(10, 9, '<path d="M1 1.5 L4 4.5 L1 7.5 M5.5 1.5 L8.5 4.5 L5.5 7.5"/>'),
+    // a selection input's arrow and its clear cross
+    select: () => icon(12, 14, '<path d="M1.5 1 V11.5 L4.2 9 L6.2 13.2 L8 12.4 L6 8.3 H9.6 Z"/>'),
+    clear: () => icon(9, 9, '<path d="M1.5 1.5 L7.5 7.5 M7.5 1.5 L1.5 7.5"/>'),
     // the system arrow, its tip at 0, 0
     cursor: () => icon(14, 21, '<path d="M1 1 V16.5 L4.8 12.9 L7.6 19.2 L10.2 18.1 L7.5 11.9 H12.6 Z"/>'),
 };
@@ -125,8 +128,18 @@ function drawInput(input) {
     }
     case 'checkbox':
         return labelled(input, checkbox(input.checked));
+    case 'selection': {
+        // active, Fusion picks into the first selection input as the dialog opens
+        const box = element('div', 'selection');
+        box.append(ICONS.select(), element('span', 'text', input.count ? `${input.count} selected` : 'Select'));
+        if (input.count) {
+            box.append(ICONS.clear());
+        }
+        return labelled(input, box);
+    }
     case 'button': {
-        const button = element('button', 'button', input.name);
+        // its text, or its name when it has none
+        const button = element('button', 'button', input.text || input.name);
         if (input.fullWidth) {
             const node = row(input, 'full');
             node.append(button);

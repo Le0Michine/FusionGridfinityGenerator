@@ -267,6 +267,27 @@ body {
     border-radius: 3px;
     white-space: nowrap;
 }
+.selection {
+    justify-self: start;
+    display: flex;
+    align-items: center;
+    height: 24px;
+    padding: 0 7px;
+    gap: 6px;
+    border-radius: 2px;
+    background: var(--focus);
+    color: #ffffff;
+    white-space: nowrap;
+}
+.selection svg:first-child {
+    fill: #ffffff;
+}
+.selection svg:last-child:not(:first-child) {
+    margin-left: 4px;
+    fill: none;
+    stroke: #ffffff;
+    stroke-width: 1.4;
+}
 .text-box {
     align-self: start;
     padding: 4px 12px;

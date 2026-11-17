@@ -57,6 +57,7 @@ Skeletonized baseplates can have holes between them for a screw or a glued in pi
   - adjustable length, offset and overhang angle, top can be tilted to face the front
   - can be hollow, opened through the back wall of the bin and optionally its side walls
   - label with text and an icon, outlined for a slicer to color it, engraved or embossed
+  - outlined label text shows in a color of its own in Fusion, and the export paints it for the slicer
   - label text can be changed later in the user parameters, without generating the bin again
 - **Base**
   - magnet sockets, sized for a snug fit of the magnets, optionally with tabs holding them in
@@ -64,6 +65,7 @@ Skeletonized baseplates can have holes between them for a screw or a glued in pi
   - joint origins at the bottom of every foot, to joint the bin into baseplate sockets
 - **Settings** can be saved as the dialog defaults, saved to or loaded from a JSON file, copied to the clipboard or cloned into a new bin, also from its right-click menu
 - **Rebuild** a generated bin or baseplate with changed settings, from its right-click menu or its settings window, it's built again at its place in the timeline and the features after it keep working on the new body. Features picked on a face or an edge of the old body are listed to pick again. For a bin, changing only what its parameters hold, like the height or label text, sets them instead, without building it again
+- **Export** bins and baseplates from their right-click menu, all of them at once into one 3MF with the label text painted in a color of the slicer, or into an STL or STEP file each
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-features-dark.gif"><img src="documentation/assets/gif/bin-features-light.gif" alt="Changing the size, type and wall thickness of a bin, with the bin at each change"></picture>
 
@@ -141,6 +143,19 @@ Bin for random round things
 Right-click a generated bin or baseplate for its settings, to rebuild it in place with changed settings or to clone it into a new one. The settings window shows what it was built with, saves them to a file, copies or clones them
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/ui/context-menu-gridfinity-scene-dark.png"><img src="documentation/assets/ui/context-menu-gridfinity-scene-light.png" alt="Fusion's right-click menu opened on a bin, the pointer on Gridfinity clone below Gridfinity settings and Gridfinity rebuild" width="508"></picture>
+
+### Export
+Right-click a bin or baseplate, or a component holding them, and pick Gridfinity export. It exports the selected bodies, or every visible bin and baseplate with All Gridfinity bodies, into:
+- **3MF**, one file with all of them, as they're laid out in the design. With Color label text, the text of outlined labels is painted with the label color index, so Bambu Studio, OrcaSlicer and PrusaSlicer print it in that color of their list without painting it by hand
+- **STL** or **STEP**, a file of each body, named after it, at the origin with its bottom at zero whatever its place in the design
+
+3MF and STL bodies are meshed at Fusion's very high quality
+
+Color index metadata is stored in 3MF and is read by modern slicers to assign appropriate color/tool to the text faces.
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/ui/context-menu-export-scene-dark.png"><img src="documentation/assets/ui/context-menu-export-scene-light.png" alt="Fusion's right-click menu opened on a bin, the pointer on Gridfinity export below Properties" width="508"></picture>
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/ui/fusion-dialog-export-dark.png"><img src="documentation/assets/ui/fusion-dialog-export-light.png" alt="The Gridfinity export dialog, 4 bodies selected for one 3MF in Downloads, the label text colored with color index 2" width="500"></picture>
 
 ## Installation
 

@@ -185,6 +185,46 @@ class TextBoxCommandInput(CommandInput):
         self.formattedText = value
 
 
+class Selection:
+    def __init__(self, entity):
+        self.entity = entity
+
+
+class SelectionCommandInput(CommandInput):
+    # filters, only kept
+    SolidBodies = 'SolidBodies'
+    Bodies = 'Bodies'
+    Occurrences = 'Occurrences'
+
+    def __init__(self, inputs, inputId, name, commandPrompt: str):
+        super().__init__(inputs, inputId, name)
+        self.commandPrompt = commandPrompt
+        self.filters: list[str] = []
+        self._selections: list[Selection] = []
+
+    def addSelectionFilter(self, filter: str):
+        self.filters.append(filter)
+        return True
+
+    def setSelectionLimits(self, minimum: int, maximum: int = 0):
+        return True
+
+    def clearSelection(self):
+        self._selections = []
+        return True
+
+    def addSelection(self, entity):
+        self._selections.append(Selection(entity))
+        return True
+
+    @property
+    def selectionCount(self) -> int:
+        return len(self._selections)
+
+    def selection(self, index: int) -> Selection:
+        return self._selections[index]
+
+
 class ListItem:
     def __init__(self, items: 'ListItems', name: str, isSelected: bool, icon: str = '', isSeparator: bool = False):
         self._items = items
@@ -336,6 +376,9 @@ class CommandInputs:
 
     def addTextBoxCommandInput(self, inputId, name, formattedText, numRows, isReadOnly):
         return self._add(TextBoxCommandInput(self, inputId, name, formattedText, numRows, isReadOnly))
+
+    def addSelectionInput(self, inputId, name, commandPrompt):
+        return self._add(SelectionCommandInput(self, inputId, name, commandPrompt))
 
     def addDropDownCommandInput(self, inputId, name, dropDownStyle):
         return self._add(DropDownCommandInput(self, inputId, name, dropDownStyle))

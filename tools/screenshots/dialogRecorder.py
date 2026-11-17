@@ -23,6 +23,7 @@ PACKAGE = 'gridfinityAddin'
 COMMANDS = {
     'bin': 'commandCreateBin',
     'baseplate': 'commandCreateBaseplate',
+    'export': 'commandExport',
 }
 # what the commands call the state of their inputs and the function setting its defaults
 UI_STATE_NAMES = ['commandUIState', 'uiState']
@@ -66,6 +67,10 @@ def loadCommand(command: str) -> types.ModuleType:
     return importlib.import_module(f'{PACKAGE}.commands.{folder}.entry')
 
 
+def _has(module: types.ModuleType, names: list[str]) -> bool:
+    return any(hasattr(module, name) for name in names)
+
+
 def _find(module: types.ModuleType, names: list[str]):
     for name in names:
         if hasattr(module, name):
@@ -84,7 +89,7 @@ def _stateValue(current, value):
 
 
 def applyValues(module: types.ModuleType, values: dict, moduleGlobals: dict):
-    uiState = _find(module, UI_STATE_NAMES)
+    uiState = _find(module, UI_STATE_NAMES) if values else None
     for (inputId, value) in values.items():
         if inputId not in uiState.inputState:
             known = ', '.join(sorted(uiState.inputState))
@@ -100,18 +105,26 @@ class DialogSession:
     """
     A command's dialog with the given input values, by input id as the dialog saves its defaults, open to be changed
     as a person would and drawn after every change. Without a defaults file the dialog has its original defaults, not
-    the ones saved in Fusion
+    the ones saved in Fusion. A command without a state of its inputs, as the export, gets the values as changes once
+    its dialog is up, and the choices it keeps from before aren't read
     """
 
     def __init__(self, command: str, values: dict = None, moduleGlobals: dict = None, defaultsFile: str = None):
         self.module = loadCommand(command)
         import adsk.core
         self.module.UI_INPUT_DEFAULTS_CONFIG_PATH = os.path.abspath(defaultsFile) if defaultsFile else os.path.join(SCREENSHOTS_DIR, 'no-saved-defaults.json')
-        _find(self.module, INIT_NAMES)()
-        applyValues(self.module, values or {}, moduleGlobals or {})
+        if hasattr(self.module, 'CONFIG_FOLDER_PATH'):
+            self.module.CONFIG_FOLDER_PATH = os.path.join(SCREENSHOTS_DIR, 'no-saved-config')
+        hasState = _has(self.module, UI_STATE_NAMES)
+        if hasState:
+            _find(self.module, INIT_NAMES)()
+        applyValues(self.module, (values or {}) if hasState else {}, moduleGlobals or {})
 
         self.command = adsk.core.Command()
         self.module.command_created(adsk.core.CommandCreatedEventArgs(self.command))
+        if not hasState:
+            for (inputId, value) in (values or {}).items():
+                self.change(inputId, value)
         _checkDropdowns(self.command.commandInputs, values or {})
         # pages ask for their data once loaded, what the dialog sent before is stale
         self.takeSentInfo()
@@ -130,7 +143,8 @@ class DialogSession:
         import adsk.core
         (width, height) = self.command.dialogSize
         validation = adsk.core.ValidateInputsEventArgs(self.inputs)
-        self.module.command_validate_input(validation)
+        if hasattr(self.module, 'command_validate_input'):
+            self.module.command_validate_input(validation)
         return {
             'title': self.module.CMD_NAME,
             'width': width,
@@ -169,6 +183,14 @@ class DialogSession:
             input.value = int(value)
         elif isinstance(input, adsk.core.FloatSpinnerCommandInput):
             input.value = float(value)
+        elif isinstance(input, adsk.core.TextBoxCommandInput):
+            input.text = value
+        elif isinstance(input, adsk.core.SelectionCommandInput):
+            # as many bodies selected, stand ins the command takes for any body, there's no design
+            from adsk.anything import Anything
+            input.clearSelection()
+            for _ in range(int(value)):
+                input.addSelection(Anything())
         else:
             input.value = value
         self.module.command_input_changed(adsk.core.InputChangedEventArgs(input, self.inputs))
@@ -241,11 +263,13 @@ def _describe(input) -> dict:
     if isinstance(input, (adsk.core.FloatSpinnerCommandInput, adsk.core.IntegerSpinnerCommandInput)):
         return {**common, 'type': 'spinner', 'text': input.expression}
     if isinstance(input, adsk.core.BoolValueCommandInput):
-        return {**common, 'type': 'checkbox' if input.isCheckBox else 'button', 'checked': input.value}
+        return {**common, 'type': 'checkbox' if input.isCheckBox else 'button', 'checked': input.value, 'text': input.text}
     if isinstance(input, adsk.core.StringValueCommandInput):
         return {**common, 'type': 'string', 'text': input.value, 'readOnly': input.isReadOnly}
     if isinstance(input, adsk.core.TextBoxCommandInput):
         return {**common, 'type': 'textbox', 'html': input.formattedText, 'rows': input.numRows}
+    if isinstance(input, adsk.core.SelectionCommandInput):
+        return {**common, 'type': 'selection', 'count': input.selectionCount}
     if isinstance(input, adsk.core.DropDownCommandInput):
         selected = input.selectedItem
         items = [{'name': item.name, 'icon': _icon(item.icon), 'iconDark': _icon(item.icon, '-dark'), 'separator': item.isSeparator} for item in input.listItems]
