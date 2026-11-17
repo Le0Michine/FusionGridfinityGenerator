@@ -32,7 +32,7 @@ Horizontal clearance between neighbouring bins and between the bin base and the 
 
 The baseplate sockets follow the grid exactly, the bin stands the clearance in from the grid line on every side, its feet as well as its walls. So two bins side by side have twice the clearance between them, and each foot has the clearance all around it in its socket.
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="../assets/diagrams/bin-xy-clearance-dark.svg"><img src="../assets/diagrams/bin-xy-clearance-light.svg" alt="Cross section where two bins meet over a baseplate ridge: each bin stands the clearance in from the grid line, twice the clearance between the bins, and the clearance between each foot and its socket" width="600"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="../assets/diagrams/bin-xy-clearance-dark.svg"><img src="../assets/diagrams/bin-xy-clearance-light.svg" alt="Cross section where two bins meet over a baseplate ridge: each bin stands the clearance in from the grid line and each socket reaches the clearance past it, twice the clearance between the bins and between each foot and its socket" width="600"></picture>
 
 # Main dimensions
 

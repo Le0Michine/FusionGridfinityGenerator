@@ -23,7 +23,7 @@ Bin options | Baseplate options
   - skeletonized, a thick plate with its bottom cut away to save weight, leaving room for connection holes between plates for a screw or a glued in pin
 - **Features**
   - magnet sockets and screw holes with countersunk heads, all adjustable in size
-  - padding on any side, extra bottom thickness and clearance under the bins
+  - padding on any side and under the sockets, and the top trimmed so bins sit on their feet
   - joint origins at the bottom of every socket, to joint bins into it
 - **Settings** can be saved as the dialog defaults, saved to or loaded from a JSON file or copied to the clipboard
 
