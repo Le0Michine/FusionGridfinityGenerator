@@ -307,6 +307,33 @@
                 {"type": {"input": "bin_tab_label_text", "text": ""}},
                 {"model": 0}
             ]
+        },
+        {
+            "name": "baseplate-fill-centered",
+            "command": "baseplate",
+            "values": {
+                "sizing_mode_dropdown": "Fill area"
+            },
+            "inputs": ["layout_browser"]
+        },
+        {
+            "name": "baseplate-fill-left-front",
+            "command": "baseplate",
+            "values": {
+                "sizing_mode_dropdown": "Fill area",
+                "fill_align_x": "Left",
+                "fill_align_y": "Front"
+            },
+            "inputs": ["layout_browser"]
+        },
+        {
+            "name": "baseplate-fill-no-half-cells",
+            "command": "baseplate",
+            "values": {
+                "sizing_mode_dropdown": "Fill area",
+                "fill_half_cells": false
+            },
+            "inputs": ["layout_browser"]
         }
     ]
 }

@@ -1,0 +1,7 @@
+{
+    "description": "Wiki baseplate types: a 2x2 skeletonized baseplate from below, with magnet sockets and countersunk screw holes",
+    "extends": "baseplate-full-bottom.json",
+    "settings": {
+        "plateType": "Skeletonized"
+    }
+}

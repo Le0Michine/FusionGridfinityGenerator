@@ -1,0 +1,18 @@
+{
+    "description": "Wiki extra bottom thickness: a 2x1 full baseplate cut through the middle of its cells, the socket profile on top of the extra bottom",
+    "extends": "_baseplate-docs.json",
+    "view": {
+        "eye": [60, -110, 50],
+        "target": [42, 21, 3],
+        "up": [0, 0, 1]
+    },
+    "section": {
+        "plane": "xz",
+        "flip": true
+    },
+    "settings": {
+        "plateType": "Full",
+        "plateWidth": 2,
+        "plateLength": 1
+    }
+}

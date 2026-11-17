@@ -19,6 +19,9 @@ TOP = 2.4
 BASE_HEIGHT = BOTTOM + MIDDLE + TOP
 # mm, drawn instead of the 0.25mm default
 CLEARANCE = 0.9
+# mm, the baseplate's top trim cutting the ridges flat, drawn instead of the 0.5mm default, as much more than
+# the clearance as the default is
+VERTICAL_CLEARANCE = CLEARANCE * 2
 WALL = 1.2
 FLOOR = 1.2
 # mm, where the inside of the wall meets the floor, the bin's 4mm corner radius in by the 0.25mm clearance and the wall,
@@ -49,6 +52,17 @@ def point(x: float, z: float) -> str:
 def profile(inset: float) -> list[tuple[float, float]]:
     """The base's side from the bottom up, standing inset from the grid line, on the right of it"""
     return [(inset + BOTTOM + TOP, 0), (inset + TOP, BOTTOM), (inset + TOP, BOTTOM + MIDDLE), (inset, BASE_HEIGHT)]
+
+
+def ridgeSide(clearance: float, verticalClearance: float, seam: float = 0) -> list[tuple[float, float]]:
+    """
+    The right half of a baseplate ridge from the bottom up. The socket on its right is the clearance larger than its
+    cell, its top edge the clearance past the grid line, so the 45 degree faces of neighbouring sockets would meet
+    the clearance below the top, see baseplateGenerator. The top trim cuts the ridge flat, a seam between
+    two plates stops it short of the grid line
+    """
+    top = BASE_HEIGHT - verticalClearance
+    return profile(-clearance)[:3] + [(verticalClearance - clearance, top), (seam, top)]
 
 
 def mirrored(points: list[tuple[float, float]]) -> list[tuple[float, float]]:
@@ -97,8 +111,9 @@ def label(x: float, z: float, text: str, color: str, anchor: str = 'middle', bol
 
 def diagram(theme: str) -> str:
     colors = THEMES[theme]
-    # a ridge between sockets, its top on the grid line
-    plate = mirrored(profile(0)) + profile(0)[::-1][1:]
+    # a ridge between sockets, cut flat by the top trim
+    side = ridgeSide(CLEARANCE, VERTICAL_CLEARANCE)
+    plate = mirrored(side) + side[::-1]
     (gridX, gridTop) = point(0, HEIGHT + 0.6).split(',')
     (_, gridBottom) = point(0, -0.8).split(',')
     parts = [
@@ -117,10 +132,11 @@ def diagram(theme: str) -> str:
         label(CLEARANCE + WALL + 0.8, HEIGHT - 2.6, '2 × clearance between bins', colors['mark'], 'start', True),
         dimension(0, CLEARANCE, HEIGHT - 5.0, colors['mark'], rightTail=WALL + 0.5),
         label(CLEARANCE + WALL + 0.8, HEIGHT - 5.0, 'clearance from the grid line', colors['mark'], 'start', True),
-        # the foot in the socket, told under the drawing, the leader goes down the gap
-        dimension(TOP, TOP + CLEARANCE, BOTTOM + MIDDLE / 2, colors['mark'], tail=0.9),
-        leader([(TOP + CLEARANCE / 2, BOTTOM + MIDDLE / 2 - 0.25), (TOP + CLEARANCE / 2, BOTTOM), (BOTTOM + TOP + CLEARANCE / 2, 0), (BOTTOM + TOP + CLEARANCE / 2, -0.9)], colors['mark']),
-        label(BOTTOM + TOP + CLEARANCE / 2, -1.5, 'clearance from the socket', colors['mark'], 'start', True),
+        # the foot in the socket, told under the drawing, the leader goes down the gap. The socket is the clearance
+        # larger than the cell and the foot the clearance smaller
+        dimension(TOP - CLEARANCE, TOP + CLEARANCE, BOTTOM + MIDDLE / 2, colors['mark'], tail=0.9),
+        leader([(TOP, BOTTOM + MIDDLE / 2 - 0.25), (TOP, BOTTOM), (BOTTOM + TOP, 0), (BOTTOM + TOP, -0.9)], colors['mark']),
+        label(BOTTOM + TOP, -1.5, '2 × clearance from the socket', colors['mark'], 'start', True),
         f'<text x="{WIDTH / 2:.0f}" y="{TOTAL_HEIGHT - 14:.0f}" text-anchor="middle" fill="{colors["line"]}" font-size="13">'
         'Not to scale, the clearance is drawn larger to be seen</text>',
         '</svg>',

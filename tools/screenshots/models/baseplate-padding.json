@@ -1,0 +1,11 @@
+{
+    "description": "Wiki side padding: a 2x2 light baseplate with 12 mm of padding on its left and 20 mm on its bottom side",
+    "extends": "_baseplate-docs.json",
+    "settings": {
+        "plateWidth": 2,
+        "plateLength": 2,
+        "hasPadding": true,
+        "paddingLeft": 12,
+        "paddingBottom": 20
+    }
+}

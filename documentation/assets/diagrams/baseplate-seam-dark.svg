@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="626" height="483" viewBox="0 0 626 483" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15">
+<polygon points="24.0,364.8 297.7,364.8 297.7,167.6 272.2,167.6 251.8,188.0 251.8,249.2 224.6,276.4 24.0,276.4" fill="#59636e" stroke="#9198a1" stroke-width="1.5" stroke-linejoin="round"/>
+<polygon points="602.0,364.8 328.3,364.8 328.3,167.6 353.8,167.6 374.2,188.0 374.2,249.2 401.4,276.4 602.0,276.4" fill="#59636e" stroke="#9198a1" stroke-width="1.5" stroke-linejoin="round"/>
+<polyline points="272.2,167.6 313.0,126.8 353.8,167.6" fill="none" stroke="#9198a1" stroke-width="1.5" stroke-dasharray="5 4"/>
+<line x1="313.0" y1="62.2" x2="313.0" y2="385.2" stroke="#9198a1" stroke-width="1.5" stroke-dasharray="6 5"/>
+<text x="313.0" y="50.2" text-anchor="middle" fill="#e6edf3">grid line</text>
+<text x="37.6" y="325.6" text-anchor="start" fill="#e6edf3">plate</text>
+<text x="588.4" y="325.6" text-anchor="end" fill="#e6edf3">plate</text>
+<text x="37.6" y="247.4" text-anchor="start" fill="#e6edf3">socket</text>
+<text x="588.4" y="247.4" text-anchor="end" fill="#e6edf3">socket</text>
+<line x1="279.0" y1="307.0" x2="313.0" y2="307.0" stroke="#ff7b72" stroke-width="1.5"/>
+<line x1="328.3" y1="307.0" x2="362.3" y2="307.0" stroke="#ff7b72" stroke-width="1.5"/>
+<polygon points="313.0,307.0 304.0,311.0 304.0,303.0" fill="#ff7b72"/>
+<polygon points="328.3,307.0 337.3,303.0 337.3,311.0" fill="#ff7b72"/>
+<line x1="263.7" y1="341.0" x2="297.7" y2="341.0" stroke="#ff7b72" stroke-width="1.5"/>
+<line x1="328.3" y1="341.0" x2="362.3" y2="341.0" stroke="#ff7b72" stroke-width="1.5"/>
+<polygon points="297.7,341.0 288.7,345.0 288.7,337.0" fill="#ff7b72"/>
+<polygon points="328.3,341.0 337.3,337.0 337.3,345.0" fill="#ff7b72"/>
+<text x="313.0" y="407.2" text-anchor="middle" fill="#ff7b72" font-weight="600">plate edge clearance from the grid line</text>
+<text x="313.0" y="431.0" text-anchor="middle" fill="#ff7b72" font-weight="600">2 × plate edge clearance between plates</text>
+<line x1="404.8" y1="75.8" x2="404.8" y2="106.4" stroke="#ff7b72" stroke-width="1.5"/>
+<line x1="404.8" y1="167.6" x2="404.8" y2="198.2" stroke="#ff7b72" stroke-width="1.5"/>
+<polygon points="404.8,106.4 400.8,97.4 408.8,97.4" fill="#ff7b72"/>
+<polygon points="404.8,167.6 408.8,176.6 400.8,176.6" fill="#ff7b72"/>
+<line x1="313.0" y1="106.4" x2="418.4" y2="106.4" stroke="#ff7b72" stroke-width="1" stroke-dasharray="3 3"/>
+<text x="421.8" y="142.0" text-anchor="start" fill="#ff7b72" font-weight="600">top trim</text>
+<text x="313" y="469" text-anchor="middle" fill="#9198a1" font-size="13">Not to scale, the clearances and the trim are drawn larger to be seen</text>
+</svg>

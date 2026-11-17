@@ -26,7 +26,7 @@
         "sizingMode": "Fill area",
         "areaWidth": 400,
         "areaLength": 300,
-        "plateClearance": 0.1,
+        "plateEdgeClearance": 0.05,
         "bedWidth": 256.0,
         "bedLength": 256.0,
         "bedMargin": 5.0,

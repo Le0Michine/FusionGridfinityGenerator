@@ -1,0 +1,10 @@
+{
+    "description": "Wiki baseplate types: a 2x2 full baseplate from below, with magnet sockets and countersunk screw holes",
+    "extends": "_baseplate-docs.json",
+    "view": "isoBottomRight",
+    "settings": {
+        "plateType": "Full",
+        "plateWidth": 2,
+        "plateLength": 2
+    }
+}
