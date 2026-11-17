@@ -1,5 +1,3 @@
-This page is currently work in progress.
-
 # Principles
 
 - **Follow the Gridfinity spec** as closely as possible to avoid compatibility issues. Some things deviate slightly to simplify the code or improve printability, but bins and baseplates should stay compatible with the rest of the ecosystem.
