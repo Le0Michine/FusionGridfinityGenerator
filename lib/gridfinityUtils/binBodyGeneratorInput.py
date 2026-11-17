@@ -61,6 +61,8 @@ class BinBodyGeneratorInput():
         self.isSolid = False
         self.hasLip = False
         self.hasLipNotches = False
+        # see BinBodyLipGeneratorInput.topTrimHeight
+        self.lipTopTrimHeight = const.BIN_LIP_TOP_RECESS_HEIGHT
         # the inside of the lip bottom widened at 45 degrees, so it doesn't overhang a cavity under it. A solid bin
         # has none, there it would only leave an undercut
         self.hasLipBottomChamfer = True

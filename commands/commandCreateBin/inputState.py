@@ -32,6 +32,7 @@ class InputState:
 
     hasLip: bool
     hasLipNotches: bool
+    isLipTopTrimmed: bool
 
     hasScoop: bool
     scoopMaxRadius: float

@@ -24,6 +24,7 @@ from ...lib.gridfinityUtils import binGrid
 from ...lib.gridfinityUtils import wallCreases
 from ...lib.gridfinityUtils.wallCreaseGenerator import createCreaseFolds
 from ...lib.gridfinityUtils.binBodyGeneratorInput import BinBodyGeneratorInput, BinBodyCompartmentDefinition
+from ...lib.gridfinityUtils.binBodyLipGeneratorInput import lipTopTrimHeight
 from ...lib.gridfinityUtils.binBodyTabGeneratorInput import BinBodyTabGeneratorInput
 from ...lib.gridfinityUtils.binBodyTabGenerator import createGridfinityBinBodyTab, createTabHollowCuts, TabCavity, TabWallOpenings
 from ...lib.ui.unsupportedDesignTypeException import UnsupportedDesignTypeException
@@ -308,6 +309,7 @@ def buildBin(
     binBodyInput.shapeCells = outline if shaped else None
     binBodyInput.shapeCellsPerFoot = cellsPerFoot
     binBodyInput.hasLipNotches = state.hasLipNotches
+    binBodyInput.lipTopTrimHeight = lipTopTrimHeight(state.isLipTopTrimmed)
     binBodyInput.binWidth = columns
     binBodyInput.binLength = rows
     binBodyInput.binHeight = Dim.number(state.binHeight)

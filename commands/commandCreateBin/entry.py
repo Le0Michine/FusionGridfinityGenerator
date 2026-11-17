@@ -14,6 +14,7 @@ from ... import config
 from ...lib.gridfinityUtils import commonUtils
 from ...lib.gridfinityUtils import const
 from ...lib.gridfinityUtils import labelGenerator
+from ...lib.gridfinityUtils.binBodyLipGeneratorInput import lipTopTrimHeight
 from ...lib.gridfinityUtils import compartmentLayout
 from ...lib.gridfinityUtils import binShape
 from ...lib.gridfinityUtils import binGrid
@@ -154,6 +155,7 @@ BIN_TAB_LABEL_STYLE_INPUT_ID = 'bin_tab_label_style'
 BIN_TAB_LABEL_BOLD_INPUT_ID = 'bin_tab_label_bold'
 BIN_WITH_LIP_INPUT_ID = 'with_lip'
 BIN_WITH_LIP_NOTCHES_INPUT_ID = 'with_lip_notches'
+BIN_LIP_TOP_TRIMMED_INPUT_ID = 'lip_top_trimmed'
 # long walls folded in to stiffen them, see wallCreases
 BIN_CREASES_INPUT_ID = 'wall_creases'
 BIN_CREASE_DEPTH_INPUT_ID = 'wall_crease_depth'
@@ -203,6 +205,7 @@ STATE_INPUT_IDS = {
     'magnetCutoutDepth': BIN_MAGNET_HEIGHT_INPUT,
     'hasLip': BIN_WITH_LIP_INPUT_ID,
     'hasLipNotches': BIN_WITH_LIP_NOTCHES_INPUT_ID,
+    'isLipTopTrimmed': BIN_LIP_TOP_TRIMMED_INPUT_ID,
     'hasScoop': BIN_HAS_SCOOP_INPUT_ID,
     'scoopMaxRadius': BIN_SCOOP_MAX_RADIUS_INPUT_ID,
     'hasTab': BIN_HAS_TAB_INPUT_ID,
@@ -290,6 +293,7 @@ def initDefaultUiState():
     commandUIState.initValue(BIN_WALL_THICKNESS_INPUT_ID, DEFAULT_STATE.wallThickness, adsk.core.ValueCommandInput.classType())
     commandUIState.initValue(BIN_WITH_LIP_INPUT_ID, DEFAULT_STATE.hasLip, adsk.core.BoolValueCommandInput.classType())
     commandUIState.initValue(BIN_WITH_LIP_NOTCHES_INPUT_ID, DEFAULT_STATE.hasLipNotches, adsk.core.BoolValueCommandInput.classType())
+    commandUIState.initValue(BIN_LIP_TOP_TRIMMED_INPUT_ID, DEFAULT_STATE.isLipTopTrimmed, adsk.core.BoolValueCommandInput.classType())
     commandUIState.initValue(BIN_CREASES_INPUT_ID, DEFAULT_STATE.hasCreases, adsk.core.BoolValueCommandInput.classType())
     commandUIState.initValue(BIN_CREASE_DEPTH_INPUT_ID, DEFAULT_STATE.creaseDepth, adsk.core.ValueCommandInput.classType())
     commandUIState.initValue(BIN_CREASE_MIN_LENGTH_INPUT_ID, DEFAULT_STATE.creaseMinLength, adsk.core.ValueCommandInput.classType())
@@ -458,7 +462,8 @@ def update_actual_bin_dimensions():
     try:
         actualWidth = commandUIState.getState(BIN_BASE_WIDTH_UNIT_INPUT_ID) * commandUIState.getState(BIN_WIDTH_INPUT_ID) - const.BIN_XY_CLEARANCE * 2
         actualLength = commandUIState.getState(BIN_BASE_LENGTH_UNIT_INPUT_ID) * commandUIState.getState(BIN_LENGTH_INPUT_ID) - const.BIN_XY_CLEARANCE * 2
-        actualHeight = commandUIState.getState(BIN_HEIGHT_UNIT_INPUT_ID) * commandUIState.getState(BIN_HEIGHT_INPUT_ID) + ((const.BIN_LIP_EXTRA_HEIGHT - const.BIN_LIP_TOP_RECESS_HEIGHT) if commandUIState.getState(BIN_WITH_LIP_INPUT_ID) else 0)
+        lipHeight = const.BIN_LIP_EXTRA_HEIGHT - lipTopTrimHeight(commandUIState.getState(BIN_LIP_TOP_TRIMMED_INPUT_ID))
+        actualHeight = commandUIState.getState(BIN_HEIGHT_UNIT_INPUT_ID) * commandUIState.getState(BIN_HEIGHT_INPUT_ID) + (lipHeight if commandUIState.getState(BIN_WITH_LIP_INPUT_ID) else 0)
         totalWidthValue = round(actualWidth * 10, 2)
         totalLengthValue = round(actualLength * 10, 2)
         totalHeightValue = round(actualHeight * 10, 2)
@@ -782,6 +787,9 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     hasLipNotches = binFeaturesGroup.children.addBoolValueInput(BIN_WITH_LIP_NOTCHES_INPUT_ID, 'Generate lip notches', True, '', commandUIState.getState(BIN_WITH_LIP_NOTCHES_INPUT_ID))
     hasLipNotches.isEnabled = commandUIState.getState(BIN_WITH_LIP_INPUT_ID)
     commandUIState.registerCommandInput(hasLipNotches)
+    lipTopTrimmedInput = binFeaturesGroup.children.addBoolValueInput(BIN_LIP_TOP_TRIMMED_INPUT_ID, 'Trim lip top', True, '', commandUIState.getState(BIN_LIP_TOP_TRIMMED_INPUT_ID))
+    lipTopTrimmedInput.tooltip = 'Cuts the top of the lip flat, 0.6mm lower, instead of the sharp edge of the original profile'
+    commandUIState.registerCommandInput(lipTopTrimmedInput)
     creasesInput = binFeaturesGroup.children.addBoolValueInput(BIN_CREASES_INPUT_ID, 'Fold long walls for stiffness', True, '', commandUIState.getState(BIN_CREASES_INPUT_ID))
     creasesInput.tooltip = ('Folds walls of hollow and shelled bins in along shallow creases, origami style, so tall long walls bow less. '
         'Bins from the min height with a wall from the min length get them. Walls are split into even panels up to the max panel length, '
@@ -1110,6 +1118,7 @@ def onChangeValidate():
     commandUIState.getInput(BIN_WALL_THICKNESS_INPUT_ID).isEnabled = generateBody and not binType == BIN_TYPE_SOLID
     commandUIState.getInput(BIN_WITH_LIP_INPUT_ID).isEnabled = generateBody
     commandUIState.getInput(BIN_WITH_LIP_NOTCHES_INPUT_ID).isEnabled = generateBody
+    commandUIState.getInput(BIN_LIP_TOP_TRIMMED_INPUT_ID).isEnabled = generateBody
     commandUIState.getInput(BIN_HAS_SCOOP_INPUT_ID).isEnabled = not shaped
     commandUIState.getInput(BIN_HAS_TAB_INPUT_ID).isEnabled = generateBody and not shaped
     generateTab: bool = commandUIState.getState(BIN_HAS_TAB_INPUT_ID)
@@ -1124,7 +1133,8 @@ def onChangeValidate():
     updateTabHollowSidesInput(generateBody and generateTab and not shaped)
 
     generateLip: bool = commandUIState.getState(BIN_WITH_LIP_INPUT_ID)
-    commandUIState.getInput(BIN_WITH_LIP_NOTCHES_INPUT_ID).isEnabled = generateLip
+    for inputId in [BIN_WITH_LIP_NOTCHES_INPUT_ID, BIN_LIP_TOP_TRIMMED_INPUT_ID]:
+        commandUIState.getInput(inputId).isEnabled = generateLip
 
     canCrease = generateBody and not binType == BIN_TYPE_SOLID
     commandUIState.getInput(BIN_CREASES_INPUT_ID).isEnabled = canCrease

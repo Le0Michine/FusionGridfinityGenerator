@@ -3,11 +3,17 @@ import adsk.core, adsk.fusion, traceback
 from . import const
 from .dim import Dim
 
+def lipTopTrimHeight(isTrimmed: bool) -> float:
+    """How much is cut off the lip top to leave it flat, none leaves the sharp edge of the original profile"""
+    return const.BIN_LIP_TOP_RECESS_HEIGHT if isTrimmed else 0
+
 class BinBodyLipGeneratorInput():
     def __init__(self):
         self.wallThickness = const.BIN_LIP_WALL_THICKNESS
         self.hasLip = False
         self.hasLipNotches = False
+        # cut off the top to leave it flat, see lipTopTrimHeight
+        self.topTrimHeight = const.BIN_LIP_TOP_RECESS_HEIGHT
         self.binCornerFilletRadius = const.BIN_CORNER_FILLET_RADIUS
         self.originZ = None
         # grid cells of a shaped bin, see BinBodyGeneratorInput.shapeCells

@@ -96,6 +96,7 @@ def createGridfinityBinBody(
         lipInput.binLength = input.binLength
         lipInput.binWidth = input.binWidth
         lipInput.hasLipNotches = input.hasLipNotches
+        lipInput.topTrimHeight = input.lipTopTrimHeight
         lipInput.xyClearance = input.xyClearance
         lipInput.binCornerFilletRadius = input.binCornerFilletRadius
         lipInput.origin = lipOriginPoint

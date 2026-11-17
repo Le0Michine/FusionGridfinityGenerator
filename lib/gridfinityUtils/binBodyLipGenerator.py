@@ -343,7 +343,7 @@ def createGridfinityBinBodyLip(
             )
             bodiesToSubtract.append(lipMidCutout.bodies.item(0))
 
-    if const.BIN_LIP_TOP_RECESS_HEIGHT > const.DEFAULT_FILTER_TOLERANCE:
+    if input.topTrimHeight > const.DEFAULT_FILTER_TOLERANCE:
         lipCutoutConstructionPlane = targetComponent.constructionPlanes.add(lipCutoutPlaneInput)
         lipCutoutConstructionPlane.name = 'Lip top chamfer plane'
         topChamferSketch: adsk.fusion.Sketch = targetComponent.sketches.add(lipCutoutConstructionPlane)
@@ -357,7 +357,7 @@ def createGridfinityBinBodyLip(
         topChamferNegativeVolume = extrudeUtils.simpleDistanceExtrude(
             topChamferSketch.profiles.item(0),
             adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
-            const.BIN_LIP_TOP_RECESS_HEIGHT,
+            input.topTrimHeight,
             adsk.fusion.ExtentDirections.NegativeExtentDirection,
             [],
             targetComponent,

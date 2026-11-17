@@ -26,6 +26,7 @@ BIN = {
     'magnetCutoutDepth': 2.4,
     'hasLip': True,
     'hasLipNotches': False,
+    'isLipTopTrimmed': True,
     'hasScoop': False,
     'scoopMaxRadius': 25.0,
     'hasTab': False,
