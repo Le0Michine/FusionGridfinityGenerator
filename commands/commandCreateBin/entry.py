@@ -14,7 +14,7 @@ from ... import config
 from ...lib.gridfinityUtils import commonUtils
 from ...lib.gridfinityUtils import const
 from ...lib.gridfinityUtils import labelGenerator
-from ...lib.gridfinityUtils.binBodyLipGeneratorInput import LIP_TYPES, lipTopTrimHeight
+from ...lib.gridfinityUtils.binBodyLipGeneratorInput import LIP_TYPES, lipHeight
 from ...lib.gridfinityUtils import compartmentLayout
 from ...lib.gridfinityUtils import binShape
 from ...lib.gridfinityUtils import binGrid
@@ -462,18 +462,23 @@ def compartmentCellSize() -> tuple[float, float, float]:
         round((const.BIN_CORNER_FILLET_RADIUS - wallThickness) * 2 * 10, 2),
     )
 
+def millimeters(value: float) -> str:
+    """A length in cm as mm, to the micron an untrimmed lip needs, without trailing zeros"""
+    return f'{value * 10:.3f}'.rstrip('0').rstrip('.')
+
 def update_actual_bin_dimensions():
     global actualDimensionsTableUiState
     try:
-        actualWidth = commandUIState.getState(BIN_BASE_WIDTH_UNIT_INPUT_ID) * commandUIState.getState(BIN_WIDTH_INPUT_ID) - const.BIN_XY_CLEARANCE * 2
-        actualLength = commandUIState.getState(BIN_BASE_LENGTH_UNIT_INPUT_ID) * commandUIState.getState(BIN_LENGTH_INPUT_ID) - const.BIN_XY_CLEARANCE * 2
-        lipHeight = const.BIN_LIP_EXTRA_HEIGHT - lipTopTrimHeight(commandUIState.getState(BIN_LIP_TOP_TRIMMED_INPUT_ID))
-        actualHeight = commandUIState.getState(BIN_HEIGHT_UNIT_INPUT_ID) * commandUIState.getState(BIN_HEIGHT_INPUT_ID) + (lipHeight if commandUIState.getState(BIN_WITH_LIP_INPUT_ID) else 0)
-        totalWidthValue = round(actualWidth * 10, 2)
-        totalLengthValue = round(actualLength * 10, 2)
-        totalHeightValue = round(actualHeight * 10, 2)
+        clearance = commandUIState.getState(BIN_XY_CLEARANCE_INPUT_ID)
+        actualWidth = commandUIState.getState(BIN_BASE_WIDTH_UNIT_INPUT_ID) * commandUIState.getState(BIN_WIDTH_INPUT_ID) - clearance * 2
+        actualLength = commandUIState.getState(BIN_BASE_LENGTH_UNIT_INPUT_ID) * commandUIState.getState(BIN_LENGTH_INPUT_ID) - clearance * 2
+        lip = lipHeight(commandUIState.getState(BIN_LIP_TOP_TRIMMED_INPUT_ID), clearance) if commandUIState.getState(BIN_WITH_LIP_INPUT_ID) else 0
+        actualHeight = commandUIState.getState(BIN_HEIGHT_UNIT_INPUT_ID) * commandUIState.getState(BIN_HEIGHT_INPUT_ID) + lip
+        totalWidthValue = millimeters(actualWidth)
+        totalLengthValue = millimeters(actualLength)
+        totalHeightValue = millimeters(actualHeight)
         actualDimensionsTableUiState.updateValue(BIN_REAL_DIMENSIONS_TABLE_TOTAL_WIDTH, f'Width: {totalWidthValue}mm')
-        actualDimensionsTableUiState.getInput(BIN_REAL_DIMENSIONS_TABLE_TOTAL_WIDTH).tooltip = f'Total bin height: {totalWidthValue}mm'
+        actualDimensionsTableUiState.getInput(BIN_REAL_DIMENSIONS_TABLE_TOTAL_WIDTH).tooltip = f'Total bin width: {totalWidthValue}mm'
         actualDimensionsTableUiState.updateValue(BIN_REAL_DIMENSIONS_TABLE_TOTAL_LENGTH, f'Length: {totalLengthValue}mm')
         actualDimensionsTableUiState.getInput(BIN_REAL_DIMENSIONS_TABLE_TOTAL_LENGTH).tooltip = f'Total bin length: {totalLengthValue}mm'
         actualDimensionsTableUiState.updateValue(BIN_REAL_DIMENSIONS_TABLE_TOTAL_HEIGHT, f'Height: {totalHeightValue}mm')

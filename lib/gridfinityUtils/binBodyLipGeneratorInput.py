@@ -1,4 +1,5 @@
 import adsk.core, adsk.fusion, traceback
+import math
 
 from . import const
 from .dim import Dim
@@ -12,6 +13,15 @@ LIP_TYPES = [LIP_TYPE_LIGHT, LIP_TYPE_FULL]
 def lipTopTrimHeight(isTrimmed: bool) -> float:
     """How much is cut off the lip top to leave it flat, none leaves the sharp edge of the original profile"""
     return const.BIN_LIP_TOP_RECESS_HEIGHT if isTrimmed else 0
+
+def lipHeight(isTrimmed: bool, xyClearance: float) -> float:
+    """
+    How far the lip stands above the bin wall. Its sharp top is where the 45 degree face of the socket, which starts the
+    clearance out from the grid line, meets the outer wall, the clearance in from it, so twice the clearance below the
+    socket top, see binBodyLipGenerator.lipSocketTop. A trimmed lip is cut flat below it
+    """
+    sharpTop = const.BIN_BASE_HEIGHT - (1 + math.sqrt(2)) * xyClearance
+    return min(sharpTop, const.BIN_LIP_EXTRA_HEIGHT - lipTopTrimHeight(isTrimmed))
 
 class BinBodyLipGeneratorInput():
     def __init__(self):
