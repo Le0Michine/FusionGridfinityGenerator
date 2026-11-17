@@ -18,6 +18,8 @@ STYLES = {
     'wireframe': 'WireframeVisualStyle',
 }
 CAMERAS = ['perspective', 'orthographic']
+# origin planes a section cuts the model along, through its middle
+SECTION_PLANES = ['xy', 'xz', 'yz']
 DEFAULT_OUTPUT = os.path.join('documentation', 'assets', 'models')
 
 # options of the picture, what a preset doesn't set
@@ -41,6 +43,8 @@ DEFAULT_OPTIONS = {
     # the appearance in this color, '#rrggbb', the blue of the dialogs' drawings by default, none keeps its own
     'color': '#4e79a7',
     'output': DEFAULT_OUTPUT,
+    # a section analysis through the middle of the model, none shows it whole, see checkSection
+    'section': None,
 }
 # not passed on to presets extending this one
 OWN_KEYS = ['description']
@@ -71,6 +75,8 @@ class Preset:
     color: str | None
     # folder of the picture, from the add-in folder
     output: str
+    # the plane of SECTION_PLANES the cut through the middle is parallel to, and whether the other half is kept
+    section: dict | None
 
 def readPresetData(folder: str, fileName: str, extending: tuple[str, ...] = ()) -> dict:
     """The preset's data with what it extends filled in, settings merged one by one"""
@@ -112,6 +118,20 @@ def checkView(view) -> str | dict:
     point('target', True)
     point('up', False)
     return view
+
+def checkSection(section) -> dict | None:
+    if section is None:
+        return None
+    if not isinstance(section, dict):
+        raise PresetError('a section is an object with a plane')
+    unknown = [key for key in section if key not in ['plane', 'flip']]
+    if unknown:
+        raise PresetError(f'unknown section keys {unknown}')
+    if section.get('plane') not in SECTION_PLANES:
+        raise PresetError(f'section plane is one of {", ".join(SECTION_PLANES)}')
+    if not isinstance(section.get('flip', False), bool):
+        raise PresetError('section flip is true or false')
+    return {'plane': section['plane'], 'flip': section.get('flip', False)}
 
 def loadPreset(folder: str, fileName: str) -> Preset:
     name = os.path.splitext(fileName)[0]
@@ -158,6 +178,7 @@ def loadPreset(folder: str, fileName: str) -> Preset:
             appearance=data['appearance'],
             color=data['color'],
             output=data['output'],
+            section=checkSection(data['section']),
         )
     except PresetError as err:
         raise PresetError(f'preset {name}: {err}') from err

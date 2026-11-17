@@ -102,6 +102,10 @@ class TestOptions:
         ({"saturation": -1}, "saturation"),
         ({"color": "#4e79a"}, "color"),
         ({"colour": "blue"}, "unknown keys"),
+        ({"section": "middle"}, "section"),
+        ({"section": {"plane": "xx"}}, "section plane"),
+        ({"section": {"plane": "xz", "flip": 1}}, "section flip"),
+        ({"section": {"plane": "xz", "at": 3}}, "unknown section keys"),
     ])
     def test_bad_options(self, folder, options, message):
         write(folder, "bad.json", {"extends": "_base.json", **options})
@@ -112,6 +116,12 @@ class TestOptions:
         view = {"eye": [200, -300, 250], "target": [40, 60, 20]}
         write(folder, "custom.json", {"extends": "_base.json", "view": view})
         assert presets.loadPreset(str(folder), "custom.json").view == view
+
+    def test_section(self, folder):
+        write(folder, "cut.json", {"extends": "_base.json", "section": {"plane": "xz"}})
+        assert presets.loadPreset(str(folder), "cut.json").section == {"plane": "xz", "flip": False}
+        write(folder, "whole.json", {"extends": "_base.json"})
+        assert presets.loadPreset(str(folder), "whole.json").section is None
 
     def test_color_can_be_turned_off(self, folder):
         write(folder, "own.json", {"extends": "_base.json", "color": None})

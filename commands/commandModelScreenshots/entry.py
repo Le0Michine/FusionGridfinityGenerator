@@ -367,11 +367,37 @@ def modelAppearance(design: adsk.fusion.Design, preset: presets.Preset) -> adsk.
 def prepareView(design: adsk.fusion.Design, bodies: list[adsk.fusion.BRepBody], preset: presets.Preset):
     """The bodies alone from the preset's view, the new document's viewport is the active one"""
     viewportPictures.hideHelpers(design)
+    if preset.section is not None:
+        addSection(design, bodies, preset.section, preset.color)
     if preset.appearance or preset.color:
         appearance = modelAppearance(design, preset)
         for body in bodies:
             body.appearance = appearance
     viewportPictures.frame(app.activeViewport, presets.STYLES[preset.style], preset.camera == 'orthographic', preset.view)
+
+def addSection(design: adsk.fusion.Design, bodies: list[adsk.fusion.BRepBody], section: dict, color: str | None):
+    """
+    A section analysis through the middle of the bodies along an origin plane, the cut faces in the color, '#rrggbb'.
+    Without one Fusion picks a color of its own, it differs from document to document
+    """
+    root = design.rootComponent
+    (plane, axis) = {
+        'xy': (root.xYConstructionPlane, 2),
+        'xz': (root.xZConstructionPlane, 1),
+        'yz': (root.yZConstructionPlane, 0),
+    }[section['plane']]
+    box = bodies[0].boundingBox.copy()
+    for body in bodies[1:]:
+        box.combine(body.boundingBox)
+    middle = (box.minPoint.asArray()[axis] + box.maxPoint.asArray()[axis]) / 2
+    sections = design.analyses.sectionAnalyses
+    sectionInput = sections.createInput(plane, middle)
+    sectionInput.isHatchShown = False
+    if color is not None:
+        sectionInput.sectionColor = adsk.core.Color.create(int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16), 255)
+    analysis = sections.add(sectionInput)
+    if section['flip']:
+        analysis.flip()
 
 def viewportPicture(preset: presets.Preset, path: str) -> list[str]:
     """The viewport as it is, moved back while the model touches the edge, the warnings of the picture"""

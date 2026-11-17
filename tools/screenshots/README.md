@@ -111,6 +111,7 @@ degrees). `"extends": "_bin.json"` takes everything from another preset, so a pr
 | `supersample` | How many times larger than the picture the render is, `3` by default |
 | `exposure`, `saturation` | Stops a viewport picture is brightened by, as a camera's exposure, and how much its colors are deepened, `1` keeps them. `0.85` and `1.4` by default, which bring it close to a ray traced picture of Fusion's. Fusion's viewport has no setting for either, the palette applies them |
 | `output` | Folder of the picture, from the add-in folder |
+| `section` | `{"plane": "xz"}` cuts the model through its middle with a section analysis along `xy`, `xz` or `yz`, the cut faces in the preset's `color`, to show a profile. With `color` `null` Fusion picks the cut's color, it differs between pictures. `"flip": true` keeps the other half |
 
 ### GIFs of model pictures
 
