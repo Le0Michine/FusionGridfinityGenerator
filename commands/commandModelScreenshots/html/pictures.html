@@ -113,6 +113,29 @@
     #title button {
         white-space: nowrap;
     }
+    #search-row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 8px;
+    }
+    #search {
+        flex: 1;
+        min-width: 0;
+        font: inherit;
+        color: var(--text);
+        background: var(--thumb);
+        border: 1px solid var(--line);
+        border-radius: 3px;
+        padding: 3px 6px;
+    }
+    #search-count {
+        color: var(--muted);
+        white-space: nowrap;
+    }
+    #search-count:empty {
+        display: none;
+    }
     #viewer {
         position: fixed;
         inset: 0;
@@ -182,6 +205,10 @@
 <!-- how far the pictures are can't be told, the bar only shows that they are being made -->
 <div id="track" class="progress-track indeterminate"><div class="progress-bar"></div></div>
 <div id="message"></div>
+<div id="search-row">
+    <input id="search" type="search" placeholder="Search presets and GIFs by name">
+    <span id="search-count"></span>
+</div>
 <div id="items"></div>
 <div class="section" id="gifs-title">GIFs</div>
 <div id="gifs"></div>
@@ -294,14 +321,43 @@
         return row;
     }
 
+    // the search, kept for the next time the palette opens
+    const SEARCH_KEY = 'gridfinityPicturesSearch';
+    let searchText = '';
+    try {
+        searchText = localStorage.getItem(SEARCH_KEY) || '';
+    } catch (err) {
+        // no storage, the search starts empty
+    }
+
+    // every word has to be in the name
+    function matchesSearch(item) {
+        const name = item.name.toLowerCase();
+        return searchText.toLowerCase().split(/\s+/).filter(Boolean).every((word) => name.includes(word));
+    }
+
+    function setSearch(value) {
+        searchText = value;
+        try {
+            localStorage.setItem(SEARCH_KEY, value);
+        } catch (err) {
+            // kept for this page only
+        }
+        render();
+    }
+
     function render() {
         document.getElementById('track').classList.toggle('busy', state.busy);
         document.getElementById('message').textContent = state.message || '';
         document.getElementById('refresh-all').disabled = state.items.length === 0;
         document.getElementById('make-gifs').disabled = state.gifs.length === 0;
-        document.getElementById('items').replaceChildren(...state.items.map(pictureRow));
-        document.getElementById('gifs-title').textContent = state.gifs.length ? 'GIFs' : '';
-        document.getElementById('gifs').replaceChildren(...state.gifs.map(gifRow));
+        const items = state.items.filter(matchesSearch);
+        const gifs = state.gifs.filter(matchesSearch);
+        const total = state.items.length + state.gifs.length;
+        document.getElementById('search-count').textContent = searchText.trim() ? `${items.length + gifs.length} of ${total} shown` : '';
+        document.getElementById('items').replaceChildren(...items.map(pictureRow));
+        document.getElementById('gifs-title').textContent = gifs.length ? 'GIFs' : '';
+        document.getElementById('gifs').replaceChildren(...gifs.map(gifRow));
         if (viewing) {
             const item = state[viewing.section].find((each) => each.name === viewing.name);
             if (item && viewed(item, viewing.section).length) {
@@ -351,9 +407,20 @@
     document.getElementById('viewer-open').addEventListener('click', () => fusionBridge.send('open', viewing));
     // the GIFs shown are of Fusion's theme
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
+    const search = document.getElementById('search');
+    search.value = searchText;
+    search.addEventListener('input', () => setSearch(search.value));
     document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape') {
+        if (event.key !== 'Escape') {
+            return;
+        }
+        // the open picture first, then the search
+        if (viewing) {
             closeViewer();
+        } else if (document.activeElement === search && search.value) {
+            event.preventDefault();
+            search.value = '';
+            setSearch('');
         }
     });
 
