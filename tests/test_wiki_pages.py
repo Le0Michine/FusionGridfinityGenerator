@@ -79,13 +79,17 @@ def test_icons_are_listed_by_type_with_their_previews():
     table = wikiPages.iconsTable([
         ("Screws", [("Grub screw", "lib/gridfinityUtils/labelIcons/screws/grub-screw"), ("Socket head screw", "lib/gridfinityUtils/labelIcons/screws/socket-head-screw")]),
         ("Nuts", [("Hex nut", "lib/gridfinityUtils/labelIcons/nuts/hex-nut")]),
-    ]).splitlines()
-    assert table[:2] == ["Type | Icon | Name", ":--- | :---: | :---"]
-    assert table[2].startswith("Screws | <picture>") and table[2].endswith("| Grub screw")
-    assert table[3].startswith(" | <picture>")
-    assert table[4].startswith("Nuts | ")
-    assert 'srcset="../../lib/gridfinityUtils/labelIcons/nuts/hex-nut/32x32@2x-dark.png"' in table[4]
-    assert 'src="../../lib/gridfinityUtils/labelIcons/nuts/hex-nut/32x32@2x.png"' in table[4]
+    ]).split("\n\n")
+    # each type titled, with a table of its own
+    assert table[0] == "**Screws**"
+    (header, alignment, *screws) = table[1].splitlines()
+    assert (header, alignment) == ("| Icon | Name |", "| :---: | :--- |")
+    assert [row.startswith("| <picture>") and row.endswith(" |") for row in screws] == [True, True]
+    assert screws[0].endswith("| Grub screw |")
+    assert table[2] == "**Nuts**"
+    hexNut = table[3].splitlines()[2]
+    assert 'srcset="../../lib/gridfinityUtils/labelIcons/nuts/hex-nut/32x32@2x-dark.png"' in hexNut
+    assert 'src="../../lib/gridfinityUtils/labelIcons/nuts/hex-nut/32x32@2x.png"' in hexNut
 
 
 def test_the_icons_of_the_add_in_have_previews_for_the_table():

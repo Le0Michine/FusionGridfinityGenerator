@@ -51,17 +51,19 @@ def fillDefaults(text: str, defaults: dict[str, str], page: str = '') -> str:
 
 def iconsTable(groups: list[tuple[str, list[tuple[str, str]]]]) -> str:
     """
-    Icons by type, each a name and the folder of its dropdown previews from the add-in folder, shown in the reader's
-    theme, see tools/labelIcons.py
+    Icons by type, a titled table of each, an icon a name and the folder of its dropdown previews from the add-in
+    folder, shown in the reader's theme, see tools/labelIcons.py
     """
-    rows = ['Type | Icon | Name', ':--- | :---: | :---']
+    sections = []
     for (groupName, icons) in groups:
-        for (index, (name, folder)) in enumerate(icons):
+        rows = [f'**{groupName}**', '', '| Icon | Name |', '| :---: | :--- |']
+        for (name, folder) in icons:
             path = f'../../{folder}'
             picture = (f'<picture><source media="(prefers-color-scheme: dark)" srcset="{path}/32x32@2x-dark.png">'
                        f'<img src="{path}/32x32@2x.png" alt="{name}" width="32"></picture>')
-            rows.append(f'{groupName if index == 0 else ""} | {picture} | {name}')
-    return '\n'.join(rows)
+            rows.append(f'| {picture} | {name} |')
+        sections.append('\n'.join(rows))
+    return '\n\n'.join(sections)
 
 
 def labelIcons() -> list[tuple[str, list[tuple[str, str]]]]:
