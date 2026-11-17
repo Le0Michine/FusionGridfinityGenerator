@@ -93,6 +93,8 @@ COMMAND_BESIDE_ID = 'ScriptsManagerCommand'
 ICON_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources', '')
 # picture under the description on hover, like Fusion's own commands
 TOOL_CLIP_PATH = os.path.join(ICON_FOLDER, 'toolclip.png')
+# the lip profile of each lip type in its dropdown, drawn by tools/lipTypeIcons.py
+LIP_TYPE_ICON_FOLDER = os.path.join(ICON_FOLDER, 'lipTypes')
 
 CONFIG_FOLDER_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'commandConfig')
 UI_INPUT_DEFAULTS_CONFIG_PATH = os.path.join(CONFIG_FOLDER_PATH, "ui_input_defaults.json")
@@ -790,11 +792,11 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     hasLipNotches = binFeaturesGroup.children.addBoolValueInput(BIN_WITH_LIP_NOTCHES_INPUT_ID, 'Generate lip notches', True, '', commandUIState.getState(BIN_WITH_LIP_NOTCHES_INPUT_ID))
     hasLipNotches.isEnabled = commandUIState.getState(BIN_WITH_LIP_INPUT_ID)
     commandUIState.registerCommandInput(hasLipNotches)
-    lipTypeInput = binFeaturesGroup.children.addDropDownCommandInput(BIN_LIP_TYPE_INPUT_ID, 'Lip type', adsk.core.DropDownStyles.TextListDropDownStyle)
+    lipTypeInput = binFeaturesGroup.children.addDropDownCommandInput(BIN_LIP_TYPE_INPUT_ID, 'Lip type', adsk.core.DropDownStyles.LabeledIconDropDownStyle)
     lipTypeInput.tooltip = ('Light keeps the inside of the lip straight down to the bin top. '
         'Full follows the original Gridfinity profile, narrowing to an inner tip with a support under it, and a scoop wall as thick as the tip')
     for lipType in LIP_TYPES:
-        lipTypeInput.listItems.add(lipType, lipType == commandUIState.getState(BIN_LIP_TYPE_INPUT_ID))
+        lipTypeInput.listItems.add(lipType, lipType == commandUIState.getState(BIN_LIP_TYPE_INPUT_ID), os.path.join(LIP_TYPE_ICON_FOLDER, lipType))
     commandUIState.registerCommandInput(lipTypeInput)
     lipTopTrimmedInput = binFeaturesGroup.children.addBoolValueInput(BIN_LIP_TOP_TRIMMED_INPUT_ID, 'Trim lip top', True, '', commandUIState.getState(BIN_LIP_TOP_TRIMMED_INPUT_ID))
     lipTopTrimmedInput.tooltip = 'Cuts the top of the lip flat, 0.6mm lower, instead of the sharp edge of the original profile'
