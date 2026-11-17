@@ -14,7 +14,7 @@ from ... import config
 from ...lib.gridfinityUtils import commonUtils
 from ...lib.gridfinityUtils import const
 from ...lib.gridfinityUtils import labelGenerator
-from ...lib.gridfinityUtils.binBodyLipGeneratorInput import lipTopTrimHeight
+from ...lib.gridfinityUtils.binBodyLipGeneratorInput import LIP_TYPES, lipTopTrimHeight
 from ...lib.gridfinityUtils import compartmentLayout
 from ...lib.gridfinityUtils import binShape
 from ...lib.gridfinityUtils import binGrid
@@ -155,6 +155,7 @@ BIN_TAB_LABEL_STYLE_INPUT_ID = 'bin_tab_label_style'
 BIN_TAB_LABEL_BOLD_INPUT_ID = 'bin_tab_label_bold'
 BIN_WITH_LIP_INPUT_ID = 'with_lip'
 BIN_WITH_LIP_NOTCHES_INPUT_ID = 'with_lip_notches'
+BIN_LIP_TYPE_INPUT_ID = 'lip_type'
 BIN_LIP_TOP_TRIMMED_INPUT_ID = 'lip_top_trimmed'
 # long walls folded in to stiffen them, see wallCreases
 BIN_CREASES_INPUT_ID = 'wall_creases'
@@ -205,6 +206,7 @@ STATE_INPUT_IDS = {
     'magnetCutoutDepth': BIN_MAGNET_HEIGHT_INPUT,
     'hasLip': BIN_WITH_LIP_INPUT_ID,
     'hasLipNotches': BIN_WITH_LIP_NOTCHES_INPUT_ID,
+    'lipType': BIN_LIP_TYPE_INPUT_ID,
     'isLipTopTrimmed': BIN_LIP_TOP_TRIMMED_INPUT_ID,
     'hasScoop': BIN_HAS_SCOOP_INPUT_ID,
     'scoopMaxRadius': BIN_SCOOP_MAX_RADIUS_INPUT_ID,
@@ -293,6 +295,7 @@ def initDefaultUiState():
     commandUIState.initValue(BIN_WALL_THICKNESS_INPUT_ID, DEFAULT_STATE.wallThickness, adsk.core.ValueCommandInput.classType())
     commandUIState.initValue(BIN_WITH_LIP_INPUT_ID, DEFAULT_STATE.hasLip, adsk.core.BoolValueCommandInput.classType())
     commandUIState.initValue(BIN_WITH_LIP_NOTCHES_INPUT_ID, DEFAULT_STATE.hasLipNotches, adsk.core.BoolValueCommandInput.classType())
+    commandUIState.initValue(BIN_LIP_TYPE_INPUT_ID, DEFAULT_STATE.lipType, adsk.core.DropDownCommandInput.classType())
     commandUIState.initValue(BIN_LIP_TOP_TRIMMED_INPUT_ID, DEFAULT_STATE.isLipTopTrimmed, adsk.core.BoolValueCommandInput.classType())
     commandUIState.initValue(BIN_CREASES_INPUT_ID, DEFAULT_STATE.hasCreases, adsk.core.BoolValueCommandInput.classType())
     commandUIState.initValue(BIN_CREASE_DEPTH_INPUT_ID, DEFAULT_STATE.creaseDepth, adsk.core.ValueCommandInput.classType())
@@ -787,6 +790,12 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     hasLipNotches = binFeaturesGroup.children.addBoolValueInput(BIN_WITH_LIP_NOTCHES_INPUT_ID, 'Generate lip notches', True, '', commandUIState.getState(BIN_WITH_LIP_NOTCHES_INPUT_ID))
     hasLipNotches.isEnabled = commandUIState.getState(BIN_WITH_LIP_INPUT_ID)
     commandUIState.registerCommandInput(hasLipNotches)
+    lipTypeInput = binFeaturesGroup.children.addDropDownCommandInput(BIN_LIP_TYPE_INPUT_ID, 'Lip type', adsk.core.DropDownStyles.TextListDropDownStyle)
+    lipTypeInput.tooltip = ('Light keeps the inside of the lip straight down to the bin top. '
+        'Full follows the original Gridfinity profile, narrowing to an inner tip with a support under it, and a scoop wall as thick as the tip')
+    for lipType in LIP_TYPES:
+        lipTypeInput.listItems.add(lipType, lipType == commandUIState.getState(BIN_LIP_TYPE_INPUT_ID))
+    commandUIState.registerCommandInput(lipTypeInput)
     lipTopTrimmedInput = binFeaturesGroup.children.addBoolValueInput(BIN_LIP_TOP_TRIMMED_INPUT_ID, 'Trim lip top', True, '', commandUIState.getState(BIN_LIP_TOP_TRIMMED_INPUT_ID))
     lipTopTrimmedInput.tooltip = 'Cuts the top of the lip flat, 0.6mm lower, instead of the sharp edge of the original profile'
     commandUIState.registerCommandInput(lipTopTrimmedInput)
@@ -1118,6 +1127,7 @@ def onChangeValidate():
     commandUIState.getInput(BIN_WALL_THICKNESS_INPUT_ID).isEnabled = generateBody and not binType == BIN_TYPE_SOLID
     commandUIState.getInput(BIN_WITH_LIP_INPUT_ID).isEnabled = generateBody
     commandUIState.getInput(BIN_WITH_LIP_NOTCHES_INPUT_ID).isEnabled = generateBody
+    commandUIState.getInput(BIN_LIP_TYPE_INPUT_ID).isEnabled = generateBody
     commandUIState.getInput(BIN_LIP_TOP_TRIMMED_INPUT_ID).isEnabled = generateBody
     commandUIState.getInput(BIN_HAS_SCOOP_INPUT_ID).isEnabled = not shaped
     commandUIState.getInput(BIN_HAS_TAB_INPUT_ID).isEnabled = generateBody and not shaped
@@ -1133,7 +1143,7 @@ def onChangeValidate():
     updateTabHollowSidesInput(generateBody and generateTab and not shaped)
 
     generateLip: bool = commandUIState.getState(BIN_WITH_LIP_INPUT_ID)
-    for inputId in [BIN_WITH_LIP_NOTCHES_INPUT_ID, BIN_LIP_TOP_TRIMMED_INPUT_ID]:
+    for inputId in [BIN_WITH_LIP_NOTCHES_INPUT_ID, BIN_LIP_TYPE_INPUT_ID, BIN_LIP_TOP_TRIMMED_INPUT_ID]:
         commandUIState.getInput(inputId).isEnabled = generateLip
 
     canCrease = generateBody and not binType == BIN_TYPE_SOLID
@@ -1284,6 +1294,7 @@ def configChoices() -> dict[str, configJson.Choice]:
         'binType': configJson.Choice([BIN_TYPE_HOLLOW, BIN_TYPE_SHELLED, BIN_TYPE_SOLID], DEFAULT_STATE.binType),
         'labelIcon': configJson.Choice(iconNames, DEFAULT_STATE.labelIcon),
         'labelStyle': configJson.Choice(labelGenerator.LABEL_STYLES, DEFAULT_STATE.labelStyle),
+        'lipType': configJson.Choice(LIP_TYPES, DEFAULT_STATE.lipType),
     }
 
 def readConfig(text: str, source: str) -> InputState | None:

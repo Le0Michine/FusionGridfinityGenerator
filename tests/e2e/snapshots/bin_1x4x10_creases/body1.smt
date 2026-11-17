@@ -1,9 +1,9 @@
 23200 0 2 2           
-16 Autodesk Neutron 21 ASM 232.5.0.65535 OSX 24 Sat Nov 14 16:29:59 2026 
+16 Autodesk Neutron 21 ASM 232.5.0.65535 OSX 24 Mon Nov 16 14:17:52 2026 
 10 9.999999999999999547e-07 1.000000000000000036e-10 
 asmheader $-1 -1 @13 232.5.0.65535 #
 body $2 -1 $-1 $3 $-1 $-1 #
-ATTRIB_CUSTOM-attrib $-1 -1 $4 $-1 $1 @20 Timestamp_attrib_def 1 1794698999972526 #
+ATTRIB_CUSTOM-attrib $-1 -1 $4 $-1 $1 @20 Timestamp_attrib_def 1 1794863872428878 #
 lump $-1 -1 $-1 $-1 $5 $1 #
 ATTRIB_CUSTOM-attrib $-1 -1 $-1 $2 $1 @22 generic_tag_attrib_def 3 3 -1 @23 generic_tag_attrib_def  9 3 @3 316 7 0 0 3 @3 321 7 0 0 3 @3 311 1 0 0 3 @3 311 2 0 0 3 @3 311 3 0 0 3 @3 304 7 0 0 3 @3 308 27 0 0 3 @3 384 7 0 0 3 @3 391 7 0 0 #
 shell $-1 -1 $-1 $-1 $-1 $6 $-1 $3 #
@@ -177,7 +177,7 @@ coedge $-1 -1 $-1 $251 $241 $127 $173 forward $252 0 $-1 #
 edge $-1 -1 $-1 $174 -6.88000000000000167 $238 0.02500000000000004996 $127 $253 forward @7 tangent #
 vertex $-1 -1 $-1 $128 0 $254 #
 ellipse-curve $-1 -1 $-1 0.375 0.375 6.88000000000000167 0 0 -1 -0.2651650429449553537 -0.2651650429449553537 0 1 I I #
-ATTRIB_CUSTOM-attrib $-1 -1 $-1 $-1 $129 @22 generic_tag_attrib_def 3 3 -1 @23 generic_tag_attrib_def  4 1 @1 4 0 1 318 0 1 @1 4 0 2 323 351 0 2 @2 11 0 1 356 0 2 @2 11 0 1 357 0 #
+ATTRIB_CUSTOM-attrib $-1 -1 $-1 $-1 $129 @22 generic_tag_attrib_def 3 3 -1 @23 generic_tag_attrib_def  4 1 @1 4 0 1 318 0 1 @1 3 0 2 323 351 0 2 @2 11 0 1 356 0 2 @2 11 0 1 357 0 #
 face $255 -1 $-1 $256 $257 $5 $-1 $258 forward single #
 cone-surface $-1 -1 $-1 0.375 0.375 0 0 0 1 -0.2651650429449553537 -0.2651650429449553537 0 1 I I 0 1 0.3750000000000000555 forward I I I I #
 vertex $-1 -1 $-1 $135 1 $259 #
@@ -288,7 +288,7 @@ coedge $-1 -1 $-1 $336 $172 $353 $354 reversed $252 0 $-1 #
 loop $-1 -1 $-1 $-1 $172 $191 #
 straight-curve $-1 -1 $-1 0.3750000000000000555 0 0 0 0 -1 I I #
 point $-1 -1 $-1 0.375 0 6.88000000000000167 #
-ATTRIB_CUSTOM-attrib $-1 -1 $-1 $-1 $177 @22 generic_tag_attrib_def 3 3 -1 @23 generic_tag_attrib_def  4 1 @1 3 0 1 318 0 1 @1 3 0 2 323 351 0 2 @2 17 0 1 356 0 2 @2 17 0 1 357 0 #
+ATTRIB_CUSTOM-attrib $-1 -1 $-1 $-1 $177 @22 generic_tag_attrib_def 3 3 -1 @23 generic_tag_attrib_def  4 1 @1 3 0 1 318 0 1 @1 4 0 2 323 351 0 2 @2 17 0 1 356 0 2 @2 17 0 1 357 0 #
 face $355 -1 $-1 $107 $345 $5 $-1 $356 forward single #
 loop $-1 -1 $-1 $-1 $357 $177 #
 cone-surface $-1 -1 $-1 3.775000000000000355 0.375 0 -0 0 1 0.2651650429449553537 -0.2651650429449553537 0 1 I I 0 1 0.3750000000000000555 forward I I I I #

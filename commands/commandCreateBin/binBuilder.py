@@ -16,7 +16,7 @@ from ...lib.gridfinityUtils import parameterUtils
 from ...lib.gridfinityUtils.dim import Dim
 from ...lib.gridfinityUtils.baseGenerator import createFootGrid, cutBaseClearance, cutWallJunctionPockets, footCenters, createCellJointOrigins, keepBodiesInCells, cutOutsideShape, cutShapeWallJunctionPockets
 from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
-from ...lib.gridfinityUtils.binBodyGenerator import createGridfinityBinBody, createShapeCavity, binBodyTopHeight, createCompartmentCutout, compartmentCutoutFilletRadius, tabTopClearance, createTabLabel, hollowTabWallThickness
+from ...lib.gridfinityUtils.binBodyGenerator import createGridfinityBinBody, createShapeCavity, createBinLipSupport, binBodyTopHeight, createCompartmentCutout, compartmentCutoutFilletRadius, tabTopClearance, createTabLabel, hollowTabWallThickness
 from ...lib.gridfinityUtils import labelGenerator
 from ...lib.gridfinityUtils import compartmentLayout
 from ...lib.gridfinityUtils import binShape
@@ -24,7 +24,7 @@ from ...lib.gridfinityUtils import binGrid
 from ...lib.gridfinityUtils import wallCreases
 from ...lib.gridfinityUtils.wallCreaseGenerator import createCreaseFolds
 from ...lib.gridfinityUtils.binBodyGeneratorInput import BinBodyGeneratorInput, BinBodyCompartmentDefinition
-from ...lib.gridfinityUtils.binBodyLipGeneratorInput import lipTopTrimHeight
+from ...lib.gridfinityUtils.binBodyLipGeneratorInput import LIP_TYPE_FULL, lipTopTrimHeight
 from ...lib.gridfinityUtils.binBodyTabGeneratorInput import BinBodyTabGeneratorInput
 from ...lib.gridfinityUtils.binBodyTabGenerator import createGridfinityBinBodyTab, createTabHollowCuts, TabCavity, TabWallOpenings
 from ...lib.ui.unsupportedDesignTypeException import UnsupportedDesignTypeException
@@ -309,6 +309,7 @@ def buildBin(
     binBodyInput.shapeCells = outline if shaped else None
     binBodyInput.shapeCellsPerFoot = cellsPerFoot
     binBodyInput.hasLipNotches = state.hasLipNotches
+    binBodyInput.lipType = state.lipType
     binBodyInput.lipTopTrimHeight = lipTopTrimHeight(state.isLipTopTrimmed)
     binBodyInput.binWidth = columns
     binBodyInput.binLength = rows
@@ -439,6 +440,11 @@ def buildBin(
             gridfinityBinComponent,
             name='Cavity',
         )
+        if binBodyInput.hasLip and binBodyInput.lipType == LIP_TYPE_FULL:
+            # taken out of the cavity, so it stays clear of what was cut out of the body before
+            lipSupport = createBinLipSupport(binBodyInput, const.BIN_COMPARTMENT_BOTTOM_THICKNESS, gridfinityBinComponent)
+            if lipSupport is not None:
+                combineUtils.cutBody(cavity, commonUtils.objectCollectionFromList([lipSupport]), gridfinityBinComponent, name='Lip support from cavity cut')
         combineUtils.cutBody(binBody, commonUtils.objectCollectionFromList([cavity]), gridfinityBinComponent, name='Cavity cut')
 
     if state.generateBody and len(creases) > 0:
@@ -480,6 +486,11 @@ def buildBin(
             shellUtils.simpleShell([topFace], binBodyInput.wallThickness, gridfinityBinComponent, name='Shell', isRounded=state.isShellRounded)
             toolBodies = adsk.core.ObjectCollection.create()
             toolBodies.add(topBody)
+            if binBodyInput.lipType == LIP_TYPE_FULL:
+                # the shell has the wall thickness for a floor
+                lipSupport = createBinLipSupport(binBodyInput, binBodyInput.wallThickness, gridfinityBinComponent)
+                if lipSupport is not None:
+                    toolBodies.add(lipSupport)
             combineAfterShellFeatureInput = combineFeatures.createInput(bottomBody, toolBodies)
             combineAfterShellFeature = combineFeatures.add(combineAfterShellFeatureInput)
             combineAfterShellFeature.name = 'Shell and lip join'

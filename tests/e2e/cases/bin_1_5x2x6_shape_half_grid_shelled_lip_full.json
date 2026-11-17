@@ -1,0 +1,52 @@
+{
+    "description": "1.5x2x6 shaped shelled bin on the half grid with a full lip, its shaped lip socket failed to join its bottom section",
+    "generator": "bin",
+    "settings": {
+        "binWidth": 1.5,
+        "binLength": 2,
+        "binHeight": 6,
+        "isHalfGrid": true,
+        "wallThickness": 0.95,
+        "binType": "Shelled",
+        "lipType": "Full",
+        "hasCustomShape": true,
+        "shapeCells": [
+            [
+                0,
+                0
+            ],
+            [
+                0,
+                1
+            ],
+            [
+                0,
+                2
+            ],
+            [
+                0,
+                3
+            ],
+            [
+                1,
+                0
+            ],
+            [
+                1,
+                1
+            ],
+            [
+                1,
+                3
+            ],
+            [
+                2,
+                1
+            ],
+            [
+                2,
+                3
+            ]
+        ]
+    }
+}

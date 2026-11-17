@@ -3,6 +3,7 @@ import adsk.core, adsk.fusion, traceback
 from . import const
 from .dim import Dim
 from .labelGenerator import LABEL_STYLE_OUTLINE
+from .binBodyLipGeneratorInput import LIP_TYPE_LIGHT
 
 class BinBodyCompartmentDefinition():
     def __init__(self, positionX=0, positionY=0, width=1, length=1, depth=9999999999999):
@@ -61,10 +62,11 @@ class BinBodyGeneratorInput():
         self.isSolid = False
         self.hasLip = False
         self.hasLipNotches = False
-        # see BinBodyLipGeneratorInput.topTrimHeight
+        # see BinBodyLipGeneratorInput
+        self.lipType = LIP_TYPE_LIGHT
         self.lipTopTrimHeight = const.BIN_LIP_TOP_RECESS_HEIGHT
         # the inside of the lip bottom widened at 45 degrees, so it doesn't overhang a cavity under it. A solid bin
-        # has none, there it would only leave an undercut
+        # has none, there it would only leave an undercut. A full lip has a support under it instead
         self.hasLipBottomChamfer = True
         self.hasScoop = False
         self.scoopMaxRadius = const.BIN_SCOOP_MAX_RADIUS

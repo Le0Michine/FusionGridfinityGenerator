@@ -32,6 +32,8 @@ class InputState:
 
     hasLip: bool
     hasLipNotches: bool
+    # see binBodyLipGeneratorInput.LIP_TYPE_LIGHT
+    lipType: str
     isLipTopTrimmed: bool
 
     hasScoop: bool

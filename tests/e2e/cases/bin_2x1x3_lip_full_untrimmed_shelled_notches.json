@@ -1,0 +1,12 @@
+{
+    "description": "2x1x3 shelled bin with an untrimmed full lip and lip notches, the support joined after the shell",
+    "generator": "bin",
+    "settings": {
+        "binLength": 1,
+        "binHeight": 3,
+        "binType": "Shelled",
+        "lipType": "Full",
+        "isLipTopTrimmed": false,
+        "hasLipNotches": true
+    }
+}

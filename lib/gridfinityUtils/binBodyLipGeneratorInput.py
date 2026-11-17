@@ -3,6 +3,12 @@ import adsk.core, adsk.fusion, traceback
 from . import const
 from .dim import Dim
 
+# the socket's inner wall goes straight down to the bin top
+LIP_TYPE_LIGHT = 'Light'
+# the original Gridfinity profile, narrowing at 45 degrees to its inner tip with a support under it
+LIP_TYPE_FULL = 'Full'
+LIP_TYPES = [LIP_TYPE_LIGHT, LIP_TYPE_FULL]
+
 def lipTopTrimHeight(isTrimmed: bool) -> float:
     """How much is cut off the lip top to leave it flat, none leaves the sharp edge of the original profile"""
     return const.BIN_LIP_TOP_RECESS_HEIGHT if isTrimmed else 0
@@ -12,6 +18,7 @@ class BinBodyLipGeneratorInput():
         self.wallThickness = const.BIN_LIP_WALL_THICKNESS
         self.hasLip = False
         self.hasLipNotches = False
+        self.lipType = LIP_TYPE_LIGHT
         # cut off the top to leave it flat, see lipTopTrimHeight
         self.topTrimHeight = const.BIN_LIP_TOP_RECESS_HEIGHT
         self.binCornerFilletRadius = const.BIN_CORNER_FILLET_RADIUS

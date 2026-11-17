@@ -12,8 +12,8 @@ from .binBodyGeneratorInput import BinBodyGeneratorInput, BinBodyCompartmentDefi
 from .binBodyTabGeneratorInput import BinBodyTabGeneratorInput
 from .binBodyTabGenerator import createGridfinityBinBodyTab, createTabHollowCuts, TabCavity, TabWallOpenings, TabHollowCuts
 from .labelGenerator import BinLabelDefinition, BinLabelInput, createLabel, LABEL_STYLE_EMBOSSED, LABEL_STYLE_ENGRAVED
-from .binBodyLipGeneratorInput import BinBodyLipGeneratorInput
-from .binBodyLipGenerator import createGridfinityBinBodyLip
+from .binBodyLipGeneratorInput import BinBodyLipGeneratorInput, LIP_TYPE_FULL
+from .binBodyLipGenerator import createGridfinityBinBodyLip, createLipSupport, lipInnerInset
 from .dim import Dim, valueInput
 from ... import config
 
@@ -96,6 +96,7 @@ def createGridfinityBinBody(
         lipInput.binLength = input.binLength
         lipInput.binWidth = input.binWidth
         lipInput.hasLipNotches = input.hasLipNotches
+        lipInput.lipType = input.lipType
         lipInput.topTrimHeight = input.lipTopTrimHeight
         lipInput.xyClearance = input.xyClearance
         lipInput.binCornerFilletRadius = input.binCornerFilletRadius
@@ -105,7 +106,12 @@ def createGridfinityBinBody(
         lipInput.shapeCellsPerFoot = input.shapeCellsPerFoot
         lipBody = createGridfinityBinBodyLip(lipInput, targetComponent)
 
-        hasLipBottomChamfer = input.hasLipBottomChamfer and input.wallThickness < const.BIN_LIP_WALL_THICKNESS
+        hasLipBottomChamfer = input.hasLipBottomChamfer and input.lipType != LIP_TYPE_FULL and input.wallThickness < const.BIN_LIP_WALL_THICKNESS
+        if input.lipType == LIP_TYPE_FULL and not input.isSolid:
+            # joined once the compartments are cut, solid bodies get theirs with the cavity, see binBuilder
+            lipSupport = createBinLipSupport(input, const.BIN_COMPARTMENT_BOTTOM_THICKNESS, targetComponent)
+            if lipSupport is not None:
+                bodiesToMerge.append(lipSupport)
         if hasLipBottomChamfer and input.shapeCells is not None:
             # the inside of the walls widening at 45 degrees into the lip, so it doesn't overhang the cavity
             combineUtils.cutBody(
@@ -155,7 +161,8 @@ def createGridfinityBinBody(
     if not input.isSolid:
         compartmentsMinX = wall
         compartmentsMaxX = bodyWidth - wall
-        compartmentsMinY = Dim.length(const.BIN_LIP_WALL_THICKNESS - input.xyClearance) if input.hasLip and input.hasScoop else wall
+        # the scoop wall runs up into the inside of the lip
+        compartmentsMinY = lipInnerInset(input.lipType, input.xyClearance) if input.hasLip and input.hasScoop else wall
         compartmentsMaxY = bodyLength - wall
 
         totalCompartmentsWidth = compartmentsMaxX - compartmentsMinX
@@ -330,6 +337,20 @@ def createGridfinityBinBody(
             )
 
     return binBody
+
+def createBinLipSupport(
+    input: BinBodyGeneratorInput,
+    floorZ: float,
+    targetComponent: adsk.fusion.Component,
+) -> adsk.fusion.BRepBody | None:
+    """The support under a full lip along the walls of the bin, see createLipSupport. A plain bin's outline is a single cell"""
+    if input.shapeCells is not None:
+        cells = input.shapeCells
+        grid = baseGenerator.shapeGridInput(input.baseWidth, input.baseLength, input.xyClearance, input.shapeCellsPerFoot)
+    else:
+        cells = [(0, 0)]
+        grid = baseGenerator.shapeGridInput(input.baseWidth * input.binWidth, input.baseLength * input.binLength, input.xyClearance)
+    return createLipSupport(cells, grid, input.lipType, input.wallThickness, binBodyTopHeight(input), floorZ, targetComponent)
 
 def tabTopClearance(labelStyle: str) -> float:
     """Embossed labels stand on a tab lowered by their depth, so they keep the tab's clearance"""

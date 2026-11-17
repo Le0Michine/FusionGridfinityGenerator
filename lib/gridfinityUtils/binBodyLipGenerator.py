@@ -5,7 +5,7 @@ import math
 from ...lib import fusion360utils as futil
 from . import const, combineUtils, faceUtils, commonUtils, sketchUtils, extrudeUtils, baseGenerator, edgeUtils, filletUtils, geometryUtils, binGrid, patternUtils
 from .baseGeneratorInput import BaseGeneratorInput
-from .binBodyLipGeneratorInput import BinBodyLipGeneratorInput
+from .binBodyLipGeneratorInput import BinBodyLipGeneratorInput, LIP_TYPE_FULL
 from .dim import Dim, valueInput, applyTo
 
 app = adsk.core.Application.get()
@@ -20,6 +20,16 @@ def lipSocketTop(xyClearance: float) -> Dim:
     """
     drop = Dim.length(xyClearance) * Dim.number(math.sqrt(2) - 1, '(sqrt(2) - 1)')
     return Dim.length(const.BIN_BASE_HEIGHT).asExpression() - drop
+
+def lipInnerInset(lipType: str, xyClearance: float) -> Dim:
+    """
+    How far the inside of the lip bottom is in from the bin outline. A full lip's socket narrows on through its bottom
+    section to the inner tip, a light one stops at the mid section
+    """
+    if lipType == LIP_TYPE_FULL:
+        # the bottom section ends below the lip bottom, at the lip bottom it's in from the mid section by the rest
+        return lipSocketTop(xyClearance) - Dim.length(const.BIN_BASE_MID_SECTION_HEIGH) - Dim.length(xyClearance * 2)
+    return Dim.length(const.BIN_LIP_WALL_THICKNESS - xyClearance)
 
 def createShapeLipSocket(
     input: BinBodyLipGeneratorInput,
@@ -61,7 +71,82 @@ def createShapeLipSocket(
         targetComponent,
         name='Lip cutout bottom section',
     )
+    if input.lipType == LIP_TYPE_FULL:
+        # narrowing on to the inner tip like a foot's bottom, all its bottom edges are convex whatever the shape
+        filletUtils.createChamfer(
+            commonUtils.objectCollectionFromList(faceUtils.getBottomFace(socket).edges),
+            const.BIN_BASE_BOTTOM_SECTION_HEIGH,
+            targetComponent,
+            name='Lip cutout bottom chamfer',
+        )
     return socket
+
+def createLipSupport(
+    cells: list[tuple[int, int]],
+    grid: BaseGeneratorInput,
+    lipType: str,
+    wallThickness: float,
+    topZ: Dim,
+    floorZ: float,
+    targetComponent: adsk.fusion.Component,
+) -> adsk.fusion.BRepBody | None:
+    """
+    Support under the inner tip of a full lip, so it doesn't overhang the cavity, of the original profile: straight
+    down from the tip, then out at 45 degrees into the wall. It starts half the wall in from the outline, so it ends
+    inside a wall of any kind, also a shell or creased one, and stops at the floor of a low bin. The bin top is the
+    lip bottom, the outline of the cells is a clearance in from the grid lines
+    """
+    tipOffset = (lipInnerInset(lipType, grid.xyClearance) + Dim.length(grid.xyClearance)).value
+    outerOffset = grid.xyClearance + wallThickness / 2
+    slope = tipOffset - outerOffset
+    fullDepth = const.BIN_LIP_SUPPORT_WALL_HEIGHT + slope
+    depth = Dim.length(fullDepth) if fullDepth < topZ.value - floorZ else topZ - Dim.length(floorZ)
+    if slope <= 0 or depth.value <= const.DEFAULT_FILTER_TOLERANCE:
+        return None
+
+    topPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
+    topPlaneInput.setByOffset(targetComponent.xYConstructionPlane, valueInput(topZ))
+    topPlane = targetComponent.constructionPlanes.add(topPlaneInput)
+    topPlane.name = 'Lip support plane'
+    (outerSketch, _) = baseGenerator.createShapeOutlineSketch(cells, grid, outerOffset, topPlane, targetComponent, name='Lip support')
+    support = extrudeUtils.simpleDistanceExtrude(
+        outerSketch.profiles.item(0),
+        adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
+        depth,
+        adsk.fusion.ExtentDirections.NegativeExtentDirection,
+        [],
+        targetComponent,
+        name='Lip support',
+    ).bodies.item(0)
+    support.name = 'Lip support'
+
+    # the inside, narrowing at 45 degrees up to the tip and straight above. It starts a bit further out and lower, so
+    # it meets the outside of the support in an edge rather than ending on it
+    margin = const.BIN_LIP_SUPPORT_WALL_HEIGHT / 10
+    insidePlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
+    insidePlaneInput.setByOffset(targetComponent.xYConstructionPlane, valueInput(topZ - Dim.length(fullDepth + margin)))
+    insidePlane = targetComponent.constructionPlanes.add(insidePlaneInput)
+    insidePlane.name = 'Lip support inside plane'
+    (insideSketch, _) = baseGenerator.createShapeOutlineSketch(cells, grid, outerOffset - margin, insidePlane, targetComponent, name='Lip support inside')
+    slopeSection = extrudeUtils.taperedExtrude(
+        insideSketch.profiles.item(0),
+        slope + margin,
+        adsk.fusion.ExtentDirections.PositiveExtentDirection,
+        targetComponent,
+        name='Lip support inside slope',
+    )
+    inside = slopeSection.bodies.item(0)
+    extrudeUtils.simpleDistanceExtrude(
+        slopeSection.endFaces.item(0),
+        adsk.fusion.FeatureOperations.JoinFeatureOperation,
+        const.BIN_LIP_SUPPORT_WALL_HEIGHT,
+        adsk.fusion.ExtentDirections.PositiveExtentDirection,
+        [inside],
+        targetComponent,
+        name='Lip support inside wall',
+    )
+    combineUtils.cutBody(support, commonUtils.objectCollectionFromList([inside]), targetComponent, name='Lip support shape')
+    return support
 
 def createShapeLipMiddleCutout(
     input: BinBodyLipGeneratorInput,
@@ -307,7 +392,7 @@ def createGridfinityBinBodyLip(
         lipCutoutInput.baseWidth = input.baseWidth * input.binWidth + Dim.length(input.xyClearance * 2)
         lipCutoutInput.baseLength = input.baseLength * input.binLength + Dim.length(input.xyClearance * 2)
         lipCutoutInput.xyClearance = input.xyClearance
-        lipCutoutInput.hasBottomChamfer = False
+        lipCutoutInput.hasBottomChamfer = input.lipType == LIP_TYPE_FULL
         lipCutoutInput.cornerFilletRadius = input.binCornerFilletRadius + input.xyClearance * 2
         lipCutout = baseGenerator.createSingleGridfinityBaseBody(lipCutoutInput, targetComponent, name='Lip cutout')
     lipCutoutBodies.append(lipCutout)

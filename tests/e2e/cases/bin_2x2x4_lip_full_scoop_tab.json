@@ -1,0 +1,12 @@
+{
+    "description": "2x2x4 bin with a full lip, a scoop wall as thick as its inner tip and a label tab under its support",
+    "generator": "bin",
+    "settings": {
+        "binLength": 2,
+        "binHeight": 4,
+        "lipType": "Full",
+        "hasScoop": true,
+        "hasTab": true,
+        "labelText": "M3"
+    }
+}

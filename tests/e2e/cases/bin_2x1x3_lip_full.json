@@ -1,0 +1,9 @@
+{
+    "description": "2x1x3 bin with the full lip of the original profile, its support along the walls",
+    "generator": "bin",
+    "settings": {
+        "binLength": 1,
+        "binHeight": 3,
+        "lipType": "Full"
+    }
+}

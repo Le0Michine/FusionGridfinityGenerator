@@ -1,0 +1,32 @@
+{
+    "description": "3x3x4 L shaped bin with a full lip",
+    "generator": "bin",
+    "settings": {
+        "binWidth": 3,
+        "binHeight": 4,
+        "lipType": "Full",
+        "hasCustomShape": true,
+        "shapeCells": [
+            [
+                0,
+                0
+            ],
+            [
+                1,
+                0
+            ],
+            [
+                2,
+                0
+            ],
+            [
+                0,
+                1
+            ],
+            [
+                0,
+                2
+            ]
+        ]
+    }
+}

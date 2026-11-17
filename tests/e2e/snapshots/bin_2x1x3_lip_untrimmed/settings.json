@@ -21,6 +21,7 @@
     "magnetCutoutDepth": 2.4,
     "hasLip": true,
     "hasLipNotches": false,
+    "lipType": "Light",
     "isLipTopTrimmed": false,
     "hasScoop": false,
     "scoopMaxRadius": 25.0,
