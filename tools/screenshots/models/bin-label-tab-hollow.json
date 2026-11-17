@@ -1,0 +1,20 @@
+{
+    "description": "Wiki hollow tab: a 1x1 bin 7u tall with a hollow label tab, its top tilted 45 degrees, cut through its middle to show the tab opened through the back wall",
+    "extends": "_bin.json",
+    "view": {
+        "eye": [150, -60, 95],
+        "target": [20.75, 20.75, 26],
+        "up": [0, 0, 1]
+    },
+    "section": {
+        "plane": "yz"
+    },
+    "settings": {
+        "binWidth": 1,
+        "binLength": 1,
+        "binHeight": 7,
+        "hasTab": true,
+        "isTabHollow": true,
+        "tabTopAngle": 45.0
+    }
+}

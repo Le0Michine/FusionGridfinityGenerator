@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="594" height="498" viewBox="0 0 594 498" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15">
+<polygon points="213.8,402.0 234.6,381.2 234.6,334.4 297.0,272.0 359.4,334.4 359.4,381.2 380.2,402.0" fill="#b6bec7" stroke="#6e7781" stroke-width="1.5" stroke-linejoin="round"/>
+<polygon points="24.0,402.0 190.4,402.0 211.2,381.2 211.2,334.4 273.6,272.0 273.6,64.0 242.4,64.0 242.4,174.5 242.1,180.3 241.4,186.0 240.1,191.7 238.4,197.2 236.2,202.5 233.5,207.6 230.4,212.5 226.9,217.1 223.0,221.4 218.7,225.3 214.1,228.8 209.2,231.9 204.1,234.6 198.8,236.8 193.3,238.5 187.6,239.8 181.9,240.5 176.1,240.8 24.0,240.8" fill="#4e79a7" stroke="#2f5277" stroke-width="1.5" stroke-linejoin="round"/>
+<polygon points="570.0,402.0 403.6,402.0 382.8,381.2 382.8,334.4 320.4,272.0 320.4,64.0 351.6,64.0 351.6,174.5 351.9,180.3 352.6,186.0 353.9,191.7 355.6,197.2 357.8,202.5 360.5,207.6 363.6,212.5 367.1,217.1 371.0,221.4 375.3,225.3 379.9,228.8 384.8,231.9 389.9,234.6 395.2,236.8 400.7,238.5 406.4,239.8 412.1,240.5 417.9,240.8 570.0,240.8" fill="#4e79a7" stroke="#2f5277" stroke-width="1.5" stroke-linejoin="round"/>
+<line x1="297.0" y1="48.4" x2="297.0" y2="422.8" stroke="#57606a" stroke-width="1.5" stroke-dasharray="6 5"/>
+<text x="297.0" y="40.4" text-anchor="middle" fill="#1f2328">grid line, every base unit</text>
+<text x="34.4" y="110.6" text-anchor="start" fill="#1f2328">bin</text>
+<text x="559.6" y="110.6" text-anchor="end" fill="#1f2328">bin</text>
+<text x="297.0" y="446.0" text-anchor="middle" fill="#1f2328">baseplate</text>
+<line x1="237.2" y1="131.6" x2="273.6" y2="131.6" stroke="#cf222e" stroke-width="1.5"/>
+<line x1="320.4" y1="131.6" x2="364.6" y2="131.6" stroke="#cf222e" stroke-width="1.5"/>
+<polygon points="273.6,131.6 264.6,127.6 264.6,135.6" fill="#cf222e"/>
+<polygon points="320.4,131.6 329.4,127.6 329.4,135.6" fill="#cf222e"/>
+<text x="372.4" y="136.6" text-anchor="start" fill="#cf222e" font-weight="600">2 × clearance between bins</text>
+<line x1="260.6" y1="194.0" x2="297.0" y2="194.0" stroke="#cf222e" stroke-width="1.5"/>
+<line x1="320.4" y1="194.0" x2="364.6" y2="194.0" stroke="#cf222e" stroke-width="1.5"/>
+<polygon points="297.0,194.0 288.0,190.0 288.0,198.0" fill="#cf222e"/>
+<polygon points="320.4,194.0 329.4,190.0 329.4,198.0" fill="#cf222e"/>
+<text x="372.4" y="199.0" text-anchor="start" fill="#cf222e" font-weight="600">clearance from the grid line</text>
+<line x1="336.0" y1="357.8" x2="359.4" y2="357.8" stroke="#cf222e" stroke-width="1.5"/>
+<line x1="382.8" y1="357.8" x2="406.2" y2="357.8" stroke="#cf222e" stroke-width="1.5"/>
+<polygon points="359.4,357.8 350.4,353.8 350.4,361.8" fill="#cf222e"/>
+<polygon points="382.8,357.8 391.8,353.8 391.8,361.8" fill="#cf222e"/>
+<polyline points="371.1,364.3 371.1,381.2 391.9,402.0 391.9,425.4" fill="none" stroke="#cf222e" stroke-width="1.2"/>
+<text x="391.9" y="446.0" text-anchor="start" fill="#cf222e" font-weight="600">clearance from the socket</text>
+<text x="297" y="484" text-anchor="middle" fill="#57606a" font-size="13">Not to scale, the clearance is drawn larger to be seen</text>
+</svg>

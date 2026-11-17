@@ -1,0 +1,16 @@
+{
+    "description": "Wiki lip notches: a low 2x2 bin with notches in its lip where the feet of a bin stacked on top meet, the notches in the light cyan of the cross sections",
+    "extends": "_bin.json",
+    "settings": {
+        "binWidth": 2,
+        "binLength": 2,
+        "binHeight": 2,
+        "hasLipNotches": true
+    },
+    "difference": {
+        "settings": {
+            "hasLipNotches": false
+        },
+        "color": "#a8e4ec"
+    }
+}
