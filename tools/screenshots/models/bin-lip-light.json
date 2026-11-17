@@ -1,0 +1,30 @@
+{
+    "description": "README lip GIF: a low 1x1 bin with the light lip, cut through its middle to show the lip's profile on both sides",
+    "extends": "_bin.json",
+    "view": {
+        "eye": [
+            50,
+            -110,
+            55
+        ],
+        "target": [
+            20.75,
+            20.75,
+            8
+        ],
+        "up": [
+            0,
+            0,
+            1
+        ]
+    },
+    "section": {
+        "plane": "xz",
+        "flip": true
+    },
+    "settings": {
+        "binWidth": 1,
+        "binLength": 1,
+        "binHeight": 2
+    }
+}

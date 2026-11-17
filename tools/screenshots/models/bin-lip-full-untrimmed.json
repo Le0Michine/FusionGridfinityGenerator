@@ -1,0 +1,7 @@
+{
+    "description": "README lip GIF: the full lip untrimmed, ending in a sharp edge",
+    "extends": "bin-lip-full.json",
+    "settings": {
+        "isLipTopTrimmed": false
+    }
+}

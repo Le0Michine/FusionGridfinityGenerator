@@ -93,6 +93,25 @@
             "combine": true
         },
         {
+            "name": "bin-lip",
+            "frames": [
+                {
+                    "picture": "bin-lip-light",
+                    "caption": "Light lip"
+                },
+                {
+                    "picture": "bin-lip-full",
+                    "caption": "Full lip, the original profile"
+                },
+                {
+                    "picture": "bin-lip-full-untrimmed",
+                    "caption": "Full lip, top untrimmed"
+                }
+            ],
+            "loopWith": "bin-lip-dialog",
+            "combine": true
+        },
+        {
             "name": "bin-creases",
             "frames": [
                 {

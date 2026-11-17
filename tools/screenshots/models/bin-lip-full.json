@@ -1,0 +1,7 @@
+{
+    "description": "README lip GIF: the bin with the full lip, its inner tip and the support under it",
+    "extends": "bin-lip-light.json",
+    "settings": {
+        "lipType": "Full"
+    }
+}

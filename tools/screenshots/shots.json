@@ -254,6 +254,25 @@
             ]
         },
         {
+            "name": "bin-lip-dialog",
+            "output": "tools/screenshots/dialogs",
+            "command": "bin",
+            "values": {"bin_width": 1, "bin_length": 1, "bin_height": 2},
+            "inputs": ["with_lip", "lip_top_trimmed"],
+            "steps": [
+                {"wait": 1200},
+                {"select": {"input": "lip_type", "item": "Full"}},
+                {"model": 1},
+                {"wait": 1200},
+                {"click": "lip_top_trimmed"},
+                {"model": 2},
+                {"wait": 1200},
+                {"click": "lip_top_trimmed"},
+                {"select": {"input": "lip_type", "item": "Light"}},
+                {"model": 0}
+            ]
+        },
+        {
             "name": "bin-label-options-dialog",
             "output": "tools/screenshots/dialogs",
             "command": "bin",

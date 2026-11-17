@@ -48,7 +48,7 @@ Skeletonized baseplates can have holes between them for a screw or a glued in pi
   - you can play tetris with your bins defining custom shapes `▀█▀ █▄▄ ▄█▀ ██ ▀▀▀▀`
 - **Body**
   - hollow, shelled with constant wall thickness to save printing time and filament, or solid as a start for specialized tool bins
-  - lip for stackability, with optional notches preventing stacked bins from sliding, or a straight wall
+  - lip for stackability, light or full as the original Gridfinity profile, its top trimmed flat or left sharp, with optional notches preventing stacked bins from sliding, or a straight wall
   - long walls of tall hollow and shelled bins can be folded in along creases, origami style, greatly increasing stiffness
   - base or body can be generated on their own, to combine them with an existing model
 - **Compartments** in a uniform layout, or an easy to use configurator for more complex, irregular ones
@@ -78,6 +78,12 @@ Skeletonized baseplates can have holes between them for a screw or a glued in pi
 Hollow bin | Shelled bin | Solid bin
 :-------------------------:|:-------------------------:|:-------------------------:
 <img src="documentation/assets/models/hollow-bin.png" alt="Hollow bin"> | <img src="documentation/assets/models/shelled-bin.png" alt="Shelled bin"> | <img src="documentation/assets/models/solid-bin.png" alt="Solid bin">
+
+#### Stacking lip
+
+The lip adds a stacking interface to the top of the bin. By default the **light** lip profile is used, it retains the same contact geometry but reduces lip thickness. The **full** option follows the original Gridfinity profile, which has two steps following the full base profile. **Trim lip top** cuts the top of the lip flat, it does not change stacking height but helps with printing consistency, as depending on slicer parameters the resulting bins could differ by 1-2 layers when the lip is modelled with a sharp top.
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/gif/bin-lip-dark.gif"><img src="documentation/assets/gif/bin-lip-light.gif" alt="Switching the lip type to full and unchecking the lip top trim, with the bin cut through its middle for each"></picture>
 
 #### Creased walls for stiffer bins
 
