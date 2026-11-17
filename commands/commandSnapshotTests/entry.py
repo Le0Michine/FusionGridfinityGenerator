@@ -112,13 +112,14 @@ caseViews: dict[str, CaseView] = {}
 # an update waiting for confirmation: its staging folder and the snapshots it replaces and removes
 pendingUpdate: dict | None = None
 lastReport: dict | None = None
-# the run a case's snapshot update started from, the tests go back to its results, see updateSnapshot
-runBeforeUpdate: dict | None = None
-# a run or refresh asked for in the report, its kind and case names, none for all of them. It's done in a custom event
+# a run or refresh asked for in the report, its kind and case names, none for all of them, a snapshot update of the
+# test window is JOB_ACCEPT. It's done in a custom event
 # once the page has its answer, so the page draws the progress meanwhile
 QUEUE_EVENT_ID = f'{config.COMPANY_NAME}_{config.ADDIN_NAME}_snapshotTestsQueue'
 queue_handlers = []
 queuedJob: tuple[str, set[str] | None] | None = None
+# the cases' new snapshots replace theirs right away, see updateSnapshot
+JOB_ACCEPT = 'accept'
 # the name and document of the case being built
 building: tuple[str, adsk.core.Document] | None = None
 documentActivatedHandler = None
@@ -207,6 +208,7 @@ def runReporting(name: str, onExecute):
             'tests': backToTests,
             'refreshAll': refreshAll,
             'refresh': refreshOne,
+            'refreshNew': refreshNew,
             'closeAll': closeCaseDocuments,
         })
     except:
@@ -376,18 +378,12 @@ def bodyReports(results: list[snapshots.BodyResult], statuses: dict[str, str] = 
 def openTests() -> tuple:
     """
     The test window lists the cases to run one at a time or all together. Cases run before keep their results, as long
-    as the last report is of a run or the update came from one, the cases it refreshed are to run again. An update
-    waiting for confirmation is discarded, its report goes
+    as the last report is of a run. An update waiting for confirmation is discarded, its report goes
     """
-    global runBeforeUpdate
     discardPendingUpdate()
     previous = {}
     if lastReport is not None and lastReport['kind'] == report.KIND_RUN:
         previous = {item['name']: item for item in lastReport['cases']}
-    elif runBeforeUpdate is not None:
-        refreshed = {item['name'] for item in lastReport['cases'] if item['status'] != report.STATUS_UNTESTED} if lastReport is not None else set()
-        previous = {item['name']: item for item in runBeforeUpdate['cases'] if item['name'] not in refreshed}
-    runBeforeUpdate = None
     cases = [previous.get(case.name) or listedCase(case, report.STATUS_UNTESTED) for case in loadCases()]
     return (report.KIND_RUN, cases, None, '')
 
@@ -402,15 +398,13 @@ def runOne(data) -> dict | None:
 
 def updateSnapshot(data) -> dict | None:
     """
-    The Update snapshot button of a case that didn't pass, the update window refreshes it alone, its differences from
-    the current snapshot are shown to confirm. Back to tests brings the run's results back
+    The Update snapshot button of a case that didn't pass. Its differences are already shown, so it's built again and
+    its new snapshot replaces the current one without asking, the test window stays, see acceptSelected
     """
-    global runBeforeUpdate
     names = selectedNames(data)
     if not names or queuedJob is not None or lastReport is None or lastReport['kind'] != report.KIND_RUN:
         return None
-    runBeforeUpdate = lastReport
-    return queueJob(report.KIND_UPDATE, names)
+    return queueJob(JOB_ACCEPT, names)
 
 def selectedNames(data) -> set[str] | None:
     """The page's case, or its cases, a list of names"""
@@ -428,14 +422,16 @@ def queueJob(kind: str, names: set[str] | None) -> dict | None:
     global lastReport, queuedJob
     if queuedJob is not None:
         return lastReport
-    if names is None or lastReport is None or lastReport['kind'] != kind:
-        (_, cases, pending, message) = openTests() if kind == report.KIND_RUN else openUpdate()
-        lastReport = report.report(kind, RUN_CMD_NAME if kind == report.KIND_RUN else UPDATE_CMD_NAME, cases, 0, pending, message)
+    # accepted snapshots are listed with the run's results
+    reportKind = report.KIND_RUN if kind == JOB_ACCEPT else kind
+    if names is None or lastReport is None or lastReport['kind'] != reportKind:
+        (_, cases, pending, message) = openTests() if reportKind == report.KIND_RUN else openUpdate()
+        lastReport = report.report(reportKind, RUN_CMD_NAME if reportKind == report.KIND_RUN else UPDATE_CMD_NAME, cases, 0, pending, message)
     cases = [case for case in loadCases() if names is None or case.name in names]
     if len(cases) == 0:
         return lastReport
     # refreshing all of them starts the update waiting for confirmation over, refreshing some adds to it
-    if kind == report.KIND_RUN or names is None:
+    if kind != report.KIND_UPDATE or names is None:
         discardPendingUpdate()
     queued = [listedCase(case, report.STATUS_QUEUED) for case in cases]
     lastReport = {**report.withCases(lastReport, queued, 0, '', report.progress(0, len(cases), cases[0].name)), 'pending': None}
@@ -451,6 +447,8 @@ def queue_custom_event(args: adsk.core.CustomEventArgs):
     try:
         if kind == report.KIND_RUN:
             runSelected(names)
+        elif kind == JOB_ACCEPT:
+            acceptSelected(names)
         else:
             refreshSelected(names)
     finally:
@@ -481,6 +479,42 @@ def runSelected(names: set[str] | None) -> dict | None:
         message = ''
         if len(caseViews) > 0:
             message = f'{len(caseViews)} case document(s) left open, switch what they show with Diff, Built and Snapshot'
+        lastReport = report.withCases(lastReport, caseReports, time.perf_counter() - startTime, message)
+        log(report.reportText(lastReport))
+    except:
+        ui.messageBox(f'{RUN_CMD_NAME}\n\nFailed:\n{traceback.format_exc()}', RUN_CMD_NAME)
+    return lastReport
+
+def acceptSelected(names: set[str]) -> dict | None:
+    """
+    New snapshots of the cases of these names replace theirs as they're built, a case that doesn't build keeps its
+    snapshot and fails. Each is listed as passing once replaced, it matches its snapshot then
+    """
+    global lastReport
+    try:
+        startTime = time.perf_counter()
+        cases = [case for case in loadCases() if case.name in names]
+        stagingFolder = tempfile.mkdtemp(prefix='gridfinity_snapshots_')
+        try:
+            (staged, toApply, toPreview) = stageSnapshots(cases, stagingFolder, progressShower(cases, startTime), keepOpen=False)
+            copyStaged(stagingFolder, toApply, [], toPreview)
+        finally:
+            shutil.rmtree(stagingFolder, ignore_errors=True)
+        def accepted(item: dict) -> dict:
+            if item['name'] in toApply:
+                note = 'snapshot replaced with this build'
+            elif item['status'] == report.STATUS_UNCHANGED:
+                note = 'built the same as its snapshot, nothing replaced'
+            else:
+                # didn't build, its snapshot stays
+                return item
+            return report.case(item['name'], item['description'], report.STATUS_PASS, notes=[note] + item['notes'], previews=snapshotPreviews(item['name']))
+        caseReports = [accepted(item) for item in staged]
+        message = f'Replaced {len(toApply)} snapshot(s), review them with git diff'
+        try:
+            writeReadme()
+        except Exception as err:
+            message += f'. {os.path.relpath(README_PATH, E2E_FOLDER)} not written, {err}'
         lastReport = report.withCases(lastReport, caseReports, time.perf_counter() - startTime, message)
         log(report.reportText(lastReport))
     except:
@@ -830,6 +864,16 @@ def refreshOne(data) -> dict | None:
     names = selectedNames(data)
     return queueJob(report.KIND_UPDATE, names) if names else None
 
+def refreshNew(_) -> dict | None:
+    """The update report's Add new button, snapshots for the cases that have none yet, confirmed like the others"""
+    global lastReport
+    names = {case.name for case in loadCases() if not snapshots.hasSnapshot(os.path.join(SNAPSHOTS_FOLDER, case.name))}
+    if len(names) == 0:
+        if lastReport is not None:
+            lastReport = {**lastReport, 'message': 'Every case has a snapshot already'}
+        return lastReport
+    return queueJob(report.KIND_UPDATE, names)
+
 def refreshSelected(names: set[str] | None) -> dict | None:
     """
     New snapshots of the cases of these names, all of them for none, go to a temporary folder first, compared with the
@@ -877,14 +921,15 @@ def refreshSelected(names: set[str] | None) -> dict | None:
         ui.messageBox(f'{UPDATE_CMD_NAME}\n\nFailed:\n{traceback.format_exc()}', UPDATE_CMD_NAME)
     return lastReport
 
-def stageSnapshots(cases: list[testCases.TestCase], stagingFolder: str, showProgress: Callable[[int, list[dict]], None]) -> tuple[list[dict], list[str], list[str]]:
+def stageSnapshots(cases: list[testCases.TestCase], stagingFolder: str, showProgress: Callable[[int, list[dict]], None], keepOpen: bool | None = None) -> tuple[list[dict], list[str], list[str]]:
     """
     The reports of the cases with their new snapshots in the staging folder, the names of those to copy in place, and
     of the unchanged ones whose snapshot has no preview yet, only the preview is copied. A preview of the same shape
-    is left as it is, it would change with how Fusion draws. A case refreshed alone stays open in the viewport
+    is left as it is, it would change with how Fusion draws. A case refreshed alone stays open in the viewport, unless
+    told otherwise
     """
     originalDocument = app.activeDocument
-    keepOpen = len(cases) == 1
+    keepOpen = len(cases) == 1 if keepOpen is None else keepOpen
     caseReports = []
     toApply = []
     toPreview = []
@@ -937,15 +982,7 @@ def applyPendingUpdate(_) -> dict | None:
     global lastReport
     if pendingUpdate is None or lastReport is None:
         return None
-    for name in pendingUpdate['apply']:
-        target = os.path.join(SNAPSHOTS_FOLDER, name)
-        if os.path.isdir(target):
-            shutil.rmtree(target)
-        shutil.copytree(os.path.join(pendingUpdate['staging'], name), target)
-    for name in pendingUpdate['remove']:
-        shutil.rmtree(os.path.join(SNAPSHOTS_FOLDER, name))
-    for name in pendingUpdate['previews']:
-        shutil.copyfile(os.path.join(pendingUpdate['staging'], name, snapshots.PREVIEW_FILE), os.path.join(SNAPSHOTS_FOLDER, name, snapshots.PREVIEW_FILE))
+    copyStaged(pendingUpdate['staging'], pendingUpdate['apply'], pendingUpdate['remove'], pendingUpdate['previews'])
     message = f'Replaced {len(pendingUpdate["apply"])} and removed {len(pendingUpdate["remove"])} snapshot(s)'
     if pendingUpdate['previews']:
         message += f', added {len(pendingUpdate["previews"])} preview(s)'
@@ -958,6 +995,18 @@ def applyPendingUpdate(_) -> dict | None:
     lastReport = {**lastReport, 'pending': None, 'message': message, 'cases': withSnapshotPreviews(lastReport['cases'])}
     log(message)
     return lastReport
+
+def copyStaged(stagingFolder: str, toApply: list[str], toRemove: list[str], toPreview: list[str]):
+    """The staged snapshots replace theirs, those of the removed cases go and the new previews are added"""
+    for name in toApply:
+        target = os.path.join(SNAPSHOTS_FOLDER, name)
+        if os.path.isdir(target):
+            shutil.rmtree(target)
+        shutil.copytree(os.path.join(stagingFolder, name), target)
+    for name in toRemove:
+        shutil.rmtree(os.path.join(SNAPSHOTS_FOLDER, name))
+    for name in toPreview:
+        shutil.copyfile(os.path.join(stagingFolder, name, snapshots.PREVIEW_FILE), os.path.join(SNAPSHOTS_FOLDER, name, snapshots.PREVIEW_FILE))
 
 def withSnapshotPreviews(cases: list[dict]) -> list[dict]:
     """The cases showing the previews of the snapshots in place, the new ones are gone with the staging folder"""

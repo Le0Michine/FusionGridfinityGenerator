@@ -101,6 +101,23 @@
     .pill.new { background: var(--new); }
     .pill.untested, .pill.queued { background: transparent; color: var(--muted); border: 1px solid var(--card-border); }
     .pill.running { background: var(--progress-bar); }
+    /* the counts filter the cases by status, those picked stand out, the others fade */
+    button.pill {
+        border: 1px solid transparent;
+        font-family: inherit;
+        cursor: pointer;
+        min-height: 0;
+        line-height: normal;
+    }
+    .summary.picking button.pill:not(.picked) {
+        opacity: 0.4;
+    }
+    button.pill.picked {
+        box-shadow: 0 0 0 2px var(--text);
+    }
+    .filter .clear {
+        white-space: nowrap;
+    }
     .progress-label {
         margin: -4px 0 10px;
         color: var(--muted);
@@ -146,6 +163,16 @@
         display: flex;
         gap: 8px;
         align-items: center;
+    }
+    /* an open case keeps its name and buttons under the page header while its details scroll by, until the case is
+       past. Under the page header, it scrolls over them */
+    details.case[open] > summary {
+        position: sticky;
+        top: var(--header-height, 0px);
+        z-index: 0;
+        background: var(--card);
+        border-bottom: 1px solid var(--rule);
+        border-radius: 4px 4px 0 0;
     }
     details.case > summary::-webkit-details-marker {
         display: none;
@@ -306,6 +333,21 @@
         volume: 'Volume', area: 'Surface area', bboxMin: 'Box min (x, y, z)', bboxMax: 'Box max (x, y, z)',
         lumps: 'Lumps', faces: 'Faces', edges: 'Edges', vertices: 'Vertices',
     };
+    // what each status means, shown over its count
+    const STATUS_TIPS = {
+        pass: 'Built the same as its snapshot',
+        review: 'Same shape as its snapshot, but its fingerprint changed: faces or edges split another way, '
+            + 'numbers drifting, mostly after a Fusion update, or built with other settings than the snapshot. '
+            + 'Look it over and update the snapshot when it is fine',
+        fail: 'The shape differs from its snapshot, material missing or added, a body missing, or it did not build',
+        untested: 'Not run since the window opened',
+        queued: 'Waiting for its turn in this run',
+        running: 'Being built now',
+        new: 'No snapshot yet, the refresh makes its first one',
+        changed: 'The refreshed snapshot differs from the current one',
+        unchanged: 'The refreshed snapshot matches the current one',
+        removed: 'Its case is gone, the snapshot would be deleted',
+    };
     // fingerprints are rounded to this many digits, see snapshots.fingerprint
     const DIGITS = 4;
 
@@ -426,8 +468,10 @@
             busy: 'Refreshing',
         },
     };
-    // a case of a run that didn't pass, refreshed alone in the update window to confirm its new snapshot
-    const UPDATE_ONE = ['Update snapshot', 'Build this case for a new snapshot and show how it differs from the current one, nothing is replaced before you confirm', 'updateSnapshot'];
+    // snapshots for the cases that have none, whatever the filter shows
+    const ADD_NEW = ['Add new', 'Build only the cases without a snapshot yet, nothing is written before you confirm', 'refreshNew'];
+    // a case of a run that didn't pass, its differences already looked at, its new snapshot replaces the current one
+    const UPDATE_ONE = ['Update snapshot', 'Build this case again and replace its snapshot with it right away', 'updateSnapshot'];
 
     // the run redraws the report before each case, every button waits for the report it ends with
     function runButton([label, tooltip, action], data) {
@@ -447,7 +491,9 @@
         const card = element('details', 'case' + (shown ? ' shown' : ''));
         card.open = ATTENTION.includes(item.status);
         const summary = element('summary');
-        summary.appendChild(element('span', 'pill ' + item.status, item.status));
+        const pill = element('span', 'pill ' + item.status, item.status);
+        pill.title = STATUS_TIPS[item.status] || '';
+        summary.appendChild(pill);
         const previews = item.previews || {};
         if (previews.new || previews.snapshot) {
             const thumb = element('img', 'thumb');
@@ -565,10 +611,53 @@
         // no storage, the filter starts empty
     }
 
-    // every word has to be in the name or the description
+    // the statuses picked from the counts, none shows every case
+    const STATUS_FILTER_KEY = 'gridfinityTestsStatusFilter';
+    let statusFilter = new Set();
+    try {
+        statusFilter = new Set(JSON.parse(localStorage.getItem(STATUS_FILTER_KEY) || '[]'));
+    } catch (err) {
+        // no storage, every status is shown
+    }
+
+    // every word has to be in the name or the description, and the status one of those picked
     function matchesFilter(item) {
         const text = `${item.name} ${item.description || ''}`.toLowerCase();
-        return filterText.toLowerCase().split(/\s+/).filter(Boolean).every((word) => text.includes(word));
+        return filterText.toLowerCase().split(/\s+/).filter(Boolean).every((word) => text.includes(word))
+            && (statusFilter.size === 0 || statusFilter.has(item.status));
+    }
+
+    function isFiltering() {
+        return filterText.trim() !== '' || statusFilter.size > 0;
+    }
+
+    function setStatusFilter(statuses) {
+        statusFilter = new Set(statuses);
+        try {
+            localStorage.setItem(STATUS_FILTER_KEY, JSON.stringify([...statusFilter]));
+        } catch (err) {
+            // kept for this page only
+        }
+        render(current);
+    }
+
+    // a click picks the status alone, with Shift or Cmd it's added or taken out, a click on the only one picked shows all
+    function statusPill(status, count) {
+        const pill = element('button', 'pill ' + status + (statusFilter.has(status) ? ' picked' : ''), `${count} ${status}`);
+        pill.title = (STATUS_TIPS[status] ? STATUS_TIPS[status] + '. ' : '') + 'Click to show only these, Shift-click to add or remove';
+        pill.addEventListener('click', (event) => {
+            const picked = new Set(statusFilter);
+            if (event.shiftKey || event.metaKey || event.ctrlKey) {
+                picked.has(status) ? picked.delete(status) : picked.add(status);
+            } else if (picked.size === 1 && picked.has(status)) {
+                picked.clear();
+            } else {
+                picked.clear();
+                picked.add(status);
+            }
+            setStatusFilter(picked);
+        });
+        return pill;
     }
 
     function setFilter(value) {
@@ -596,8 +685,14 @@
             }
         });
         row.appendChild(input);
-        if (filterText.trim()) {
+        if (isFiltering()) {
             row.appendChild(element('span', 'muted', `${shownCount} of ${total} shown`));
+        }
+        if (statusFilter.size > 0) {
+            const clear = element('button', 'clear', 'All statuses');
+            clear.title = 'Show the cases of every status';
+            clear.addEventListener('click', () => setStatusFilter([]));
+            row.appendChild(clear);
         }
         return row;
     }
@@ -613,9 +708,12 @@
         root.appendChild(header);
         header.appendChild(element('h1', '', report.title));
 
-        const summary = element('div', 'summary');
-        for (const [status, count] of Object.entries(report.counts)) {
-            summary.appendChild(element('span', 'pill ' + status, `${count} ${status}`));
+        const summary = element('div', 'summary' + (statusFilter.size > 0 ? ' picking' : ''));
+        // a status picked stays listed when no case has it anymore, so it can be taken out
+        const counts = { ...report.counts };
+        statusFilter.forEach((status) => (counts[status] = counts[status] || 0));
+        for (const [status, count] of Object.entries(counts)) {
+            summary.appendChild(statusPill(status, count));
         }
         const took = report.seconds > 0 ? ` in ${report.seconds} s` : '';
         summary.appendChild(element('span', 'muted', `${report.cases.length} case(s)${took}`));
@@ -634,7 +732,7 @@
         }
 
         const toolbar = element('div', 'toolbar');
-        const filtering = filterText.trim() !== '';
+        const filtering = isFiltering();
         const shownCases = report.cases.filter(matchesFilter);
         if (RUNS[report.kind]) {
             if (filtering) {
@@ -647,6 +745,9 @@
             } else {
                 toolbar.appendChild(runButton(RUNS[report.kind].all));
             }
+        }
+        if (report.kind === 'update') {
+            toolbar.appendChild(runButton(ADD_NEW, {}));
         }
         if (report.cases.some((item) => item.hasDocument)) {
             const close = element('button', '', 'Close test documents');
