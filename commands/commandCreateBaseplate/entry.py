@@ -130,7 +130,9 @@ SIZING_MODE_DROPDOWN = 'sizing_mode_dropdown'
 
 FILL_AREA_WIDTH_INPUT = 'fill_area_width'
 FILL_AREA_LENGTH_INPUT = 'fill_area_length'
-PLATE_CLEARANCE_INPUT = 'plate_clearance'
+PLATE_EDGE_CLEARANCE_INPUT = 'plate_edge_clearance'
+# saved defaults of before the clearance was per plate edge, the whole gap between plates, see restoreLegacyDefaults
+LEGACY_PLATE_CLEARANCE_INPUT = 'plate_clearance'
 FILL_HALF_CELLS_INPUT = 'fill_half_cells'
 FILL_ALIGN_X_DROPDOWN = 'fill_align_x'
 FILL_ALIGN_Y_DROPDOWN = 'fill_align_y'
@@ -196,7 +198,7 @@ STATE_INPUT_IDS = [
     SIZING_MODE_DROPDOWN,
     FILL_AREA_WIDTH_INPUT,
     FILL_AREA_LENGTH_INPUT,
-    PLATE_CLEARANCE_INPUT,
+    PLATE_EDGE_CLEARANCE_INPUT,
     PRINT_BED_WIDTH_INPUT,
     PRINT_BED_LENGTH_INPUT,
     PRINT_BED_MARGIN_INPUT,
@@ -337,13 +339,13 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     xyClearanceInput.isMaximumInclusive = True
     xyClearanceInput.tooltip = "Gap on each side between a bin and its cell, the sockets are made larger by it. Keep it the same as the bins' xy clearance. Must be within range [0.1, 0.5]mm"
     uiState.registerCommandInput(xyClearanceInput)
-    plateClearanceInput = basicSizesGroup.children.addValueInput(PLATE_CLEARANCE_INPUT, 'Clearance between plates (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(PLATE_CLEARANCE_INPUT)))
-    plateClearanceInput.minimumValue = 0.005
-    plateClearanceInput.isMinimumInclusive = True
-    plateClearanceInput.maximumValue = 0.05
-    plateClearanceInput.isMaximumInclusive = True
-    plateClearanceInput.tooltip = "Gap between fill pieces, or grid units plates, glued side by side. Each plate takes half of it on its edge. Must be within range [0.05, 0.5]mm"
-    uiState.registerCommandInput(plateClearanceInput)
+    plateEdgeClearanceInput = basicSizesGroup.children.addValueInput(PLATE_EDGE_CLEARANCE_INPUT, 'Plate edge clearance (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(PLATE_EDGE_CLEARANCE_INPUT)))
+    plateEdgeClearanceInput.minimumValue = 0.0025
+    plateEdgeClearanceInput.isMinimumInclusive = True
+    plateEdgeClearanceInput.maximumValue = 0.025
+    plateEdgeClearanceInput.isMaximumInclusive = True
+    plateEdgeClearanceInput.tooltip = "How far the edge of a plate stops short of the grid line where it meets another, fill pieces or grid units plates glued side by side leave twice it between them. Must be within range [0.025, 0.25]mm"
+    uiState.registerCommandInput(plateEdgeClearanceInput)
 
     mainDimensionsGroup = inputs.addGroupCommandInput(XY_DIMENSIONS_GROUP, 'Main dimensions')
     mainDimensionsGroup.isExpanded = uiState.getState(XY_DIMENSIONS_GROUP)
@@ -487,17 +489,18 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     advancedPlateSizeGroup = plateFeaturesGroup.children.addGroupCommandInput(ADVANCED_PLATE_SIZE_GROUP, 'Advanced plate size options')
     advancedPlateSizeGroup.isExpanded = uiState.getState(ADVANCED_PLATE_SIZE_GROUP)
     uiState.registerCommandInput(advancedPlateSizeGroup)
-    extraBottomThicknessInput = advancedPlateSizeGroup.children.addValueInput(BASEPLATE_EXTRA_THICKNESS_INPUT, 'Extra bottom thickness', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BASEPLATE_EXTRA_THICKNESS_INPUT)))
+    extraBottomThicknessInput = advancedPlateSizeGroup.children.addValueInput(BASEPLATE_EXTRA_THICKNESS_INPUT, 'Bottom padding (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BASEPLATE_EXTRA_THICKNESS_INPUT)))
     extraBottomThicknessInput.minimumValue = 0
     extraBottomThicknessInput.isMinimumInclusive = False
+    extraBottomThicknessInput.tooltip = "Solid layer under the sockets of Skeletonized and Full plates, where the magnet sockets and screw holes go. Must be greater than 0"
     uiState.registerCommandInput(extraBottomThicknessInput)
 
-    verticalClearanceInput = advancedPlateSizeGroup.children.addValueInput(BASEPLATE_BIN_Z_CLEARANCE_INPUT, 'Vertical clearance under bins', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BASEPLATE_BIN_Z_CLEARANCE_INPUT)))
+    verticalClearanceInput = advancedPlateSizeGroup.children.addValueInput(BASEPLATE_BIN_Z_CLEARANCE_INPUT, 'Top trim (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(uiState.getState(BASEPLATE_BIN_Z_CLEARANCE_INPUT)))
     verticalClearanceInput.minimumValue = 0
     verticalClearanceInput.isMinimumInclusive = True
     verticalClearanceInput.maximumValue = 0.3
     verticalClearanceInput.isMaximumInclusive = True
-    verticalClearanceInput.tooltip = "How much is cut off the top of the plate, so a bin sits on its feet in the sockets rather than on the ridges between them. Must be within range [0, 3]mm"
+    verticalClearanceInput.tooltip = "How much is cut off the top of the plate, leaving the ridges between the sockets flat, so a bin sits on its feet in the sockets rather than on the ridges. Must be within range [0, 3]mm"
     uiState.registerCommandInput(verticalClearanceInput)
     
     generateBaseplateConnectionPinHoleInput = advancedPlateSizeGroup.children.addBoolValueInput(BASEPLATE_HAS_CONNECTION_HOLE_INPUT, 'Add connection holes',  True, '', uiState.getState(BASEPLATE_HAS_CONNECTION_HOLE_INPUT))
@@ -614,8 +617,8 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
         and inputsState.baseLength >= const.BASE_UNIT_MIN \
         and inputsState.xyClearance >= 0.01 \
         and inputsState.xyClearance <= 0.05 \
-        and inputsState.plateClearance >= 0.005 \
-        and inputsState.plateClearance <= 0.05 \
+        and inputsState.plateEdgeClearance >= 0.0025 \
+        and inputsState.plateEdgeClearance <= 0.025 \
         and inputsState.plateWidth > 0 \
         and inputsState.plateLength > 0 \
         and (not inputsState.hasMagnetSockets or (inputsState.magnetSocketSize <= 1 and inputsState.magnetSocketSize > 0 and inputsState.magnetSocketDepth > 0)) \
@@ -939,7 +942,7 @@ def initUiState():
     uiState.initValue(SIZING_MODE_DROPDOWN, DEFAULT_STATE.sizingMode, adsk.core.DropDownCommandInput.classType())
     uiState.initValue(FILL_AREA_WIDTH_INPUT, DEFAULT_STATE.areaWidth, adsk.core.ValueCommandInput.classType())
     uiState.initValue(FILL_AREA_LENGTH_INPUT, DEFAULT_STATE.areaLength, adsk.core.ValueCommandInput.classType())
-    uiState.initValue(PLATE_CLEARANCE_INPUT, DEFAULT_STATE.plateClearance, adsk.core.ValueCommandInput.classType())
+    uiState.initValue(PLATE_EDGE_CLEARANCE_INPUT, DEFAULT_STATE.plateEdgeClearance, adsk.core.ValueCommandInput.classType())
     uiState.initValue(FILL_ALIGN_X_DROPDOWN, DEFAULT_STATE.alignmentX, adsk.core.DropDownCommandInput.classType())
     uiState.initValue(FILL_ALIGN_Y_DROPDOWN, DEFAULT_STATE.alignmentY, adsk.core.DropDownCommandInput.classType())
     uiState.initValue(FILL_HALF_CELLS_INPUT, DEFAULT_STATE.useHalfCells, adsk.core.BoolValueCommandInput.classType())
@@ -977,7 +980,7 @@ def initUiState():
         futil.log(f'{CMD_NAME} Found previously saving default values, restoring {recordedDefaults}')
 
         try:
-            uiState.initValues(recordedDefaults)
+            uiState.initValues(restoreLegacyDefaults(recordedDefaults))
             futil.log(f'{CMD_NAME} Successfully restored default values')
         except Exception as err:
             futil.log(f'{CMD_NAME} Failed to restore default values, err: {err}')
@@ -985,6 +988,14 @@ def initUiState():
 
     else:
         futil.log(f'{CMD_NAME} No previously saved default values')
+
+def restoreLegacyDefaults(recordedDefaults: dict) -> dict:
+    """Saved defaults of older versions as this one keeps them, the whole gap between plates halved to an edge's"""
+    defaults = dict(recordedDefaults)
+    legacy = defaults.pop(LEGACY_PLATE_CLEARANCE_INPUT, None)
+    if legacy is not None and PLATE_EDGE_CLEARANCE_INPUT not in defaults:
+        defaults[PLATE_EDGE_CLEARANCE_INPUT] = {**legacy, 'id': PLATE_EDGE_CLEARANCE_INPUT, 'value': legacy['value'] / 2}
+    return defaults
 
 def saveUIInputsAsDefaults():
     futil.log(f'{CMD_NAME} Saving UI state to file')

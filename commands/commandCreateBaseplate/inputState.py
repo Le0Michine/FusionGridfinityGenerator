@@ -34,7 +34,7 @@ class InputState:
     sizingMode: str
     areaWidth: float
     areaLength: float
-    plateClearance: float
+    plateEdgeClearance: float
     bedWidth: float
     bedLength: float
     bedMargin: float

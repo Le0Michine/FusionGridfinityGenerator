@@ -15,7 +15,7 @@ class BaseplateGeneratorInput():
         self.bottomExtensionHeight = const.BASEPLATE_EXTRA_HEIGHT
         self.xyClearance = const.BIN_XY_CLEARANCE
         # how far pieces stop short of the cell border on the seams between them
-        self.seamClearance = const.BASEPLATE_PLATE_CLEARANCE / 2
+        self.seamClearance = const.BASEPLATE_PLATE_EDGE_CLEARANCE
         # how far the plate edge stops short of the outer cell border, before the padding
         self.edgeClearance = const.BIN_XY_CLEARANCE
         self.binZClearance = const.BASEPLATE_BIN_Z_CLEARANCE

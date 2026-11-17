@@ -100,6 +100,20 @@ def test_unknown_settings_are_skipped(current):
     assert notes.unknown == ["hasLid"]
 
 
+def test_the_old_gap_between_plates_reads_as_half_on_each_plate_edge():
+    plate = case_state("baseplate_2x2_light.json", BASEPLATE, baseplateState.InputState)
+    text = json.dumps({"generator": BASEPLATE, "settings": {"plateClearance": 0.3}})
+    (state, notes) = read(text, plate, BASEPLATE, baseplateState.InputState)
+    assert state.plateEdgeClearance == pytest.approx(0.015)
+    assert "plateClearance" not in notes.unknown
+    assert "plateEdgeClearance" not in [name for (name, _) in notes.missing]
+
+
+def test_a_new_setting_wins_over_its_old_name():
+    settings = configJson.renamedSettings(BASEPLATE, {"plateClearance": 0.3, "plateEdgeClearance": 0.1})
+    assert settings == {"plateEdgeClearance": 0.1}
+
+
 def test_shape_cells_become_tuples(current):
     (state, _) = read(json.dumps({"generator": BIN, "settings": {"shapeCells": [[0, 0], [1, 0]]}}), current)
     assert state.shapeCells == [(0, 0), (1, 0)]

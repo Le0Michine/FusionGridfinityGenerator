@@ -67,7 +67,7 @@ FILL_PREVIEW_PIECE_GAP = 0.5
 
 def seamClearance(inputsState: InputState) -> float:
     """How far a plate stops short of the cell border where it meets another, half the gap between them"""
-    return inputsState.plateClearance / 2
+    return inputsState.plateEdgeClearance
 
 def computeFillLayout(inputsState: InputState) -> baseplateLayout.FillLayout:
     return baseplateLayout.computeFillLayout(
