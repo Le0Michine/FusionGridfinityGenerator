@@ -1,0 +1,44 @@
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - documentation/wiki/**
+      - tools/wiki/**
+      # the dialogs' defaults fill the pages
+      - commands/**
+      - lib/**
+  workflow_dispatch:
+name: Publish wiki
+permissions:
+  contents: write
+concurrency:
+  group: wiki
+  cancel-in-progress: false
+jobs:
+  publish:
+    name: Copy documentation/wiki to the wiki
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build the pages
+        run: python tools/wiki/wikiPages.py build wiki-pages
+      - name: Push them to the wiki
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git clone --depth 1 "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" wiki
+          cp wiki-pages/*.md wiki/
+          cd wiki
+          git add -A
+          if git diff --cached --quiet; then
+            echo "The wiki is up to date"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Publish documentation/wiki from ${GITHUB_SHA::7}"
+          git push

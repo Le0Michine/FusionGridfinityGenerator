@@ -103,7 +103,7 @@ The cells of the bin can be picked on its grid, for bins such as an L or a T.
 
 #### Bin compartments options
 
-Detailed configuration options are on the [wiki](https://github.com/Le0Michine/FusionGridfinityGenerator/wiki/Bin-generator-options#grid-type)
+Detailed configuration options are on the [wiki](https://github.com/Le0Michine/FusionGridfinityGenerator/wiki/Bin-generator-options#bin-compartments)
 
 Uniform compartments | Custom compartments A | Custom compartments B
 :-------------------------:|:-------------------------:|:-------------------------:
