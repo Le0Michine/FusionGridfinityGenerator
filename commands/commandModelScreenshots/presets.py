@@ -45,6 +45,8 @@ DEFAULT_OPTIONS = {
     'output': DEFAULT_OUTPUT,
     # a section analysis through the middle of the model, none shows it whole, see checkSection
     'section': None,
+    # what other settings add to the model, shown in a color of its own, none shows the model alone, see checkDifference
+    'difference': None,
 }
 # not passed on to presets extending this one
 OWN_KEYS = ['description']
@@ -77,6 +79,8 @@ class Preset:
     output: str
     # the plane of SECTION_PLANES the cut through the middle is parallel to, and whether the other half is kept
     section: dict | None
+    # settings changed from the preset's and a color, what the model built with them has more is shown in the color
+    difference: dict | None = None
 
 def readPresetData(folder: str, fileName: str, extending: tuple[str, ...] = ()) -> dict:
     """The preset's data with what it extends filled in, settings merged one by one"""
@@ -133,6 +137,21 @@ def checkSection(section) -> dict | None:
         raise PresetError('section flip is true or false')
     return {'plane': section['plane'], 'flip': section.get('flip', False)}
 
+def checkDifference(difference) -> dict | None:
+    """Settings changed from the preset's, as a test case's, and a color, '#rrggbb'"""
+    if difference is None:
+        return None
+    if not isinstance(difference, dict):
+        raise PresetError('a difference is an object with settings and a color')
+    unknown = [key for key in difference if key not in ['settings', 'color']]
+    if unknown:
+        raise PresetError(f'unknown difference keys {unknown}')
+    if not isinstance(difference.get('settings'), dict) or len(difference['settings']) == 0:
+        raise PresetError('difference settings are the settings changed from the preset\'s')
+    if not (isinstance(difference.get('color'), str) and re.fullmatch(r'#[0-9a-fA-F]{6}', difference['color'])):
+        raise PresetError('difference color is #rrggbb')
+    return {'settings': difference['settings'], 'color': difference['color']}
+
 def loadPreset(folder: str, fileName: str) -> Preset:
     name = os.path.splitext(fileName)[0]
     try:
@@ -179,6 +198,7 @@ def loadPreset(folder: str, fileName: str) -> Preset:
             color=data['color'],
             output=data['output'],
             section=checkSection(data['section']),
+            difference=checkDifference(data['difference']),
         )
     except PresetError as err:
         raise PresetError(f'preset {name}: {err}') from err

@@ -394,10 +394,7 @@ def makePicture(name: str):
         document = app.documents.add(adsk.core.DocumentTypes.FusionDesignDocumentType)
         design = adsk.fusion.Design.cast(document.products.itemByProductType('DesignProductType'))
         design.designType = adsk.fusion.DesignTypes.ParametricDesignType
-        if preset.generator == testCases.GENERATOR_BIN:
-            bodies = binBuilder.buildBin(design, state, [])
-        else:
-            bodies = baseplateBuilder.buildBaseplate(design, state, [])
+        bodies = buildModel(design, preset.generator, state)
         path = picturePath(preset)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         picturesPalette.setStatus(name, picturesPalette.STATUS_RENDERING)
@@ -415,6 +412,11 @@ def makePicture(name: str):
     if document is not None:
         document.close(False)
     adsk.doEvents()
+
+def buildModel(design: adsk.fusion.Design, generator: str, state) -> list[adsk.fusion.BRepBody]:
+    if generator == testCases.GENERATOR_BIN:
+        return binBuilder.buildBin(design, state, [])
+    return baseplateBuilder.buildBaseplate(design, state, [])
 
 def failurePlace(err: Exception) -> str:
     """Where in the add-in an error came from, the last line of its code in the traceback"""
@@ -438,7 +440,59 @@ def prepareView(design: adsk.fusion.Design, bodies: list[adsk.fusion.BRepBody], 
         appearance = modelAppearance(design, preset)
         for body in bodies:
             body.appearance = appearance
+    if preset.difference is not None:
+        showDifference(design, bodies, preset)
     viewportPictures.frame(app.activeViewport, presets.STYLES[preset.style], preset.camera == 'orthographic', preset.view)
+
+def showDifference(design: adsk.fusion.Design, bodies: list[adsk.fusion.BRepBody], preset: presets.Preset):
+    """
+    What sets the model apart from the one built with the preset's difference settings, as the lip notches, in the
+    difference color: what it has more and what it lacks. It's shown with the part both share in place of its bodies.
+    The other model goes to a spot of its own, it's moved onto the preset's by their lowest corners and removed after
+    """
+    settings = {**preset.settings, **preset.difference['settings']}
+    state = testCases.stateFromJson(preset.generator, STATE_CLASSES[preset.generator], settings)
+    others = buildModel(design, preset.generator, state)
+    root = design.rootComponent
+    brep = adsk.fusion.TemporaryBRepManager.get()
+
+    def combined(target: adsk.fusion.BRepBody, tool: adsk.fusion.BRepBody, booleanType) -> adsk.fusion.BRepBody:
+        result = brep.copy(target)
+        brep.booleanOperation(result, brep.copy(tool), booleanType)
+        return result
+
+    (shared, differences) = ([], [])
+    for (body, other) in zip(bodies, others):
+        moved = brep.copy(other)
+        shift = adsk.core.Matrix3D.create()
+        shift.translation = other.boundingBox.minPoint.vectorTo(body.boundingBox.minPoint)
+        brep.transform(moved, shift)
+        shared.append(combined(body, moved, adsk.fusion.BooleanTypes.IntersectionBooleanType))
+        differences += [part for part in (combined(body, moved, adsk.fusion.BooleanTypes.DifferenceBooleanType), combined(moved, body, adsk.fusion.BooleanTypes.DifferenceBooleanType)) if part.lumps.count > 0]
+    for component in {other.parentComponent.entityToken: other.parentComponent for other in others}.values():
+        for occurrence in list(root.allOccurrencesByComponent(component)):
+            occurrence.deleteMe()
+    if not differences:
+        raise presets.PresetError(f'preset {preset.name}: its difference settings change nothing in the model')
+
+    baseFeature = root.features.baseFeatures.add()
+    baseFeature.startEdit()
+    for part in shared + differences:
+        root.bRepBodies.add(part, baseFeature)
+    baseFeature.finishEdit()
+    # the bodies added while editing don't take an appearance after, the feature's own do, in the order they were added
+    added = [baseFeature.bodies.item(index) for index in range(baseFeature.bodies.count)]
+    (sharedBodies, differenceBodies) = (added[:len(shared)], added[len(shared):])
+    for body in bodies:
+        body.isLightBulbOn = False
+    if preset.appearance or preset.color:
+        appearance = modelAppearance(design, preset)
+        for body in sharedBodies:
+            body.appearance = appearance
+    base = viewportPictures.libraryAppearance(preset.appearance) if preset.appearance else viewportPictures.firstLibraryAppearance(viewportPictures.COLOR_BASE_PREFIXES)
+    differenceAppearance = viewportPictures.colorAppearance(design, base, preset.difference['color'])
+    for body in differenceBodies:
+        body.appearance = differenceAppearance
 
 def addSection(design: adsk.fusion.Design, bodies: list[adsk.fusion.BRepBody], section: dict, color: str | None):
     """

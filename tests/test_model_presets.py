@@ -106,6 +106,10 @@ class TestOptions:
         ({"section": {"plane": "xx"}}, "section plane"),
         ({"section": {"plane": "xz", "flip": 1}}, "section flip"),
         ({"section": {"plane": "xz", "at": 3}}, "unknown section keys"),
+        ({"difference": "notches"}, "difference"),
+        ({"difference": {"settings": {}, "color": "#d73a49"}}, "difference settings"),
+        ({"difference": {"settings": {"hasLipNotches": False}, "color": "red"}}, "difference color"),
+        ({"difference": {"settings": {"hasLipNotches": False}, "color": "#d73a49", "at": 1}}, "unknown difference keys"),
     ])
     def test_bad_options(self, folder, options, message):
         write(folder, "bad.json", {"extends": "_base.json", **options})
@@ -122,6 +126,13 @@ class TestOptions:
         assert presets.loadPreset(str(folder), "cut.json").section == {"plane": "xz", "flip": False}
         write(folder, "whole.json", {"extends": "_base.json"})
         assert presets.loadPreset(str(folder), "whole.json").section is None
+
+    def test_difference(self, folder):
+        difference = {"settings": {"hasLipNotches": False}, "color": "#d73a49"}
+        write(folder, "notches.json", {"extends": "_base.json", "difference": difference})
+        assert presets.loadPreset(str(folder), "notches.json").difference == difference
+        write(folder, "plain.json", {"extends": "_base.json"})
+        assert presets.loadPreset(str(folder), "plain.json").difference is None
 
     def test_color_can_be_turned_off(self, folder):
         write(folder, "own.json", {"extends": "_base.json", "color": None})
