@@ -31,13 +31,25 @@
             --failed: #ff6b6b;
         }
     }
-    /* a palette scrolls its page, dialog pages fit theirs */
+    /* a palette scrolls its page, dialog pages fit theirs. The body scrolls rather than the page, a scrolling
+       ancestor is what a sticky header sticks to, and with both scrolling it was the body that never moved */
     html, body {
-        overflow: auto;
+        height: 100%;
         background: var(--background);
     }
     body {
-        padding: 12px;
+        overflow: auto;
+        /* no top padding, a sticky header stops short of the padding of what scrolls it, the header has it instead */
+        padding: 0 12px 12px;
+    }
+    /* the buttons and the search stay in view while the list scrolls under them, over the body's side padding */
+    #header {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        margin: 0 -12px;
+        padding: 12px 12px 0;
+        background: var(--background);
     }
     #title {
         display: flex;
@@ -144,6 +156,7 @@
         gap: 8px;
         padding: 12px;
         background: var(--background);
+        z-index: 2;
     }
     #viewer.open {
         display: flex;
@@ -194,6 +207,7 @@
 </style>
 </head>
 <body>
+<div id="header">
 <div id="title">
     <span>Model pictures</span>
     <span class="buttons">
@@ -208,6 +222,7 @@
 <div id="search-row">
     <input id="search" type="search" placeholder="Search pictures, screenshots and GIFs by name">
     <span id="search-count"></span>
+</div>
 </div>
 <div id="items"></div>
 <div class="section" id="shots-title">Dialog screenshots</div>
