@@ -180,6 +180,26 @@ def createBaseplateBodies(
             name='Plate magnet socket',
         )
         holeCuttingBodies.append(magnetSocketBody)
+
+        # a cylinder as wide as the chamfered mouth, from above the cell floor down to the chamfer's depth, chamfered at
+        # the bottom in to the socket. It starts above so the chamfer leaves some of its side, the part above is in the socket
+        mouthChamfer = const.BIN_MAGNET_SOCKET_CHAMFER
+        magnetSocketMouthBody = shapeUtils.simpleCylinder(
+            faceUtils.getBottomFace(baseBody),
+            -mouthChamfer,
+            mouthChamfer * 2,
+            input.magnetCutoutsDiameter / 2 + mouthChamfer,
+            holeCenterPoint,
+            targetComponent,
+            name='Plate magnet socket mouth',
+        )
+        filletUtils.createChamfer(
+            commonUtils.objectCollectionFromList(faceUtils.getBottomFace(magnetSocketMouthBody).edges),
+            mouthChamfer,
+            targetComponent,
+            name='Plate magnet socket chamfer',
+        )
+        holeCuttingBodies.append(magnetSocketMouthBody)
     
     if input.hasExtendedBottom and input.hasScrewHoles:
         screwHoleBody = shapeUtils.simpleCylinder(

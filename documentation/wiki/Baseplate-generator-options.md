@@ -129,7 +129,7 @@ A joint origin at the bottom center of every socket, to joint bins into the base
 
 ## Magnet cutouts
 
-Sockets for magnets under each corner of a cell, for Skeletonized and Full plates, Light ones have no room for them.
+Sockets for magnets under each corner of a cell, for Skeletonized and Full plates, Light ones have no room for them. Their opening has a 0.5mm chamfer, so magnets go in easier.
 
 ### Add magnet cutouts
 Default: <!-- default:with_magnet_cutouts -->

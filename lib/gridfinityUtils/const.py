@@ -12,7 +12,7 @@ BIN_BASE_MID_SECTION_HEIGH = 0.18
 BIN_BASE_BOTTOM_SECTION_HEIGH = 0.08
 BIN_BASE_HEIGHT = BIN_BASE_TOP_SECTION_HEIGH + BIN_BASE_MID_SECTION_HEIGH + BIN_BASE_BOTTOM_SECTION_HEIGH
 BIN_MAGNET_HOLE_GROOVE_DEPTH = 0.06
-# widens the mouth of magnet sockets, so magnets go in easier and the first layer doesn't squish into the hole
+# widens the mouth of magnet sockets of bins and baseplates, so magnets go in easier and the first layer doesn't squish into the hole
 BIN_MAGNET_SOCKET_CHAMFER = 0.05
 
 BIN_LIP_EXTRA_HEIGHT = 0.44
