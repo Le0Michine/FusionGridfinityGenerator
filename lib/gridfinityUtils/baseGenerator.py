@@ -6,7 +6,7 @@ import os
 from .sketchUtils import createRectangle
 from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
 from .dim import Dim, valueInput, applyTo
-from . import sketchUtils, const, edgeUtils, commonUtils, combineUtils, faceUtils, extrudeUtils, shapeUtils, geometryUtils, patternUtils, binShape, binGrid
+from . import sketchUtils, const, edgeUtils, commonUtils, combineUtils, faceUtils, extrudeUtils, filletUtils, shapeUtils, geometryUtils, patternUtils, binShape, binGrid
 from ...lib import fusion360utils as futil
 from ... import config
 
@@ -226,6 +226,26 @@ def createSingleGridfinityBaseBody(
             name=f'{name} magnet socket',
         )
         cutoutBodies.add(magnetSocketBody)
+
+        # a cylinder as wide as the chamfered mouth, from below the bottom up to the chamfer's height, chamfered at
+        # the top down to the socket. It starts below so the chamfer leaves some of its side, the part below cuts air
+        mouthChamfer = const.BIN_MAGNET_SOCKET_CHAMFER
+        magnetSocketMouthBody = shapeUtils.simpleCylinder(
+            baseBottomPlane,
+            mouthChamfer,
+            -mouthChamfer * 2,
+            input.magnetCutoutsDiameter / 2 + mouthChamfer,
+            cutoutCenterPoint,
+            targetComponent,
+            name=f'{name} magnet socket mouth',
+        )
+        filletUtils.createChamfer(
+            commonUtils.objectCollectionFromList(faceUtils.getTopFace(magnetSocketMouthBody).edges),
+            mouthChamfer,
+            targetComponent,
+            name=f'{name} magnet socket chamfer',
+        )
+        cutoutBodies.add(magnetSocketMouthBody)
 
         # magnet tab cutouts
         if input.hasMagnetCutoutsTabs:

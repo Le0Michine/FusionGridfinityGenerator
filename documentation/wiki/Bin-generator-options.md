@@ -331,7 +331,7 @@ The diameter of the screw holes, for screws of other sizes.
 ## Add magnet sockets
 Default: <!-- default:bin_magnet_cutouts -->
 
-Adds sockets for magnets to glue or press in after printing. Together with screw holes the sockets get grooves, so they print bridged without supports.
+Adds sockets for magnets to glue or press in after printing, with a 0.5mm chamfer around the opening so magnets go in easier. Together with screw holes the sockets get grooves, so they print bridged without supports.
 
 ## Add tabs to magnet sockets
 Default: <!-- default:bin_magnet_cutouts_tabs -->
