@@ -192,7 +192,7 @@ How much is cut off the top of the plate, leaving the ridges between the sockets
 ### Add connection holes
 Default: <!-- default:has_connection_hole -->
 
-Holes through the sides of Skeletonized plates, to join plates with screws or with pieces of filament glued in. They go through every outer side and through the seams between the pieces of a filled area. Sides with padding or half cells get none, no other plate joins them there.
+Holes through the sides of Skeletonized plates, to join plates with screws or with pieces of filament glued in. They go through every outer side and through the seams between the pieces of a filled area. Sides with padding or half cells get none, no other plate joins them there. Light and Full plates have none, the option is turned off for them.
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/gif/baseplate-connection-holes-dark.gif"><img src="../assets/gif/baseplate-connection-holes-light.gif" alt="Turning on connection holes and changing their diameter, with a skeletonized baseplate without, with 3.2 mm and with 5 mm connection holes"></picture>
 

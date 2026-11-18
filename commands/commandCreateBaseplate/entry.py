@@ -853,12 +853,16 @@ def layoutData(inputsState: InputState) -> dict:
     return {**data, 'edgeClearance': edgeClearance * 10}
 
 def updateSizingModeInputs(inputs: adsk.core.CommandInputs):
-    """Shows the inputs of the selected sizing mode and refreshes the layout drawing"""
+    """Shows the inputs of the selected sizing mode, enables the ones of the plate type and refreshes the layout drawing"""
     isFillArea = uiState.getState(SIZING_MODE_DROPDOWN) == SIZING_MODE_FILL_AREA
     for inputId in GRID_UNITS_MODE_INPUTS:
         inputs.itemById(inputId).isVisible = not isFillArea
     for inputId in FILL_AREA_MODE_INPUTS:
         inputs.itemById(inputId).isVisible = isFillArea
+    # connection holes are cut from the skeleton cutouts, other plate types have none
+    isSkeletonized = uiState.getState(BASEPLATE_TYPE_DROPDOWN) == BASEPLATE_TYPE_SKELETONIZED
+    inputs.itemById(BASEPLATE_HAS_CONNECTION_HOLE_INPUT).isEnabled = isSkeletonized
+    inputs.itemById(BASEPLATE_CONNECTION_HOLE_DIAMETER_INPUT).isEnabled = isSkeletonized and uiState.getState(BASEPLATE_HAS_CONNECTION_HOLE_INPUT)
     browserPages.sendUpdate(inputs.itemById(LAYOUT_BROWSER), layoutData(getInputsState()))
 
 def snapshotSettings(inputs: adsk.core.CommandInputs) -> list[dict]:
