@@ -1,5 +1,5 @@
 {
-    "description": "3x2 full baseplate with magnet sockets, screw holes and connection holes",
+    "description": "3x2 full baseplate with magnet sockets and screw holes, connection holes turned on but a full plate gets none",
     "generator": "baseplate",
     "settings": {
         "plateWidth": 3,
