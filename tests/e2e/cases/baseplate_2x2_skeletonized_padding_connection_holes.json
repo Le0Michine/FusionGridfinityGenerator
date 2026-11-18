@@ -1,0 +1,15 @@
+{
+    "description": "2x2 skeletonized baseplate with connection holes and padding left and bottom, no holes on the padded sides",
+    "generator": "baseplate",
+    "settings": {
+        "plateLength": 2,
+        "plateType": "Skeletonized",
+        "hasScrewHoles": false,
+        "hasMagnetSockets": false,
+        "hasPadding": true,
+        "paddingLeft": 5.0,
+        "paddingBottom": 3.0,
+        "hasConnectionHoles": true,
+        "sizingMode": "Grid units"
+    }
+}

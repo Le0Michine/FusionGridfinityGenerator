@@ -5,7 +5,7 @@ import os
 from . import const, commonUtils, filletUtils, combineUtils, faceUtils, extrudeUtils, sketchUtils, baseGenerator, patternUtils, shapeUtils, geometryUtils, edgeUtils, baseplateLayout
 from .baseGeneratorInput import BaseGeneratorInput
 from .baseplateGeneratorInput import BaseplateGeneratorInput
-from .dim import Dim, applyTo, valueInput
+from .dim import Dim, applyTo, valueInput, valueOf
 
 def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: adsk.fusion.Component) -> adsk.fusion.BRepBody:
     return createBaseplateBodies(input, None, targetComponent)[0]
@@ -294,15 +294,18 @@ def createBaseplateBodies(
         # mirror and pattern results can include their sources
         connectionHoleRightToolList = [body for body in mirrorConnectionHolesYZ.bodies if body not in connectionHoleXToolList]
         connectionHoleTopToolList = [body for body in mirrorConnectionHolesXZ.bodies if body not in connectionHoleYToolList]
-        # holes on a side with half cells would end up inside the plate, between the half cells and the whole ones
+        # holes on a side with half cells would end up inside the plate, between the half cells and the whole ones,
+        # a padded side isn't an edge another plate meets
+        def isPadded(padding: Dim) -> bool:
+            return input.hasPadding and valueOf(padding) > 0
         unusedConnectionHoleTools: list[adsk.fusion.BRepBody] = []
-        for (hasHalfCells, tools) in [
-            (input.hasHalfCellsLeft, connectionHoleXToolList),
-            (input.hasHalfCellsRight, connectionHoleRightToolList),
-            (input.hasHalfCellsBottom, connectionHoleYToolList),
-            (input.hasHalfCellsTop, connectionHoleTopToolList),
+        for (hasHalfCells, isSidePadded, tools) in [
+            (input.hasHalfCellsLeft, isPadded(input.paddingLeft), connectionHoleXToolList),
+            (input.hasHalfCellsRight, isPadded(input.paddingRight), connectionHoleRightToolList),
+            (input.hasHalfCellsBottom, isPadded(input.paddingBottom), connectionHoleYToolList),
+            (input.hasHalfCellsTop, isPadded(input.paddingTop), connectionHoleTopToolList),
         ]:
-            sideTools = unusedConnectionHoleTools if hasHalfCells else cuttingTools
+            sideTools = unusedConnectionHoleTools if hasHalfCells or isSidePadded else cuttingTools
             sideTools.extend(body for body in tools if body not in sideTools)
         for body in unusedConnectionHoleTools:
             removeFeature = features.removeFeatures.add(body)
