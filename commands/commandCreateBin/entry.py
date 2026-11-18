@@ -135,6 +135,7 @@ BIN_SHELL_ROUNDED_INPUT_ID = 'bin_shell_rounded'
 BIN_GENERATE_BASE_INPUT_ID = 'bin_generate_base'
 BIN_GENERATE_BODY_INPUT_ID = 'bin_generate_body'
 BIN_JOINT_ORIGINS_INPUT_ID = 'bin_joint_origins'
+BIN_PLACEMENT_INPUT_ID = 'bin_placement'
 BIN_SCREW_HOLES_INPUT_ID = 'bin_screw_holes'
 BIN_MAGNET_CUTOUTS_INPUT_ID = 'bin_magnet_cutouts'
 BIN_MAGNET_CUTOUTS_TABS_INPUT_ID = 'bin_magnet_cutouts_tabs'
@@ -200,6 +201,7 @@ STATE_INPUT_IDS = {
     'generateBase': BIN_GENERATE_BASE_INPUT_ID,
     'generateBody': BIN_GENERATE_BODY_INPUT_ID,
     'hasJointOrigins': BIN_JOINT_ORIGINS_INPUT_ID,
+    'placement': BIN_PLACEMENT_INPUT_ID,
     'hasScrewHoles': BIN_SCREW_HOLES_INPUT_ID,
     'screwHoleDiameter': BIN_SCREW_DIAMETER_INPUT,
     'hasMagnetCutouts': BIN_MAGNET_CUTOUTS_INPUT_ID,
@@ -289,6 +291,7 @@ def initDefaultUiState():
     commandUIState.initValue(BIN_LENGTH_INPUT_ID, DEFAULT_STATE.binLength, adsk.core.FloatSpinnerCommandInput.classType())
     commandUIState.initValue(BIN_HALF_GRID_INPUT_ID, DEFAULT_STATE.isHalfGrid, adsk.core.BoolValueCommandInput.classType())
     commandUIState.initValue(BIN_SHAPE_CUSTOM_ID, DEFAULT_STATE.hasCustomShape, adsk.core.BoolValueCommandInput.classType())
+    commandUIState.initValue(BIN_PLACEMENT_INPUT_ID, DEFAULT_STATE.placement, adsk.core.DropDownCommandInput.classType())
     commandUIState.initValue(BIN_HEIGHT_INPUT_ID, DEFAULT_STATE.binHeight, adsk.core.ValueCommandInput.classType())
 
     commandUIState.initValue(BIN_GENERATE_BODY_INPUT_ID, DEFAULT_STATE.generateBody, adsk.core.BoolValueCommandInput.classType())
@@ -771,6 +774,11 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     shapeBrowser.isFullWidth = True
     shapeBrowser.isVisible = commandUIState.getState(BIN_SHAPE_CUSTOM_ID)
     commandUIState.registerCommandInput(shapeBrowser)
+    placementInput = binDimensionsGroup.children.addDropDownCommandInput(BIN_PLACEMENT_INPUT_ID, 'Placement', adsk.core.DropDownStyles.TextListDropDownStyle)
+    placementInput.tooltip = 'Snaps the bin to the free grid spot closest to the origin, next to bins already there, or centers it on the origin'
+    for option in binBuilder.PLACEMENT_OPTIONS:
+        placementInput.listItems.add(option, option == commandUIState.getState(BIN_PLACEMENT_INPUT_ID))
+    commandUIState.registerCommandInput(placementInput)
 
     render_actual_bin_dimensions_table(binDimensionsGroup.children)
 
@@ -1302,6 +1310,7 @@ def configChoices() -> dict[str, configJson.Choice]:
         'labelIcon': configJson.Choice(iconNames, DEFAULT_STATE.labelIcon),
         'labelStyle': configJson.Choice(labelGenerator.LABEL_STYLES, DEFAULT_STATE.labelStyle),
         'lipType': configJson.Choice(LIP_TYPES, DEFAULT_STATE.lipType),
+        'placement': configJson.Choice(binBuilder.PLACEMENT_OPTIONS, DEFAULT_STATE.placement),
     }
 
 def readConfig(text: str, source: str) -> InputState | None:

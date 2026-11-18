@@ -1,0 +1,10 @@
+{
+    "description": "2x1x3 bin centered on the origin, with joint origins following it",
+    "generator": "bin",
+    "settings": {
+        "binLength": 1,
+        "binHeight": 3,
+        "hasJointOrigins": true,
+        "placement": "Center on origin"
+    }
+}

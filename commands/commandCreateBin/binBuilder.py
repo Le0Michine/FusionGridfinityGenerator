@@ -70,6 +70,11 @@ PARAMETER_FIELDS = {
 # the move placing the bin, rebuilding in place reads the spot from it, see rebuildUtils
 BIN_PLACEMENT_FEATURE = 'Bin placement'
 
+# where a bin goes, stored in configs, keep these literal
+PLACEMENT_AUTO = 'Snap to free spot'
+PLACEMENT_CENTER = 'Center on origin'
+PLACEMENT_OPTIONS = [PLACEMENT_AUTO, PLACEMENT_CENTER]
+
 def binDisplayName(state: InputState) -> str:
     return 'Gridfinity bin {}x{}x{}{}'.format(
         binGrid.formatSize(state.binLength),
@@ -109,6 +114,13 @@ def outlineCells(state: InputState) -> list[tuple[int, int]]:
 def isShaped(state: InputState) -> bool:
     """A custom shape leaving cells out, a full one builds a plain bin"""
     return state.hasCustomShape and not binShape.isRectangle(shapeCells(state), *feetGridSize(state))
+
+def centeredPlacement(state: InputState) -> tuple[float, float]:
+    """XY offset moving the bin, built from the origin into +X and +Y, so its footprint is centered on the origin"""
+    return (
+        -(state.binWidth * state.baseWidth - state.xyClearance * 2) / 2,
+        -(state.binLength * state.baseLength - state.xyClearance * 2) / 2,
+    )
 
 def shapeError(state: InputState) -> str | None:
     """Why the shaped bin can't be built, none when it can or the bin is a plain rectangle"""
@@ -185,7 +197,8 @@ def buildBin(
     """
     Builds the bin into the design at the timeline marker, tagged with the settings to show later, see
     settingsUtils.snapshotInputs. A bin rebuilt in place keeps the placement, the parameters by their prefix and
-    the transform of its component the old one had, see rebuildUtils, a new one goes to a free spot
+    the transform of its component the old one had, see rebuildUtils, a new one goes to a free spot. A bin centered
+    on the origin is centered again, its size may have changed
     """
     # creased bins have a single compartment and a solid tab, see creaseLayout
     creases = creaseLayout(state)
@@ -228,7 +241,7 @@ def buildBin(
     features: adsk.fusion.Features = gridfinityBinComponent.features
 
     # pick the spot before generating, so none of this bin's geometry can count as an obstacle
-    binPlacement = placement or placementUtils.findPlacement(
+    binPlacement = centeredPlacement(state) if state.placement == PLACEMENT_CENTER else placement or placementUtils.findPlacement(
         des,
         tagUtils.TAG_BIN,
         BIN_LEGACY_NAME_PREFIX,

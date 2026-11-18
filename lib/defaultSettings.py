@@ -18,6 +18,7 @@ BIN = {
     'generateBase': True,
     'generateBody': True,
     'hasJointOrigins': False,
+    'placement': 'Snap to free spot',
     'hasScrewHoles': False,
     'screwHoleDiameter': 3.0,
     'hasMagnetCutouts': False,

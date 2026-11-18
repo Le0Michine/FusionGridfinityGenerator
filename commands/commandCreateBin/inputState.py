@@ -22,6 +22,8 @@ class InputState:
     generateBase: bool
     generateBody: bool
     hasJointOrigins: bool
+    # see binBuilder.PLACEMENT_AUTO
+    placement: str
 
     hasScrewHoles: bool
     screwHoleDiameter: float

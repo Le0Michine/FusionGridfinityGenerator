@@ -13,6 +13,7 @@
     "generateBase": true,
     "generateBody": true,
     "hasJointOrigins": false,
+    "placement": "Snap to free spot",
     "hasScrewHoles": false,
     "screwHoleDiameter": 3.0,
     "hasMagnetCutouts": false,

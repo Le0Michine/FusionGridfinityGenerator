@@ -89,6 +89,11 @@ Shows a drawing of the bin cells, click or drag across cells to leave them out o
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/gif/bin-custom-shape-dark.gif"><img src="../assets/gif/bin-custom-shape-light.gif" alt="Drawing a bin shape, with the bin on every cell, then cells left out"></picture>
 
+## Placement
+Default: <!-- default:bin_placement -->
+
+Where the bin goes in the design. **Snap to free spot** puts it on the grid at the free spot closest to the origin, next to bins already there, so new bins don't overlap. **Center on origin** centers the bin on the origin, every time it's rebuilt too.
+
 ## Actual dimensions (mm)
 
 The width, length and height of the bin in mm, as calculated above.
