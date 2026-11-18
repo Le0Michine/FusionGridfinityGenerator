@@ -1,0 +1,14 @@
+{
+    "description": "2x1x4 bin with a hollow label tab 2 mm below the top, embossed text label",
+    "generator": "bin",
+    "settings": {
+        "binLength": 1,
+        "binHeight": 4,
+        "hasTab": true,
+        "tabLength": 2,
+        "isTabHollow": true,
+        "tabTopOffset": 2.0,
+        "labelText": "M3",
+        "labelStyle": "Embossed"
+    }
+}

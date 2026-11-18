@@ -348,6 +348,7 @@ def buildBin(
     binBodyInput.isTabHollow = state.isTabHollow and len(creases) == 0
     binBodyInput.isTabOpenThroughSides = state.isTabOpenThroughSides
     binBodyInput.tabTopAngle = state.tabTopAngle
+    binBodyInput.tabTopOffset = state.tabTopOffset
     binBodyInput.labelStyle = state.labelStyle
     binBodyInput.isLabelBold = state.isLabelBold
     binBodyInput.compartmentsByX = compartmentsX
@@ -529,7 +530,7 @@ def buildBin(
             compartmentTabInput.width = binBodyInput.tabWidth
             compartmentTabInput.overhangAngle = binBodyInput.tabOverhangAngle
             compartmentTabInput.labelAngle = binBodyInput.tabTopAngle
-            compartmentTabInput.topClearance = tabTopClearance(binBodyInput.labelStyle)
+            compartmentTabInput.topClearance = tabTopClearance(binBodyInput.labelStyle, binBodyInput.tabTopOffset)
             tabBody = createGridfinityBinBodyTab(compartmentTabInput, gridfinityBinComponent, name='Label tab')
 
             # trim the tab to the shell interior, its ends would otherwise poke out past the rounded outer corners,
@@ -601,6 +602,7 @@ def buildBin(
                     binBody,
                     gridfinityBinComponent,
                     binBodyInput.tabTopAngle,
+                    binBodyInput.tabTopOffset,
                     name='Label',
                 )
 

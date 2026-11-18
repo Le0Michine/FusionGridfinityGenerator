@@ -31,6 +31,7 @@ BIN_TAB_WIDTH = 1.3
 BIN_TAB_OVERHANG_ANGLE = 45
 BIN_TAB_LABEL_ANGLE = 0
 BIN_TAB_EDGE_FILLET_RADIUS = 0.06
+# default of how far tabs and dividers are below the top of the bin body
 BIN_TAB_TOP_CLEARANCE = 0.05
 BIN_LABEL_DEPTH = 0.05
 # what an engraved label leaves of a hollow tab's top

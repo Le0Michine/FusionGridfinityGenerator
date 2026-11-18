@@ -207,7 +207,7 @@ def createGridfinityBinBody(
             compartmentTabInput.width = input.tabWidth
             compartmentTabInput.overhangAngle = input.tabOverhangAngle
             compartmentTabInput.labelAngle = input.tabTopAngle
-            compartmentTabInput.topClearance = tabTopClearance(input.labelStyle)
+            compartmentTabInput.topClearance = tabTopClearance(input.labelStyle, input.tabTopOffset)
             # a hollow tab of a single compartment is opened through the outer walls of the bin, with more compartments
             # the hollows are left closed
             tabOpenings = None
@@ -269,7 +269,8 @@ def createGridfinityBinBody(
             tabHollowCuts.extend(compartmentHollowCuts.all())
             bodiesToMerge.extend(compartmentMerges)
 
-        if len(input.compartments) > 1:
+        # dividers are lowered as far as the tabs
+        if len(input.compartments) > 1 and input.tabTopOffset > 0:
             compartmentsTopClearance = createCompartmentCutout(
                 input.wallThickness,
                 compartmentsMinX,
@@ -277,7 +278,7 @@ def createGridfinityBinBody(
                 binBodyTotalHeight,
                 bodyWidth - wall * 2,
                 bodyLength - wall - compartmentsMinY,
-                const.BIN_TAB_TOP_CLEARANCE,
+                input.tabTopOffset,
                 input.binCornerFilletRadius - input.wallThickness,
                 False,
                 0,
@@ -333,6 +334,7 @@ def createGridfinityBinBody(
                 binBody,
                 targetComponent,
                 input.tabTopAngle,
+                input.tabTopOffset,
                 name='Label' if len(input.compartments) == 1 else f'Compartment {compartmentIndex + 1} label',
             )
 
@@ -352,9 +354,9 @@ def createBinLipSupport(
         grid = baseGenerator.shapeGridInput(input.baseWidth * input.binWidth, input.baseLength * input.binLength, input.xyClearance)
     return createLipSupport(cells, grid, input.lipType, input.wallThickness, binBodyTopHeight(input), floorZ, targetComponent)
 
-def tabTopClearance(labelStyle: str) -> float:
-    """Embossed labels stand on a tab lowered by their depth, so they keep the tab's clearance"""
-    return const.BIN_TAB_TOP_CLEARANCE + (const.BIN_LABEL_DEPTH if labelStyle == LABEL_STYLE_EMBOSSED else 0)
+def tabTopClearance(labelStyle: str, topOffset: float) -> float:
+    """How far the tab top is below the top of the bin body. Embossed labels stand on a tab lowered by their depth, so they keep the tab's offset"""
+    return topOffset + (const.BIN_LABEL_DEPTH if labelStyle == LABEL_STYLE_EMBOSSED else 0)
 
 def hollowTabWallThickness(wallThickness: float, labelStyle: str) -> float:
     """Hollow tabs take the wall thickness, thick enough for an engraved label not to cut through"""
@@ -374,6 +376,7 @@ def createTabLabel(
         targetBody: adsk.fusion.BRepBody,
         targetComponent: adsk.fusion.Component,
         tabTopAngle: float = 0,
+        tabTopOffset: float = const.BIN_TAB_TOP_CLEARANCE,
         *,
         name: str,
     ):
@@ -386,7 +389,7 @@ def createTabLabel(
     labelInput.definition = definition
     labelInput.originX = minX
     labelInput.originY = tabOriginY - Dim.length(labelLength)
-    labelInput.originZ = tabOriginZ - Dim.length(tabTopClearance(style))
+    labelInput.originZ = tabOriginZ - Dim.length(tabTopClearance(style, tabTopOffset))
     labelInput.width = maxX - minX
     labelInput.length = labelLength
     labelInput.tiltAngle = tabTopAngle

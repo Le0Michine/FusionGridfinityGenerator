@@ -152,6 +152,7 @@ BIN_TAB_ANGLE_INPUT_ID = 'bin_tab_angle'
 BIN_TAB_HOLLOW_INPUT_ID = 'bin_tab_hollow'
 BIN_TAB_HOLLOW_SIDES_INPUT_ID = 'bin_tab_hollow_sides'
 BIN_TAB_TOP_ANGLE_INPUT_ID = 'bin_tab_top_angle'
+BIN_TAB_TOP_OFFSET_INPUT_ID = 'bin_tab_top_offset'
 BIN_TAB_LABEL_TEXT_INPUT_ID = 'bin_tab_label_text'
 BIN_TAB_LABEL_ICON_INPUT_ID = 'bin_tab_label_icon'
 BIN_TAB_LABEL_STYLE_INPUT_ID = 'bin_tab_label_style'
@@ -218,6 +219,7 @@ STATE_INPUT_IDS = {
     'tabLength': BIN_TAB_LENGTH_INPUT_ID,
     'tabWidth': BIN_TAB_WIDTH_INPUT_ID,
     'tabPosition': BIN_TAB_POSITION_INPUT_ID,
+    'tabTopOffset': BIN_TAB_TOP_OFFSET_INPUT_ID,
     'isTabHollow': BIN_TAB_HOLLOW_INPUT_ID,
     'isTabOpenThroughSides': BIN_TAB_HOLLOW_SIDES_INPUT_ID,
     'labelText': BIN_TAB_LABEL_TEXT_INPUT_ID,
@@ -322,6 +324,7 @@ def initDefaultUiState():
     commandUIState.initValue(BIN_TAB_HOLLOW_INPUT_ID, DEFAULT_STATE.isTabHollow, adsk.core.BoolValueCommandInput.classType())
     commandUIState.initValue(BIN_TAB_HOLLOW_SIDES_INPUT_ID, DEFAULT_STATE.isTabOpenThroughSides, adsk.core.BoolValueCommandInput.classType())
     commandUIState.initValue(BIN_TAB_TOP_ANGLE_INPUT_ID, angleExpression(DEFAULT_STATE.tabTopAngle), adsk.core.ValueCommandInput.classType())
+    commandUIState.initValue(BIN_TAB_TOP_OFFSET_INPUT_ID, DEFAULT_STATE.tabTopOffset, adsk.core.ValueCommandInput.classType())
     commandUIState.initValue(BIN_TAB_LABEL_TEXT_INPUT_ID, DEFAULT_STATE.labelText, adsk.core.StringValueCommandInput.classType())
     commandUIState.initValue(BIN_TAB_LABEL_ICON_INPUT_ID, DEFAULT_STATE.labelIcon, adsk.core.DropDownCommandInput.classType())
     commandUIState.initValue(BIN_TAB_LABEL_STYLE_INPUT_ID, DEFAULT_STATE.labelStyle, adsk.core.DropDownCommandInput.classType())
@@ -880,6 +883,13 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     tabTopAngleInput.maximumValue = math.radians(45)
     tabTopAngleInput.isMaximumInclusive = True
     commandUIState.registerCommandInput(tabTopAngleInput)
+    tabTopOffsetInput = binTabFeaturesGroup.children.addValueInput(BIN_TAB_TOP_OFFSET_INPUT_ID, 'Tab top offset (mm)', defaultLengthUnits, adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_TAB_TOP_OFFSET_INPUT_ID)))
+    tabTopOffsetInput.tooltip = 'How far the tab is below the top of the bin, up to 2mm, the label goes down with it. Dividers between compartments are lowered as much'
+    tabTopOffsetInput.minimumValue = 0
+    tabTopOffsetInput.isMinimumInclusive = True
+    tabTopOffsetInput.maximumValue = 0.2
+    tabTopOffsetInput.isMaximumInclusive = True
+    commandUIState.registerCommandInput(tabTopOffsetInput)
     tabHollowInput = binTabFeaturesGroup.children.addBoolValueInput(BIN_TAB_HOLLOW_INPUT_ID, 'Hollow tab', True, '', commandUIState.getState(BIN_TAB_HOLLOW_INPUT_ID))
     tabHollowInput.tooltip = 'Shells the tab with the wall thickness. With a single compartment it is opened through the back wall of the bin, with more compartments it is left closed. On by default for shelled bins'
     commandUIState.registerCommandInput(tabHollowInput)

@@ -40,6 +40,7 @@ BIN = {
     'isTabHollow': False,
     'isTabOpenThroughSides': False,
     'tabTopAngle': 0.0,
+    'tabTopOffset': 0.5,
     'labelText': '',
     'labelIcon': 'None',
     'labelStyle': 'Outline',

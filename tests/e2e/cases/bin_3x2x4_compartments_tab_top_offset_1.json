@@ -1,0 +1,13 @@
+{
+    "description": "3x2x4 bin with 3x1 compartments and label tabs and dividers 1 mm below the top",
+    "generator": "bin",
+    "settings": {
+        "binWidth": 3,
+        "binLength": 2,
+        "binHeight": 4,
+        "compartmentsX": 3,
+        "hasTab": true,
+        "tabTopOffset": 1.0,
+        "labelText": "Bits"
+    }
+}

@@ -269,6 +269,11 @@ Full length | Single slot | With offset | Angled top
 :-------------------------:|:-------------------------:|:-------------------------:|:-------------------------:
 <img src="../assets/models/bin-label-tab-full.png" alt="Label tab as long as the bin"> | <img src="../assets/models/bin-label-tab-single-slot.png" alt="Label tab one base long"> | <img src="../assets/models/bin-label-tab-with-offset.png" alt="Label tab moved along the wall"> | <img src="../assets/models/bin-label-tab-angled.png" alt="Label tab with its top tilted to the front">
 
+### Tab top offset (mm)
+Default: <!-- default:bin_tab_top_offset -->
+
+How far the tab is below the top of the bin, up to 2mm, the label goes down with it. Dividers between compartments are lowered as much.
+
 ### Hollow tab
 Default: <!-- default:bin_tab_hollow -->
 

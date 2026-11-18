@@ -34,6 +34,7 @@
     "isTabHollow": true,
     "isTabOpenThroughSides": true,
     "tabTopAngle": 15.0,
+    "tabTopOffset": 0.5,
     "labelText": "",
     "labelIcon": "Hex nut",
     "labelStyle": "Engraved",

@@ -51,6 +51,8 @@ class InputState:
     isTabHollow: bool
     isTabOpenThroughSides: bool
     tabTopAngle: float
+    # lowers the tab top and the dividers from the top of the bin body
+    tabTopOffset: float
     labelText: str
     labelIcon: str
     labelStyle: str
