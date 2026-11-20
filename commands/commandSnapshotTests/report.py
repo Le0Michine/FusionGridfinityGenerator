@@ -20,12 +20,13 @@ STATUS_REMOVED = 'removed'
 KIND_RUN = 'run'
 KIND_UPDATE = 'update'
 
-def body(name: str, status: str, changes: list[dict] = None, missing: dict = None, extra: dict = None, notes: list[str] = None) -> dict:
+def body(name: str, status: str, changes: list[dict] = None, missing: dict = None, extra: dict = None, notes: list[str] = None, inches: dict = None) -> dict:
     """
     A body of a case. changes: fingerprint values as in the snapshot and as built, see snapshots.fingerprintChanges.
-    missing, extra: material left over by the subtraction, see snapshots.leftoverData
+    missing, extra: material left over by the subtraction, see snapshots.leftoverData. inches: the same body built in a
+    document in inches against the same snapshot, as a body, none when it came out the same as in mm
     """
-    return {'name': name, 'status': status, 'changes': changes or [], 'missing': missing, 'extra': extra, 'notes': notes or []}
+    return {'name': name, 'status': status, 'changes': changes or [], 'missing': missing, 'extra': extra, 'notes': notes or [], 'inches': inches}
 
 # how the document of a case left open shows it, the differences or the built or the snapshot shape alone
 VIEW_DIFF = 'diff'
@@ -100,6 +101,13 @@ def leftoverText(label: str, leftover: dict) -> str:
     return (f'{label} {leftover["volume"]:g} mm³ in {leftover["pieces"]} piece(s), '
         f'within {formatValue(leftover["min"])} - {formatValue(leftover["max"])} mm')
 
+def bodyLines(prefix: str, entry: dict) -> list[str]:
+    lines = [f'{prefix}{change["key"]} {formatValue(change["expected"])} -> {formatValue(change["actual"])}' for change in entry['changes']]
+    for (label, leftover) in [('missing', entry['missing']), ('extra', entry['extra'])]:
+        if leftover is not None:
+            lines.append(prefix + leftoverText(label, leftover))
+    return lines + [f'{prefix}{note}' for note in entry['notes']]
+
 def reportText(data: dict) -> str:
     summary = ', '.join(f'{count} {status}' for (status, count) in data['counts'].items())
     lines = [data['title'], f'{len(data["cases"])} case(s): {summary}, took {data["seconds"]:g} s']
@@ -108,11 +116,11 @@ def reportText(data: dict) -> str:
         lines.extend(f'    {note}' for note in item['notes'])
         for entry in item['bodies']:
             prefix = f'    {entry["name"]}: ' if entry['name'] else '    '
-            lines.extend(f'{prefix}{change["key"]} {formatValue(change["expected"])} -> {formatValue(change["actual"])}' for change in entry['changes'])
-            for (label, leftover) in [('missing', entry['missing']), ('extra', entry['extra'])]:
-                if leftover is not None:
-                    lines.append(prefix + leftoverText(label, leftover))
-            lines.extend(f'{prefix}{note}' for note in entry['notes'])
+            if entry['inches'] is None:
+                lines.extend(bodyLines(prefix, entry))
+            else:
+                lines.extend(bodyLines(prefix + 'mm: ', entry))
+                lines.extend(bodyLines(prefix + 'in: ', entry['inches']))
     if data['pending']:
         previews = data['pending'].get('previews', 0)
         lines.append(f'Waiting to replace {data["pending"]["replace"]} and remove {data["pending"]["remove"]} snapshot(s)'

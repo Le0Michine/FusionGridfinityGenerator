@@ -122,6 +122,9 @@ tests: update snapshots**. The commands are there when the add-in runs from a gi
 A case with parameters sets those user parameters once built, the snapshot is of the bodies Fusion recomputed,
 and a run also compares them with the case built with the new values from the start.
 
+A case is built in a document in mm, and a run builds it in a document in inches as well. It fails unless both come to
+the same shape with the faces split the same way, a length Fusion rounds in inches splits them another way.
+
 This page is written from the case files, run `python3 tests/e2e/write_readme.py` after adding or changing one.
 """
 

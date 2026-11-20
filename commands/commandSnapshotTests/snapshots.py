@@ -26,6 +26,11 @@ STATUS_PASS = 'pass'
 STATUS_REVIEW = 'review'
 STATUS_FAIL = 'fail'
 STATUS_ORDER = [STATUS_PASS, STATUS_REVIEW, STATUS_FAIL]
+# the fingerprint values of how the faces are split, see withInches
+TOPOLOGY_KEYS = ['lumps', 'faces', 'edges', 'vertices']
+# before a note of only one of the builds of a case, in a document in mm and in inches
+MM_PREFIX = 'mm: '
+INCHES_PREFIX = 'in: '
 
 @dataclasses.dataclass
 class BodyResult:
@@ -39,6 +44,8 @@ class BodyResult:
     extra: adsk.fusion.BRepBody | None = None
     # the body loaded from the snapshot, in memory only
     reference: adsk.fusion.BRepBody | None = None
+    # the same body built in a document in inches against the same snapshot, see withInches
+    inches: 'BodyResult | None' = None
 
 def worstStatus(statuses: list[str]) -> str:
     return max(statuses, key=STATUS_ORDER.index, default=STATUS_PASS)
@@ -173,3 +180,41 @@ def compareBodies(bodies: list[adsk.fusion.BRepBody], references: list[adsk.fusi
     if len(bodies) != len(references):
         return [BodyResult(label, STATUS_FAIL, [f'{len(bodies)} bodies, {len(references)} {label}'])]
     return [compareBody(f'{body.name} {label}', body, fingerprint(reference), reference) for (body, reference) in zip(bodies, references)]
+
+def withInches(results: list[BodyResult], inchesResults: list[BodyResult], bodies: list[adsk.fusion.BRepBody], inchesFingerprints: dict[str, dict]) -> list[BodyResult]:
+    """
+    The results of the bodies built in mm with those of the same bodies built in inches against the same snapshot,
+    paired by name. The same Fusion builds both, an inches body with its faces split another way than the mm one
+    fails, a length Fusion rounds in inches splits them so. An inches result the same as the mm one isn't kept.
+    inchesFingerprints: of the inches bodies by name, see fingerprint
+    """
+    inchesByName = {result.name: result for result in inchesResults if result.name != SETTINGS_RESULT_NAME}
+    mmFingerprints = {body.name: fingerprint(body) for body in bodies}
+    merged = []
+    for result in results:
+        inches = inchesByName.pop(result.name, None)
+        if inches is not None and result.name in mmFingerprints and result.name in inchesFingerprints:
+            topology = [key for key in TOPOLOGY_KEYS if mmFingerprints[result.name][key] != inchesFingerprints[result.name][key]]
+            if topology:
+                inches = dataclasses.replace(inches, status=STATUS_FAIL, notes=inches.notes + [f'{", ".join(topology)} other than built in mm'])
+        if inches is None or sameResult(result, inches):
+            merged.append(result)
+        else:
+            merged.append(dataclasses.replace(result, status=worstStatus([result.status, inches.status]), inches=inches))
+    # a body only the inches build has
+    merged += [dataclasses.replace(result, notes=[INCHES_PREFIX + note for note in result.notes]) for result in inchesByName.values()]
+    return merged
+
+def sameResult(first: BodyResult, second: BodyResult) -> bool:
+    return (first.status == second.status and first.notes == second.notes and first.changes == second.changes
+        and leftoverData(first.missing) == leftoverData(second.missing) and leftoverData(first.extra) == leftoverData(second.extra))
+
+def unitsNotes(mmNotes: list[str], inchesNotes: list[str] | None) -> list[str]:
+    """
+    The notes of the builds of a case in mm and in inches, those of only one of them prefixed with its units. Without
+    the inches build, its notes none, the mm notes are as they are
+    """
+    if inchesNotes is None:
+        return mmNotes
+    return ([note if note in inchesNotes else MM_PREFIX + note for note in mmNotes]
+        + [INCHES_PREFIX + note for note in inchesNotes if note not in mmNotes])

@@ -77,3 +77,13 @@ def test_a_run_in_progress_is_cleared_when_done():
     assert running["counts"] == {report.STATUS_RUNNING: 1, report.STATUS_QUEUED: 1}
     done = report.withCases(running, [report.case("bin_a", "", report.STATUS_PASS)], 1, "")
     assert done["progress"] is None
+
+
+def test_text_tells_the_builds_in_mm_and_in_inches_apart():
+    inches = report.body("Gridfinity bin 4x1x2", report.STATUS_FAIL, [{"key": "faces", "expected": 150, "actual": 166}], notes=["faces other than built in mm"])
+    body = report.body("Gridfinity bin 4x1x2", report.STATUS_FAIL, inches=inches)
+    item = report.case("bin_a", "", report.STATUS_FAIL, [body])
+    text = report.reportText(report.report(report.KIND_RUN, "Run", [item], 1))
+    assert "Gridfinity bin 4x1x2: in: faces 150 -> 166" in text
+    assert "Gridfinity bin 4x1x2: in: faces other than built in mm" in text
+    assert "mm: faces" not in text

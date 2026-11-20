@@ -384,6 +384,11 @@
 
     function deltaCell(change) {
         const cell = element('td', 'number');
+        appendDelta(cell, change);
+        return cell;
+    }
+
+    function appendDelta(cell, change) {
         const value = delta(change.expected, change.actual);
         const values = Array.isArray(value) ? value : [value];
         values.forEach((item, index) => {
@@ -397,7 +402,11 @@
             const sign = item > 0 ? '+' : '';
             cell.appendChild(element('span', 'delta ' + (item > 0 ? 'up' : item < 0 ? 'down' : ''), sign + formatNumber(item)));
         });
-        return cell;
+    }
+
+    function keyCell(key) {
+        const unit = UNITS[key] ? ' ' + UNITS[key] : '';
+        return element('td', '', (LABELS[key] || key) + (unit ? ',' + unit : ''));
     }
 
     function changesTable(changes) {
@@ -407,8 +416,7 @@
         table.appendChild(head);
         for (const change of changes) {
             const row = element('tr');
-            const unit = UNITS[change.key] ? ' ' + UNITS[change.key] : '';
-            row.appendChild(element('td', '', (LABELS[change.key] || change.key) + (unit ? ',' + unit : '')));
+            row.appendChild(keyCell(change.key));
             row.appendChild(element('td', 'number', formatValue(change.expected)));
             row.appendChild(element('td', 'number', formatValue(change.actual)));
             row.appendChild(deltaCell(change));
@@ -417,9 +425,36 @@
         return table;
     }
 
-    function leftoverBlock(kind, leftover) {
+    // a body built in mm and in inches, against the same snapshot, a value the same as in the snapshot greyed
+    function unitsChangesTable(changes, inchesChanges) {
+        const table = element('table');
+        const head = element('tr');
+        ['', 'Snapshot', 'Built, mm', 'Built, in'].forEach((title) => head.appendChild(element('th', '', title)));
+        table.appendChild(head);
+        const keys = [...new Set(changes.concat(inchesChanges).map((change) => change.key))];
+        for (const key of keys) {
+            const builds = [changes, inchesChanges].map((list) => list.find((change) => change.key === key));
+            const expected = builds.find((change) => change).expected;
+            const row = element('tr');
+            row.appendChild(keyCell(key));
+            row.appendChild(element('td', 'number', formatValue(expected)));
+            for (const change of builds) {
+                if (!change) {
+                    row.appendChild(element('td', 'number muted', formatValue(expected)));
+                    continue;
+                }
+                const cell = element('td', 'number', formatValue(change.actual) + ' ');
+                appendDelta(cell, change);
+                row.appendChild(cell);
+            }
+            table.appendChild(row);
+        }
+        return table;
+    }
+
+    function leftoverBlock(kind, leftover, units) {
         const block = element('div', 'leftover ' + kind);
-        const title = kind === 'missing' ? 'Missing material' : 'Unexpected material';
+        const title = (kind === 'missing' ? 'Missing material' : 'Unexpected material') + (units ? ', ' + units : '');
         const explanation = kind === 'missing' ? 'in the snapshot, not in the built body' : 'in the built body, not in the snapshot';
         block.appendChild(element('span', 'kind', title));
         block.appendChild(element('span', 'muted', ' ' + explanation));
@@ -542,7 +577,9 @@
             content.appendChild(row);
         }
         // what's wrong with the case as a whole rather than a body of it, why it failed when its bodies match
-        const caseNotes = item.notes.concat(...item.bodies.filter((body) => !body.name).map((body) => body.notes));
+        const caseNotes = item.notes.concat(...item.bodies.filter((body) => !body.name).map((body) => body.inches
+            ? body.notes.map((note) => 'mm: ' + note).concat(body.inches.notes.map((note) => 'in: ' + note))
+            : body.notes));
         if (caseNotes.length > 0) {
             const callout = element('div', 'callout ' + item.status);
             callout.appendChild(notesList(caseNotes));
@@ -552,23 +589,34 @@
             if (!body.name) {
                 continue;
             }
-            const hasDetails = body.changes.length > 0 || body.missing || body.extra || body.notes.length > 0;
+            const inches = body.inches;
+            const hasDetails = body.changes.length > 0 || body.missing || body.extra || body.notes.length > 0 || inches;
             const name = element('div', 'body-name', body.name + ' ');
             if (body.status !== item.status) {
                 name.appendChild(element('span', 'pill ' + body.status, body.status));
             }
             content.appendChild(name);
-            if (body.changes.length > 0) {
+            if (inches && (body.changes.length > 0 || inches.changes.length > 0)) {
+                content.appendChild(unitsChangesTable(body.changes, inches.changes));
+            } else if (body.changes.length > 0) {
                 content.appendChild(changesTable(body.changes));
             }
+            const units = inches ? 'mm' : '';
             if (body.missing) {
-                content.appendChild(leftoverBlock('missing', body.missing));
+                content.appendChild(leftoverBlock('missing', body.missing, units));
             }
             if (body.extra) {
-                content.appendChild(leftoverBlock('extra', body.extra));
+                content.appendChild(leftoverBlock('extra', body.extra, units));
             }
-            if (body.notes.length > 0) {
-                content.appendChild(notesList(body.notes));
+            if (inches && inches.missing) {
+                content.appendChild(leftoverBlock('missing', inches.missing, 'in'));
+            }
+            if (inches && inches.extra) {
+                content.appendChild(leftoverBlock('extra', inches.extra, 'in'));
+            }
+            const notes = inches ? body.notes.map((note) => 'mm: ' + note).concat(inches.notes.map((note) => 'in: ' + note)) : body.notes;
+            if (notes.length > 0) {
+                content.appendChild(notesList(notes));
             }
             if (!hasDetails) {
                 content.appendChild(element('div', 'muted', body.status === 'new' ? 'no snapshot yet' : 'matches its snapshot'));
