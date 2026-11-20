@@ -23,6 +23,14 @@ A generated bin or baseplate should stay editable in Fusion like a model drawn b
 
 When only parameters changed, **Gridfinity rebuild** edits them instead of rebuilding, so features a user added after the bin stay attached. The more the model follows its parameters, the more often that works.
 
+# Documents in inches
+
+The add-in is used in documents in inches as well as in mm, and has to build the same model in both. Fusion keeps the lengths of features in the document's units, so a length that is exact in mm can be rounded in inches. Off by as little as a nanometre, faces that should meet don't, they are split in two or a combine fails.
+
+- **Give feature lengths in mm.** A fillet or chamfer size, a plane offset or a shell thickness given with `ValueInput.createByReal` is kept to 6 or 7 decimals of an inch. Use `lengthInput` (`lib/gridfinityUtils/dim.py`) instead, it gives Fusion a dim's formula or the value in mm, and `lengthExpression` for a parameter set by its expression, such as a text height, which Fusion keeps to 3 decimals of an inch otherwise.
+- **Read inputs by their value.** Dialog inputs show lengths in the document's units, read them with `.value`, in cm whatever the units, and don't parse an expression or a shown value as mm. User parameters are made in mm.
+- **Test in both.** The snapshot tests build every case in inches too, see [Tests](#tests).
+
 # Performance
 
 Every feature after a change is recomputed, in the dialog's preview and later in the user's design, so both the number of features and the expensive ones, such as shells, fillets and large combines, add to how long a change takes.
@@ -67,6 +75,8 @@ python3 -m pytest
 ```
 
 **Shape snapshot tests** build bins and baseplates in Fusion and compare them with recorded snapshots. Each case is a JSON file in `tests/e2e/cases` with the settings that differ from the defaults. Run them with **Gridfinity tests: run**, and record new snapshots with **Gridfinity tests: update snapshots** when a change to the shapes is intended. See the [snapshot tests README](../../tests/e2e/README.md).
+
+A run builds each case in a document in inches as well, a case fails unless both builds come to the same shape with the faces split the same way, and the report shows the mm and inch builds side by side. A run also fails a case with a sketch that isn't fully constrained.
 
 When fixing a bug where a bin or baseplate fails to build, add a case with the settings that failed, so it stays fixed.
 
