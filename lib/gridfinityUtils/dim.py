@@ -127,6 +127,18 @@ def valueInput(value) -> adsk.core.ValueInput:
         return adsk.core.ValueInput.createByReal(value.value)
     return adsk.core.ValueInput.createByReal(value)
 
+def lengthExpression(value) -> str:
+    """A length as Fusion is to keep it, a dim's formula or the value in mm, whatever the document's units"""
+    if isinstance(value, Dim) and value.isExpression:
+        return value.expression
+    return f"{f'{valueOf(value) * 10:.9f}'.rstrip('0').rstrip('.')} mm"
+
+def lengthInput(value) -> adsk.core.ValueInput:
+    """A length for a feature that keeps it as a parameter, a fillet, chamfer or plane offset say, see lengthExpression.
+    Given a real, Fusion keeps the length in the document's units to 6 or 7 decimals, in inches it's a hair off and the
+    feature's faces don't merge with those they should meet"""
+    return adsk.core.ValueInput.createByString(lengthExpression(value))
+
 def applyTo(parameter: adsk.core.Base, value):
     """Drives an existing model parameter, e.g. a sketch dimension, plain values are left as created"""
     if isinstance(value, Dim) and value.isExpression:

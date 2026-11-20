@@ -8,7 +8,7 @@ from ...lib.gridfinityUtils import filletUtils
 from . import const, combineUtils, faceUtils, commonUtils, sketchUtils, extrudeUtils, baseGenerator, edgeUtils
 from .baseGeneratorInput import BaseGeneratorInput
 from .binBodyCutoutGeneratorInput import BinBodyCutoutGeneratorInput
-from .dim import Dim, valueInput
+from .dim import Dim, lengthInput
 from ... import config
 
 app = adsk.core.Application.get()
@@ -30,7 +30,7 @@ def createGridfinityBinBodyCutout(
     cutoutPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
     cutoutPlaneInput.setByOffset(
         targetComponent.xYConstructionPlane,
-        valueInput(input.originZ)
+        lengthInput(input.originZ)
     )
     cutoutConstructionPlane = targetComponent.constructionPlanes.add(cutoutPlaneInput)
     cutoutConstructionPlane.name = f'{name} plane'

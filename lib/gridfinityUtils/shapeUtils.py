@@ -2,7 +2,7 @@ import adsk.core, adsk.fusion, traceback
 import os
 
 from . import extrudeUtils, sketchUtils
-from .dim import Dim
+from .dim import Dim, lengthInput
 
 app = adsk.core.Application.get()
 ui = app.userInterface
@@ -19,7 +19,7 @@ def simpleCylinder(
 ):
     """Plane, sketch, extrude and body are named after the cylinder"""
     baseConstructionPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
-    baseConstructionPlaneInput.setByOffset(plane, adsk.core.ValueInput.createByReal(planeOffset))
+    baseConstructionPlaneInput.setByOffset(plane, lengthInput(planeOffset))
     baseConstructionPlane = targetComponent.constructionPlanes.add(baseConstructionPlaneInput)
     baseConstructionPlane.name = f'{name} plane'
     cylinderBaseSketch: adsk.fusion.Sketch = targetComponent.sketches.add(baseConstructionPlane)
@@ -88,7 +88,7 @@ def simpleBox(
     boxPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
     boxPlaneInput.setByOffset(
         plane,
-        adsk.core.ValueInput.createByReal(planeOffset)
+        lengthInput(planeOffset)
     )
     boxConstructionPlane = targetComponent.constructionPlanes.add(boxPlaneInput)
     boxConstructionPlane.name = f'{name} plane'

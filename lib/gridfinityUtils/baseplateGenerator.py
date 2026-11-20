@@ -5,7 +5,7 @@ import os
 from . import const, commonUtils, filletUtils, combineUtils, faceUtils, extrudeUtils, sketchUtils, baseGenerator, patternUtils, shapeUtils, geometryUtils, edgeUtils, baseplateLayout
 from .baseGeneratorInput import BaseGeneratorInput
 from .baseplateGeneratorInput import BaseplateGeneratorInput
-from .dim import Dim, applyTo, valueInput, valueOf
+from .dim import Dim, applyTo, valueInput, lengthInput, valueOf
 
 def createGridfinityBaseplate(input: BaseplateGeneratorInput, targetComponent: adsk.fusion.Component) -> adsk.fusion.BRepBody:
     return createBaseplateBodies(input, None, targetComponent)[0]
@@ -137,12 +137,12 @@ def createBaseplateBodies(
 
         # mirroring instead of a circular pattern keeps the cutouts in the cell corners of non square bases
         cellXZMidPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
-        cellXZMidPlaneInput.setByOffset(targetComponent.xZConstructionPlane, valueInput(input.baseLength / 2 - clearance))
+        cellXZMidPlaneInput.setByOffset(targetComponent.xZConstructionPlane, lengthInput(input.baseLength / 2 - clearance))
         cellXZMidPlane = targetComponent.constructionPlanes.add(cellXZMidPlaneInput)
         cellXZMidPlane.name = 'Skeleton cutout XZ mid plane'
         cellXZMidPlane.isLightBulbOn = False
         cellYZMidPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
-        cellYZMidPlaneInput.setByOffset(targetComponent.yZConstructionPlane, valueInput(input.baseWidth / 2 - clearance))
+        cellYZMidPlaneInput.setByOffset(targetComponent.yZConstructionPlane, lengthInput(input.baseWidth / 2 - clearance))
         cellYZMidPlane = targetComponent.constructionPlanes.add(cellYZMidPlaneInput)
         cellYZMidPlane.name = 'Skeleton cutout YZ mid plane'
         cellYZMidPlane.isLightBulbOn = False
@@ -292,13 +292,13 @@ def createBaseplateBodies(
                 cuttingTools.extend(body for body in seamPattern.bodies if body not in tools)
 
         constructionPlaneXZInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
-        constructionPlaneXZInput.setByOffset(targetComponent.xZConstructionPlane, valueInput(input.baseLength * input.baseplateLength / 2 - clearance))
+        constructionPlaneXZInput.setByOffset(targetComponent.xZConstructionPlane, lengthInput(input.baseLength * input.baseplateLength / 2 - clearance))
         constructionPlaneXZ = targetComponent.constructionPlanes.add(constructionPlaneXZInput)
         constructionPlaneXZ.name = 'Plate XZ mid plane'
         constructionPlaneXZ.isLightBulbOn = False
 
         constructionPlaneYZInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
-        constructionPlaneYZInput.setByOffset(targetComponent.yZConstructionPlane, valueInput(input.baseWidth * input.baseplateWidth / 2 - clearance))
+        constructionPlaneYZInput.setByOffset(targetComponent.yZConstructionPlane, lengthInput(input.baseWidth * input.baseplateWidth / 2 - clearance))
         constructionPlaneYZ = targetComponent.constructionPlanes.add(constructionPlaneYZInput)
         constructionPlaneYZ.name = 'Plate YZ mid plane'
         constructionPlaneYZ.isLightBulbOn = False

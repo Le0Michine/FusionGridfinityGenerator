@@ -2,7 +2,7 @@ import adsk.core, adsk.fusion, traceback
 import os
 
 from . import sketchUtils
-from .dim import Dim, valueInput
+from .dim import Dim, valueInput, lengthInput
 
 def simpleDistanceExtrude(
     profile: adsk.core.Base,
@@ -96,7 +96,7 @@ def createBoxAtPoint(
     boxPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
     boxPlaneInput.setByOffset(
         targetComponent.xYConstructionPlane,
-        valueInput(originPoint.z if originZ is None else originZ)
+        lengthInput(originPoint.z if originZ is None else originZ)
     )
     boxConstructionPlane = targetComponent.constructionPlanes.add(boxPlaneInput)
     boxConstructionPlane.name = f'{name} plane'

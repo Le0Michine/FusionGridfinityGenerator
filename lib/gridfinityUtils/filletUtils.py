@@ -3,7 +3,7 @@ import os
 import math
 
 from . import edgeUtils, faceUtils, commonUtils, const
-from .dim import Dim, valueInput
+from .dim import Dim, lengthInput
 
 def createFillet(
     edges: list[adsk.fusion.BRepEdge],
@@ -21,7 +21,7 @@ def createFillet(
     filletEdges = commonUtils.objectCollectionFromList(edges)
     filletInput.edgeSetInputs.addConstantRadiusEdgeSet(
         filletEdges,
-        valueInput(radius),
+        lengthInput(radius),
         isTangentChain)
     filletFeature = filletFeatures.add(filletInput)
     filletFeature.name = name
@@ -40,7 +40,7 @@ def filletEdgesByLength(
     bottomFilletInput = filletFeatures.createInput()
     bottomFilletInput.isRollingBallCorner = True
     bottomFilletEdges = edgeUtils.selectEdgesByLength(faces, filterEdgeLength, const.DEFAULT_FILTER_TOLERANCE)
-    bottomFilletInput.edgeSetInputs.addConstantRadiusEdgeSet(bottomFilletEdges, adsk.core.ValueInput.createByReal(radius), True)
+    bottomFilletInput.edgeSetInputs.addConstantRadiusEdgeSet(bottomFilletEdges, lengthInput(radius), True)
     filletFeature = filletFeatures.add(bottomFilletInput)
     filletFeature.name = name
     return filletFeature
@@ -74,7 +74,7 @@ def createChamfer(
     chamferInput = chamferFeatures.createInput2()
     chamferInput.chamferEdgeSets.addEqualDistanceChamferEdgeSet(
         edges,
-        adsk.core.ValueInput.createByReal(distance),
+        lengthInput(distance),
         True)
     chamferFeature = chamferFeatures.add(chamferInput)
     chamferFeature.name = name

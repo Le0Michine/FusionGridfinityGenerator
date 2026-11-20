@@ -1,6 +1,8 @@
 import adsk.core, adsk.fusion, traceback
 import os
 
+from .dim import lengthInput
+
 
 def simpleShell(
     openFaces: list[adsk.fusion.BRepFace],
@@ -15,7 +17,7 @@ def simpleShell(
     for face in openFaces:
         shellBinObjects.add(face)
     shellBinInput = shellFeatures.createInput(shellBinObjects, False)
-    shellBinInput.insideThickness = adsk.core.ValueInput.createByReal(thickness)
+    shellBinInput.insideThickness = lengthInput(thickness)
     if isRounded:
         shellBinInput.shellType = adsk.fusion.ShellTypes.RoundedOffsetShellType
     shellFeature = shellFeatures.add(shellBinInput)

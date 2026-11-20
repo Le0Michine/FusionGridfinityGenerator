@@ -1,0 +1,9 @@
+{
+    "description": "1x4x2 bin, its lip bottom chamfer failed in a document in inches, issue #217",
+    "generator": "bin",
+    "settings": {
+        "binWidth": 1,
+        "binLength": 4,
+        "binHeight": 2
+    }
+}

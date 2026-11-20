@@ -13,7 +13,7 @@ from ...lib.gridfinityUtils import filletUtils
 from . import const, combineUtils, faceUtils, commonUtils, sketchUtils, extrudeUtils, baseGenerator, edgeUtils
 from .baseGeneratorInput import BaseGeneratorInput
 from .binBodyTabGeneratorInput import BinBodyTabGeneratorInput
-from .dim import Dim, valueInput, applyTo
+from .dim import Dim, lengthInput, applyTo
 from ... import config
 
 app = adsk.core.Application.get()
@@ -42,7 +42,7 @@ def createGridfinityBinBodyTab(
     tabProfilePlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
     tabProfilePlaneInput.setByOffset(
         targetComponent.yZConstructionPlane,
-        valueInput(input.originX)
+        lengthInput(input.originX)
         )
     tabProfilePlane = targetComponent.constructionPlanes.add(tabProfilePlaneInput)
     tabProfilePlane.name = f'{name} plane'

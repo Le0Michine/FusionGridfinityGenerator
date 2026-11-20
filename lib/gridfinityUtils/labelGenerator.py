@@ -2,7 +2,7 @@ import os
 import adsk.core, adsk.fusion
 
 from . import const, commonUtils, combineUtils
-from .dim import Dim, valueInput
+from .dim import Dim, valueInput, lengthInput, lengthExpression
 
 LABEL_STYLE_OUTLINE = 'Outline'
 LABEL_STYLE_ENGRAVED = 'Engraved'
@@ -106,7 +106,11 @@ def _addText(
     )
     if isBold:
         textInput.textStyle = adsk.fusion.TextStyles.TextStyleBold
-    return sketch.sketchTexts.add(textInput)
+    sketchText = sketch.sketchTexts.add(textInput)
+    # given as a number, Fusion keeps the height in the document's units to 3 decimals, a hundredth of a mm off in inches.
+    # The height to the micron is what it was in mm, more would only move the letters by a hair
+    sketchText.heightParameter.expression = lengthExpression(round(height, 4))
+    return sketchText
 
 def _measureText(sketch: adsk.fusion.Sketch, text: str, height: float, isBold: bool) -> tuple[float, float] | None:
     """Width and height of the letters at the given text height, measured on a throwaway text
@@ -181,7 +185,7 @@ def createLabel(
     features = targetComponent.features
     isTilted = input.tiltAngle != 0
     labelPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
-    labelPlaneInput.setByOffset(targetComponent.xYConstructionPlane, valueInput(Dim.length(input.originZ.value)))
+    labelPlaneInput.setByOffset(targetComponent.xYConstructionPlane, lengthInput(Dim.length(input.originZ.value)))
     labelPlane = targetComponent.constructionPlanes.add(labelPlaneInput)
     labelPlane.name = f'{name} plane'
     labelPlane.isLightBulbOn = False

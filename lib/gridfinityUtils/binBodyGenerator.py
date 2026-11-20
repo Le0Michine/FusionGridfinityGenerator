@@ -14,7 +14,7 @@ from .binBodyTabGenerator import createGridfinityBinBodyTab, createTabHollowCuts
 from .labelGenerator import BinLabelDefinition, BinLabelInput, createLabel, LABEL_STYLE_EMBOSSED, LABEL_STYLE_ENGRAVED
 from .binBodyLipGeneratorInput import BinBodyLipGeneratorInput, LIP_TYPE_FULL
 from .binBodyLipGenerator import createGridfinityBinBodyLip, createLipSupport, lipInnerInset
-from .dim import Dim, valueInput
+from .dim import Dim, lengthInput
 from ... import config
 
 app = adsk.core.Application.get()
@@ -151,7 +151,7 @@ def createGridfinityBinBody(
             bottomLipChamferEdges = commonUtils.objectCollectionFromList(edgesToChamfer)
             bottomLipChamferInput.chamferEdgeSets.addEqualDistanceChamferEdgeSet(
                 bottomLipChamferEdges,
-                adsk.core.ValueInput.createByReal(lipBottomChamferSize),
+                lengthInput(lipBottomChamferSize),
                 False)
             chamferFeatures.add(bottomLipChamferInput).name = 'Lip bottom chamfer'
             combineUtils.cutBody(lipBody, commonUtils.objectCollectionFromList(lipBottomChamferExtrude.bodies), targetComponent, name='Lip bottom chamfer cut')
@@ -407,7 +407,7 @@ def createShapeLipBottomChamfer(
     # as tall as the plain bin's, its outer corners' radius, a hair less, the taper would close the corner arcs to a point
     height = compartmentCutoutFilletRadius(binShape.cornerRadius(True, grid.cornerFilletRadius, offset)) - 0.001
     planeInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
-    planeInput.setByOffset(targetComponent.xYConstructionPlane, valueInput(topZ))
+    planeInput.setByOffset(targetComponent.xYConstructionPlane, lengthInput(topZ))
     plane = targetComponent.constructionPlanes.add(planeInput)
     plane.name = 'Lip bottom chamfer plane'
     (sketch, _) = baseGenerator.createShapeOutlineSketch(
@@ -443,7 +443,7 @@ def createShapeCavity(
     see baseGenerator.createShapeOutlineSketch
     """
     planeInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
-    planeInput.setByOffset(targetComponent.xYConstructionPlane, valueInput(topZ))
+    planeInput.setByOffset(targetComponent.xYConstructionPlane, lengthInput(topZ))
     plane = targetComponent.constructionPlanes.add(planeInput)
     plane.name = f'{name} plane'
     offset = baseConfiguration.xyClearance + wallThickness
