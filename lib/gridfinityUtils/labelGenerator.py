@@ -1,7 +1,7 @@
 import os
 import adsk.core, adsk.fusion
 
-from . import const, commonUtils, combineUtils
+from . import const, commonUtils, combineUtils, sketchUtils
 from .dim import Dim, valueInput, lengthInput, lengthExpression
 
 LABEL_STYLE_OUTLINE = 'Outline'
@@ -110,6 +110,7 @@ def _addText(
     # given as a number, Fusion keeps the height in the document's units to 3 decimals, a hundredth of a mm off in inches.
     # The height to the micron is what it was in mm, more would only move the letters by a hair
     sketchText.heightParameter.expression = lengthExpression(round(height, 4))
+    sketchUtils.constrainTextBox(sketch, sketchText)
     return sketchText
 
 def _measureText(sketch: adsk.fusion.Sketch, text: str, height: float, isBold: bool) -> tuple[float, float] | None:

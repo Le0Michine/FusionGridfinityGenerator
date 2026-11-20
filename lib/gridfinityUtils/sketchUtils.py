@@ -32,49 +32,13 @@ def createRectangle(
     startY: Dim = None,
 ):
     """Constrained rectangle, the optional start dims drive its distance from the sketch origin"""
-    def applyDim(dimension: adsk.fusion.SketchDimension, value: Dim | float):
-        if value is not None:
-            applyTo(dimension.parameter, value)
-
     with deferSketchCompute(sketch):
-        constraints: adsk.fusion.GeometricConstraints = sketch.geometricConstraints
-        dimensions: adsk.fusion.SketchDimensions = sketch.sketchDimensions
         lines: adsk.fusion.SketchLines = sketch.sketchCurves.sketchLines
         rectangleLines = lines.addTwoPointRectangle(
             startPoint,
             adsk.core.Point3D.create(startPoint.x + valueOf(width), startPoint.y + valueOf(length), 0)
         )
-        constraints.addHorizontal(rectangleLines.item(0))
-        constraints.addVertical(rectangleLines.item(1))
-        constraints.addHorizontal(rectangleLines.item(2))
-        constraints.addVertical(rectangleLines.item(3))
-        if startPoint.isEqualTo(sketch.originPoint.geometry):
-            constraints.addCoincident(sketch.originPoint, rectangleLines.item(3))
-            constraints.addCoincident(sketch.originPoint, rectangleLines.item(0))
-        else:
-            # sketch distance dimensions are unsigned, coordinates left or below the origin need the magnitude
-            applyDim(dimensions.addDistanceDimension(
-                sketch.originPoint,
-                rectangleLines.item(0).startSketchPoint,
-                adsk.fusion.DimensionOrientations.VerticalDimensionOrientation,
-                rectangleLines.item(0).startSketchPoint.geometry,
-                True,
-            ), startY.abs() if startY is not None else None)
-            applyDim(dimensions.addDistanceDimension(
-                sketch.originPoint,
-                rectangleLines.item(3).startSketchPoint,
-                adsk.fusion.DimensionOrientations.HorizontalDimensionOrientation,
-                rectangleLines.item(3).startSketchPoint.geometry,
-                True,
-            ), startX.abs() if startX is not None else None)
-        applyDim(dimensions.addDistanceDimension(rectangleLines.item(0).startSketchPoint,
-            rectangleLines.item(0).endSketchPoint,
-            adsk.fusion.DimensionOrientations.HorizontalDimensionOrientation,
-            rectangleLines.item(0).endSketchPoint.geometry), width)
-        applyDim(dimensions.addDistanceDimension(rectangleLines.item(1).startSketchPoint,
-            rectangleLines.item(1).endSketchPoint,
-            adsk.fusion.DimensionOrientations.VerticalDimensionOrientation,
-            rectangleLines.item(1).endSketchPoint.geometry), length)
+        constrainRectangle(sketch, rectangleLines, width, length, startX, startY)
         return rectangleLines
 
 def addFrame(sketch: adsk.fusion.Sketch, minX: float, minY: float, maxX: float, maxY: float) -> adsk.fusion.SketchLineList:
@@ -95,6 +59,67 @@ def addFrame(sketch: adsk.fusion.Sketch, minX: float, minY: float, maxX: float, 
         Dim.length(corner.x),
         Dim.length(corner.y),
     )
+
+def constrainRectangle(
+    sketch: adsk.fusion.Sketch,
+    rectangleLines,
+    width: Dim | float = None,
+    length: Dim | float = None,
+    startX: Dim = None,
+    startY: Dim = None,
+):
+    """
+    The lines of a rectangle as addTwoPointRectangle orders them, from the start corner along X first, kept a rectangle
+    and dimensioned so the sketch is fully constrained. The dims drive their dimensions, those left out keep the
+    rectangle as it is
+    """
+    def applyDim(dimension: adsk.fusion.SketchDimension, value: Dim | float):
+        if value is not None:
+            applyTo(dimension.parameter, value)
+
+    constraints: adsk.fusion.GeometricConstraints = sketch.geometricConstraints
+    dimensions: adsk.fusion.SketchDimensions = sketch.sketchDimensions
+    constraints.addHorizontal(rectangleLines.item(0))
+    constraints.addVertical(rectangleLines.item(1))
+    constraints.addHorizontal(rectangleLines.item(2))
+    constraints.addVertical(rectangleLines.item(3))
+    if rectangleLines.item(0).startSketchPoint.geometry.isEqualTo(sketch.originPoint.geometry):
+        constraints.addCoincident(sketch.originPoint, rectangleLines.item(3))
+        constraints.addCoincident(sketch.originPoint, rectangleLines.item(0))
+    else:
+        # sketch distance dimensions are unsigned, coordinates left or below the origin need the magnitude
+        applyDim(dimensions.addDistanceDimension(
+            sketch.originPoint,
+            rectangleLines.item(0).startSketchPoint,
+            adsk.fusion.DimensionOrientations.VerticalDimensionOrientation,
+            rectangleLines.item(0).startSketchPoint.geometry,
+            True,
+        ), startY.abs() if startY is not None else None)
+        applyDim(dimensions.addDistanceDimension(
+            sketch.originPoint,
+            rectangleLines.item(3).startSketchPoint,
+            adsk.fusion.DimensionOrientations.HorizontalDimensionOrientation,
+            rectangleLines.item(3).startSketchPoint.geometry,
+            True,
+        ), startX.abs() if startX is not None else None)
+    applyDim(dimensions.addDistanceDimension(rectangleLines.item(0).startSketchPoint,
+        rectangleLines.item(0).endSketchPoint,
+        adsk.fusion.DimensionOrientations.HorizontalDimensionOrientation,
+        rectangleLines.item(0).endSketchPoint.geometry), width)
+    applyDim(dimensions.addDistanceDimension(rectangleLines.item(1).startSketchPoint,
+        rectangleLines.item(1).endSketchPoint,
+        adsk.fusion.DimensionOrientations.VerticalDimensionOrientation,
+        rectangleLines.item(1).endSketchPoint.geometry), length)
+
+def constrainTextBox(sketch: adsk.fusion.Sketch, sketchText: adsk.fusion.SketchText):
+    """
+    Holds a multi-line text's box where it is drawn. The box keeps its corners square itself, more than one side made
+    vertical or horizontal over-constrains it. A vertical side then each side's offset from the sketch origin
+    """
+    boxLines = list(adsk.fusion.MultiLineTextDefinition.cast(sketchText.definition).rectangleLines)
+    sketch.geometricConstraints.addVertical(boxLines[3])
+    for line in boxLines:
+        sketch.sketchDimensions.addOffsetDimension(line, sketch.originPoint, line.startSketchPoint.geometry, True)
 
 def filterCirclesByRadius(
     radius: float,
