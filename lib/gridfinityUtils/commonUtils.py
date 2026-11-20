@@ -1,4 +1,5 @@
 import collections.abc
+import contextlib
 from typing import Tuple
 import adsk.core, adsk.fusion, traceback
 import os
@@ -18,6 +19,28 @@ def debugLog(message: str):
     futil.log(message)
     if config.DEBUG:
         adsk.core.Application.get().log(message, adsk.core.LogLevels.InfoLogLevel, adsk.core.LogTypes.FileLogType)
+
+@contextlib.contextmanager
+def keepActiveComponent(design: adsk.fusion.Design):
+    """
+    A build activates the component it makes, afterwards the component that was active before is active again, also
+    when the build fails. The root component when that one is gone, a rebuild removes the old bin it may have been
+    """
+    previous = design.activeOccurrence
+    try:
+        yield
+    finally:
+        current = design.activeOccurrence
+        if current != previous:
+            # a failed rebuild may leave the timeline rolled back before that component, the error of the build is
+            # the one to report then
+            try:
+                if previous is not None and previous.isValid:
+                    previous.activate()
+                else:
+                    design.activateRootComponent()
+            except RuntimeError as err:
+                fileLog(f'The component active before the build wasn\'t activated again, {err}')
 
 class StepTimer():
     """Logs how long each step of a generator took, in debug mode also to the Fusion log file"""

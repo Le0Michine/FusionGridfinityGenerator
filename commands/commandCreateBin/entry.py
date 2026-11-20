@@ -1365,10 +1365,12 @@ def generateBin(args: adsk.core.CommandEventArgs, isPreview: bool):
     try:
         state = getInputsState()
         des = adsk.fusion.Design.cast(app.activeProduct)
-        if rebuildBodyToken is not None:
-            (builtBodies, rebuildNotes) = binBuilder.rebuildBin(des, findRebuildBody(des), state, settings, isPreview)
-        else:
-            builtBodies = binBuilder.buildBin(des, state, settings)
+        # the new bin's component is active while it's built, the one active before is again afterwards
+        with commonUtils.keepActiveComponent(des):
+            if rebuildBodyToken is not None:
+                (builtBodies, rebuildNotes) = binBuilder.rebuildBin(des, findRebuildBody(des), state, settings, isPreview)
+            else:
+                builtBodies = binBuilder.buildBin(des, state, settings)
         futil.log(f'{CMD_NAME} {binBuilder.binDisplayName(state)} generated in {time.perf_counter() - startTime:.3f}s')
     except UnsupportedDesignTypeException as err:
         args.executeFailed = True

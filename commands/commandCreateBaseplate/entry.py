@@ -882,11 +882,13 @@ def generateBaseplate(args: adsk.core.CommandEventArgs, isPreview: bool = False)
     try:
         inputsState = getInputsState()
         des = adsk.fusion.Design.cast(app.activeProduct)
-        if rebuildBodyToken is not None:
-            body = rebuildUtils.findBodyByToken(des, rebuildBodyToken)
-            (builtBodies, rebuildNotes) = rebuildBaseplate(des, body, inputsState, settings, isPreview)
-        else:
-            builtBodies = buildBaseplate(des, inputsState, settings, isPreview)
+        # the new baseplate's component is active while it's built, the one active before is again afterwards
+        with commonUtils.keepActiveComponent(des):
+            if rebuildBodyToken is not None:
+                body = rebuildUtils.findBodyByToken(des, rebuildBodyToken)
+                (builtBodies, rebuildNotes) = rebuildBaseplate(des, body, inputsState, settings, isPreview)
+            else:
+                builtBodies = buildBaseplate(des, inputsState, settings, isPreview)
         futil.log(f'{CMD_NAME} {baseplateName(inputsState)} generated in {time.perf_counter() - startTime:.3f}s')
     except UnsupportedDesignTypeException as err:
         args.executeFailed = True
