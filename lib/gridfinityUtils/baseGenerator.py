@@ -546,38 +546,18 @@ def createCellJointOrigins(
     """
     Joint origins at the base bottom of the given cell centers, Z up, the bottom of bin feet and of baseplate
     sockets alike, so a joint between the two seats a bin in its socket.
-    They sit on sketch points dimensioned from the origin, so they follow the base unit parameters. Sketches
-    don't follow moves of bodies, so these are made after the bodies are placed, with the placement in the centers.
+    Each sits on the component's origin point with the center as its offsets, so it follows the base unit parameters
+    the center's dims hold. Sketch points held by reference dimensions didn't: changing the base width left them where
+    they were. Offsets don't follow moves of bodies, so these are made after the bodies are placed, with the placement
+    in the centers.
     """
-    planeInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
-    planeInput.setByOffset(targetComponent.xYConstructionPlane, adsk.core.ValueInput.createByReal(-const.BIN_BASE_HEIGHT))
-    plane = targetComponent.constructionPlanes.add(planeInput)
-    plane.name = f'{name} plane'
-    plane.isLightBulbOn = False
-    sketch: adsk.fusion.Sketch = targetComponent.sketches.add(plane)
-    sketch.name = f'{name} sketch'
-    points: list[tuple[int, int, adsk.fusion.SketchPoint]] = []
-    with sketchUtils.deferSketchCompute(sketch):
-        dimensions = sketch.sketchDimensions
-        for (column, row, x, y) in centers:
-            pointOnSketch = sketch.modelToSketchSpace(adsk.core.Point3D.create(x.value, y.value, -const.BIN_BASE_HEIGHT))
-            pointOnSketch.z = 0
-            point = sketch.sketchPoints.add(pointOnSketch)
-            # distance dimensions are unsigned
-            for (orientation, distance, textPoint) in [
-                (adsk.fusion.DimensionOrientations.HorizontalDimensionOrientation, x, adsk.core.Point3D.create(pointOnSketch.x / 2, pointOnSketch.y, 0)),
-                (adsk.fusion.DimensionOrientations.VerticalDimensionOrientation, y, adsk.core.Point3D.create(pointOnSketch.x, pointOnSketch.y / 2, 0)),
-            ]:
-                applyTo(
-                    dimensions.addDistanceDimension(sketch.originPoint, point, orientation, textPoint, False).parameter,
-                    distance if distance.value >= 0 else distance * -1,
-                )
-            points.append((column, row, point))
-    sketch.isVisible = False
-
+    z = Dim.length(-const.BIN_BASE_HEIGHT)
     jointOrigins = []
-    for (column, row, point) in points:
-        jointOriginInput = targetComponent.jointOrigins.createInput(adsk.fusion.JointGeometry.createByPoint(point))
+    for (column, row, x, y) in centers:
+        jointOriginInput = targetComponent.jointOrigins.createInput(adsk.fusion.JointGeometry.createByPoint(targetComponent.originConstructionPoint))
+        jointOriginInput.offsetX = valueInput(x)
+        jointOriginInput.offsetY = valueInput(y)
+        jointOriginInput.offsetZ = valueInput(z)
         jointOrigin = targetComponent.jointOrigins.add(jointOriginInput)
         jointOrigin.name = f'{name} {column + 1}-{row + 1}'
         jointOrigins.append(jointOrigin)
