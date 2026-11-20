@@ -485,15 +485,13 @@ def cutOutsideRoundedRectangles(
 
     # a frame around all the rectangles, its region less the rectangles is cut. It is as far again past them on every side,
     # so it keeps clear of them when parameters grow the plate
-    allMinX = min(rectangle[0].value for rectangle in rectangles)
-    allMinY = min(rectangle[1].value for rectangle in rectangles)
-    allMaxX = max(rectangle[2].value for rectangle in rectangles)
-    allMaxY = max(rectangle[3].value for rectangle in rectangles)
-    margin = max(allMaxX - allMinX, allMaxY - allMinY)
-    frameCorner1 = cutSketch.modelToSketchSpace(adsk.core.Point3D.create(allMinX - margin, allMinY - margin, 0))
-    frameCorner2 = cutSketch.modelToSketchSpace(adsk.core.Point3D.create(allMaxX + margin, allMaxY + margin, 0))
-    (frameCorner1.z, frameCorner2.z) = (0, 0)
-    cutSketch.sketchCurves.sketchLines.addTwoPointRectangle(frameCorner1, frameCorner2)
+    sketchUtils.addFrame(
+        cutSketch,
+        min(rectangle[0].value for rectangle in rectangles),
+        min(rectangle[1].value for rectangle in rectangles),
+        max(rectangle[2].value for rectangle in rectangles),
+        max(rectangle[3].value for rectangle in rectangles),
+    )
 
     def area(profile: adsk.fusion.Profile) -> float:
         box = profile.boundingBox
@@ -1011,15 +1009,13 @@ def cutOutsideShape(
     )
 
     # a frame around the outline, as far again past it on every side, its region less the outline is cut
-    minX = min(x for (x, _, _) in corners)
-    minY = min(y for (_, y, _) in corners)
-    maxX = max(x for (x, _, _) in corners)
-    maxY = max(y for (_, y, _) in corners)
-    margin = max(maxX - minX, maxY - minY)
-    frameCorner1 = cutSketch.modelToSketchSpace(adsk.core.Point3D.create(minX - margin, minY - margin, 0))
-    frameCorner2 = cutSketch.modelToSketchSpace(adsk.core.Point3D.create(maxX + margin, maxY + margin, 0))
-    (frameCorner1.z, frameCorner2.z) = (0, 0)
-    cutSketch.sketchCurves.sketchLines.addTwoPointRectangle(frameCorner1, frameCorner2)
+    sketchUtils.addFrame(
+        cutSketch,
+        min(x for (x, _, _) in corners),
+        min(y for (_, y, _) in corners),
+        max(x for (x, _, _) in corners),
+        max(y for (_, y, _) in corners),
+    )
 
     def area(profile: adsk.fusion.Profile) -> float:
         box = profile.boundingBox
