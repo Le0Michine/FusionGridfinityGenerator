@@ -21,8 +21,6 @@ A generated bin or baseplate should stay editable in Fusion like a model drawn b
 - **Name timeline features** after what they build, Foot, Lip notch cutouts pattern and so on, the feature helpers take a required name for that. A generated model is kept in one timeline group, rebuilding from **Gridfinity settings** relies on it.
 - **Test parameter changes.** A snapshot case can set user parameters once built, the run compares the recomputed model with one built with those values from the start. Add such a case for a feature that should follow a parameter.
 
-When only parameters changed, **Gridfinity rebuild** edits them instead of rebuilding, so features a user added after the bin stay attached. The more the model follows its parameters, the more often that works.
-
 # Documents in inches
 
 The add-in is used in documents in inches as well as in mm, and has to build the same model in both. Fusion keeps the lengths of features in the document's units, so a length that is exact in mm can be rounded in inches. Off by as little as a nanometre, faces that should meet don't, they are split in two or a combine fails.

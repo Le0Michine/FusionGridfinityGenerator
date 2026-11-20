@@ -1,6 +1,5 @@
 import adsk.core, adsk.fusion
 import copy
-import math
 
 from ...lib import tagUtils
 from ...lib import configJson
@@ -652,25 +651,13 @@ def rebuildBin(
     isPreview: bool,
 ) -> tuple[list[adsk.fusion.BRepBody], list[str]]:
     """
-    Builds the bin in place of the one the body is of, keeping the features after it, see rebuildUtils.rebuild, or
-    sets its parameters when they hold all that changed. Returns the bodies and what of the later features needs a look
+    Builds the bin in place of the one the body is of, keeping the features after it, see rebuildUtils.rebuild.
+    Returns the new bodies and what of the later features needs a look
     """
     target = rebuildUtils.findTarget(des, body, tagUtils.TAG_BIN, BIN_PLACEMENT_FEATURE)
-    newConfig = configJson.stateToJson(configJson.GENERATOR_BIN, state)
-    edits = parameterEdits(des, target.bodies[0], state)
-    if edits is not None:
-        # nothing in the timeline changes, the features after it stay as they are
-        (parameters, values) = edits
-        if not isPreview:
-            commonUtils.fileLog(f'{LOG_PREFIX} editing the parameters of {target.group.name} instead of rebuilding it, {rebuildUtils.configChanges(configJson.GENERATOR_BIN, target.bodies[0], newConfig)}')
-        if len(parameters) > 0 and not des.modifyParameters(parameters, values):
-            raise RuntimeError(f'Fusion didn\'t take the new values of {", ".join(parameter.name for parameter in parameters)}')
-        if not isPreview:
-            retag(target, state, settings)
-        return (target.bodies, [])
-
     prefix = rebuildUtils.bodyId(target.bodies[0], BIN_PARAMETER_BASE_NAME)
     if not isPreview:
+        newConfig = configJson.stateToJson(configJson.GENERATOR_BIN, state)
         commonUtils.fileLog(f'{LOG_PREFIX} rebuilding {target.group.name} at {target.placement}, {rebuildUtils.configChanges(configJson.GENERATOR_BIN, target.bodies[0], newConfig)}')
     return rebuildUtils.rebuild(
         des,
@@ -681,71 +668,6 @@ def rebuildBin(
         lambda placement, parameterPrefix, transform: buildBin(des, state, settings, placement, parameterPrefix, transform),
         'bin',
     )
-
-def isSameSetting(old, new) -> bool:
-    if isinstance(old, (int, float)) and isinstance(new, (int, float)) and not isinstance(old, bool) and not isinstance(new, bool):
-        return math.isclose(old, new, abs_tol=1e-6)
-    return old == new
-
-def parameterEdits(
-    des: adsk.fusion.Design,
-    body: adsk.fusion.BRepBody,
-    state: InputState,
-) -> tuple[list[adsk.fusion.UserParameter], list[adsk.core.ValueInput]] | None:
-    """
-    The parameters to set and their new expressions when every setting the rebuild changes is one of the bin's own
-    parameters, so setting them builds the same bin a rebuild would. None when it has to be rebuilt: a shared unit,
-    of a bin built before bins had units of their own, would change every bin built on it, a new label text has to be
-    fitted to the label, a height can turn the creases on or off
-    """
-    tag = tagUtils.readBodyTag(body)
-    if tag is None or not isinstance(tag[1].get('config'), dict):
-        return None
-    tagParameters = tag[1].get('parameters')
-    oldConfig = configWithParameters(tag[1]['config'], tagParameters, des.userParameters.itemByName)
-    newConfig = configJson.stateToJson(configJson.GENERATOR_BIN, state)
-    changed = [name for (name, value) in newConfig.items() if not isSameSetting(oldConfig.get(name), value)]
-    # compartments without a label of their own show the bin's, each has a parameter holding it
-    parametersByField: dict[str, list[adsk.fusion.UserParameter]] = {}
-    for (field, parameter) in rebuildUtils.parameterFields(tagParameters, des.userParameters.itemByName, PARAMETER_FIELDS):
-        parametersByField.setdefault(field, []).append(parameter)
-    if any(name not in parametersByField for name in changed):
-        return None
-    try:
-        oldState = configJson.stateFromJson(configJson.GENERATOR_BIN, InputState, {**newConfig, **{name: oldConfig[name] for name in changed}})
-    except configJson.ConfigError:
-        return None
-    if creaseLayout(oldState) != creaseLayout(state):
-        return None
-    parameters = []
-    values = []
-    for name in changed:
-        for parameter in parametersByField[name]:
-            if name == 'labelText':
-                # the text size is set to fit the text when the label is built, new text needs it fitted again
-                return None
-            elif name in configJson.MM_FIELDS[configJson.GENERATOR_BIN]:
-                if rebuildUtils.prefixOf([parameter.name], BIN_PARAMETER_BASE_NAME) is None:
-                    return None
-                expression = f'{newConfig[name]:g} mm'
-            else:
-                expression = f'{newConfig[name]:g}'
-            parameters.append(parameter)
-            values.append(adsk.core.ValueInput.createByString(expression))
-    return (parameters, values)
-
-def retag(target: rebuildUtils.RebuildTarget, state: InputState, settings: list[dict]):
-    """The bin with its parameters set keeps its tag up to date, the settings window shows it, and is named after its size"""
-    tag = tagUtils.readBodyTag(target.bodies[0])
-    parameters = tag[1].get('parameters') if tag is not None else None
-    # a bin built before bins had ids gets the prefix of its parameters
-    bodyId = rebuildUtils.bodyId(target.bodies[0], BIN_PARAMETER_BASE_NAME)
-    config = configJson.stateToJson(configJson.GENERATOR_BIN, state)
-    for body in target.bodies:
-        tagUtils.tagBody(body, tagUtils.TAG_BIN, settings, parameters, config, bodyId)
-    target.group.name = binDisplayName(state)
-    if target.occurrence is not None:
-        target.occurrence.component.name = binDisplayName(state)
 
 def configWithParameters(config: dict, parameters: list, findParameter) -> dict:
     """The config a bin was built with, with the values its parameters have now, see rebuildUtils.configWithParameters"""
