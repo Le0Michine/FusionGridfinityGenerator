@@ -226,7 +226,12 @@ def buildCase(case: testCases.TestCase) -> tuple[adsk.core.Document, list[adsk.f
     after, with its unhealthy timeline features
     """
     (document, design) = newCaseDocument(case.name, f'{DOCUMENT_PREFIX} {case.name}')
-    bodies = buildBodies(design, case, case.state)
+    try:
+        bodies = buildBodies(design, case, case.state)
+    except Exception:
+        # runCase gets no document from a build that breaks and can't close it, it stayed open after the run
+        document.close(False)
+        raise
     if case.parameters:
         setParameters(design, case.parameters)
         if not all(body.isValid for body in bodies):
