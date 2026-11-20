@@ -94,9 +94,9 @@ Default: <!-- default:bin_placement -->
 
 Where the bin goes in the design. **Snap to free spot** puts it on the grid at the free spot closest to the origin, next to bins already there, so new bins don't overlap. **Center on origin** centers the bin on the origin, every time it's rebuilt too.
 
-## Actual dimensions (mm)
+## Actual dimensions
 
-The width, length and height of the bin in mm, as calculated above.
+The width, length and height of the bin in mm, as calculated above, with a line in inches below when the document's length units are inches.
 
 # Bin features
 

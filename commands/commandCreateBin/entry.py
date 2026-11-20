@@ -130,6 +130,9 @@ BIN_REAL_DIMENSIONS_TABLE = "real_dimensions"
 BIN_REAL_DIMENSIONS_TABLE_TOTAL_WIDTH = "total_real_width"
 BIN_REAL_DIMENSIONS_TABLE_TOTAL_LENGTH = "total_real_length"
 BIN_REAL_DIMENSIONS_TABLE_TOTAL_HEIGHT = "total_real_height"
+BIN_REAL_DIMENSIONS_TABLE_TOTAL_WIDTH_INCHES = "total_real_width_inches"
+BIN_REAL_DIMENSIONS_TABLE_TOTAL_LENGTH_INCHES = "total_real_length_inches"
+BIN_REAL_DIMENSIONS_TABLE_TOTAL_HEIGHT_INCHES = "total_real_height_inches"
 BIN_WALL_THICKNESS_INPUT_ID = 'bin_wall_thickness'
 BIN_SHELL_ROUNDED_INPUT_ID = 'bin_shell_rounded'
 BIN_GENERATE_BASE_INPUT_ID = 'bin_generate_base'
@@ -433,27 +436,31 @@ def stop():
 
 def render_actual_bin_dimensions_table(inputs: adsk.core.CommandInputs):
     global actualDimensionsTableUiState
-    actualDimensionsTable = inputs.addTableCommandInput(BIN_REAL_DIMENSIONS_TABLE, "Actual dimensions (mm)", 3, "1:1:1")
-    totalWidth = actualDimensionsTable.commandInputs.addStringValueInput(BIN_REAL_DIMENSIONS_TABLE_TOTAL_WIDTH, "", "Width")
-    totalWidth.isReadOnly = True
-    actualDimensionsTableUiState.registerCommandInput(totalWidth)
-    actualDimensionsTableUiState.initValue(totalWidth.id, "", totalWidth.objectType)
-    totalLength = actualDimensionsTable.commandInputs.addStringValueInput(BIN_REAL_DIMENSIONS_TABLE_TOTAL_LENGTH, "", "Length")
-    totalLength.isReadOnly = True
-    actualDimensionsTableUiState.registerCommandInput(totalLength)
-    actualDimensionsTableUiState.initValue(totalLength.id, "", totalLength.objectType)
-    totalHeight = actualDimensionsTable.commandInputs.addStringValueInput(BIN_REAL_DIMENSIONS_TABLE_TOTAL_HEIGHT, "", "Height")
-    totalHeight.isReadOnly = True
-    actualDimensionsTableUiState.registerCommandInput(totalHeight)
-    actualDimensionsTableUiState.initValue(totalHeight.id, "", totalHeight.objectType)
-    actualDimensionsTable.addCommandInput(totalWidth, 0, 0)
-    actualDimensionsTable.addCommandInput(totalLength, 0, 1)
-    actualDimensionsTable.addCommandInput(totalHeight, 0, 2)
+    actualDimensionsTable = inputs.addTableCommandInput(BIN_REAL_DIMENSIONS_TABLE, "Actual dimensions", 3, "1:1:1")
+    rows = [[
+        (BIN_REAL_DIMENSIONS_TABLE_TOTAL_WIDTH, "Width"),
+        (BIN_REAL_DIMENSIONS_TABLE_TOTAL_LENGTH, "Length"),
+        (BIN_REAL_DIMENSIONS_TABLE_TOTAL_HEIGHT, "Height"),
+    ]]
+    # a document in inches shows them in inches too, on a line of their own
+    if isDocumentInInches():
+        rows.append([
+            (BIN_REAL_DIMENSIONS_TABLE_TOTAL_WIDTH_INCHES, "Width in inches"),
+            (BIN_REAL_DIMENSIONS_TABLE_TOTAL_LENGTH_INCHES, "Length in inches"),
+            (BIN_REAL_DIMENSIONS_TABLE_TOTAL_HEIGHT_INCHES, "Height in inches"),
+        ])
+    for (row, cells) in enumerate(rows):
+        for (column, (inputId, name)) in enumerate(cells):
+            cell = actualDimensionsTable.commandInputs.addStringValueInput(inputId, "", name)
+            cell.isReadOnly = True
+            actualDimensionsTableUiState.registerCommandInput(cell)
+            actualDimensionsTableUiState.initValue(cell.id, "", cell.objectType)
+            actualDimensionsTable.addCommandInput(cell, row, column)
     actualDimensionsTable.tooltip = 'Actual bin dimensions'
     actualDimensionsTable.tablePresentationStyle = adsk.core.TablePresentationStyles.transparentBackgroundTablePresentationStyle
     actualDimensionsTable.hasGrid = False
-    actualDimensionsTable.minimumVisibleRows = 1
-    actualDimensionsTable.maximumVisibleRows = 1
+    actualDimensionsTable.minimumVisibleRows = len(rows)
+    actualDimensionsTable.maximumVisibleRows = len(rows)
     return actualDimensionsTable
 
 def compartmentCellSize() -> tuple[float, float, float]:
@@ -472,6 +479,13 @@ def millimeters(value: float) -> str:
     """A length in cm as mm, to the micron an untrimmed lip needs, without trailing zeros"""
     return f'{value * 10:.3f}'.rstrip('0').rstrip('.')
 
+def isDocumentInInches() -> bool:
+    return app.activeProduct.unitsManager.defaultLengthUnits == 'in'
+
+def inches(value: float) -> str:
+    """A length in cm in inches, as Fusion shows them"""
+    return app.activeProduct.unitsManager.formatInternalValue(value, 'in', True)
+
 def update_actual_bin_dimensions():
     global actualDimensionsTableUiState
     try:
@@ -480,15 +494,16 @@ def update_actual_bin_dimensions():
         actualLength = commandUIState.getState(BIN_BASE_LENGTH_UNIT_INPUT_ID) * commandUIState.getState(BIN_LENGTH_INPUT_ID) - clearance * 2
         lip = lipHeight(commandUIState.getState(BIN_LIP_TOP_TRIMMED_INPUT_ID), clearance) if commandUIState.getState(BIN_WITH_LIP_INPUT_ID) else 0
         actualHeight = commandUIState.getState(BIN_HEIGHT_UNIT_INPUT_ID) * commandUIState.getState(BIN_HEIGHT_INPUT_ID) + lip
-        totalWidthValue = millimeters(actualWidth)
-        totalLengthValue = millimeters(actualLength)
-        totalHeightValue = millimeters(actualHeight)
-        actualDimensionsTableUiState.updateValue(BIN_REAL_DIMENSIONS_TABLE_TOTAL_WIDTH, f'Width: {totalWidthValue}mm')
-        actualDimensionsTableUiState.getInput(BIN_REAL_DIMENSIONS_TABLE_TOTAL_WIDTH).tooltip = f'Total bin width: {totalWidthValue}mm'
-        actualDimensionsTableUiState.updateValue(BIN_REAL_DIMENSIONS_TABLE_TOTAL_LENGTH, f'Length: {totalLengthValue}mm')
-        actualDimensionsTableUiState.getInput(BIN_REAL_DIMENSIONS_TABLE_TOTAL_LENGTH).tooltip = f'Total bin length: {totalLengthValue}mm'
-        actualDimensionsTableUiState.updateValue(BIN_REAL_DIMENSIONS_TABLE_TOTAL_HEIGHT, f'Height: {totalHeightValue}mm')
-        actualDimensionsTableUiState.getInput(BIN_REAL_DIMENSIONS_TABLE_TOTAL_HEIGHT).tooltip = f'Total bin height: {totalHeightValue}mm'
+        for (inputId, inchesId, name, value) in [
+            (BIN_REAL_DIMENSIONS_TABLE_TOTAL_WIDTH, BIN_REAL_DIMENSIONS_TABLE_TOTAL_WIDTH_INCHES, 'width', actualWidth),
+            (BIN_REAL_DIMENSIONS_TABLE_TOTAL_LENGTH, BIN_REAL_DIMENSIONS_TABLE_TOTAL_LENGTH_INCHES, 'length', actualLength),
+            (BIN_REAL_DIMENSIONS_TABLE_TOTAL_HEIGHT, BIN_REAL_DIMENSIONS_TABLE_TOTAL_HEIGHT_INCHES, 'height', actualHeight),
+        ]:
+            actualDimensionsTableUiState.updateValue(inputId, f'{name.capitalize()}: {millimeters(value)}mm')
+            actualDimensionsTableUiState.getInput(inputId).tooltip = f'Total bin {name}: {millimeters(value)}mm'
+            if isDocumentInInches():
+                actualDimensionsTableUiState.updateValue(inchesId, inches(value))
+                actualDimensionsTableUiState.getInput(inchesId).tooltip = f'Total bin {name}: {inches(value)}'
     except:
         showErrorInMessageBox()
 
