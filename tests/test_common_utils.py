@@ -15,21 +15,23 @@ def _load_common_utils():
     fusion = sys.modules["adsk.fusion"]
     if not hasattr(fusion, "Design"):
         fusion.Design = type("Design", (), {})
-    # commonUtils imports the add-in's config, only DEBUG of it
-    config = types.ModuleType("FusionGridfinityGenerator.config")
+    # loaded into a package of its own, with stand-ins for the add-in's config and fusion360utils it imports, so no
+    # other test finds them under the add-in's names
+    package = "commonUtilsTest"
+    for name in (package, package + ".lib", package + ".lib.gridfinityUtils"):
+        module = types.ModuleType(name)
+        module.__path__ = []
+        sys.modules[name] = module
+    config = types.ModuleType(package + ".config")
     config.DEBUG = False
-    sys.modules.setdefault("FusionGridfinityGenerator.config", config)
-    root = sys.modules["FusionGridfinityGenerator"]
-    if not hasattr(root, "config"):
-        root.config = sys.modules["FusionGridfinityGenerator.config"]
-    utilsName = "FusionGridfinityGenerator.lib.gridfinityUtils"
-    if utilsName not in sys.modules:
-        utils = types.ModuleType(utilsName)
-        utils.__path__ = []
-        utils.__package__ = utilsName
-        sys.modules[utilsName] = utils
+    sys.modules[package + ".config"] = config
+    sys.modules[package].config = config
+    futil = types.ModuleType(package + ".lib.fusion360utils")
+    futil.log = lambda *a, **kw: None
+    sys.modules[package + ".lib.fusion360utils"] = futil
+    sys.modules[package + ".lib"].fusion360utils = futil
     path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "lib", "gridfinityUtils", "commonUtils.py")
-    spec = importlib.util.spec_from_file_location(utilsName + ".commonUtils", path)
+    spec = importlib.util.spec_from_file_location(package + ".lib.gridfinityUtils.commonUtils", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -105,3 +107,21 @@ def test_nothing_activated_when_the_build_activated_nothing():
     with commonUtils.keepActiveComponent(design):
         pass
     assert calls == []
+
+
+def test_build_error_kept_when_activating_fails(monkeypatch):
+    # a failed rebuild may leave the timeline rolled back, so the component active before can't be activated, the
+    # error of the build is the one to report
+    logged = []
+    monkeypatch.setattr(commonUtils, "fileLog", logged.append)
+    design = FakeDesign()
+    bins = FakeOccurrence(design, "bins")
+    bins.activate()
+    def refuse():
+        raise RuntimeError("rolled back")
+    with pytest.raises(ValueError, match="Fillet failed"):
+        with commonUtils.keepActiveComponent(design):
+            FakeOccurrence(design, "Gridfinity bin 1x1x3").activate()
+            bins.activate = refuse
+            raise ValueError("Fillet failed")
+    assert len(logged) == 1

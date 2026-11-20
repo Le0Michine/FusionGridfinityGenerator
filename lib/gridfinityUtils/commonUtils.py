@@ -32,10 +32,15 @@ def keepActiveComponent(design: adsk.fusion.Design):
     finally:
         current = design.activeOccurrence
         if current != previous:
-            if previous is not None and previous.isValid:
-                previous.activate()
-            else:
-                design.activateRootComponent()
+            # a failed rebuild may leave the timeline rolled back before that component, the error of the build is
+            # the one to report then
+            try:
+                if previous is not None and previous.isValid:
+                    previous.activate()
+                else:
+                    design.activateRootComponent()
+            except RuntimeError as err:
+                fileLog(f'The component active before the build wasn\'t activated again, {err}')
 
 class StepTimer():
     """Logs how long each step of a generator took, in debug mode also to the Fusion log file"""
