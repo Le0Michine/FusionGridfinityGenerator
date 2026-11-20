@@ -304,6 +304,36 @@ def removeOldGroup(target: RebuildTarget) -> list[str]:
         kept.append(name)
     return kept
 
+def withoutCounter(name: str) -> str:
+    """A component name without the " (1)" Fusion adds to a name that is taken"""
+    return re.sub(r' \(\d+\)$', '', name)
+
+def oldComponentName(newName: str, oldName: str) -> str | None:
+    """
+    The name the new component gets once the old one is gone: the old one's name when Fusion only counted the same
+    name up, the generator's names never end in a number in brackets. None to leave it, a bin of another size has
+    a name of its own
+    """
+    if newName == oldName or withoutCounter(newName) != withoutCounter(oldName):
+        return None
+    return oldName
+
+def keepComponentName(occurrence: adsk.fusion.Occurrence | None, oldName: str | None):
+    """
+    The new component is made while the old one still has the name, Fusion names it "Gridfinity bin 1x1x3 (1)",
+    afterwards it gets the name back. None in a part design, the bin is built into the root component
+    """
+    if occurrence is None or oldName is None:
+        return
+    component = occurrence.component
+    name = oldComponentName(component.name, oldName)
+    if name is None:
+        return
+    try:
+        component.name = name
+    except RuntimeError as err:
+        commonUtils.fileLog(f'{LOG_PREFIX} {component.name} wasn\'t renamed to {name}, {err}')
+
 def newlyUnhealthy(target: RebuildTarget) -> list[str]:
     """Later items that were fine before and have a warning or an error now, with Fusion's message"""
     notes = []
@@ -418,6 +448,7 @@ def rebuild(
         return (build(target.placement, None, transform), [])
 
     oldNames = tagParameterNames(target.bodies[0])
+    oldComponent = target.occurrence.component.name if target.occurrence is not None else None
     rollAfterGroup(target)
     newBodies = build(target.placement, prefix, transform)
     newOccurrence = None
@@ -426,6 +457,9 @@ def rebuild(
         newOccurrence = occurrences.item(0) if occurrences.count > 0 else None
     failed = replaceBodies(target, newBodies, newOccurrence)
     keptOldItems = removeOldGroup(target)
+    if len(keptOldItems) == 0:
+        # the old component is gone with its group, its name is free
+        keepComponentName(newOccurrence, oldComponent)
     # shared units stay, the body's own ones it no longer has go, like the label of a tab turned off
     newNames = tagParameterNames(newBodies[0]) if len(newBodies) > 0 else []
     removeUnusedParameters(design, [name for name in oldNames if prefix is not None and prefixOf([name], baseName) == prefix and name not in newNames])
