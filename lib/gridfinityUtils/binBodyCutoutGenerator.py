@@ -84,13 +84,20 @@ def createGridfinityBinBodyCutout(
         name=f'{name} corner fillets',
     )
     if input.hasBottomFillet:
+        # opposite a scoop the floor fillet is no deeper than the cutout, like the scoop: in a bin one height unit high
+        # the cutout is about 1 mm deep and the 2.55 mm fillet fails (ASM_BL_CAP_COMPLEX). An expression of the depth,
+        # so it still fits once the height unit changes, see const.BIN_SCOOP_TOP_MARGIN
+        floorRadius = Dim.min(
+            Dim.length(input.filletRadius),
+            Dim.asLength(input.height) - Dim.length(const.BIN_SCOOP_TOP_MARGIN),
+        ) if input.hasScoop else input.filletRadius
         # recalculate faces after fillet
         [innerCutoutScoopFace, innerCutoputScoopOppositeFace] = getInnerCutoutScoopFace(innerCutoutBody)
         scoopOppositeEdge = faceUtils.getBottomHorizontalEdge(innerCutoputScoopOppositeFace.edges)
 
         filletUtils.createFillet(
             [scoopOppositeEdge],
-            input.filletRadius,
+            floorRadius,
             True,
             targetComponent,
             name=f'{name} bottom fillet',

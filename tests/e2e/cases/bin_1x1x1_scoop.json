@@ -1,0 +1,10 @@
+{
+    "description": "1x1x1 bin with a scoop, the lowest there is, its bottom fillet opposite the scoop was deeper than the cutout and failed",
+    "generator": "bin",
+    "settings": {
+        "binWidth": 1,
+        "binLength": 1,
+        "binHeight": 1,
+        "hasScoop": true
+    }
+}
