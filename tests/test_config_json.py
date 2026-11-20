@@ -47,8 +47,8 @@ BIN_CHOICES = {
 }
 
 
-def read(text, current, generator=BIN, stateClass=None, choices=None):
-    return configJson.readConfig(text, generator, stateClass or binState.InputState, current, choices)
+def read(text, current, generator=BIN, stateClass=None, choices=None, isFromTag=False):
+    return configJson.readConfig(text, generator, stateClass or binState.InputState, current, choices, isFromTag)
 
 
 def settings_text(**settings):
@@ -91,6 +91,36 @@ def test_missing_settings_keep_the_current_ones(current):
     assert state.wallThickness == pytest.approx(current.wallThickness)
     assert ("binLength", current.binLength) in notes.missing
     assert "binWidth" not in [name for (name, _) in notes.missing]
+
+
+def test_tags_without_added_settings_build_as_older_versions_did(current):
+    current = dataclasses.replace(current, placement="Center on origin", lipType="Full", isLipTopTrimmed=False, tabTopOffset=0.2)
+    (state, notes) = read(json.dumps({"generator": BIN, "settings": {"binWidth": 4}}), current, isFromTag=True)
+    assert (state.placement, state.lipType, state.isLipTopTrimmed) == ("Snap to free spot", "Light", True)
+    assert state.tabTopOffset == pytest.approx(0.05)
+    missing = [name for (name, _) in notes.missing]
+    assert not set(configJson.ADDED_FIELDS[BIN]) & set(missing)
+    assert "binLength" in missing
+
+
+def test_tags_keep_the_added_settings_they_have(current):
+    (state, _) = read(settings_text(lipType="Full", tabTopOffset=1.5), current, isFromTag=True)
+    assert state.lipType == "Full"
+    assert state.tabTopOffset == pytest.approx(0.15)
+
+
+def test_files_without_added_settings_keep_the_current_ones(current):
+    current = dataclasses.replace(current, lipType="Full")
+    (state, notes) = read(settings_text(binWidth=4), current)
+    assert state.lipType == "Full"
+    assert ("lipType", "Full") in notes.missing
+
+
+@pytest.mark.parametrize("generator, stateClass", [(BIN, binState.InputState), (BASEPLATE, baseplateState.InputState)])
+def test_added_settings_are_settings(generator, stateClass):
+    fieldTypes = {field.name: field.type for field in dataclasses.fields(stateClass)}
+    for (name, value) in configJson.ADDED_FIELDS[generator].items():
+        assert configJson._fitsType(value, fieldTypes[name]), name
 
 
 def test_unknown_settings_are_skipped(current):

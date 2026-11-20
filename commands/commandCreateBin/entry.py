@@ -1287,7 +1287,7 @@ def angleExpression(angle: float) -> str:
     return f'{math.degrees(angle):g} deg'
 
 def startWithConfig(settings: dict):
-    """Opens the dialog with a config by field name, see configJson.stateToJson, settings it doesn't have stay"""
+    """Opens the dialog with the config of a body's tag by field name, see configJson.stateToJson and readConfig"""
     global pendingConfig
     pendingConfig = settings
     ui.commandDefinitions.itemById(CMD_ID).execute()
@@ -1323,15 +1323,15 @@ def configChoices() -> dict[str, configJson.Choice]:
         'placement': configJson.Choice(binBuilder.PLACEMENT_OPTIONS, DEFAULT_STATE.placement),
     }
 
-def readConfig(text: str, source: str) -> InputState | None:
+def readConfig(text: str, source: str, isFromTag: bool = False) -> InputState | None:
     """The state of a config, none when it can't be read, see configButtons.readConfig"""
-    return configButtons.readConfig(text, source, configJson.GENERATOR_BIN, InputState, getInputsState(), configChoices())
+    return configButtons.readConfig(text, source, configJson.GENERATOR_BIN, InputState, getInputsState(), configChoices(), isFromTag)
 
 def applyPendingConfig():
     global pendingConfig
     if pendingConfig is None:
         return
-    state = readConfig(configJson.configText(configJson.GENERATOR_BIN, pendingConfig), 'Rebuilding' if rebuildBodyToken is not None else 'Cloned')
+    state = readConfig(configJson.configText(configJson.GENERATOR_BIN, pendingConfig), 'Rebuilding' if rebuildBodyToken is not None else 'Cloned', isFromTag=True)
     pendingConfig = None
     if state is not None:
         applyInputsState(state)

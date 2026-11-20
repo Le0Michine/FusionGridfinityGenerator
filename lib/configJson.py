@@ -42,6 +42,20 @@ RENAMED_FIELDS = {
     GENERATOR_BASEPLATE: {'plateClearance': ('plateEdgeClearance', 0.5)},
 }
 
+# settings older versions didn't have, with the value the bins and baseplates they built have. A bin's tag without one
+# is of a bin built before it, so cloning or rebuilding it keeps what it was. Files keep the dialog's value instead
+ADDED_FIELDS = {
+    GENERATOR_BIN: {
+        # binBuilder.PLACEMENT_AUTO
+        'placement': 'Snap to free spot',
+        # binBodyLipGeneratorInput.LIP_TYPE_LIGHT
+        'lipType': 'Light',
+        'isLipTopTrimmed': True,
+        'tabTopOffset': 0.5,
+    },
+    GENERATOR_BASEPLATE: {},
+}
+
 def renamedSettings(generator: str, settings: dict) -> dict:
     """Settings with the ones of older versions under their new name, a new one already there wins"""
     renamed = dict(settings)
@@ -154,12 +168,12 @@ def _withType(value, fieldType):
         return [[int(x), int(y)] for (x, y) in value]
     return value
 
-def readConfig(text: str, generator: str, stateClass: type, current: object, choices: dict[str, Choice] = None) -> tuple[object, ConfigNotes]:
+def readConfig(text: str, generator: str, stateClass: type, current: object, choices: dict[str, Choice] = None, isFromTag: bool = False) -> tuple[object, ConfigNotes]:
     """
     The state of a config file for the generator and what reading it changed. A value of the wrong type refuses the
     file, ranges are left to the dialog. Settings the file doesn't have, saved by an older version, keep their value
     from current, ones this version doesn't know are skipped, and a dropdown option that isn't in choices becomes
-    its default
+    its default. The config of a body's tag, isFromTag, takes the values of ADDED_FIELDS it doesn't have instead
     """
     try:
         data = json.loads(text)
@@ -180,6 +194,8 @@ def readConfig(text: str, generator: str, stateClass: type, current: object, cho
     if wrongTypes:
         raise ConfigError(', '.join(wrongTypes))
     settings = stateToJson(generator, current)
+    if isFromTag:
+        loaded = {**ADDED_FIELDS[generator], **loaded}
     notes = ConfigNotes(
         unknown=[name for name in loaded if name not in fieldTypes],
         missing=[(name, settings[name]) for name in fieldTypes if name not in loaded],

@@ -118,13 +118,14 @@ def readConfig(
     stateClass: type,
     current: object,
     choices: dict[str, configJson.Choice],
+    isFromTag: bool = False,
 ) -> object | None:
     """
     The state of a config for a dialog, see configJson.readConfig, none when it can't be read. Shows why, or what
     reading it changed when it did. source names it in the message, like Loaded "bin.json" or Cloned
     """
     try:
-        (state, notes) = configJson.readConfig(text, generator, stateClass, current, choices)
+        (state, notes) = configJson.readConfig(text, generator, stateClass, current, choices, isFromTag)
     except configJson.ConfigError as err:
         ui.messageBox(f'Couldn\'t read the config. {err}', 'Gridfinity config')
         return None
