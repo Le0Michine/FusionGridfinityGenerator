@@ -270,7 +270,7 @@ def buildBaseplate(
         )
     # mark generated geometry so it can be told apart from the rest of the design
     for baseplateBody in baseplateBodies:
-        tagUtils.tagBody(baseplateBody, tagUtils.TAG_BASEPLATE, settings, baseplateParameters, configJson.stateToJson(configJson.GENERATOR_BASEPLATE, inputsState), plateParameterPrefix)
+        tagUtils.tagBody(baseplateBody, tagUtils.TAG_BASEPLATE, settings, baseplateParameters, configJson.stateToJson(configJson.GENERATOR_BASEPLATE, inputsState), plateParameterPrefix, plateName, baseplateBody.name)
 
     if des.designType == adsk.fusion.DesignTypes.ParametricDesignType:
         # group features in timeline
@@ -302,6 +302,7 @@ def rebuildBaseplate(
         isPreview,
         lambda placement, parameterPrefix, transform: buildBaseplate(des, inputsState, settings, isPreview, placement, parameterPrefix, transform),
         'baseplate',
+        BASEPLATE_LEGACY_NAME_PREFIX,
     )
 
 def configWithParameters(config: dict, parameters: list, findParameter) -> dict:

@@ -308,31 +308,45 @@ def withoutCounter(name: str) -> str:
     """A component name without the " (1)" Fusion adds to a name that is taken"""
     return re.sub(r' \(\d+\)$', '', name)
 
-def oldComponentName(newName: str, oldName: str) -> str | None:
+def isGeneratedName(name: str, generatedName: str | None, namePrefix: str) -> bool:
     """
-    The name the new component gets once the old one is gone: the old one's name when Fusion only counted the same
-    name up, the generator's names never end in a number in brackets. None to leave it, a bin of another size has
-    a name of its own
+    Whether the generator gave the name, the one in the tag, maybe counted up by Fusion, rather than the user. A tag from
+    before it held the name goes by the prefix the generator's names start with
     """
-    if newName == oldName or withoutCounter(newName) != withoutCounter(oldName):
+    if generatedName is None:
+        return name.startswith(namePrefix)
+    return withoutCounter(name) == withoutCounter(generatedName)
+
+def keptName(newName: str, oldName: str, generatedName: str | None, namePrefix: str) -> str | None:
+    """
+    The name the new component, timeline group or body gets once the old one is gone, none to leave its own. The user's
+    name stays. A generated one only when Fusion counted the same name up while the old one had it, the generator's
+    names never end in a number in brackets, a bin of another size has a name of its own
+    """
+    if newName == oldName:
+        return None
+    if not isGeneratedName(oldName, generatedName, namePrefix):
+        return oldName
+    if withoutCounter(newName) != withoutCounter(oldName):
         return None
     return oldName
 
-def keepComponentName(occurrence: adsk.fusion.Occurrence | None, oldName: str | None):
-    """
-    The new component is made while the old one still has the name, Fusion names it "Gridfinity bin 1x1x3 (1)",
-    afterwards it gets the name back. None in a part design, the bin is built into the root component
-    """
-    if occurrence is None or oldName is None:
-        return
-    component = occurrence.component
-    name = oldComponentName(component.name, oldName)
+def keepName(item, oldName: str, generatedName: str | None, namePrefix: str):
+    """Gives the new component, timeline group or body the old one's name, see keptName"""
+    name = keptName(item.name, oldName, generatedName, namePrefix)
     if name is None:
         return
     try:
-        component.name = name
+        item.name = name
     except RuntimeError as err:
-        commonUtils.fileLog(f'{LOG_PREFIX} {component.name} wasn\'t renamed to {name}, {err}')
+        commonUtils.fileLog(f'{LOG_PREFIX} {item.name} wasn\'t renamed to {name}, {err}')
+
+def generatedNames(body: adsk.fusion.BRepBody) -> tuple[str | None, str | None]:
+    """The names the generator gave the bin or baseplate, its component and timeline group, and the body, see tagUtils.tagBody"""
+    tag = tagUtils.readBodyTag(body)
+    if tag is None:
+        return (None, None)
+    return (tag[1].get('name'), tag[1].get('bodyName'))
 
 def newlyUnhealthy(target: RebuildTarget) -> list[str]:
     """Later items that were fine before and have a warning or an error now, with Fusion's message"""
@@ -434,11 +448,13 @@ def rebuild(
     isPreview: bool,
     build: Callable[[tuple[float, float], str | None, adsk.core.Matrix3D | None], list[adsk.fusion.BRepBody]],
     title: str,
+    namePrefix: str,
 ) -> tuple[list[adsk.fusion.BRepBody], list[str]]:
     """
     Builds the replacement of the target in its place, keeping the features after it. build gets the placement, the
     prefix of the parameters to keep, none for new ones, and the transform of the component in a hybrid design, and
     returns the new bodies. Returns them with what of the later features needs a look, title names the body in it.
+    namePrefix starts every name the generator gives, see isGeneratedName.
     A preview is undone anyway, it builds at the end of the timeline with the old body suppressed, rolling the
     timeline back and forth for each would be slow
     """
@@ -448,18 +464,30 @@ def rebuild(
         return (build(target.placement, None, transform), [])
 
     oldNames = tagParameterNames(target.bodies[0])
-    oldComponent = target.occurrence.component.name if target.occurrence is not None else None
+    # the new items get the user's names once the old ones are gone, see keptName
+    (generatedName, _) = generatedNames(target.bodies[0])
+    oldGroupName = target.group.name
+    oldComponentName = target.occurrence.component.name if target.occurrence is not None else None
     rollAfterGroup(target)
     newBodies = build(target.placement, prefix, transform)
     newOccurrence = None
     if len(newBodies) > 0 and newBodies[0].parentComponent != design.rootComponent:
         occurrences = design.rootComponent.allOccurrencesByComponent(newBodies[0].parentComponent)
         newOccurrence = occurrences.item(0) if occurrences.count > 0 else None
+    newGroup = findGroup(design, nativeBody(newBodies[0])) if len(newBodies) > 0 else None
+    renames = [(item, oldName, generatedName) for (item, oldName) in [
+        (newGroup, oldGroupName),
+        (newOccurrence.component if newOccurrence is not None else None, oldComponentName),
+    ] if item is not None and oldName is not None]
+    # bodies taking the place of one each, several going into one have no single name to keep
+    if len(newBodies) == len(target.bodies):
+        renames += [(new, old.name, generatedNames(old)[1]) for (old, new) in bodyMap(target, newBodies)]
     failed = replaceBodies(target, newBodies, newOccurrence)
     keptOldItems = removeOldGroup(target)
     if len(keptOldItems) == 0:
-        # the old component is gone with its group, its name is free
-        keepComponentName(newOccurrence, oldComponent)
+        # the old items are gone with their group, their names are free
+        for (item, oldName, itemGeneratedName) in renames:
+            keepName(item, oldName, itemGeneratedName, namePrefix)
     # shared units stay, the body's own ones it no longer has go, like the label of a tab turned off
     newNames = tagParameterNames(newBodies[0]) if len(newBodies) > 0 else []
     removeUnusedParameters(design, [name for name in oldNames if prefix is not None and prefixOf([name], baseName) == prefix and name not in newNames])

@@ -613,7 +613,7 @@ def buildBin(
         # mark generated geometry so later bins can tell it apart from the rest of the design,
         # with the settings it was generated with to show later
         for body in generatedBodies:
-            tagUtils.tagBody(body, tagUtils.TAG_BIN, settings, binParameters, configJson.stateToJson(configJson.GENERATOR_BIN, state), binParameterPrefix)
+            tagUtils.tagBody(body, tagUtils.TAG_BIN, settings, binParameters, configJson.stateToJson(configJson.GENERATOR_BIN, state), binParameterPrefix, binName, body.name)
         # the letters of outline labels in their own color, as a slicer can print them, see labelFaces
         if state.generateBody and state.labelStyle == labelGenerator.LABEL_STYLE_OUTLINE:
             try:
@@ -667,6 +667,7 @@ def rebuildBin(
         isPreview,
         lambda placement, parameterPrefix, transform: buildBin(des, state, settings, placement, parameterPrefix, transform),
         'bin',
+        BIN_LEGACY_NAME_PREFIX,
     )
 
 def configWithParameters(config: dict, parameters: list, findParameter) -> dict:

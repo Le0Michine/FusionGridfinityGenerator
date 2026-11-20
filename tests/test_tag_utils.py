@@ -111,6 +111,13 @@ def test_body_id_and_parameter_field_and_owner_are_kept():
     assert "id" not in tag
 
 
+
+def test_generated_names_are_kept():
+    tag = tagUtils.parseTagValue(tagUtils.createTagValue("2.3.0.0", name="Gridfinity bin 1x1x3", bodyName="Gridfinity bin 1x1x3"))
+    assert (tag["name"], tag["bodyName"]) == ("Gridfinity bin 1x1x3", "Gridfinity bin 1x1x3")
+    tag = tagUtils.parseTagValue(tagUtils.createTagValue("2.3.0.0"))
+    assert "name" not in tag and "bodyName" not in tag
+
 def test_a_parameter_tagged_again_keeps_the_last_field():
     parameter = _FakeParameter("gfBin3_label")
     tagUtils.tagParameterField(parameter, "labelText", "gfBin3")

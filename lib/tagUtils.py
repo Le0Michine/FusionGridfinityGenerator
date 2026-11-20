@@ -34,11 +34,15 @@ def createTagValue(
     field: str = None,
     bodyId: str = None,
     owner: str = None,
+    name: str = None,
+    bodyName: str = None,
 ) -> str:
     """Settings are the dialog inputs the body was generated with, as sections of label and value pairs,
     parameters are label and name pairs of the user parameters driving it, config the settings to build it again
     by field name, see configJson.stateToJson. Field is the config field a user parameter holds. bodyId names the
-    bin or baseplate, unique in the design, its own parameters have it as their owner and as the prefix of their names"""
+    bin or baseplate, unique in the design, its own parameters have it as their owner and as the prefix of their names.
+    Name is the one the generator gave the component and timeline group, bodyName the body's, a rebuild keeps a name
+    the user changed"""
     value = {
         'schemaVersion': TAG_SCHEMA_VERSION,
         'generatorVersion': generatorVersion,
@@ -55,6 +59,10 @@ def createTagValue(
         value['field'] = field
     if owner is not None:
         value['owner'] = owner
+    if name is not None:
+        value['name'] = name
+    if bodyName is not None:
+        value['bodyName'] = bodyName
     return json.dumps(value)
 
 def parseTagValue(value: str) -> dict:
@@ -65,9 +73,9 @@ def parseTagValue(value: str) -> dict:
         return {}
     return data if isinstance(data, dict) else {}
 
-def tagBody(body: adsk.fusion.BRepBody, tagName: str, settings: list[dict] = None, parameters: list[list[str]] = None, config: dict = None, bodyId: str = None):
-    """bodyId links the body with its parameters, see tagParameterField"""
-    body.attributes.add(TAG_GROUP, tagName, createTagValue(getGeneratorVersion(), settings, parameters, config, bodyId=bodyId))
+def tagBody(body: adsk.fusion.BRepBody, tagName: str, settings: list[dict] = None, parameters: list[list[str]] = None, config: dict = None, bodyId: str = None, name: str = None, bodyName: str = None):
+    """bodyId links the body with its parameters, see tagParameterField, name and bodyName are the generated ones, see createTagValue"""
+    body.attributes.add(TAG_GROUP, tagName, createTagValue(getGeneratorVersion(), settings, parameters, config, bodyId=bodyId, name=name, bodyName=bodyName))
 
 def readBodyTag(body: adsk.fusion.BRepBody) -> tuple[str, dict] | None:
     """Which generator tagged the body and the tag value, none for bodies it didn't generate"""
