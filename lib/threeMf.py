@@ -1,6 +1,7 @@
 import dataclasses
 import datetime
 import json
+import math
 import zipfile
 from xml.sax.saxutils import escape, quoteattr
 
@@ -11,12 +12,18 @@ from xml.sax.saxutils import escape, quoteattr
 # it from a plain 3MF made elsewhere too. PrusaSlicer 3 still writes slic3rpe:mmu_segmentation but reads the painting
 # only from a file of its own listing the painted triangles of each object, see facetsAnnotation
 
-# where the objects are put, the middle of a 256 mm bed, the slicer arranges them on a bed of another size
-PLATE_CENTER = (128.0, 128.0)
+# the bed the objects are put in the middle of when none is given, 256 mm, the slicer arranges them on a bed of
+# another size
+DEFAULT_BED = (256.0, 256.0)
 # the slicers tell their own projects by it, PrusaSlicer 3 refuses a file naming it that has no printer settings
 APPLICATION = 'Fusion Gridfinity Generator'
 # the most filaments a painted triangle can name, see paintCode
 MAX_FILAMENT = 18
+# Bambu Studio and OrcaSlicer lay their plates out in a grid of about as many columns as rows, with a fifth of the
+# bed between plates, and keep which plate each object is on in a file of their own, see modelSettings. They read it
+# from a plain 3MF too, PrusaSlicer goes by where the objects are
+PLATE_GAP = 0.2
+MODEL_SETTINGS_PATH = 'Metadata/model_settings.config'
 
 CONTENT_TYPES = '''<?xml version="1.0" encoding="UTF-8"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
@@ -51,19 +58,77 @@ def paintCode(filament: int) -> str:
         raise ValueError(f'filament {filament} is outside 1 to {MAX_FILAMENT}')
     return f'{filament << 2:X}' if filament < 3 else f'{filament - 3:X}C'
 
-def placeOnPlate(objects: list[MeshObject]) -> list[MeshObject]:
-    """Each standing on the plate, all as they were in the design side to side, around the middle of the plate"""
+def _bounds(vertices: list[tuple[float, float, float]]) -> tuple[float, float, float, float, float]:
+    """min x, min y, max x, max y and min z"""
+    return (
+        min(x for (x, _, _) in vertices), min(y for (_, y, _) in vertices),
+        max(x for (x, _, _) in vertices), max(y for (_, y, _) in vertices),
+        min(z for (_, _, z) in vertices),
+    )
+
+def placeOnPlate(objects: list[MeshObject], bed: tuple[float, float] = DEFAULT_BED) -> list[MeshObject]:
+    """Each standing on the plate, all as they were in the design side to side, around the middle of the bed"""
     vertices = [vertex for meshObject in objects for vertex in meshObject.vertices]
     if len(vertices) == 0:
         return objects
-    shiftX = PLATE_CENTER[0] - (min(x for (x, _, _) in vertices) + max(x for (x, _, _) in vertices)) / 2
-    shiftY = PLATE_CENTER[1] - (min(y for (_, y, _) in vertices) + max(y for (_, y, _) in vertices)) / 2
+    (minX, minY, maxX, maxY, _) = _bounds(vertices)
+    shiftX = bed[0] / 2 - (minX + maxX) / 2
+    shiftY = bed[1] / 2 - (minY + maxY) / 2
     placed = []
     for meshObject in objects:
         bottom = min((z for (_, _, z) in meshObject.vertices), default=0)
         vertices = [(x + shiftX, y + shiftY, z - bottom) for (x, y, z) in meshObject.vertices]
         placed.append(dataclasses.replace(meshObject, vertices=vertices))
     return placed
+
+def footprint(meshObject: MeshObject) -> tuple[float, float]:
+    """Its width and length seen from above"""
+    if len(meshObject.vertices) == 0:
+        return (0.0, 0.0)
+    (minX, minY, maxX, maxY, _) = _bounds(meshObject.vertices)
+    return (maxX - minX, maxY - minY)
+
+def plateColumns(count: int) -> int:
+    """The columns of Bambu Studio's grid of plates"""
+    return math.ceil(math.sqrt(count) - 1e-9) if count > 0 else 1
+
+def plateOrigin(plate: int, count: int, bed: tuple[float, float]) -> tuple[float, float]:
+    """Where the plate's corner is of count plates, numbered from 0, rows going toward -y"""
+    columns = plateColumns(count)
+    return ((plate % columns) * bed[0] * (1 + PLATE_GAP), -(plate // columns) * bed[1] * (1 + PLATE_GAP))
+
+def placeOnBeds(objects: list[MeshObject], placements: list, bed: tuple[float, float]) -> list[MeshObject]:
+    """
+    Each standing on the plate of its bed, with its footprint's corner where its placement puts it, a quarter turned
+    counterclockwise when it says so, see bedPacking
+    """
+    count = max((placement.bed for placement in placements), default=-1) + 1
+    placed = []
+    for (meshObject, placement) in zip(objects, placements):
+        if len(meshObject.vertices) == 0:
+            placed.append(meshObject)
+            continue
+        vertices = [(-y, x, z) for (x, y, z) in meshObject.vertices] if placement.turned else meshObject.vertices
+        (minX, minY, _, _, bottom) = _bounds(vertices)
+        (originX, originY) = plateOrigin(placement.bed, count, bed)
+        shiftX = originX + placement.x - minX
+        shiftY = originY + placement.y - minY
+        placed.append(dataclasses.replace(meshObject, vertices=[(x + shiftX, y + shiftY, z - bottom) for (x, y, z) in vertices]))
+    return placed
+
+def modelSettings(objects: list[MeshObject], plates: list[int]) -> str:
+    """Bambu Studio's and OrcaSlicer's plates, numbered from 0, and the objects on each by their id in the model"""
+    lines = ['<?xml version="1.0" encoding="UTF-8"?>', '<config>']
+    for (index, meshObject) in enumerate(objects):
+        lines += [f' <object id="{index + 1}">', f'  <metadata key="name" value={quoteattr(meshObject.name)}/>', ' </object>']
+    for plate in range(max(plates, default=-1) + 1):
+        lines += [' <plate>', f'  <metadata key="plater_id" value="{plate + 1}"/>']
+        for (index, objectPlate) in enumerate(plates):
+            if objectPlate == plate:
+                lines += ['  <model_instance>', f'   <metadata key="object_id" value="{index + 1}"/>', '   <metadata key="instance_id" value="0"/>', '  </model_instance>']
+        lines.append(' </plate>')
+    lines.append('</config>')
+    return '\n'.join(lines)
 
 def _number(value: float) -> str:
     text = f'{value:.4f}'.rstrip('0').rstrip('.')
@@ -112,11 +177,16 @@ def facetsAnnotation(objects: list[MeshObject], filament: int) -> str:
         for (index, meshObject) in enumerate(objects)
     ])
 
-def write(path: str, objects: list[MeshObject], filament: int | None, title: str = '', version: str = ''):
-    """The objects in one file placed on the plate, see placeOnPlate, painted with the filament unless it's none, see modelXml"""
+def write(path: str, objects: list[MeshObject], filament: int | None, title: str = '', version: str = '', plates: list[int] | None = None):
+    """
+    The objects in one file where they are, see placeOnPlate and placeOnBeds, painted with the filament unless it's
+    none, see modelXml. With the plate of each object, see modelSettings
+    """
     with zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED) as package:
         package.writestr('[Content_Types].xml', CONTENT_TYPES)
         package.writestr('_rels/.rels', RELATIONSHIPS)
-        package.writestr('3D/3dmodel.model', modelXml(placeOnPlate(objects), filament, title, version))
+        package.writestr('3D/3dmodel.model', modelXml(objects, filament, title, version))
+        if plates is not None:
+            package.writestr(MODEL_SETTINGS_PATH, modelSettings(objects, plates))
         if filament is not None:
             package.writestr(FACETS_ANNOTATION_PATH, facetsAnnotation(objects, filament))

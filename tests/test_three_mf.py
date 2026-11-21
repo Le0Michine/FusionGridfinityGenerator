@@ -59,14 +59,91 @@ def test_objects_keep_their_layout_around_the_plate_middle():
     placed = threeMf.placeOnPlate([cube("a", x=0), cube("b", x=20)])
     xs = [x for meshObject in placed for (x, _, _) in meshObject.vertices]
     ys = [y for meshObject in placed for (_, y, _) in meshObject.vertices]
-    assert (min(xs) + max(xs)) / 2 == pytest.approx(threeMf.PLATE_CENTER[0])
-    assert (min(ys) + max(ys)) / 2 == pytest.approx(threeMf.PLATE_CENTER[1])
+    assert (min(xs) + max(xs)) / 2 == pytest.approx(threeMf.DEFAULT_BED[0] / 2)
+    assert (min(ys) + max(ys)) / 2 == pytest.approx(threeMf.DEFAULT_BED[1] / 2)
     assert min(x for (x, _, _) in placed[1].vertices) - min(x for (x, _, _) in placed[0].vertices) == pytest.approx(20)
 
 
 def test_each_object_stands_on_the_plate():
     placed = threeMf.placeOnPlate([cube("low", z=-5), cube("high", x=20, z=30)])
     assert [min(z for (_, _, z) in meshObject.vertices) for meshObject in placed] == [0, 0]
+
+
+def test_objects_go_around_the_middle_of_the_bed_given():
+    placed = threeMf.placeOnPlate([cube("a")], (180, 200))
+    assert threeMf.footprint(placed[0]) == (10, 10)
+    assert min(x for (x, _, _) in placed[0].vertices) == pytest.approx(85)
+    assert min(y for (_, y, _) in placed[0].vertices) == pytest.approx(95)
+
+
+# ---------------------------------------------------------------------------
+# placeOnBeds
+# ---------------------------------------------------------------------------
+
+def box(name, width, length, z=0.0):
+    """A flat box with its corner at -5, -5"""
+    vertices = [(-5 + dx, -5 + dy, z + dz) for dz in (0, 1) for dy in (0, length) for dx in (0, width)]
+    return threeMf.MeshObject(name, vertices, [(0, 2, 1)])
+
+
+def bounds(meshObject):
+    xs = [x for (x, _, _) in meshObject.vertices]
+    ys = [y for (_, y, _) in meshObject.vertices]
+    return (min(xs), min(ys), max(xs), max(ys), min(z for (_, _, z) in meshObject.vertices))
+
+
+def test_plates_fill_a_grid_of_about_as_many_columns_as_rows():
+    assert [threeMf.plateColumns(count) for count in range(1, 11)] == [1, 2, 2, 2, 3, 3, 3, 3, 3, 4]
+
+
+def test_plates_are_a_fifth_of_the_bed_apart_rows_going_down():
+    # as Bambu Studio put the objects of three plates of a 256 mm bed
+    assert threeMf.plateOrigin(0, 3, (256, 256)) == (0, 0)
+    assert threeMf.plateOrigin(1, 3, (256, 256)) == pytest.approx((307.2, 0))
+    assert threeMf.plateOrigin(2, 3, (256, 256)) == pytest.approx((0, -307.2))
+
+
+def test_objects_go_to_their_placements_on_their_plates():
+    placements = [_placement(0, 10, 20, False), _placement(1, 30, 40, False)]
+    placed = threeMf.placeOnBeds([box("a", 50, 20, z=7), box("b", 50, 20)], placements, (200, 100))
+    assert bounds(placed[0]) == pytest.approx((10, 20, 60, 40, 0))
+    assert bounds(placed[1]) == pytest.approx((240 + 30, 40, 240 + 80, 60, 0))
+
+
+def test_a_turned_object_is_a_quarter_turned_counterclockwise():
+    original = box("a", 50, 20)
+    corner = original.vertices[1]
+    placed = threeMf.placeOnBeds([original], [_placement(0, 10, 20, True)], (200, 100))[0]
+    assert bounds(placed) == pytest.approx((10, 20, 30, 70, 0))
+    # the corner at +x, -y of the box ends at +x, +y
+    assert placed.vertices[1][:2] == pytest.approx((30, 70))
+    assert corner[:2] == (45, -5)
+
+
+def _placement(bed, x, y, turned):
+    import types
+    return types.SimpleNamespace(bed=bed, x=x, y=y, turned=turned, fits=True)
+
+
+def test_the_slicers_get_the_objects_of_each_plate(tmp_path):
+    path = tmp_path / "bins.3mf"
+    threeMf.write(str(path), [cube("a"), cube('b & "c"'), cube("d")], None, plates=[0, 1, 0])
+    with zipfile.ZipFile(path) as package:
+        settings = ElementTree.fromstring(package.read(threeMf.MODEL_SETTINGS_PATH))
+    names = {item.get("id"): item.find("metadata").get("value") for item in settings.findall("object")}
+    assert names == {"1": "a", "2": 'b & "c"', "3": "d"}
+    plates = [
+        (plate.find("metadata[@key='plater_id']").get("value"), [instance.find("metadata[@key='object_id']").get("value") for instance in plate.findall("model_instance")])
+        for plate in settings.findall("plate")
+    ]
+    assert plates == [("1", ["1", "3"]), ("2", ["2"])]
+
+
+def test_no_plates_without_them(tmp_path):
+    path = tmp_path / "bins.3mf"
+    threeMf.write(str(path), [cube("a")], None)
+    with zipfile.ZipFile(path) as package:
+        assert threeMf.MODEL_SETTINGS_PATH not in package.namelist()
 
 
 # ---------------------------------------------------------------------------

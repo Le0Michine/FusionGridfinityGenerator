@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../../../lib/ui/html/dialog.css">
+<style>
+    :root {
+        --text: #4a4a4a;
+        --muted: #8a8a8a;
+        --error: #d0021b;
+        --bed: #e2e2e2;
+        --bed-margin: #c9c9c9;
+        --bed-outline: #8a8a8a;
+        --body: #4e79a7;
+        --body-outline: #1f344d;
+        --too-big: #d0021b;
+        --kept: rgba(208, 140, 2, 0.25);
+        --kept-outline: #b07a10;
+        --label: #ffffff;
+    }
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --text: #d6d6d6;
+            --muted: #9a9a9a;
+            --error: #ff6b6b;
+            --bed: #5c5c5c;
+            --bed-margin: #454545;
+            --bed-outline: #9a9a9a;
+            --body: #5b8cc0;
+            --body-outline: #a9c6e8;
+            --too-big: #ff6b6b;
+            --kept: rgba(240, 170, 60, 0.25);
+            --kept-outline: #e0a040;
+            --label: #ffffff;
+        }
+    }
+    #drawing svg {
+        display: block;
+        margin: 0 auto;
+        /* the panel can show less than the page reports, the drawing then shrinks to it, keeping its shape */
+        max-width: 100%;
+        height: auto;
+    }
+    /* the whole bed, what its margin leaves shows as a darker band along its edges */
+    .bed {
+        fill: var(--bed-margin);
+        stroke: var(--bed-outline);
+    }
+    /* the bed less its margin, where the bodies are packed */
+    .margin {
+        fill: var(--bed);
+        pointer-events: none;
+    }
+    .body {
+        fill: var(--body);
+        stroke: var(--body-outline);
+        stroke-width: 0.75px;
+    }
+    /* a baseplate's grid cells, the pockets bins sit in */
+    .cell {
+        /* darker than the body it's in, in either theme */
+        fill: #000000;
+        fill-opacity: 0.25;
+        stroke: var(--body-outline);
+        stroke-width: 0.75px;
+        stroke-opacity: 0.8;
+        pointer-events: none;
+    }
+    /* the purge tower's square and what the printer keeps free, nothing is packed there */
+    .kept {
+        fill: var(--kept);
+        stroke: var(--kept-outline);
+        stroke-width: 0.75px;
+        stroke-dasharray: 2 2;
+    }
+    /* on an area kept free, there was no room beside it */
+    .body.not-clear {
+        stroke: var(--too-big);
+        stroke-width: 1.5px;
+    }
+    /* bigger than the bed, it reaches past it */
+    .body.too-big {
+        fill: var(--too-big);
+        fill-opacity: 0.6;
+    }
+    .label {
+        fill: var(--label);
+        font-size: 10px;
+        text-anchor: middle;
+        dominant-baseline: central;
+        pointer-events: none;
+    }
+    .plate-number {
+        fill: var(--muted);
+        font-size: 11px;
+        text-anchor: middle;
+    }
+    #caption {
+        margin-top: 6px;
+        text-align: center;
+        line-height: 1.5;
+    }
+    #caption .muted {
+        color: var(--muted);
+    }
+    .error {
+        color: var(--muted);
+        text-align: center;
+        padding-top: 8px;
+    }
+</style>
+</head>
+<body>
+<div id="drawing"></div>
+<div id="caption"></div>
+<script src="../../../lib/ui/html/fusionBridge.js"></script>
+<script>
+    // spare room below the caption, so its last line isn't cut off by rounding
+    const CAPTION_SPACING = 4;
+    // between plates, as a part of the bed
+    const PLATE_GAP = 0.12;
+    // above each plate of several, for its number
+    const NUMBER_HEIGHT = 14;
+    // a body this small at the drawing scale has no room for its label, its tooltip still tells it
+    const MIN_LABEL_WIDTH = 20;
+    const MIN_LABEL_HEIGHT = 12;
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+
+    function svgElement(name, attributes) {
+        const element = document.createElementNS(SVG_NS, name);
+        for (const [key, value] of Object.entries(attributes)) {
+            element.setAttribute(key, value);
+        }
+        return element;
+    }
+
+    function withTitle(element, text) {
+        const title = svgElement('title', {});
+        title.textContent = text;
+        element.appendChild(title);
+        return element;
+    }
+
+    // a cell as small as this has no room for the inset that shows it's a pocket
+    const MIN_CELL = 5;
+    const CELL_INSET = 1.5;
+
+    // whole cells along each side from the body's corner, a part cell left over at the far side as baseplates have it
+    function drawCells(svg, cells, x, y, width, height) {
+        const [across, along] = cells;
+        if (!(across > 0 && along > 0)) {
+            return;
+        }
+        const cellWidth = width / across;
+        const cellHeight = height / along;
+        if (cellWidth < MIN_CELL || cellHeight < MIN_CELL) {
+            return;
+        }
+        for (let column = 0; column < across; column++) {
+            for (let row = 0; row < along; row++) {
+                // y is flipped, the first row is at the bottom
+                const cellLeft = x + column * cellWidth;
+                const cellTop = y + height - (row + 1) * cellHeight;
+                const right = Math.min(cellLeft + cellWidth, x + width);
+                const top = Math.max(cellTop, y);
+                svg.appendChild(svgElement('rect', {
+                    class: 'cell', x: cellLeft + CELL_INSET, y: top + CELL_INSET,
+                    width: Math.max(right - cellLeft - CELL_INSET * 2, 0), height: Math.max(cellTop + cellHeight - top - CELL_INSET * 2, 0), rx: 1,
+                }));
+            }
+        }
+    }
+
+    // plates in a grid of about as many columns as rows, as the slicers lay them out
+    function render(data) {
+        const drawing = document.getElementById('drawing');
+        const caption = document.getElementById('caption');
+        drawing.replaceChildren();
+        caption.replaceChildren();
+        if (data.error) {
+            const error = document.createElement('div');
+            error.className = 'error';
+            error.textContent = data.error;
+            caption.appendChild(error);
+            return;
+        }
+
+        // the caption goes first, the drawing takes the height it leaves, long lines may wrap
+        data.caption.forEach((line, index) => {
+            const row = document.createElement('div');
+            if (index > 0) {
+                row.className = 'muted';
+            }
+            row.textContent = line;
+            caption.appendChild(row);
+        });
+        const captionStyle = window.getComputedStyle(caption);
+        const captionHeight = caption.offsetHeight + parseFloat(captionStyle.marginTop) + CAPTION_SPACING;
+
+        // data is in mm with Y pointing up, each plate is scaled to fit and flipped
+        const [bedWidth, bedLength] = data.bed;
+        const count = data.plates.length;
+        const columns = Math.ceil(Math.sqrt(count) - 1e-9);
+        const rows = Math.ceil(count / columns);
+        const numberHeight = count > 1 ? NUMBER_HEIGHT : 0;
+        const maxWidth = Math.max(document.documentElement.clientWidth - 4, 40);
+        const maxHeight = Math.max(document.documentElement.clientHeight - captionHeight - 2, 40);
+        const gapX = bedWidth * PLATE_GAP;
+        const gapY = bedLength * PLATE_GAP;
+        const scale = Math.min(
+            maxWidth / (columns * bedWidth + (columns - 1) * gapX),
+            (maxHeight - rows * numberHeight) / (rows * bedLength + (rows - 1) * gapY),
+        );
+        const plateWidth = bedWidth * scale;
+        const plateHeight = bedLength * scale;
+        const width = columns * plateWidth + (columns - 1) * gapX * scale;
+        const height = rows * (plateHeight + numberHeight) + (rows - 1) * gapY * scale;
+        const svg = svgElement('svg', { width: width + 2, height: height + 2, viewBox: `-1 -1 ${width + 2} ${height + 2}` });
+        drawing.appendChild(svg);
+
+        data.plates.forEach((bodies, plateIndex) => {
+            const left = (plateIndex % columns) * (plateWidth + gapX * scale);
+            const top = Math.floor(plateIndex / columns) * (plateHeight + numberHeight + gapY * scale) + numberHeight;
+            if (count > 1) {
+                const number = svgElement('text', { class: 'plate-number', x: left + plateWidth / 2, y: top - 4 });
+                number.textContent = `Plate ${plateIndex + 1}`;
+                svg.appendChild(number);
+            }
+            svg.appendChild(withTitle(
+                svgElement('rect', { class: 'bed', x: left, y: top, width: plateWidth, height: plateHeight, rx: 3 }),
+                `Plate ${plateIndex + 1}, ${bodies.length} bod${bodies.length === 1 ? 'y' : 'ies'}`,
+            ));
+            // the margin is a few pixels at this scale, at least one keeps it visible
+            const margin = data.margin > 0 ? Math.max(data.margin * scale, 1) : 0;
+            if (plateWidth > margin * 2 && plateHeight > margin * 2) {
+                svg.appendChild(svgElement('rect', { class: 'margin', x: left + margin, y: top + margin, width: plateWidth - margin * 2, height: plateHeight - margin * 2, rx: margin > 0 ? 1 : 3 }));
+            }
+            for (const kept of data.areas || []) {
+                const [x0, y0, x1, y1] = kept.area;
+                svg.appendChild(withTitle(
+                    svgElement('rect', { class: 'kept', x: left + x0 * scale, y: top + plateHeight - y1 * scale, width: (x1 - x0) * scale, height: (y1 - y0) * scale }),
+                    `${kept.name}, kept free`,
+                ));
+            }
+            for (const body of bodies) {
+                const x = left + body.x * scale;
+                const y = top + plateHeight - (body.y + body.length) * scale;
+                const bodyWidth = Math.max(body.width * scale, 1);
+                const bodyHeight = Math.max(body.length * scale, 1);
+                svg.appendChild(withTitle(
+                    svgElement('rect', { class: ['body', body.kind, body.fits ? '' : 'too-big', body.clear === false ? 'not-clear' : ''].filter(Boolean).join(' '), x: x, y: y, width: bodyWidth, height: bodyHeight, rx: 1.5 }),
+                    `${body.name}${body.kind ? `, ${body.kind}` : ''}, ${body.width.toFixed(1)} x ${body.length.toFixed(1)} mm${body.turned ? ', turned' : ''}${body.fits ? '' : ', bigger than the bed'}${body.clear === false ? ', on an area kept free' : ''}`,
+                ));
+                if (body.cells) {
+                    drawCells(svg, body.cells, x, y, bodyWidth, bodyHeight);
+                }
+                if (body.label && bodyWidth >= MIN_LABEL_WIDTH && bodyHeight >= MIN_LABEL_HEIGHT) {
+                    const label = svgElement('text', { class: 'label', x: x + bodyWidth / 2, y: y + bodyHeight / 2 });
+                    label.textContent = body.label;
+                    svg.appendChild(label);
+                }
+            }
+        });
+    }
+
+    let lastData = null;
+
+    function update(data) {
+        lastData = data;
+        render(lastData);
+    }
+
+    // labels are laid out with the font, so they're drawn again once it loads
+    fusionBridge.connect(update, () => {
+        if (lastData) {
+            render(lastData);
+        }
+    });
+</script>
+</body>
+</html>

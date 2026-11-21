@@ -146,8 +146,8 @@ Right-click a generated bin or baseplate for its settings, to rebuild it in plac
 
 ### Export
 Right-click a bin or baseplate, or a component holding them, and pick Gridfinity export. It exports the selected bodies, or every visible bin and baseplate with All Gridfinity bodies, into:
-- **3MF**, one file with all of them, as they're laid out in the design. With Color label text, the text of outlined labels is painted with the label color index, so Bambu Studio, OrcaSlicer and PrusaSlicer print it in that color of their list without painting it by hand
-- **STL** or **STEP**, a file of each body, named after it, at the origin with its bottom at zero whatever its place in the design
+- **3MF**. **Packed on print beds** stands each bin and baseplate on its bottom as it was built, even in a design modeled with Y up, and packs them close, Spacing apart and a Bed margin from its edges, on as many plates of the chosen printer's bed as they need. **3MF files** puts them in one file with all plates, which Bambu Studio and OrcaSlicer open on their plates, or a file per plate, which every slicer opens as laid out without changing its settings. Bambu Lab P1 and X1 printers keep their nozzle wiping corner free. **Purge tower** keeps room for it on every plate, where Bambu Studio puts it for Bambu Lab printers, at the back right for others. It's on when bins have label text to color. **As placed in the design** keeps them as they're laid out in one file. With **Color text**, the text of outlined labels is painted with the label color index, so Bambu Studio, OrcaSlicer and PrusaSlicer print it in that color of their list without painting it by hand.
+- **STL** or **STEP**, a file of each body, named after it, at the origin standing on its bottom whatever its place in the design
 
 3MF and STL bodies are meshed at Fusion's very high quality
 

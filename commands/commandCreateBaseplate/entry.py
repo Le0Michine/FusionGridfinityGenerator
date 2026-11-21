@@ -32,7 +32,7 @@ from .baseplateBuilder import (
     BASEPLATE_TYPE_FULL,
     BASEPLATE_TYPE_SKELETONIZED,
 )
-from . import printBeds
+from ...lib import printBeds
 from ...lib.ui.commandUiState import CommandUiState
 from ...lib.ui.defaultsButtons import addDefaultsButtonRow, defaultsButtonsHandlers, DEFAULTS_SAVE, DEFAULTS_FACTORY_RESET
 from ...lib.ui.buttonRow import addButtonRow

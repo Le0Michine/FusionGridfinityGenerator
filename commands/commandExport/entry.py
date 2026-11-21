@@ -1,5 +1,6 @@
 import adsk.core, adsk.fusion
 import dataclasses
+import math
 import os
 import re
 
@@ -7,9 +8,13 @@ from ...lib import tagUtils
 from ...lib import labelFaces
 from ...lib import threeMf
 from ...lib import stlFile
+from ...lib import bedPacking
+from ...lib import printBeds
 from ...lib import configUtils
 from ...lib import fusion360utils as futil
+from ...lib.ui import browserPages
 from ...lib.gridfinityUtils import labelGenerator
+from ...lib.gridfinityUtils import compartmentLayout
 from ... import config
 
 app = adsk.core.Application.get()
@@ -30,6 +35,17 @@ FILAMENT_INPUT_ID = 'export_filament'
 FOLDER_INPUT_ID = 'export_folder'
 BROWSE_INPUT_ID = 'export_browse'
 FILE_NAME_INPUT_ID = 'export_file_name'
+ARRANGE_INPUT_ID = 'export_arrange'
+BED_PRESET_INPUT_ID = 'export_bed_preset'
+BED_WIDTH_INPUT_ID = 'export_bed_width'
+BED_LENGTH_INPUT_ID = 'export_bed_length'
+SPACING_INPUT_ID = 'export_spacing'
+MARGIN_INPUT_ID = 'export_margin'
+PURGE_INPUT_ID = 'export_purge'
+KEEP_PURGE_INPUT_ID = 'export_keep_purge'
+FILES_INPUT_ID = 'export_files'
+PLATES_INPUT_ID = 'export_plates'
+PLATES_HTML_URL = browserPages.pageUrl(__file__, 'plates.html')
 SUMMARY_INPUT_ID = 'export_summary'
 
 FORMAT_3MF = '3MF'
@@ -37,6 +53,12 @@ FORMAT_STL = 'STL'
 FORMAT_STEP = 'STEP'
 FORMATS = [FORMAT_3MF, FORMAT_STL, FORMAT_STEP]
 FORMAT_EXTENSIONS = {FORMAT_3MF: '3mf', FORMAT_STL: 'stl', FORMAT_STEP: 'step'}
+ARRANGE_PACKED = 'Packed on print beds'
+ARRANGE_AS_PLACED = 'As placed in the design'
+ARRANGEMENTS = [ARRANGE_PACKED, ARRANGE_AS_PLACED]
+FILES_ONE = 'One file with all plates'
+FILES_PER_PLATE = 'A file per plate'
+FILES_CHOICES = [FILES_ONE, FILES_PER_PLATE]
 # files named in the question whether to replace them, the rest counted
 MAX_LISTED_FILES = 8
 # the 3MF file of more than one body
@@ -50,10 +72,27 @@ PAINT_TOLERANCE = 1e-4
 CONFIG_FOLDER_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'commandConfig')
 CONFIG_SECTION = 'Export'
 DEFAULT_FILAMENT = 2
+DEFAULT_BED = printBeds.presetLabel('Prusa CORE One')
+# mm, between the bodies packed on a bed
+DEFAULT_SPACING = 1.0
+MIN_SPACING = 0.5
+MAX_SPACING = 50.0
+SPACING_STEP = 0.5
+# mm, kept clear along the bed's edges
+DEFAULT_MARGIN = 5.0
+# mm, the side of the square kept free for the purge tower when label text is colored, Bambu's tower is 35 mm wide,
+# the rest is room for its brim and for moving it
+DEFAULT_PURGE = 50.0
 
 # the folder chosen in the dialog open now, and whether its file name was typed or still follows the bodies
 dialogFolder = ''
 isFileNameTyped = False
+# a preset's width alone doesn't match it yet, so its change mustn't switch to custom
+isApplyingBedPreset = False
+# the purge tower checkbox follows whether label text is colored until it's set by hand, its value set by the dialog
+# fires a change too
+isKeepPurgeSet = False
+isApplyingKeepPurge = False
 
 local_handlers = []
 markingMenuHandler = None
@@ -75,6 +114,43 @@ class ExportItem:
         settings = tag[1].get('config')
         style = settings.get('labelStyle', labelGenerator.LABEL_STYLE_OUTLINE) if isinstance(settings, dict) else labelGenerator.LABEL_STYLE_OUTLINE
         return style == labelGenerator.LABEL_STYLE_OUTLINE
+
+    @property
+    def hasLabelText(self) -> bool:
+        """A bin built with outline labels on its tab, text or an icon, its own or a compartment's"""
+        if not self.hasOutlineLabels:
+            return False
+        settings = tagUtils.readBodyTag(self.body)[1].get('config')
+        if not isinstance(settings, dict) or not settings.get('hasTab'):
+            return False
+        if str(settings.get('labelText', '')).strip() or settings.get('labelIcon', labelGenerator.LABEL_ICON_NONE) != labelGenerator.LABEL_ICON_NONE:
+            return True
+        pockets = settings.get('compartmentPockets')
+        return isinstance(pockets, list) and any(
+            isinstance(pocket, dict) and (str(pocket.get('label', '')).strip() or pocket.get('icon', compartmentLayout.DEFAULT_ICON) not in (compartmentLayout.DEFAULT_ICON, labelGenerator.LABEL_ICON_NONE))
+            for pocket in pockets
+        )
+
+    @property
+    def isGridfinity(self) -> bool:
+        return tagUtils.readBodyTag(self.body) is not None
+
+@dataclasses.dataclass
+class Beds:
+    # mm
+    size: tuple[float, float]
+    # mm between the bodies, none puts them as placed in the design around the middle of one bed
+    spacing: float | None
+    # mm kept clear along the bed's edges, packed only
+    margin: float = 0.0
+    # mm, x0, y0, x1, y1 on the bed, the areas the printer keeps free and the purge tower's square, packed only
+    excluded: list[tuple[float, float, float, float]] = dataclasses.field(default_factory=list)
+    purge: tuple[float, float, float, float] | None = None
+    # a 3MF file of each plate instead of one with all of them
+    perPlate: bool = False
+
+    def kept(self) -> list[tuple[float, float, float, float]]:
+        return self.excluded + ([self.purge] if self.purge is not None else [])
 
 def start():
     global markingMenuHandler
@@ -191,36 +267,66 @@ def readChoices() -> dict:
         filament = min(max(int(section.get('colorIndex', DEFAULT_FILAMENT)), 1), threeMf.MAX_FILAMENT)
     except ValueError:
         filament = DEFAULT_FILAMENT
+    arrange = section.get('arrange', ARRANGE_PACKED)
+    files = section.get('files', FILES_ONE)
+    bed = section.get('bed', DEFAULT_BED)
+    (presetWidth, presetLength) = printBeds.PRINT_BED_PRESETS.get(bed, printBeds.PRINT_BED_PRESETS[DEFAULT_BED])
+    def number(key: str, default: float, isZeroKept: bool = False) -> float:
+        try:
+            value = float(section.get(key, default))
+        except ValueError:
+            return default
+        return value if value > 0 or (isZeroKept and value == 0) else default
     return {
         'folder': folder,
         'format': format if format in FORMATS else FORMAT_3MF,
         'paint': section.get('paint', 'yes') != 'no',
         'filament': filament,
+        'arrange': arrange if arrange in ARRANGEMENTS else ARRANGE_PACKED,
+        # a preset gone from the list since keeps its size as custom
+        'bed': bed if bed in printBeds.PRINT_BED_PRESETS else printBeds.PRINT_BED_CUSTOM,
+        'bedWidth': number('bedWidth', presetWidth),
+        'bedLength': number('bedLength', presetLength),
+        'spacing': min(max(number('spacing', DEFAULT_SPACING), MIN_SPACING), MAX_SPACING),
+        'margin': number('margin', DEFAULT_MARGIN, True),
+        'purge': number('purge', DEFAULT_PURGE, True),
+        'files': files if files in FILES_CHOICES else FILES_ONE,
     }
 
-def saveChoices(folder: str, format: str, paint: bool, filament: int):
+def saveChoices(folder: str, format: str, paint: bool, filament: int, arrange: str, bed: str, beds: Beds, purge: float, files: str):
     addinConfig = configUtils.readConfig(CONFIG_FOLDER_PATH)
+    previous = addinConfig[CONFIG_SECTION] if addinConfig.has_section(CONFIG_SECTION) else {}
     addinConfig[CONFIG_SECTION] = {
         'folder': folder,
         'format': format,
         'paint': 'yes' if paint else 'no',
         'colorIndex': str(filament),
+        'arrange': arrange,
+        'bed': bed,
+        'bedWidth': f'{beds.size[0]:g}',
+        'bedLength': f'{beds.size[1]:g}',
+        # kept while the bodies go as placed
+        'spacing': f'{beds.spacing:g}' if beds.spacing is not None else previous.get('spacing', f'{DEFAULT_SPACING:g}'),
+        'margin': f'{beds.margin:g}' if beds.spacing is not None else previous.get('margin', f'{DEFAULT_MARGIN:g}'),
+        'purge': f'{purge:g}',
+        'files': files,
     }
     if not configUtils.writeConfig(addinConfig, CONFIG_FOLDER_PATH):
         futil.log(f'{CMD_NAME} choices not saved to {CONFIG_FOLDER_PATH}')
 
 def command_created(args: adsk.core.CommandCreatedEventArgs):
-    global dialogFolder, isFileNameTyped
+    global dialogFolder, isFileNameTyped, isKeepPurgeSet
     command = args.command
     inputs = command.commandInputs
     choices = readChoices()
     dialogFolder = choices['folder']
     isFileNameTyped = False
+    isKeepPurgeSet = False
     design = adsk.fusion.Design.cast(app.activeProduct)
     # the whole design when its root was picked
     allInput = inputs.addBoolValueInput(ALL_INPUT_ID, 'All Gridfinity bodies', True, '', isRootSelected(design))
-    allInput.tooltip = 'Selects every visible bin and baseplate of the design, off goes back to what was selected'
-    selectionInput = inputs.addSelectionInput(SELECTION_INPUT_ID, 'Bodies', 'Bins, baseplates or any other bodies to export')
+    allInput.tooltip = 'Selects all visible bins and baseplates'
+    selectionInput = inputs.addSelectionInput(SELECTION_INPUT_ID, 'Bodies', 'Bins and baseplates')
     # bodies only, Fusion puts a selected component in too as the command starts, beside its bodies
     selectionInput.addSelectionFilter(adsk.core.SelectionCommandInput.SolidBodies)
     selectionInput.setSelectionLimits(0, 0)
@@ -228,17 +334,47 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     formatInput = inputs.addDropDownCommandInput(FORMAT_INPUT_ID, 'Format', adsk.core.DropDownStyles.TextListDropDownStyle)
     for name in FORMATS:
         formatInput.listItems.add(name, name == choices['format'])
-    formatInput.tooltip = '3MF puts every body in one file, STL and STEP give each body a file of its own in the folder'
+    formatInput.tooltip = 'Export file format'
     folderInput = inputs.addTextBoxCommandInput(FOLDER_INPUT_ID, 'Folder', dialogFolder, 2, True)
     folderInput.tooltip = 'Where the files go, the last folder chosen is kept'
     browseInput = inputs.addBoolValueInput(BROWSE_INPUT_ID, '', False, '', False)
     browseInput.text = 'Choose folder...'
     fileNameInput = inputs.addStringValueInput(FILE_NAME_INPUT_ID, 'File name', '')
-    fileNameInput.tooltip = 'The 3MF file\'s name, the body\'s name for one body'
-    paintInput = inputs.addBoolValueInput(PAINT_INPUT_ID, 'Color label text', True, '', choices['paint'])
-    paintInput.tooltip = 'Assigns a color index to the text on outline labels so the slicer paints it automatically'
+    fileNameInput.tooltip = 'Export file name'
+    arrangeInput = inputs.addDropDownCommandInput(ARRANGE_INPUT_ID, 'Arrange', adsk.core.DropDownStyles.TextListDropDownStyle)
+    for name in ARRANGEMENTS:
+        arrangeInput.listItems.add(name, name == choices['arrange'])
+    arrangeInput.tooltip = 'Keep design arrangement or split by print plates'
+    bedInput = inputs.addDropDownCommandInput(BED_PRESET_INPUT_ID, 'Printer', adsk.core.DropDownStyles.TextListDropDownStyle)
+    for name in [printBeds.PRINT_BED_CUSTOM] + list(printBeds.PRINT_BED_PRESETS.keys()):
+        bedInput.listItems.add(name, name == choices['bed'])
+    bedInput.tooltip = 'The bed size the plates are filled to'
+    units = design.unitsManager.defaultLengthUnits if design is not None else 'mm'
+    for (inputId, name, value) in ((BED_WIDTH_INPUT_ID, 'Bed width, X', choices['bedWidth']), (BED_LENGTH_INPUT_ID, 'Bed length, Y', choices['bedLength'])):
+        bedSizeInput = inputs.addValueInput(inputId, name, units, adsk.core.ValueInput.createByReal(value / 10))
+        bedSizeInput.minimumValue = 0
+        bedSizeInput.isMinimumInclusive = False
+    # a number of mm whatever the design's units, it steps by half a millimeter
+    spacingInput = inputs.addFloatSpinnerCommandInput(SPACING_INPUT_ID, 'Spacing (mm)', '', MIN_SPACING, MAX_SPACING, SPACING_STEP, choices['spacing'])
+    spacingInput.tooltip = 'The space between bodies packed on a plate'
+    marginInput = inputs.addValueInput(MARGIN_INPUT_ID, 'Bed margin', units, adsk.core.ValueInput.createByReal(choices['margin'] / 10))
+    marginInput.minimumValue = 0
+    marginInput.tooltip = 'The space kept clear along every edge of the bed'
+    keepPurgeInput = inputs.addBoolValueInput(KEEP_PURGE_INPUT_ID, 'Purge tower', True, '', False)
+    keepPurgeInput.tooltip = 'Leave room for the purge tower'
+    purgeInput = inputs.addValueInput(PURGE_INPUT_ID, 'Purge tower area', units, adsk.core.ValueInput.createByReal(choices['purge'] / 10))
+    purgeInput.minimumValue = 0
+    purgeInput.isMinimumInclusive = False
+    purgeInput.tooltip = 'The side of the square kept free for the purge tower'
+    filesInput = inputs.addDropDownCommandInput(FILES_INPUT_ID, '3MF files', adsk.core.DropDownStyles.TextListDropDownStyle)
+    for name in FILES_CHOICES:
+        filesInput.listItems.add(name, name == choices['files'])
+    filesInput.tooltip = '1 file for everything or 1 file for each plate'
+    inputs.addBrowserCommandInput(PLATES_INPUT_ID, '', PLATES_HTML_URL, 240, 240)
+    paintInput = inputs.addBoolValueInput(PAINT_INPUT_ID, 'Color text', True, '', choices['paint'])
+    paintInput.tooltip = 'Assign different color to use on text'
     filamentInput = inputs.addIntegerSpinnerCommandInput(FILAMENT_INPUT_ID, 'Label color index', 1, threeMf.MAX_FILAMENT, 1, choices['filament'])
-    filamentInput.tooltip = 'The slicer\'s color the label text prints in, counting from 1 as the slicer lists them'
+    filamentInput.tooltip = 'Pick color/extruder index to be used for text on labels'
     inputs.addTextBoxCommandInput(SUMMARY_INPUT_ID, '', '', 2, True)
     # as wide as the bin dialog, the minimum widens one Fusion kept narrower from before
     command.setDialogInitialSize(450, 400)
@@ -246,10 +382,13 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     updateInputs(inputs)
     futil.add_handler(command.inputChanged, command_input_changed, local_handlers=local_handlers)
     futil.add_handler(command.execute, command_execute, local_handlers=local_handlers)
+    futil.add_handler(command.incomingFromHTML, command_incoming_from_html, local_handlers=local_handlers)
     futil.add_handler(command.destroy, command_destroy, local_handlers=local_handlers)
 
 def command_input_changed(args: adsk.core.InputChangedEventArgs):
-    global dialogFolder, isFileNameTyped
+    global dialogFolder, isFileNameTyped, isApplyingBedPreset, isKeepPurgeSet
+    if args.input.id == KEEP_PURGE_INPUT_ID and not isApplyingKeepPurge:
+        isKeepPurgeSet = True
     if args.input.id == ALL_INPUT_ID:
         selectAll(args.inputs, adsk.core.BoolValueCommandInput.cast(args.input).value)
     elif args.input.id == BROWSE_INPUT_ID:
@@ -259,7 +398,32 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
             adsk.core.TextBoxCommandInput.cast(args.inputs.itemById(FOLDER_INPUT_ID)).text = folder
     elif args.input.id == FILE_NAME_INPUT_ID:
         isFileNameTyped = True
+        updateInputs(args.inputs)
+        return
+    elif args.input.id == BED_PRESET_INPUT_ID:
+        size = printBeds.presetBedSize(adsk.core.DropDownCommandInput.cast(args.input).selectedItem.name)
+        if size is not None:
+            isApplyingBedPreset = True
+            try:
+                adsk.core.ValueCommandInput.cast(args.inputs.itemById(BED_WIDTH_INPUT_ID)).value = size[0]
+                adsk.core.ValueCommandInput.cast(args.inputs.itemById(BED_LENGTH_INPUT_ID)).value = size[1]
+            finally:
+                isApplyingBedPreset = False
+    elif args.input.id in (BED_WIDTH_INPUT_ID, BED_LENGTH_INPUT_ID) and not isApplyingBedPreset:
+        # a bed size edited by hand no longer is the preset's
+        bedInput = adsk.core.DropDownCommandInput.cast(args.inputs.itemById(BED_PRESET_INPUT_ID))
+        size = printBeds.presetBedSize(bedInput.selectedItem.name)
+        if size is not None and not all(math.isclose(mm, cm * 10) for (mm, cm) in zip(dialogBeds(args.inputs).size, size)):
+            bedInput.listItems.item(0).isSelected = True
     updateInputs(args.inputs)
+    if args.input.id not in (ALL_INPUT_ID, SELECTION_INPUT_ID):
+        # kept as soon as they change, a cancelled dialog too
+        saveDialogChoices(args.inputs, dialogFolder)
+
+def command_incoming_from_html(args: adsk.core.HTMLEventArgs):
+    """The plates drawing asks for its data once loaded"""
+    inputs = args.browserCommandInput.parentCommand.commandInputs
+    browserPages.handleMessage(args, {browserPages.READY: lambda _: platesData(exportItems(inputs), dialogBeds(inputs))})
 
 def selectAll(inputs: adsk.core.CommandInputs, isAll: bool):
     """Every visible bin and baseplate in the selection, or what was selected as the dialog opened"""
@@ -287,20 +451,70 @@ def gridfinityBodies(design: adsk.fusion.Design) -> list[adsk.fusion.BRepBody]:
 def selectedFormat(inputs: adsk.core.CommandInputs) -> str:
     return adsk.core.DropDownCommandInput.cast(inputs.itemById(FORMAT_INPUT_ID)).selectedItem.name
 
+def selectedArrangement(inputs: adsk.core.CommandInputs) -> str:
+    return adsk.core.DropDownCommandInput.cast(inputs.itemById(ARRANGE_INPUT_ID)).selectedItem.name
+
+def dialogBeds(inputs: adsk.core.CommandInputs) -> Beds:
+    """The bed size and spacing in mm, rounded off the cm Fusion keeps them in"""
+    def mm(inputId: str) -> float:
+        if inputId == SPACING_INPUT_ID:
+            return round(adsk.core.FloatSpinnerCommandInput.cast(inputs.itemById(inputId)).value, 6)
+        return round(adsk.core.ValueCommandInput.cast(inputs.itemById(inputId)).value * 10, 6)
+    isPacked = selectedArrangement(inputs) == ARRANGE_PACKED
+    size = (mm(BED_WIDTH_INPUT_ID), mm(BED_LENGTH_INPUT_ID))
+    if not isPacked:
+        return Beds(size, None)
+    bedName = adsk.core.DropDownCommandInput.cast(inputs.itemById(BED_PRESET_INPUT_ID)).selectedItem.name
+    isPurgeKept = adsk.core.BoolValueCommandInput.cast(inputs.itemById(KEEP_PURGE_INPUT_ID)).value
+    purge = printBeds.purgeSquare(size, mm(PURGE_INPUT_ID), printBeds.purgeAnchor(bedName)) if isPurgeKept else None
+    perPlate = adsk.core.DropDownCommandInput.cast(inputs.itemById(FILES_INPUT_ID)).selectedItem.name == FILES_PER_PLATE
+    return Beds(size, mm(SPACING_INPUT_ID), mm(MARGIN_INPUT_ID), printBeds.excludedAreas(bedName), purge, perPlate)
+
 def updateInputs(inputs: adsk.core.CommandInputs):
-    """Painting is for 3MF only, the summary says what goes out"""
+    """Painting and arranging are for 3MF only, the summary says what goes out"""
+    global isApplyingKeepPurge
     format = selectedFormat(inputs)
+    for inputId in (ARRANGE_INPUT_ID, BED_PRESET_INPUT_ID, BED_WIDTH_INPUT_ID, BED_LENGTH_INPUT_ID, PLATES_INPUT_ID):
+        inputs.itemById(inputId).isVisible = format == FORMAT_3MF
+    isPacked = format == FORMAT_3MF and selectedArrangement(inputs) == ARRANGE_PACKED
+    for inputId in (SPACING_INPUT_ID, MARGIN_INPUT_ID, FILES_INPUT_ID):
+        inputs.itemById(inputId).isVisible = isPacked
     paintInput = adsk.core.BoolValueCommandInput.cast(inputs.itemById(PAINT_INPUT_ID))
     paintInput.isVisible = format == FORMAT_3MF
+    keepPurgeInput = adsk.core.BoolValueCommandInput.cast(inputs.itemById(KEEP_PURGE_INPUT_ID))
+    keepPurgeInput.isVisible = isPacked
+    inputs.itemById(PURGE_INPUT_ID).isVisible = isPacked and keepPurgeInput.value
     inputs.itemById(FILAMENT_INPUT_ID).isVisible = format == FORMAT_3MF and paintInput.value
     fileNameInput = adsk.core.StringValueCommandInput.cast(inputs.itemById(FILE_NAME_INPUT_ID))
     fileNameInput.isVisible = format == FORMAT_3MF
     try:
         items = exportItems(inputs)
+        if not isKeepPurgeSet:
+            # the slicer adds a purge tower to print the label text in its color
+            isKeepPurge = paintInput.value and any(item.hasLabelText for item in items)
+            if keepPurgeInput.value != isKeepPurge:
+                isApplyingKeepPurge = True
+                try:
+                    keepPurgeInput.value = isKeepPurge
+                finally:
+                    isApplyingKeepPurge = False
+            inputs.itemById(PURGE_INPUT_ID).isVisible = isPacked and keepPurgeInput.value
         if not isFileNameTyped:
             fileNameInput.value = defaultFileName(items)
-        files = 'one file' if format == FORMAT_3MF else 'a file each'
-        summary = f'{len(items)} bod{"y" if len(items) == 1 else "ies"}, {files}' if items else 'Select bodies to export'
+        # the files OK writes, the drawing tells the bodies and plates
+        extension = FORMAT_EXTENSIONS[format]
+        if format == FORMAT_3MF:
+            plates = platesData(items, dialogBeds(inputs))
+            browserPages.sendUpdate(inputs.itemById(PLATES_INPUT_ID), plates)
+            count = len(plates.get('plates', []))
+            fileName = safeFileName(fileNameInput.value) or defaultFileName(items)
+            fileName = fileName if fileName.lower().endswith('.3mf') else f'{fileName}.3mf'
+            summary = f'Writes {count} files, one per plate' if dialogBeds(inputs).perPlate and count > 1 else f'Writes {fileName}'
+        elif len(items) == 1:
+            summary = f'Writes {fileNames(items)[0]}.{extension}'
+        else:
+            summary = f'Writes {len(items)} {format} files, one per body'
+        summary = summary if items else 'Select bodies to export'
     except Exception as err:
         summary = f'Bodies not found, {err}'
     adsk.core.TextBoxCommandInput.cast(inputs.itemById(SUMMARY_INPUT_ID)).text = summary
@@ -338,12 +552,13 @@ def command_execute(args: adsk.core.CommandEventArgs):
         format = selectedFormat(inputs)
         paint = adsk.core.BoolValueCommandInput.cast(inputs.itemById(PAINT_INPUT_ID)).value
         filament = adsk.core.IntegerSpinnerCommandInput.cast(inputs.itemById(FILAMENT_INPUT_ID)).value
+        beds = dialogBeds(inputs)
         folder = dialogFolder
         if not os.path.isdir(folder):
             folder = askFolder(folder)
             if folder is None:
                 return
-        saveChoices(folder, format, paint, filament)
+        saveDialogChoices(inputs, folder)
         items = exportItems(inputs)
         if len(items) == 0:
             ui.messageBox('Nothing to export, select bodies or turn on All Gridfinity bodies.', CMD_NAME)
@@ -352,10 +567,11 @@ def command_execute(args: adsk.core.CommandEventArgs):
         if format == FORMAT_3MF:
             fileName = safeFileName(adsk.core.StringValueCommandInput.cast(inputs.itemById(FILE_NAME_INPUT_ID)).value) or defaultFileName(items)
             path = os.path.join(folder, fileName if fileName.lower().endswith('.3mf') else f'{fileName}.3mf')
-            if not mayReplace([path]):
+            result = export3mf(items, names, path, filament if paint else None, beds)
+            if result is None:
                 return
-            painted = export3mf(items, names, path, filament if paint else None)
-            ui.messageBox(f'Exported {len(items)} bod{"y" if len(items) == 1 else "ies"} to {path}.{paintNote(paint, painted, filament)}', CMD_NAME)
+            where = path if len(result.paths) == 1 else f'{len(result.paths)} files in {folder}, a plate each'
+            ui.messageBox(f'Exported {len(items)} bod{"y" if len(items) == 1 else "ies"} to {where}.{plateNote(result)}{paintNote(paint, result.painted, filament)}', CMD_NAME)
         else:
             if not mayReplace([os.path.join(folder, f'{name}.{FORMAT_EXTENSIONS[format]}') for name in names]):
                 return
@@ -364,10 +580,40 @@ def command_execute(args: adsk.core.CommandEventArgs):
     except Exception as err:
         futil.handle_error(f'{CMD_NAME} failed, {err}', show_message_box=True)
 
+def saveDialogChoices(inputs: adsk.core.CommandInputs, folder: str):
+    bedName = adsk.core.DropDownCommandInput.cast(inputs.itemById(BED_PRESET_INPUT_ID)).selectedItem.name
+    saveChoices(
+        folder,
+        selectedFormat(inputs),
+        adsk.core.BoolValueCommandInput.cast(inputs.itemById(PAINT_INPUT_ID)).value,
+        adsk.core.IntegerSpinnerCommandInput.cast(inputs.itemById(FILAMENT_INPUT_ID)).value,
+        selectedArrangement(inputs),
+        bedName,
+        dialogBeds(inputs),
+        round(adsk.core.ValueCommandInput.cast(inputs.itemById(PURGE_INPUT_ID)).value * 10, 6),
+        adsk.core.DropDownCommandInput.cast(inputs.itemById(FILES_INPUT_ID)).selectedItem.name,
+    )
+
 def command_destroy(args: adsk.core.CommandEventArgs):
     global local_handlers
     # the context menu handler stays for the next menu
     local_handlers = [handler for handler in local_handlers if handler is markingMenuHandler]
+
+def listed(names: list[str]) -> str:
+    return ', '.join(names[:MAX_LISTED_FILES]) + (f' and {len(names) - MAX_LISTED_FILES} more' if len(names) > MAX_LISTED_FILES else '')
+
+def plateNote(result: 'Exported3mf') -> str:
+    """
+    How many plates the bodies were packed on, which are bigger than the bed and the plates where an area couldn't be
+    kept free, after the export's message
+    """
+    note = f'\n\nPacked on {result.plates} plates.' if result.plates > 1 and len(result.paths) == 1 else ''
+    if result.tooBig:
+        note += f'\n\nBigger than the bed, each on a plate of its own: {listed(result.tooBig)}.'
+    if result.notClear:
+        plates = ', '.join(str(plate + 1) for plate in result.notClear)
+        note += f'\n\nNo room to keep the purge tower area or the area the printer keeps free clear on plate{"" if len(result.notClear) == 1 else "s"} {plates}, move the bodies or the tower in the slicer.'
+    return note
 
 def paintNote(paint: bool, painted: int, filament: int) -> str:
     """What of the labels was colored, after the export's message"""
@@ -427,7 +673,7 @@ def progressDialog(count: int) -> adsk.core.ProgressDialog:
 def exportEach(items: list[ExportItem], names: list[str], folder: str, format: str):
     """
     A file of each body in the folder, files of the same name are replaced. Each body at the origin, centered on x and
-    y with its bottom at z 0, as made on its own, whatever its place in the design
+    y with its bottom at z 0, as made on its own, whatever its place in the design, upright, see meshTransform
     """
     progress = progressDialog(len(items))
     # Fusion's STEP export writes a whole component where it is, and Fusion can't open a design hidden, so each body
@@ -439,7 +685,7 @@ def exportEach(items: list[ExportItem], names: list[str], folder: str, format: s
             path = os.path.join(folder, f'{name}.{FORMAT_EXTENSIONS[format]}')
             if format == FORMAT_STL:
                 # the mesh the 3MF takes, Fusion's STL export writes a body where it is
-                meshObject = meshOf(item, name, False)
+                meshObject = meshOf(item, name, False, meshTransform(item, True))
                 stlFile.write(path, name, stlFile.atOrigin(meshObject.vertices), meshObject.triangles)
             else:
                 exportStep(scratch, item, name, path)
@@ -455,8 +701,9 @@ def exportStep(document: adsk.core.Document, item: ExportItem, name: str, path: 
     """The body alone in the document, at the origin"""
     brepManager = adsk.fusion.TemporaryBRepManager.get()
     copy = brepManager.copy(item.body)
-    if item.occurrence is not None:
-        brepManager.transform(copy, item.occurrence.transform2)
+    transform = meshTransform(item, True)
+    if transform is not None:
+        brepManager.transform(copy, transform)
     brepManager.transform(copy, toOrigin(copy.boundingBox))
     design = adsk.fusion.Design.cast(document.products.itemByProductType('DesignProductType'))
     # a body is added as it is without a base feature
@@ -480,34 +727,211 @@ def toOrigin(box: adsk.core.BoundingBox3D) -> adsk.core.Matrix3D:
     )
     return move
 
-def export3mf(items: list[ExportItem], names: list[str], path: str, filament: int | None) -> int:
-    """All bodies in one file, returns how many have painted letters"""
+@dataclasses.dataclass
+class Exported3mf:
+    paths: list[str]
+    # bodies with painted letters
+    painted: int
+    plates: int
+    # names of the bodies bigger than the bed
+    tooBig: list[str]
+    # plates, from 0, where a body is on an area kept free
+    notClear: list[int]
+
+def plateFilePath(path: str, plate: int) -> str:
+    """The file of a plate, numbered from 1, beside the path named for all of them"""
+    (base, extension) = os.path.splitext(path)
+    return f'{base}, plate {plate + 1}{extension}'
+
+def stalePlateFiles(path: str, count: int) -> list[str]:
+    """Plate files of an earlier export to the path that an export of count plates doesn't write"""
+    (folder, fileName) = os.path.split(path)
+    (base, extension) = os.path.splitext(fileName)
+    pattern = re.compile(re.escape(f'{base}, plate ') + r'(\d+)' + re.escape(extension) + '$', re.IGNORECASE)
+    stale = []
+    for name in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
+        match = pattern.match(name)
+        if match and int(match.group(1)) > count:
+            stale.append(os.path.join(folder, name))
+    return stale
+
+def export3mf(items: list[ExportItem], names: list[str], path: str, filament: int | None, beds: Beds) -> Exported3mf | None:
+    """
+    The bodies packed on plates or as placed, see Beds, in one file, or a file per plate named after the path when
+    there are several. None when the files there may not be replaced
+    """
     objects = []
     paintedCount = 0
+    isPacked = beds.spacing is not None
     progress = progressDialog(len(items))
     try:
         for (index, (item, name)) in enumerate(zip(items, names)):
-            meshObject = meshOf(item, name, filament is not None and item.hasOutlineLabels)
+            meshObject = meshOf(item, name, filament is not None and item.hasOutlineLabels, meshTransform(item, isPacked))
             paintedCount += 1 if meshObject.painted else 0
             objects.append(meshObject)
             progress.progressValue = index + 1
     finally:
         progress.hide()
     title = os.path.splitext(os.path.basename(path))[0]
-    threeMf.write(path, objects, filament, title, tagUtils.getGeneratorVersion())
-    return paintedCount
+    version = tagUtils.getGeneratorVersion()
+    if not isPacked:
+        if not mayReplace([path]):
+            return None
+        threeMf.write(path, threeMf.placeOnPlate(objects, beds.size), filament, title, version)
+        return Exported3mf([path], paintedCount, 1, [], [])
+    sizes = [threeMf.footprint(meshObject) for meshObject in objects]
+    placements = bedPacking.arrange(sizes, beds.size, beds.spacing, beds.margin, beds.kept())
+    count = bedPacking.bedCount(placements)
+    tooBig = [name for (name, placement) in zip(names, placements) if not placement.fits]
+    notClear = sorted(set(placement.bed for placement in placements if not placement.clear))
+    if not beds.perPlate or count == 1:
+        if not mayReplace([path]):
+            return None
+        placed = threeMf.placeOnBeds(objects, placements, beds.size)
+        threeMf.write(path, placed, filament, title, version, [placement.bed for placement in placements])
+        return Exported3mf([path], paintedCount, count, tooBig, notClear)
+    paths = [plateFilePath(path, plate) for plate in range(count)]
+    stale = stalePlateFiles(path, count)
+    if not mayReplace(paths + stale):
+        return None
+    for plate in range(count):
+        onPlate = [index for (index, placement) in enumerate(placements) if placement.bed == plate]
+        placed = threeMf.placeOnBeds([objects[index] for index in onPlate], [dataclasses.replace(placements[index], bed=0) for index in onPlate], beds.size)
+        threeMf.write(paths[plate], placed, filament, f'{title}, plate {plate + 1}', version)
+    for stalePath in stale:
+        os.remove(stalePath)
+    return Exported3mf(paths, paintedCount, count, tooBig, notClear)
 
-def meshOf(item: ExportItem, name: str, paint: bool) -> threeMf.MeshObject:
+def isYUp() -> bool:
+    """Fusion set to model with y up, which a design takes as it's made"""
+    return app.preferences.generalPreferences.defaultModelingOrientation == adsk.core.DefaultModelingOrientations.YUpModelingOrientation
+
+def meshTransform(item: ExportItem, isUpright: bool) -> adsk.core.Matrix3D | None:
     """
-    The body's triangles in mm where it's placed, the nodes Fusion repeats for each face joined into one. With paint, the
-    triangles on the letter faces of its outline labels are marked, see labelFaces
+    Where the body's triangles go, none keeps them as they are. Upright, a bin or baseplate is as it was built, standing on
+    its bottom in its component whatever its place in the design. Otherwise the body goes where it's placed, turned so
+    y points up when Fusion models with y up
+    """
+    if isUpright and item.isGridfinity:
+        return None
+    transform = item.occurrence.transform2.copy() if item.occurrence is not None else adsk.core.Matrix3D.create()
+    if isYUp():
+        turn = adsk.core.Matrix3D.create()
+        turn.setToRotation(math.pi / 2, adsk.core.Vector3D.create(1, 0, 0), adsk.core.Point3D.create(0, 0, 0))
+        transform.transformBy(turn)
+    return transform
+
+def boxCorners(item: ExportItem, isUpright: bool) -> list[tuple[float, float, float]]:
+    """The corners of the body's box where it goes, see meshTransform, in mm"""
+    box = item.body.boundingBox
+    transform = meshTransform(item, isUpright)
+    corners = []
+    for x in (box.minPoint.x, box.maxPoint.x):
+        for y in (box.minPoint.y, box.maxPoint.y):
+            for z in (box.minPoint.z, box.maxPoint.z):
+                point = adsk.core.Point3D.create(x, y, z)
+                if transform is not None:
+                    point.transformBy(transform)
+                corners.append((point.x * 10, point.y * 10, point.z * 10))
+    return corners
+
+def footprint(corners: list[tuple[float, float, float]]) -> tuple[float, float]:
+    return (max(x for (x, _, _) in corners) - min(x for (x, _, _) in corners), max(y for (_, y, _) in corners) - min(y for (_, y, _) in corners))
+
+def gridSize(item: ExportItem) -> tuple[float, float] | None:
+    """A bin's or baseplate's width and length in grid units, none for other bodies"""
+    tag = tagUtils.readBodyTag(item.body)
+    settings = tag[1].get('config') if tag is not None else None
+    if not isinstance(settings, dict):
+        return None
+    (widthKey, lengthKey) = ('binWidth', 'binLength') if tag[0] == tagUtils.TAG_BIN else ('plateWidth', 'plateLength')
+    (width, length) = (settings.get(widthKey), settings.get(lengthKey))
+    return (width, length) if isinstance(width, (int, float)) and isinstance(length, (int, float)) else None
+
+def sizeLabel(item: ExportItem) -> str:
+    """A bin's or baseplate's size in grid units, as 1x2, nothing for other bodies"""
+    size = gridSize(item)
+    return f'{size[0]:g}x{size[1]:g}' if size is not None else ''
+
+def bodyKind(item: ExportItem) -> str:
+    """bin or baseplate as its tag says, nothing for other bodies"""
+    tag = tagUtils.readBodyTag(item.body)
+    return tag[0] if tag is not None else ''
+
+def bodiesCount(items: list[ExportItem]) -> str:
+    """As 40 bins and 1 baseplate, bodies when some aren't bins or baseplates"""
+    kinds = [bodyKind(item) for item in items]
+    def counted(count: int, single: str, plural: str) -> str:
+        return f'{count} {single if count == 1 else plural}'
+    if '' in kinds:
+        return counted(len(items), 'body', 'bodies')
+    parts = [counted(kinds.count(kind), kind, f'{kind}s') for kind in (tagUtils.TAG_BIN, tagUtils.TAG_BASEPLATE) if kind in kinds]
+    return ' and '.join(parts)
+
+def platesData(items: list[ExportItem], beds: Beds) -> dict:
+    """
+    What the plates drawing shows, each plate's bodies by their boxes in mm from the bed's corner, packed as the export
+    packs their triangles or as placed around the middle of one bed
+    """
+    if len(items) == 0:
+        return {'error': 'Select bodies to export'}
+    if beds.size[0] <= 0 or beds.size[1] <= 0:
+        return {'error': 'The bed size has to be more than 0'}
+    isPacked = beds.spacing is not None
+    boxes = [boxCorners(item, isPacked) for item in items]
+    sizes = [footprint(corners) for corners in boxes]
+    areas = [{'area': list(area), 'name': 'Kept free by the printer'} for area in beds.excluded]
+    if beds.purge is not None:
+        areas.append({'area': list(beds.purge), 'name': 'Purge tower'})
+    if isPacked:
+        placements = bedPacking.arrange(sizes, beds.size, beds.spacing, beds.margin, beds.kept())
+    else:
+        # the layout's middle in the middle of the bed, as the 3MF has it
+        (minX, minY) = (min(x for corners in boxes for (x, _, _) in corners), min(y for corners in boxes for (_, y, _) in corners))
+        (maxX, maxY) = (max(x for corners in boxes for (x, _, _) in corners), max(y for corners in boxes for (_, y, _) in corners))
+        (shiftX, shiftY) = ((beds.size[0] - minX - maxX) / 2, (beds.size[1] - minY - maxY) / 2)
+        placements = [
+            bedPacking.Placement(0, min(x for (x, _, _) in corners) + shiftX, min(y for (_, y, _) in corners) + shiftY, False,
+                size[0] <= beds.size[0] and size[1] <= beds.size[1])
+            for (corners, size) in zip(boxes, sizes)
+        ]
+    plates: list[list[dict]] = [[] for _ in range(bedPacking.bedCount(placements))]
+    for (item, size, placement) in zip(items, sizes, placements):
+        (width, length) = size[::-1] if placement.turned else size
+        # a baseplate's cells are drawn on it, across and along as it lies on the plate
+        units = gridSize(item) if bodyKind(item) == tagUtils.TAG_BASEPLATE else None
+        cells = list(units[::-1] if placement.turned else units) if units is not None else None
+        plates[placement.bed].append({
+            'x': placement.x, 'y': placement.y, 'width': width, 'length': length,
+            'name': item.body.name, 'label': sizeLabel(item), 'kind': bodyKind(item), 'cells': cells,
+            'turned': placement.turned, 'fits': placement.fits, 'clear': placement.clear,
+        })
+    count = bodiesCount(items)
+    tooBig = sum(not placement.fits for placement in placements)
+    notClear = len(set(placement.bed for placement in placements if not placement.clear))
+    return {
+        'bed': list(beds.size),
+        'margin': beds.margin,
+        'areas': areas,
+        'plates': plates,
+        'caption': [
+            f'{count} on {len(plates)} plate{"" if len(plates) == 1 else "s"}' if isPacked else f'{count} as placed',
+            f'{beds.size[0]:g}x{beds.size[1]:g}mm' + (f', {beds.margin:g}mm margin, {beds.spacing:g}mm apart' if isPacked else '')
+            + (f', {tooBig} bigger than the bed' if tooBig else '')
+            + (f', {notClear} plate{"" if notClear == 1 else "s"} without room to keep an area free' if notClear else ''),
+        ],
+    }
+
+def meshOf(item: ExportItem, name: str, paint: bool, transform: adsk.core.Matrix3D | None) -> threeMf.MeshObject:
+    """
+    The body's triangles in mm moved by the transform, see meshTransform, the nodes Fusion repeats for each face joined
+    into one. With paint, the triangles on the letter faces of its outline labels are marked, see labelFaces
     """
     calculator = item.body.meshManager.createMeshCalculator()
     calculator.setQuality(MESH_QUALITY)
     mesh = calculator.calculate()
     coordinates = mesh.nodeCoordinatesAsDouble
     nodeIndices = mesh.nodeIndices
-    transform = item.occurrence.transform2 if item.occurrence is not None else None
 
     nodes: list[tuple[float, float, float]] = []
     vertices: list[tuple[float, float, float]] = []
