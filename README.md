@@ -157,6 +157,9 @@ Color index metadata is stored in 3MF and is read by modern slicers to assign ap
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="documentation/assets/ui/fusion-dialog-export-dark.png"><img src="documentation/assets/ui/fusion-dialog-export-light.png" alt="The Gridfinity export dialog, 4 bodies selected for one 3MF in Downloads, the label text colored with color index 2" width="500"></picture>
 
+### Scripting
+While the add-in runs, scripts run in Fusion, such as those of an MCP server, can `import gridfinity` to reach its builders, settings and export, see [api.py](api.py).
+
 ## Installation
 
 ### Via Autodesk App Store
