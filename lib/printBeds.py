@@ -34,6 +34,12 @@ def presetLabel(name: str) -> str:
 # opens as custom with its size
 PRINT_BED_PRESETS: dict[str, tuple[float, float]] = {presetLabel(name): size for (name, size) in PRINT_BED_SIZES.items()}
 
+def presetLabelOf(printer: str) -> str | None:
+    """The dropdown's label of a printer by its label or its name, none for custom or one not listed"""
+    if printer in PRINT_BED_PRESETS:
+        return printer
+    return presetLabel(printer) if printer in PRINT_BED_SIZES else None
+
 def presetBedSize(label: str) -> tuple[float, float] | None:
     """Bed size in Fusion internal units, cm"""
     if label not in PRINT_BED_PRESETS:

@@ -18,6 +18,7 @@ from .commands.commandCreateBin.inputState import InputState as BinInputState
 from .commands.commandCreateBaseplate import baseplateBuilder
 from .commands.commandCreateBaseplate.inputState import InputState as BaseplateInputState
 from .commands.commandExport import entry as export
+from .commands.commandExport.entry import exportBodies, savedOptions, ExportOptions, ExportResult
 
 # see scriptModule.MARKER
 IS_GRIDFINITY_GENERATOR = True

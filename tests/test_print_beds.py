@@ -49,3 +49,11 @@ def test_other_printers_and_custom_beds_get_it_back_right():
 def test_no_purge_square_of_size_zero_and_never_bigger_than_the_bed():
     assert printBeds.purgeSquare((180.0, 180.0), 0.0, (0.0, 1.0)) is None
     assert printBeds.purgeSquare((100.0, 60.0), 80.0, (1.0, 1.0)) == (40.0, 0.0, 100.0, 60.0)
+
+
+def test_a_printer_is_found_by_its_name_or_its_label():
+    label = printBeds.presetLabel('Bambu Lab A1 mini')
+    assert printBeds.presetLabelOf('Bambu Lab A1 mini') == label
+    assert printBeds.presetLabelOf(label) == label
+    assert printBeds.presetLabelOf(printBeds.PRINT_BED_CUSTOM) is None
+    assert printBeds.presetLabelOf('Bambu Lab A1, P1, X1 (256 x 256 mm)') is None
