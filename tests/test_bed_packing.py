@@ -197,3 +197,33 @@ def test_a_bin_that_only_fits_over_the_area_is_not_clear():
 def test_without_areas_kept_free_everything_is_clear():
     placements = bedPacking.arrange([(41.5, 83.5)] * 10, (180.0, 180.0), 1.0, 5.0)
     assert all(placement.clear for placement in placements)
+
+
+# ---------------------------------------------------------------------------
+# arrangeGroups
+# ---------------------------------------------------------------------------
+
+def test_a_group_is_packed_as_one_its_bodies_keep_their_place_in_it():
+    # a 40x20 bin with a 10x4 label on its back, beside a bin of its own
+    boxes = [(0, 0, 40, 20), (5, 14, 15, 18), (100, 0, 130, 30)]
+    placements = bedPacking.arrangeGroups(boxes, [[0, 1], [2]], (200, 200), 2, 0)
+    (bin_, label, other) = placements
+    assert not bin_.turned and not label.turned
+    assert (label.bed, label.x - bin_.x, label.y - bin_.y) == (bin_.bed, 5, 14)
+    assert_apart([(40, 20), (30, 30)], [bin_, other], 2)
+
+
+def test_a_turned_group_turns_its_bodies_with_it():
+    # a long bin only fits turned, its label goes along with it, a quarter turned counterclockwise
+    boxes = [(0, 0, 150, 20), (5, 14, 15, 18)]
+    (bin_, label) = bedPacking.arrangeGroups(boxes, [[0, 1]], (40, 200), 2, 0)
+    assert bin_.turned and label.turned
+    # x and y become -y and x: the label's corner is 20 - 18 from the turned bin's, along x, and 5 along y
+    assert (label.x - bin_.x, label.y - bin_.y) == (2, 5)
+
+
+def test_groups_of_one_are_arranged_as_arrange_does():
+    sizes = [(50, 30), (40, 40), (20, 60)]
+    boxes = [(0, 0, width, length) for (width, length) in sizes]
+    grouped = bedPacking.arrangeGroups(boxes, [[0], [1], [2]], (120, 100), 2, 5)
+    assert grouped == bedPacking.arrange(sizes, (120, 100), 2, 5)

@@ -86,7 +86,8 @@ def selectedTag() -> tuple[adsk.fusion.BRepBody, str, dict] | None:
 
 def componentTag(component: adsk.fusion.Component) -> tuple[adsk.fusion.BRepBody, str, dict] | None:
     """The generated body of a component with its tag, none unless it holds exactly one, its bodies are native"""
-    tags = [(body, *tag) for body in component.bRepBodies if (tag := tagUtils.readBodyTag(body)) is not None]
+    # the letters of an inlaid label carry the bin's tag too, the bin body stands for them
+    tags = [(body, *tag) for body in component.bRepBodies if not tagUtils.isSecondaryBody(body) and (tag := tagUtils.readBodyTag(body)) is not None]
     return tags[0] if len(tags) == 1 else None
 
 def canRebuild(tag: tuple[adsk.fusion.BRepBody, str, dict] | None) -> bool:

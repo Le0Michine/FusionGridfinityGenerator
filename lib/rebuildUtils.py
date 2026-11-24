@@ -147,16 +147,18 @@ def hideOldBody(target: RebuildTarget):
 def bodyMap(target: RebuildTarget, newBodies: list[adsk.fusion.BRepBody]) -> list[tuple[adsk.fusion.BRepBody, adsk.fusion.BRepBody]]:
     """
     Pairs of an old native body and the new one taking its place. Bodies of the same count pair up by where they
-    are, front row first, all go to a single new body, none pair up otherwise
+    are, front row first, all go to a single new body, none pair up otherwise. The bodies a bin has beside its bin
+    body are left out, see tagUtils.isSecondaryBody, a bin gaining or losing them still pairs its bin body
     """
     def position(body: adsk.fusion.BRepBody):
         box = body.boundingBox
         return (round(box.minPoint.y, 3), round(box.minPoint.x, 3))
-    newBodies = [nativeBody(body) for body in newBodies]
+    newBodies = [nativeBody(body) for body in newBodies if not tagUtils.isSecondaryBody(body)]
+    oldBodies = [body for body in target.bodies if not tagUtils.isSecondaryBody(body)]
     if len(newBodies) == 1:
-        return [(body, newBodies[0]) for body in target.bodies]
-    if len(newBodies) == len(target.bodies):
-        return list(zip(sorted(target.bodies, key=position), sorted(newBodies, key=position)))
+        return [(body, newBodies[0]) for body in oldBodies]
+    if len(newBodies) == len(oldBodies):
+        return list(zip(sorted(oldBodies, key=position), sorted(newBodies, key=position)))
     return []
 
 def replaceBodies(

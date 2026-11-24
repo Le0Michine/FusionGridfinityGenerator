@@ -78,6 +78,8 @@ class BinBodyGeneratorInput():
         self.isTabOpenThroughSides = False
         self.tabTopAngle = const.BIN_TAB_LABEL_ANGLE
         self.tabTopOffset = const.BIN_TAB_TOP_CLEARANCE
+        # filled in while building: the letters of inlaid labels, bodies of their own beside the bin body
+        self.labelInlayBodies: list = []
         self.labelStyle = LABEL_STYLE_OUTLINE
         self.isLabelBold = True
         self.compartments = [BinBodyCompartmentDefinition()]

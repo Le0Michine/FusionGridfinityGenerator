@@ -7,7 +7,9 @@ from .dim import Dim, valueInput, lengthInput, lengthExpression
 LABEL_STYLE_OUTLINE = 'Outline'
 LABEL_STYLE_ENGRAVED = 'Engraved'
 LABEL_STYLE_EMBOSSED = 'Embossed'
-LABEL_STYLES = [LABEL_STYLE_OUTLINE, LABEL_STYLE_ENGRAVED, LABEL_STYLE_EMBOSSED]
+# cut into the tab and kept as bodies of their own, flush with the tab top, to print in another color
+LABEL_STYLE_INLAY = 'Inlay'
+LABEL_STYLES = [LABEL_STYLE_OUTLINE, LABEL_STYLE_ENGRAVED, LABEL_STYLE_EMBOSSED, LABEL_STYLE_INLAY]
 
 LABEL_ICON_NONE = 'None'
 LABEL_ICONS_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'labelIcons')
@@ -176,8 +178,10 @@ def createLabel(
     targetComponent: adsk.fusion.Component,
     *,
     name: str,
+    inlayBodies: list | None = None,
 ) -> adsk.fusion.BRepBody:
-    """Icon at the left as tall as the letters can be at most, the text after it standing on its bottom, text alone is centered. Built as a separate body at the current label spot and
+    """An inlaid label is cut from the target body and its letters kept as bodies of their own, added to inlayBodies.
+    Icon at the left as tall as the letters can be at most, the text after it standing on its bottom, text alone is centered. Built as a separate body at the current label spot and
     moved by how far the parametric spot is from it, then cut from or joined to the target body. Its sketches lie on a plane
     at the current height, so a change of the parameters only changes the move: a sketch that moves is recomputed, its
     text with new curves, and the extrusion of the text loses them. A tilted label is laid out flat and turned about its
@@ -265,10 +269,12 @@ def createLabel(
         return None
 
     isEmbossed = input.style == LABEL_STYLE_EMBOSSED
+    isInlay = input.style == LABEL_STYLE_INLAY
+    depth = const.BIN_LABEL_INLAY_DEPTH if isInlay else input.depth
     def extrudeLabel(isThin: bool) -> adsk.fusion.ExtrudeFeature:
         extrudeInput = features.extrudeFeatures.createInput(profiles, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
         extrudeInput.setOneSideExtent(
-            adsk.fusion.DistanceExtentDefinition.create(adsk.core.ValueInput.createByReal(input.depth)),
+            adsk.fusion.DistanceExtentDefinition.create(adsk.core.ValueInput.createByReal(depth)),
             adsk.fusion.ExtentDirections.PositiveExtentDirection if isEmbossed else adsk.fusion.ExtentDirections.NegativeExtentDirection,
         )
         if isThin:
@@ -319,6 +325,11 @@ def createLabel(
 
     if isEmbossed:
         combineUtils.joinBodies(targetBody, commonUtils.objectCollectionFromList(labelBodies), targetComponent, name=f'{name} join')
+    elif isInlay:
+        # the letters fill what they cut, flush with the tab top, a slicer can give them their own color
+        combineUtils.cutBody(targetBody, commonUtils.objectCollectionFromList(labelBodies), targetComponent, True, name=f'{name} inlay cut')
+        if inlayBodies is not None:
+            inlayBodies.extend(body for body in labelBodies if body.isValid)
     else:
         combineUtils.cutBody(targetBody, commonUtils.objectCollectionFromList(labelBodies), targetComponent, name=f'{name} cut')
     commonUtils.debugLog(f'{name}: {input.style.lower()}, text parameter {textParameter.name if textParameter is not None else None}, icon {input.definition.iconPath}')
