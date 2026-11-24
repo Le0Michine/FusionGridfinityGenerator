@@ -349,6 +349,7 @@ def buildBin(
     binBodyInput.tabTopAngle = state.tabTopAngle
     binBodyInput.tabTopOffset = state.tabTopOffset
     binBodyInput.labelStyle = state.labelStyle
+    binBodyInput.labelAlignment = state.labelAlignment
     binBodyInput.isLabelBold = state.isLabelBold
     binBodyInput.compartmentsByX = compartmentsX
     binBodyInput.compartmentsByY = compartmentsY
@@ -603,6 +604,7 @@ def buildBin(
                     binBodyInput.tabTopAngle,
                     binBodyInput.tabTopOffset,
                     name='Label',
+                    alignment=binBodyInput.labelAlignment,
                 )
 
     generatedBodies: list[adsk.fusion.BRepBody] = []

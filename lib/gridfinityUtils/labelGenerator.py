@@ -9,11 +9,24 @@ LABEL_STYLE_ENGRAVED = 'Engraved'
 LABEL_STYLE_EMBOSSED = 'Embossed'
 LABEL_STYLES = [LABEL_STYLE_OUTLINE, LABEL_STYLE_ENGRAVED, LABEL_STYLE_EMBOSSED]
 
+# where icon and text sit across the label, auto centers text alone and puts an icon with its text at the left
+LABEL_ALIGN_AUTO = 'Auto'
+LABEL_ALIGN_LEFT = 'Left'
+LABEL_ALIGN_CENTER = 'Center'
+LABEL_ALIGN_RIGHT = 'Right'
+LABEL_ALIGNMENTS = [LABEL_ALIGN_AUTO, LABEL_ALIGN_LEFT, LABEL_ALIGN_CENTER, LABEL_ALIGN_RIGHT]
+
 LABEL_ICON_NONE = 'None'
 LABEL_ICONS_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'labelIcons')
 
 # icons are grouped by type in folders, these types come first in this order, any others after them
 LABEL_ICON_TYPE_ORDER = ['screws', 'nuts', 'washers']
+
+def labelAlignment(alignment: str, hasIcon: bool) -> str:
+    """Left, center or right, auto as labels were before there was a choice: text alone centered, with an icon left"""
+    if alignment in (LABEL_ALIGN_LEFT, LABEL_ALIGN_CENTER, LABEL_ALIGN_RIGHT):
+        return alignment
+    return LABEL_ALIGN_LEFT if hasIcon else LABEL_ALIGN_CENTER
 
 def iconName(fileName: str) -> str:
     """hex-nut.svg shows as Hex nut"""
@@ -58,6 +71,7 @@ class BinLabelDefinition():
 class BinLabelInput():
     def __init__(self):
         self.style = LABEL_STYLE_OUTLINE
+        self.alignment = LABEL_ALIGN_AUTO
         self.isBold = True
         self.depth = const.BIN_LABEL_DEPTH
         self.definition: BinLabelDefinition = None
@@ -94,13 +108,18 @@ def _addText(
     corner: adsk.core.Point3D,
     diagonal: adsk.core.Point3D,
     isBold: bool,
-    isCentered: bool,
+    alignment: str,
 ) -> adsk.fusion.SketchText:
+    """Text in the box between corner and diagonal, aligned across it as one of LABEL_ALIGNMENTS but auto"""
     textInput = sketch.sketchTexts.createInput2(text, height)
+    horizontal = {
+        LABEL_ALIGN_CENTER: adsk.core.HorizontalAlignments.CenterHorizontalAlignment,
+        LABEL_ALIGN_RIGHT: adsk.core.HorizontalAlignments.RightHorizontalAlignment,
+    }.get(alignment, adsk.core.HorizontalAlignments.LeftHorizontalAlignment)
     textInput.setAsMultiLine(
         corner,
         diagonal,
-        adsk.core.HorizontalAlignments.CenterHorizontalAlignment if isCentered else adsk.core.HorizontalAlignments.LeftHorizontalAlignment,
+        horizontal,
         adsk.core.VerticalAlignments.MiddleVerticalAlignment,
         0,
     )
@@ -117,7 +136,7 @@ def _measureText(sketch: adsk.fusion.Sketch, text: str, height: float, isBold: b
     """Width and height of the letters at the given text height, measured on a throwaway text
     with a box wide enough not to wrap"""
     origin = adsk.core.Point3D.create(0, 0, 0)
-    probe = _addText(sketch, text, height, origin, adsk.core.Point3D.create(height * len(text) * 10, height * 10, 0), isBold, False)
+    probe = _addText(sketch, text, height, origin, adsk.core.Point3D.create(height * len(text) * 10, height * 10, 0), isBold, LABEL_ALIGN_LEFT)
     bounds = _curveBounds(probe.asCurves())
     probe.deleteMe()
     return None if bounds is None else (bounds[2] - bounds[0], bounds[3] - bounds[1])
@@ -177,7 +196,8 @@ def createLabel(
     *,
     name: str,
 ) -> adsk.fusion.BRepBody:
-    """Icon at the left as tall as the letters can be at most, the text after it standing on its bottom, text alone is centered. Built as a separate body at the current label spot and
+    """Icon as tall as the letters can be at most, the text after it standing on its bottom, both aligned across the
+    label as one group, see labelAlignment. Built as a separate body at the current label spot and
     moved by how far the parametric spot is from it, then cut from or joined to the target body. Its sketches lie on a plane
     at the current height, so a change of the parameters only changes the move: a sketch that moves is recomputed, its
     text with new curves, and the extrusion of the text loses them. A tilted label is laid out flat and turned about its
@@ -231,12 +251,17 @@ def createLabel(
     elif iconPath is not None:
         iconSize = min(contentHeight, contentWidth / iconAspect)
 
-    # an icon starts at the side with the text after it, text alone is centered
-    groupMinX = contentMinX
+    # icon and text go across the label as one group, auto centers text alone and puts an icon with its text at the left
+    alignment = labelAlignment(input.alignment, iconPath is not None)
+    iconWidth = iconSize * iconAspect if iconPath is not None else 0
+    groupWidth = iconWidth + (gap if iconPath is not None and len(text) > 0 else 0) + textWidth
+    slack = max(contentWidth - groupWidth, 0)
+    groupMinX = contentMinX + {LABEL_ALIGN_CENTER: slack / 2, LABEL_ALIGN_RIGHT: slack}.get(alignment, 0)
     iconMinY = contentMinY + (contentHeight - iconSize) / 2
 
     if len(text) > 0:
-        textMinX = groupMinX + (iconSize * iconAspect + gap if iconPath is not None else 0)
+        # text alone is aligned in the whole label by Fusion, after an icon it starts right behind it
+        textMinX = groupMinX + iconWidth + gap if iconPath is not None else contentMinX
         def addLabelText(shiftY: float) -> adsk.fusion.SketchText:
             return _addText(
                 textSketch,
@@ -245,7 +270,7 @@ def createLabel(
                 adsk.core.Point3D.create(textMinX, contentMinY + shiftY, 0),
                 adsk.core.Point3D.create(contentMinX + contentWidth, contentMinY + contentHeight + shiftY, 0),
                 input.isBold,
-                iconPath is None,
+                alignment if iconPath is None else LABEL_ALIGN_LEFT,
             )
         sketchText = addLabelText(0)
         # the letters stand on the bottom of the icon, where they come out in the box is only known once they're there
@@ -303,10 +328,12 @@ def createLabel(
         tiltFeature = features.moveFeatures.add(tiltInput)
         tiltFeature.name = f'{name} tilt'
 
-    # the label is laid out at the current spot, the move follows the parameters from there. Its size stays, text
-    # alone stays in the middle of the label area, an icon and its text at its left
-    if iconPath is None:
+    # the label is laid out at the current spot, the move follows the parameters from there. Its size stays, the
+    # group keeps to the side of the label area it's aligned to, or its middle
+    if alignment == LABEL_ALIGN_CENTER:
         shiftX = input.originX + input.width / 2 - Dim.length(input.originX.value + input.width.value / 2)
+    elif alignment == LABEL_ALIGN_RIGHT:
+        shiftX = input.originX + input.width - Dim.length(input.originX.value + input.width.value)
     else:
         shiftX = input.originX - Dim.length(input.originX.value)
     shiftY = input.originY - Dim.length(input.originY.value)

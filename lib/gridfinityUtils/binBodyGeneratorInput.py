@@ -80,6 +80,8 @@ class BinBodyGeneratorInput():
         self.tabTopOffset = const.BIN_TAB_TOP_CLEARANCE
         self.labelStyle = LABEL_STYLE_OUTLINE
         self.isLabelBold = True
+        # one of labelGenerator.LABEL_ALIGNMENTS
+        self.labelAlignment = 'Auto'
         self.compartments = [BinBodyCompartmentDefinition()]
         self.isUniformCompartments = False
         self.compartmentsByX = 1

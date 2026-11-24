@@ -52,6 +52,8 @@ ADDED_FIELDS = {
         'lipType': 'Light',
         'isLipTopTrimmed': True,
         'tabTopOffset': 0.5,
+        # labelGenerator.LABEL_ALIGN_AUTO, the layout labels had before
+        'labelAlignment': 'Auto',
     },
     GENERATOR_BASEPLATE: {},
 }

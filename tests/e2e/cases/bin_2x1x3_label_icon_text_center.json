@@ -1,0 +1,14 @@
+{
+    "description": "2x1x3 bin with an engraved label of an icon and text, centered on its tab as one group",
+    "generator": "bin",
+    "settings": {
+        "binLength": 1,
+        "binHeight": 3,
+        "hasTab": true,
+        "tabLength": 2,
+        "labelText": "M3",
+        "labelIcon": "Hex nut",
+        "labelStyle": "Engraved",
+        "labelAlignment": "Center"
+    }
+}

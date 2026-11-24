@@ -56,6 +56,8 @@ class InputState:
     labelText: str
     labelIcon: str
     labelStyle: str
+    # see labelGenerator.LABEL_ALIGNMENTS
+    labelAlignment: str
     isLabelBold: bool
 
     compartmentsX: int
