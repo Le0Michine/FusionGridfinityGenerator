@@ -650,6 +650,9 @@
     // the report drawn last, and the case it showed in the viewport, the page scrolls to a newly shown one
     let current = null;
     let lastShown = null;
+    // a run or a snapshot update was going on when the report was drawn last, as it ends the page goes to its first
+    // case that needs a look, not the last one built
+    let wasRunning = false;
     // the filter of the cases, kept for the next time the window opens
     const FILTER_KEY = 'gridfinityTestsFilter';
     let filterText = '';
@@ -836,14 +839,23 @@
         if (filtering && shownCases.length === 0) {
             root.appendChild(element('p', 'muted', 'No case matches the filter'));
         }
+        const runEnded = wasRunning && !progress;
+        let firstToLookAt = null;
         for (const item of shownCases) {
             const card = caseCard(item, report.kind, item.name === report.shown);
             root.appendChild(card);
-            if (item.name === report.shown && report.shown !== lastShown) {
+            if (firstToLookAt === null && ATTENTION.includes(item.status)) {
+                firstToLookAt = card;
+            }
+            if (!runEnded && item.name === report.shown && report.shown !== lastShown) {
                 card.scrollIntoView({ block: 'nearest' });
             }
         }
+        if (runEnded && firstToLookAt !== null) {
+            firstToLookAt.scrollIntoView({ block: 'start' });
+        }
         lastShown = report.shown;
+        wasRunning = Boolean(progress);
         if (filterFocus) {
             const input = document.getElementById('filter');
             input.focus();

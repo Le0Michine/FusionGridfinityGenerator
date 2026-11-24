@@ -337,12 +337,23 @@ def unhealthyFeatures(timeline: adsk.fusion.Timeline) -> list[str]:
         log(f'{reportPalette.PALETTE_TITLE} {caseName}   {detail}')
     return list(notes.values())
 
+def isSketchFullyConstrained(sketch: adsk.fusion.Sketch) -> bool:
+    """
+    Fusion never counts a sketch with text as fully constrained, the text itself isn't, however its box is held, fixed
+    even. Such a sketch is when all its curves and points are, the lines of the text's box among them
+    """
+    if sketch.isFullyConstrained:
+        return True
+    if sketch.sketchTexts.count == 0:
+        return False
+    return all(curve.isFullyConstrained for curve in sketch.sketchCurves) and all(point.isFullyConstrained for point in sketch.sketchPoints)
+
 def underdefinedSketches(design: adsk.fusion.Design) -> list[str]:
     """Sketches of the design not fully constrained, their geometry is left to where Fusion happened to put it"""
     notes = []
     for component in design.allComponents:
         for sketch in component.sketches:
-            if not sketch.isFullyConstrained:
+            if not isSketchFullyConstrained(sketch):
                 place = f'{component.name} > {sketch.name}' if component != design.rootComponent else sketch.name
                 notes.append(f'sketch {place}, not fully constrained')
     caseName = building[0] if building is not None else ''
