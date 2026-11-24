@@ -44,6 +44,7 @@ BIN = {
     'labelText': '',
     'labelIcon': 'None',
     'labelStyle': 'Outline',
+    'isRimSplit': False,
     'isLabelBold': True,
     'compartmentsX': 1,
     'compartmentsY': 1,

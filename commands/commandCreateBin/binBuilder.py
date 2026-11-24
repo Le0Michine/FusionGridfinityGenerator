@@ -13,7 +13,7 @@ from ...lib.gridfinityUtils import shellUtils
 from ...lib.gridfinityUtils import commonUtils
 from ...lib.gridfinityUtils import const
 from ...lib.gridfinityUtils import parameterUtils
-from ...lib.gridfinityUtils.dim import Dim
+from ...lib.gridfinityUtils.dim import Dim, lengthInput
 from ...lib.gridfinityUtils.baseGenerator import createFootGrid, cutBaseClearance, cutWallJunctionPockets, footCenters, createCellJointOrigins, keepBodiesInCells, cutOutsideShape, cutShapeWallJunctionPockets
 from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
 from ...lib.gridfinityUtils.binBodyGenerator import createGridfinityBinBody, createShapeCavity, createBinLipSupport, binBodyTopHeight, createCompartmentCutout, compartmentCutoutFilletRadius, tabTopClearance, createTabLabel, hollowTabWallThickness
@@ -606,6 +606,10 @@ def buildBin(
                     inlayBodies=binBodyInput.labelInlayBodies,
                 )
 
+    rimBodies: list[adsk.fusion.BRepBody] = []
+    if state.isRimSplit and state.generateBody and state.hasTab and (isHollow or isShelled) and not shaped:
+        (binBody, rimBodies) = splitRimAtTabTop(binBody, binBodyTopHeight(binBodyInput) - Dim.length(tabTopClearance(state.labelStyle, state.tabTopOffset)), gridfinityBinComponent)
+
     generatedBodies: list[adsk.fusion.BRepBody] = []
     if state.generateBody or state.generateBase:
         generatedBodies = [binBody] if state.generateBody else baseBodies
@@ -615,6 +619,9 @@ def buildBin(
             for body in inlayBodies:
                 tagUtils.markLabelInlay(body)
             generatedBodies += inlayBodies
+            for body in rimBodies:
+                tagUtils.markRim(body)
+            generatedBodies += rimBodies
         if binPlacement != (0, 0):
             placementUtils.moveBodies(generatedBodies, *binPlacement, gridfinityBinComponent, name=BIN_PLACEMENT_FEATURE)
         # mark generated geometry so later bins can tell it apart from the rest of the design,
@@ -649,6 +656,37 @@ def buildBin(
     binGroup = des.timeline.timelineGroups.add(originalTimelinePosition, des.timeline.markerPosition - 1)
     binGroup.name = binName
     return generatedBodies
+
+def splitRimAtTabTop(
+    binBody: adsk.fusion.BRepBody,
+    tabTopZ: Dim,
+    targetComponent: adsk.fusion.Component,
+) -> tuple[adsk.fusion.BRepBody, list[adsk.fusion.BRepBody]]:
+    """
+    Splits the lip and the walls above the tab top off the bin as a body of its own, to print it in another color. The
+    plane follows the height parameters. Returns the bin body below and what was split off, the bin body unsplit and
+    nothing when the split fails
+    """
+    planeInput = targetComponent.constructionPlanes.createInput()
+    planeInput.setByOffset(targetComponent.xYConstructionPlane, lengthInput(tabTopZ))
+    plane = targetComponent.constructionPlanes.add(planeInput)
+    plane.name = 'Rim split plane'
+    plane.isLightBulbOn = False
+    name = binBody.name
+    try:
+        splitInput = targetComponent.features.splitBodyFeatures.createInput(binBody, plane, True)
+        splitFeature = targetComponent.features.splitBodyFeatures.add(splitInput)
+        splitFeature.name = 'Rim split'
+    except RuntimeError as err:
+        commonUtils.fileLog(f'{LOG_PREFIX} the rim couldn\'t be split off at the tab top, {err}')
+        return (binBody, [])
+    bodies = list(splitFeature.bodies)
+    bottom = min(bodies, key=lambda body: body.boundingBox.minPoint.z)
+    bottom.name = name
+    rims = [body for body in bodies if body != bottom]
+    for body in rims:
+        body.name = f'{name} rim'
+    return (bottom, rims)
 
 def rebuildBin(
     des: adsk.fusion.Design,

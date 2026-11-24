@@ -52,6 +52,7 @@ ADDED_FIELDS = {
         'lipType': 'Light',
         'isLipTopTrimmed': True,
         'tabTopOffset': 0.5,
+        'isRimSplit': False,
     },
     GENERATOR_BASEPLATE: {},
 }

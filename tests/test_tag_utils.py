@@ -170,3 +170,9 @@ def test_inlaid_letters_are_secondary_bodies_the_bin_body_is_not():
 
 def test_a_body_without_attributes_is_no_secondary_body():
     assert not tagUtils.isSecondaryBody(object())
+
+
+def test_a_split_off_rim_is_a_secondary_body():
+    rim = _Body()
+    tagUtils.markRim(rim)
+    assert tagUtils.isSecondaryBody(rim)

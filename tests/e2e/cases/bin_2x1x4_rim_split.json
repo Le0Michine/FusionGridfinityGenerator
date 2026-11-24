@@ -1,0 +1,12 @@
+{
+    "description": "2x1x4 bin with its lip and the walls above the label tab split off as a rim body of its own",
+    "generator": "bin",
+    "settings": {
+        "binLength": 1,
+        "binHeight": 4,
+        "hasTab": true,
+        "tabLength": 2,
+        "labelText": "M3",
+        "isRimSplit": true
+    }
+}

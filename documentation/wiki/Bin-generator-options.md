@@ -313,6 +313,11 @@ Sets the label text in bold.
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/gif/bin-label-options-dark.gif"><img src="../assets/gif/bin-label-options-light.gif" alt="Typing label text, picking an icon and each label style, with the bin at each change"></picture>
 
+### Split rim at tab top
+Default: <!-- default:bin_rim_split -->
+
+Splits the lip and the walls above the top of the label tab off the bin as a body of its own, so a multicolor printer can print the rim in another color, to tell bins apart at a glance. For hollow and shelled bins with a label tab that aren't drawn to a custom shape. The rim moves with the bin, a rebuild replaces it, and **Gridfinity export** keeps it on its bin.
+
 # Base interface features
 
 The bottom of the bin, which makes it fit a Gridfinity baseplate.

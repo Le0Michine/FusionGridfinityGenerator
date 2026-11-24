@@ -56,6 +56,8 @@ class InputState:
     labelText: str
     labelIcon: str
     labelStyle: str
+    # the lip and the walls above the tab top as a body of their own, see binBuilder.splitRimAtTabTop
+    isRimSplit: bool
     isLabelBold: bool
 
     compartmentsX: int
