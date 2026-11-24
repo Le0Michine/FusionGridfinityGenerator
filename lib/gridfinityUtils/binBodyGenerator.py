@@ -11,7 +11,7 @@ from .baseGeneratorInput import BaseGeneratorInput
 from .binBodyGeneratorInput import BinBodyGeneratorInput, BinBodyCompartmentDefinition
 from .binBodyTabGeneratorInput import BinBodyTabGeneratorInput
 from .binBodyTabGenerator import createGridfinityBinBodyTab, createTabHollowCuts, TabCavity, TabWallOpenings, TabHollowCuts
-from .labelGenerator import BinLabelDefinition, BinLabelInput, createLabel, LABEL_STYLE_EMBOSSED, LABEL_STYLE_ENGRAVED
+from .labelGenerator import BinLabelDefinition, BinLabelInput, createLabel, LABEL_STYLE_EMBOSSED, LABEL_STYLE_ENGRAVED, LABEL_STYLE_INLAY
 from .binBodyLipGeneratorInput import BinBodyLipGeneratorInput, LIP_TYPE_FULL
 from .binBodyLipGenerator import createGridfinityBinBodyLip, createLipSupport, lipInnerInset
 from .dim import Dim, lengthInput
@@ -336,6 +336,7 @@ def createGridfinityBinBody(
                 input.tabTopAngle,
                 input.tabTopOffset,
                 name='Label' if len(input.compartments) == 1 else f'Compartment {compartmentIndex + 1} label',
+                inlayBodies=input.labelInlayBodies,
             )
 
     return binBody
@@ -362,6 +363,8 @@ def hollowTabWallThickness(wallThickness: float, labelStyle: str) -> float:
     """Hollow tabs take the wall thickness, thick enough for an engraved label not to cut through"""
     if labelStyle == LABEL_STYLE_ENGRAVED:
         return max(wallThickness, const.BIN_LABEL_DEPTH + const.BIN_TAB_HOLLOW_MIN_SKIN)
+    if labelStyle == LABEL_STYLE_INLAY:
+        return max(wallThickness, const.BIN_LABEL_INLAY_DEPTH + const.BIN_TAB_HOLLOW_MIN_SKIN)
     return wallThickness
 
 def createTabLabel(
@@ -379,6 +382,7 @@ def createTabLabel(
         tabTopOffset: float = const.BIN_TAB_TOP_CLEARANCE,
         *,
         name: str,
+        inlayBodies: list | None = None,
     ):
     """Label on the top face of a tab with its back top corner at the tab origin y and z, between the given x.
     On a tilted top the label is as long as the slope, so it still covers the tab width once turned down"""
@@ -393,7 +397,7 @@ def createTabLabel(
     labelInput.width = maxX - minX
     labelInput.length = labelLength
     labelInput.tiltAngle = tabTopAngle
-    return createLabel(labelInput, targetBody, targetComponent, name=name)
+    return createLabel(labelInput, targetBody, targetComponent, name=name, inlayBodies=inlayBodies)
 
 
 def createShapeLipBottomChamfer(

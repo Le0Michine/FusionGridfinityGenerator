@@ -222,6 +222,27 @@ def _fillBed(sizes: list[Size], bed: Size, spacing: float, areas: list[Area]) ->
     # without a way to keep them clear, they're packed around the areas, the slicer moves them on one
     return max(found, key=used) if found else first
 
+def arrangeGroups(boxes: list[Area], groups: list[list[int]], bed: Size, spacing: float, margin: float, kept: list[Area] = ()) -> list[Placement]:
+    """
+    Bodies that go together, as the letters of an inlaid label with their bin, arranged as one: the box around each
+    group of indices into boxes is arranged, see arrange, and its bodies keep where they are in it, turned with it.
+    Boxes are x0, y0, x1, y1 as the bodies lie, a placement for each, in their order
+    """
+    groupBoxes = [
+        (min(boxes[index][0] for index in group), min(boxes[index][1] for index in group),
+         max(boxes[index][2] for index in group), max(boxes[index][3] for index in group))
+        for group in groups
+    ]
+    groupPlacements = arrange([(x1 - x0, y1 - y0) for (x0, y0, x1, y1) in groupBoxes], bed, spacing, margin, kept)
+    placements: list[Placement | None] = [None] * len(boxes)
+    for (group, (groupX0, groupY0, _, groupY1), placement) in zip(groups, groupBoxes, groupPlacements):
+        for index in group:
+            (x0, y0, _, y1) = boxes[index]
+            # a quarter turned counterclockwise, x and y become -y and x, the box's corner goes with the group's
+            (offsetX, offsetY) = (groupY1 - y1, x0 - groupX0) if placement.turned else (x0 - groupX0, y0 - groupY0)
+            placements[index] = dataclasses.replace(placement, x=placement.x + offsetX, y=placement.y + offsetY)
+    return placements
+
 def arrange(sizes: list[Size], bed: Size, spacing: float, margin: float, kept: list[Area] = ()) -> list[Placement]:
     """
     Packed and centered on the bed less the margin along its edges, clear of the areas kept free once the slicer

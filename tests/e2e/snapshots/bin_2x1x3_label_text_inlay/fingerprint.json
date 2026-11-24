@@ -1,0 +1,184 @@
+{
+    "bodies": [
+        {
+            "name": "Gridfinity bin 1x2x3",
+            "file": "body1.smt",
+            "volume": 32303.468118,
+            "area": 18497.49675,
+            "bboxMin": [
+                0.0,
+                0.0,
+                -5.0
+            ],
+            "bboxMax": [
+                83.5,
+                41.5,
+                19.8
+            ],
+            "lumps": 1,
+            "faces": 270,
+            "edges": 702,
+            "vertices": 444
+        },
+        {
+            "name": "Label",
+            "file": "body2.smt",
+            "volume": 20.239666,
+            "area": 74.516585,
+            "bboxMin": [
+                23.702851,
+                29.800075,
+                14.5
+            ],
+            "bboxMax": [
+                28.842595,
+                37.699661,
+                15.5
+            ],
+            "lumps": 1,
+            "faces": 30,
+            "edges": 84,
+            "vertices": 56
+        },
+        {
+            "name": "Label (1)",
+            "file": "body3.smt",
+            "volume": 16.264419,
+            "area": 59.481986,
+            "bboxMin": [
+                38.768525,
+                29.805353,
+                14.5
+            ],
+            "bboxMax": [
+                44.056022,
+                35.662761,
+                15.5
+            ],
+            "lumps": 1,
+            "faces": 20,
+            "edges": 54,
+            "vertices": 36
+        },
+        {
+            "name": "Label (2)",
+            "file": "body4.smt",
+            "volume": 10.930049,
+            "area": 40.831426,
+            "bboxMin": [
+                45.042813,
+                29.931999,
+                14.5
+            ],
+            "bboxMax": [
+                48.673351,
+                35.662761,
+                15.5
+            ],
+            "lumps": 1,
+            "faces": 15,
+            "edges": 39,
+            "vertices": 26
+        },
+        {
+            "name": "Label (3)",
+            "file": "body5.smt",
+            "volume": 25.967039,
+            "area": 93.58711,
+            "bboxMin": [
+                54.594081,
+                29.931999,
+                14.5
+            ],
+            "bboxMax": [
+                62.947481,
+                35.536114,
+                15.5
+            ],
+            "lumps": 1,
+            "faces": 15,
+            "edges": 39,
+            "vertices": 26
+        },
+        {
+            "name": "Label (4)",
+            "file": "body6.smt",
+            "volume": 19.190201,
+            "area": 70.086983,
+            "bboxMin": [
+                48.879149,
+                29.805353,
+                14.5
+            ],
+            "bboxMax": [
+                54.115206,
+                35.662761,
+                15.5
+            ],
+            "lumps": 1,
+            "faces": 21,
+            "edges": 57,
+            "vertices": 38
+        },
+        {
+            "name": "Label (5)",
+            "file": "body7.smt",
+            "volume": 18.534787,
+            "area": 68.579927,
+            "bboxMin": [
+                63.206051,
+                29.805353,
+                14.5
+            ],
+            "bboxMax": [
+                68.440779,
+                35.662761,
+                15.5
+            ],
+            "lumps": 1,
+            "faces": 28,
+            "edges": 78,
+            "vertices": 52
+        },
+        {
+            "name": "Label (6)",
+            "file": "body8.smt",
+            "volume": 18.534791,
+            "area": 68.579949,
+            "bboxMin": [
+                32.56284,
+                29.805353,
+                14.5
+            ],
+            "bboxMax": [
+                37.797568,
+                35.662761,
+                15.5
+            ],
+            "lumps": 1,
+            "faces": 28,
+            "edges": 78,
+            "vertices": 52
+        },
+        {
+            "name": "Label (7)",
+            "file": "body9.smt",
+            "volume": 41.104211,
+            "area": 142.422498,
+            "bboxMin": [
+                15.059216,
+                29.931999,
+                14.5
+            ],
+            "bboxMax": [
+                22.531369,
+                37.667999,
+                15.5
+            ],
+            "lumps": 1,
+            "faces": 15,
+            "edges": 39,
+            "vertices": 26
+        }
+    ]
+}

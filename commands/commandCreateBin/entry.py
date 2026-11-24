@@ -918,7 +918,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     addIconItems(labelIconInput, [labelGenerator.LABEL_ICON_NONE], commandUIState.getState(BIN_TAB_LABEL_ICON_INPUT_ID))
     commandUIState.registerCommandInput(labelIconInput)
     labelStyleInput = binTabFeaturesGroup.children.addDropDownCommandInput(BIN_TAB_LABEL_STYLE_INPUT_ID, 'Label style', adsk.core.DropDownStyles.TextListDropDownStyle)
-    labelStyleInput.tooltip = 'Outline splits the tab face along the label so a slicer can color it, engraved cuts it in, embossed raises it from a lowered tab'
+    labelStyleInput.tooltip = 'Outline splits the tab face along the label so a slicer can color it, engraved cuts it in, embossed raises it from a lowered tab, inlay makes it 1 mm thick bodies of their own in the tab, for a multicolor printer'
     for style in labelGenerator.LABEL_STYLES:
         labelStyleInput.listItems.add(style, style == commandUIState.getState(BIN_TAB_LABEL_STYLE_INPUT_ID))
     commandUIState.registerCommandInput(labelStyleInput)

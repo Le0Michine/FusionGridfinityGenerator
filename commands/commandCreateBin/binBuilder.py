@@ -603,11 +603,18 @@ def buildBin(
                     binBodyInput.tabTopAngle,
                     binBodyInput.tabTopOffset,
                     name='Label',
+                    inlayBodies=binBodyInput.labelInlayBodies,
                 )
 
     generatedBodies: list[adsk.fusion.BRepBody] = []
     if state.generateBody or state.generateBase:
         generatedBodies = [binBody] if state.generateBody else baseBodies
+        if state.generateBody:
+            # the letters of inlaid labels move with the bin and carry its tag, a rebuild replaces them too
+            inlayBodies = [body for body in binBodyInput.labelInlayBodies if body.isValid]
+            for body in inlayBodies:
+                tagUtils.markLabelInlay(body)
+            generatedBodies += inlayBodies
         if binPlacement != (0, 0):
             placementUtils.moveBodies(generatedBodies, *binPlacement, gridfinityBinComponent, name=BIN_PLACEMENT_FEATURE)
         # mark generated geometry so later bins can tell it apart from the rest of the design,

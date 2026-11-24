@@ -66,8 +66,11 @@ def _bounds(vertices: list[tuple[float, float, float]]) -> tuple[float, float, f
         min(z for (_, _, z) in vertices),
     )
 
-def placeOnPlate(objects: list[MeshObject], bed: tuple[float, float] = DEFAULT_BED) -> list[MeshObject]:
-    """Each standing on the plate, all as they were in the design side to side, around the middle of the bed"""
+def placeOnPlate(objects: list[MeshObject], bed: tuple[float, float] = DEFAULT_BED, bottoms: list[float] | None = None) -> list[MeshObject]:
+    """
+    Each standing on the plate, all as they were in the design side to side, around the middle of the bed. Bottoms
+    lift an object by where it starts instead of its own lowest point, the letters of an inlaid label stay in their bin
+    """
     vertices = [vertex for meshObject in objects for vertex in meshObject.vertices]
     if len(vertices) == 0:
         return objects
@@ -75,11 +78,21 @@ def placeOnPlate(objects: list[MeshObject], bed: tuple[float, float] = DEFAULT_B
     shiftX = bed[0] / 2 - (minX + maxX) / 2
     shiftY = bed[1] / 2 - (minY + maxY) / 2
     placed = []
-    for meshObject in objects:
-        bottom = min((z for (_, _, z) in meshObject.vertices), default=0)
+    for (index, meshObject) in enumerate(objects):
+        bottom = bottoms[index] if bottoms is not None else min((z for (_, _, z) in meshObject.vertices), default=0)
         vertices = [(x + shiftX, y + shiftY, z - bottom) for (x, y, z) in meshObject.vertices]
         placed.append(dataclasses.replace(meshObject, vertices=vertices))
     return placed
+
+def box(meshObject: MeshObject) -> tuple[float, float, float, float]:
+    """Its min x, min y, max x and max y seen from above"""
+    if len(meshObject.vertices) == 0:
+        return (0.0, 0.0, 0.0, 0.0)
+    return _bounds(meshObject.vertices)[:4]
+
+def bottom(meshObject: MeshObject) -> float:
+    """Its lowest point"""
+    return min((z for (_, _, z) in meshObject.vertices), default=0.0)
 
 def footprint(meshObject: MeshObject) -> tuple[float, float]:
     """Its width and length seen from above"""
@@ -97,19 +110,21 @@ def plateOrigin(plate: int, count: int, bed: tuple[float, float]) -> tuple[float
     columns = plateColumns(count)
     return ((plate % columns) * bed[0] * (1 + PLATE_GAP), -(plate // columns) * bed[1] * (1 + PLATE_GAP))
 
-def placeOnBeds(objects: list[MeshObject], placements: list, bed: tuple[float, float]) -> list[MeshObject]:
+def placeOnBeds(objects: list[MeshObject], placements: list, bed: tuple[float, float], bottoms: list[float] | None = None) -> list[MeshObject]:
     """
     Each standing on the plate of its bed, with its footprint's corner where its placement puts it, a quarter turned
-    counterclockwise when it says so, see bedPacking
+    counterclockwise when it says so, see bedPacking. Bottoms lift an object by where it starts instead of its own
+    lowest point, as placeOnPlate
     """
     count = max((placement.bed for placement in placements), default=-1) + 1
     placed = []
-    for (meshObject, placement) in zip(objects, placements):
+    for (index, (meshObject, placement)) in enumerate(zip(objects, placements)):
         if len(meshObject.vertices) == 0:
             placed.append(meshObject)
             continue
         vertices = [(-y, x, z) for (x, y, z) in meshObject.vertices] if placement.turned else meshObject.vertices
         (minX, minY, _, _, bottom) = _bounds(vertices)
+        bottom = bottoms[index] if bottoms is not None else bottom
         (originX, originY) = plateOrigin(placement.bed, count, bed)
         shiftX = originX + placement.x - minX
         shiftY = originY + placement.y - minY

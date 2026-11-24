@@ -878,6 +878,43 @@ def stalePlateFiles(path: str, count: int) -> list[str]:
             stale.append(os.path.join(folder, name))
     return stale
 
+def bodyGroups(items: list[ExportItem]) -> list[list[int]]:
+    """
+    The indices of the items going together, the bodies a bin has beside its bin body with the bin body they were
+    built with, in the same place, see tagUtils.isSecondaryBody. Every other body goes alone
+    """
+    def binKey(item: ExportItem) -> tuple | None:
+        tag = tagUtils.readBodyTag(item.body)
+        if tag is None or tag[1].get('id') is None:
+            return None
+        return (tag[0], tag[1]['id'], item.body.parentComponent.entityToken, item.occurrence.fullPathName if item.occurrence is not None else None)
+    groups: list[list[int]] = []
+    groupOf: dict[tuple, int] = {}
+    secondary: list[tuple[int, tuple | None]] = []
+    for (index, item) in enumerate(items):
+        key = binKey(item)
+        if tagUtils.isSecondaryBody(item.body):
+            secondary.append((index, key))
+            continue
+        if key is not None and key not in groupOf:
+            groupOf[key] = len(groups)
+        groups.append([index])
+    for (index, key) in secondary:
+        if key in groupOf:
+            groups[groupOf[key]].append(index)
+        else:
+            groups.append([index])
+    return groups
+
+def groupBottoms(objects: list[threeMf.MeshObject], groups: list[list[int]]) -> list[float]:
+    """Where each object starts, the lowest point of its group, so a bin's bodies stand on the bin's bottom"""
+    bottoms = [0.0] * len(objects)
+    for group in groups:
+        lowest = min(threeMf.bottom(objects[index]) for index in group)
+        for index in group:
+            bottoms[index] = lowest
+    return bottoms
+
 def export3mf(items: list[ExportItem], names: list[str], path: str, filament: int | None, beds: Beds, mayWrite: MayWrite, progress: Progress) -> ExportResult | None:
     """
     The bodies packed on plates or as placed, see Beds, in one file, or a file per plate named after the path when
@@ -893,20 +930,21 @@ def export3mf(items: list[ExportItem], names: list[str], path: str, filament: in
         progress(index + 1, len(items))
     title = os.path.splitext(os.path.basename(path))[0]
     version = tagUtils.getGeneratorVersion()
+    groups = bodyGroups(items)
+    bottoms = groupBottoms(objects, groups)
     if not isPacked:
         if not mayWrite([path]):
             return None
-        threeMf.write(path, threeMf.placeOnPlate(objects, beds.size), filament, title, version)
+        threeMf.write(path, threeMf.placeOnPlate(objects, beds.size, bottoms), filament, title, version)
         return ExportResult([path], len(items), paintedCount)
-    sizes = [threeMf.footprint(meshObject) for meshObject in objects]
-    placements = bedPacking.arrange(sizes, beds.size, beds.spacing, beds.margin, beds.kept())
+    placements = bedPacking.arrangeGroups([threeMf.box(meshObject) for meshObject in objects], groups, beds.size, beds.spacing, beds.margin, beds.kept())
     count = bedPacking.bedCount(placements)
-    tooBig = [name for (name, placement) in zip(names, placements) if not placement.fits]
+    tooBig = [names[group[0]] for group in groups if not placements[group[0]].fits]
     notClear = sorted(set(placement.bed for placement in placements if not placement.clear))
     if not beds.perPlate or count == 1:
         if not mayWrite([path]):
             return None
-        placed = threeMf.placeOnBeds(objects, placements, beds.size)
+        placed = threeMf.placeOnBeds(objects, placements, beds.size, bottoms)
         threeMf.write(path, placed, filament, title, version, [placement.bed for placement in placements])
         return ExportResult([path], len(items), paintedCount, count, tooBig, notClear)
     paths = [plateFilePath(path, plate) for plate in range(count)]
@@ -915,7 +953,7 @@ def export3mf(items: list[ExportItem], names: list[str], path: str, filament: in
         return None
     for plate in range(count):
         onPlate = [index for (index, placement) in enumerate(placements) if placement.bed == plate]
-        placed = threeMf.placeOnBeds([objects[index] for index in onPlate], [dataclasses.replace(placements[index], bed=0) for index in onPlate], beds.size)
+        placed = threeMf.placeOnBeds([objects[index] for index in onPlate], [dataclasses.replace(placements[index], bed=0) for index in onPlate], beds.size, [bottoms[index] for index in onPlate])
         threeMf.write(paths[plate], placed, filament, f'{title}, plate {plate + 1}', version)
     for stalePath in stale:
         os.remove(stalePath)
@@ -998,12 +1036,14 @@ def platesData(items: list[ExportItem], beds: Beds) -> dict:
         return {'error': 'The bed size has to be more than 0'}
     isPacked = beds.spacing is not None
     boxes = [boxCorners(item, isPacked) for item in items]
+    groups = bodyGroups(items)
     sizes = [footprint(corners) for corners in boxes]
     areas = [{'area': list(area), 'name': 'Kept free by the printer'} for area in beds.excluded]
     if beds.purge is not None:
         areas.append({'area': list(beds.purge), 'name': 'Purge tower'})
     if isPacked:
-        placements = bedPacking.arrange(sizes, beds.size, beds.spacing, beds.margin, beds.kept())
+        corners = [(min(x for (x, _, _) in box), min(y for (_, y, _) in box), max(x for (x, _, _) in box), max(y for (_, y, _) in box)) for box in boxes]
+        placements = bedPacking.arrangeGroups(corners, groups, beds.size, beds.spacing, beds.margin, beds.kept())
     else:
         # the layout's middle in the middle of the bed, as the 3MF has it
         (minX, minY) = (min(x for corners in boxes for (x, _, _) in corners), min(y for corners in boxes for (_, y, _) in corners))
@@ -1026,7 +1066,7 @@ def platesData(items: list[ExportItem], beds: Beds) -> dict:
             'turned': placement.turned, 'fits': placement.fits, 'clear': placement.clear,
         })
     count = bodiesCount(items)
-    tooBig = sum(not placement.fits for placement in placements)
+    tooBig = sum(not placements[group[0]].fits for group in groups)
     notClear = len(set(placement.bed for placement in placements if not placement.clear))
     return {
         'bed': list(beds.size),
