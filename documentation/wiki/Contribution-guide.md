@@ -97,6 +97,13 @@ The dialogs follow Fusion's language, German is translated, any other language s
 
 `LANGUAGE` in `lib/i18n.py` can be set to `de` or `en` to try a language whatever Fusion is set to. The unit tests check that every translation keeps the placeholders of its English text.
 
+To add a language, say French with the code `fr`:
+
+1. In `lib/i18n.py`, add a dictionary like `DE` with the texts and one like `PARTS_DE` with the pieces of the sketch and plane names, and register them under `'fr'` in `TRANSLATIONS` and `PARTS`, with the words for sketch and plane.
+2. Map Fusion's language to the code in `FUSION_LANGUAGES`, by its name in `adsk.core.UserLanguages`: `'FrenchLanguage': 'fr'`.
+3. In `lib/ui/html/i18n.js`, add the page texts and the patterns for texts with values under `fr` in `TRANSLATIONS`.
+4. Keep labels short, the dialogs have a narrow column for them. Texts left out stay English, so a language can start with the dialogs and fill in the rest later.
+
 # Pull requests
 
 - Keep a pull request to one feature or fix.

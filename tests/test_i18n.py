@@ -40,9 +40,14 @@ def _placeholders(text: str) -> set[str]:
     return {name for (_, name, _, _) in string.Formatter().parse(text) if name}
 
 
-@pytest.mark.parametrize("english_text", list(i18n.DE))
-def test_translation_keeps_placeholders(english_text):
-    assert _placeholders(i18n.DE[english_text]) == _placeholders(english_text)
+@pytest.mark.parametrize("language,english_text", [(language, text) for (language, texts) in i18n.TRANSLATIONS.items() for text in texts])
+def test_translation_keeps_placeholders(language, english_text):
+    assert _placeholders(i18n.TRANSLATIONS[language][english_text]) == _placeholders(english_text)
+
+
+def test_every_language_has_its_pieces_of_names():
+    assert set(i18n.PARTS) == set(i18n.TRANSLATIONS)
+    assert set(i18n.FUSION_LANGUAGES.values()) <= set(i18n.TRANSLATIONS)
 
 
 def test_english_stays_as_it_is(english):

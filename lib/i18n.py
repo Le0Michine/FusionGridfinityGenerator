@@ -10,8 +10,13 @@ shown translated but kept in English, see item() and key().
 The pages of the dialogs have their own dictionary, see lib/ui/html/i18n.js
 """
 
-# 'de' German, 'en' English, 'auto' German when Fusion is set to German, English otherwise
+# a language of TRANSLATIONS or 'en' English, 'auto' the one Fusion is set to, see FUSION_LANGUAGES, English when it has none
 LANGUAGE = 'auto'
+
+# Fusion's languages, by their name in adsk.core.UserLanguages, that have a translation
+FUSION_LANGUAGES = {
+    'GermanLanguage': 'de',
+}
 
 _language: str | None = None
 # shown text to the English one, for dropdown items and labels kept in English, see key()
@@ -26,8 +31,8 @@ def language() -> str:
             try:
                 # imported here, the modules kept free of Fusion for their tests import this one too
                 import adsk.core
-                isGerman = adsk.core.Application.get().preferences.generalPreferences.userLanguage == adsk.core.UserLanguages.GermanLanguage
-                _language = 'de' if isGerman else 'en'
+                userLanguage = adsk.core.Application.get().preferences.generalPreferences.userLanguage
+                _language = next((code for (name, code) in FUSION_LANGUAGES.items() if userLanguage == getattr(adsk.core.UserLanguages, name, None)), 'en')
             except Exception:
                 _language = 'en'
     return _language
@@ -35,7 +40,7 @@ def language() -> str:
 
 def t(text: str, **values) -> str:
     """The text in the add-in's language, {name} placeholders are filled from values"""
-    shown = DE.get(text, text) if language() == 'de' else text
+    shown = TRANSLATIONS.get(language(), {}).get(text, text)
     if shown != text:
         _reverse.setdefault(shown, text)
     return shown.format(**values) if values else shown
@@ -61,23 +66,24 @@ def key(shown: str) -> str:
 def sketchName(name: str) -> str:
     """Foot sketch shows as Skizze Fuß. Sketches and construction planes are only named for the browser,
     the add-in doesn't look them up by name, so unlike bodies and features they can be translated"""
-    return _partName(name, ' sketch', 'Skizze')
+    return _partName(name, ' sketch', 0)
 
 
 def planeName(name: str) -> str:
     """Compartment 2 cavity plane shows as Ebene Fach 2, Hohlraum, see sketchName"""
-    return _partName(name, ' plane', 'Ebene')
+    return _partName(name, ' plane', 1)
 
 
-def _partName(name: str, suffix: str, kind: str) -> str:
-    if language() != 'de':
+def _partName(name: str, suffix: str, kind: int) -> str:
+    """The name of a sketch or plane, kind 0 or 1, from the pieces of the language, see PARTS"""
+    if language() not in PARTS:
         return name
     base = name[:-len(suffix)] if name.endswith(suffix) else name
-    return f'{kind} {partText(base)}'
+    return f'{PARTS[language()][kind]} {partText(base)}'
 
 
 def partText(text: str) -> str:
-    """The generated names are built from the pieces of PARTS_DE, e.g. Lip cutout groove layer 1, the pieces are
+    """The generated names are built from the pieces of PARTS, in German those of PARTS_DE, e.g. Lip cutout groove layer 1, the pieces are
     translated one by one, longest first, and joined with commas: Stapelrand-Ausschnitt, Rille Lage 1.
     Numbers and single axis letters stay with the piece before them, unknown words stay English"""
     words = text.split(' ')
@@ -86,8 +92,8 @@ def partText(text: str) -> str:
     while index < len(words):
         for end in range(len(words), index, -1):
             phrase = ' '.join(words[index:end]).lower()
-            if phrase in PARTS_DE:
-                pieces.append(PARTS_DE[phrase])
+            if phrase in PARTS[language()][2]:
+                pieces.append(PARTS[language()][2][phrase])
                 index = end
                 break
         else:
@@ -575,4 +581,15 @@ DE: dict[str, str] = {
     ', {count} bigger than the bed': ', {count} größer als das Bett',
     ', 1 plate without room to keep an area free': ', 1 Platte ohne Platz für die freie Fläche',
     ', {count} plates without room to keep an area free': ', {count} Platten ohne Platz für die freie Fläche',
+}
+
+
+# the translations by language code, the dialogs' texts by their English one
+TRANSLATIONS: dict[str, dict[str, str]] = {
+    'de': DE,
+}
+
+# the words for sketch and plane put before the names of sketches and planes, and the pieces of the names
+PARTS: dict[str, tuple[str, str, dict[str, str]]] = {
+    'de': ('Skizze', 'Ebene', PARTS_DE),
 }
