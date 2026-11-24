@@ -1,0 +1,12 @@
+{
+    "description": "2x1x3 bin with a text label aligned to the right of its tab",
+    "generator": "bin",
+    "settings": {
+        "binLength": 1,
+        "binHeight": 3,
+        "hasTab": true,
+        "tabLength": 2,
+        "labelText": "M3",
+        "labelAlignment": "Right"
+    }
+}

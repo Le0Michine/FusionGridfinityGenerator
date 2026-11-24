@@ -11,7 +11,7 @@ from .baseGeneratorInput import BaseGeneratorInput
 from .binBodyGeneratorInput import BinBodyGeneratorInput, BinBodyCompartmentDefinition
 from .binBodyTabGeneratorInput import BinBodyTabGeneratorInput
 from .binBodyTabGenerator import createGridfinityBinBodyTab, createTabHollowCuts, TabCavity, TabWallOpenings, TabHollowCuts
-from .labelGenerator import BinLabelDefinition, BinLabelInput, createLabel, LABEL_STYLE_EMBOSSED, LABEL_STYLE_ENGRAVED
+from .labelGenerator import BinLabelDefinition, BinLabelInput, createLabel, LABEL_STYLE_EMBOSSED, LABEL_STYLE_ENGRAVED, LABEL_ALIGN_AUTO
 from .binBodyLipGeneratorInput import BinBodyLipGeneratorInput, LIP_TYPE_FULL
 from .binBodyLipGenerator import createGridfinityBinBodyLip, createLipSupport, lipInnerInset
 from .dim import Dim, lengthInput
@@ -336,6 +336,7 @@ def createGridfinityBinBody(
                 input.tabTopAngle,
                 input.tabTopOffset,
                 name='Label' if len(input.compartments) == 1 else f'Compartment {compartmentIndex + 1} label',
+                alignment=input.labelAlignment,
             )
 
     return binBody
@@ -379,12 +380,14 @@ def createTabLabel(
         tabTopOffset: float = const.BIN_TAB_TOP_CLEARANCE,
         *,
         name: str,
+        alignment: str = LABEL_ALIGN_AUTO,
     ):
     """Label on the top face of a tab with its back top corner at the tab origin y and z, between the given x.
     On a tilted top the label is as long as the slope, so it still covers the tab width once turned down"""
     labelLength = tabWidth / math.cos(tabTopAngle)
     labelInput = BinLabelInput()
     labelInput.style = style
+    labelInput.alignment = alignment
     labelInput.isBold = isBold
     labelInput.definition = definition
     labelInput.originX = minX

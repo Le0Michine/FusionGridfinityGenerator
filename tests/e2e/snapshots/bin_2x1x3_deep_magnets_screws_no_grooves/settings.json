@@ -38,6 +38,7 @@
     "labelText": "",
     "labelIcon": "None",
     "labelStyle": "Outline",
+    "labelAlignment": "Auto",
     "isLabelBold": true,
     "compartmentsX": 1,
     "compartmentsY": 1,

@@ -159,6 +159,7 @@ BIN_TAB_TOP_OFFSET_INPUT_ID = 'bin_tab_top_offset'
 BIN_TAB_LABEL_TEXT_INPUT_ID = 'bin_tab_label_text'
 BIN_TAB_LABEL_ICON_INPUT_ID = 'bin_tab_label_icon'
 BIN_TAB_LABEL_STYLE_INPUT_ID = 'bin_tab_label_style'
+BIN_TAB_LABEL_ALIGNMENT_INPUT_ID = 'bin_tab_label_alignment'
 BIN_TAB_LABEL_BOLD_INPUT_ID = 'bin_tab_label_bold'
 BIN_WITH_LIP_INPUT_ID = 'with_lip'
 BIN_WITH_LIP_NOTCHES_INPUT_ID = 'with_lip_notches'
@@ -228,6 +229,7 @@ STATE_INPUT_IDS = {
     'labelText': BIN_TAB_LABEL_TEXT_INPUT_ID,
     'labelIcon': BIN_TAB_LABEL_ICON_INPUT_ID,
     'labelStyle': BIN_TAB_LABEL_STYLE_INPUT_ID,
+    'labelAlignment': BIN_TAB_LABEL_ALIGNMENT_INPUT_ID,
     'isLabelBold': BIN_TAB_LABEL_BOLD_INPUT_ID,
     'hasCreases': BIN_CREASES_INPUT_ID,
     'creaseDepth': BIN_CREASE_DEPTH_INPUT_ID,
@@ -331,6 +333,7 @@ def initDefaultUiState():
     commandUIState.initValue(BIN_TAB_LABEL_TEXT_INPUT_ID, DEFAULT_STATE.labelText, adsk.core.StringValueCommandInput.classType())
     commandUIState.initValue(BIN_TAB_LABEL_ICON_INPUT_ID, DEFAULT_STATE.labelIcon, adsk.core.DropDownCommandInput.classType())
     commandUIState.initValue(BIN_TAB_LABEL_STYLE_INPUT_ID, DEFAULT_STATE.labelStyle, adsk.core.DropDownCommandInput.classType())
+    commandUIState.initValue(BIN_TAB_LABEL_ALIGNMENT_INPUT_ID, DEFAULT_STATE.labelAlignment, adsk.core.DropDownCommandInput.classType())
     commandUIState.initValue(BIN_TAB_LABEL_BOLD_INPUT_ID, DEFAULT_STATE.isLabelBold, adsk.core.BoolValueCommandInput.classType())
 
     commandUIState.initValue(BIN_GENERATE_BASE_INPUT_ID, DEFAULT_STATE.generateBase, adsk.core.BoolValueCommandInput.classType())
@@ -922,6 +925,11 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     for style in labelGenerator.LABEL_STYLES:
         labelStyleInput.listItems.add(style, style == commandUIState.getState(BIN_TAB_LABEL_STYLE_INPUT_ID))
     commandUIState.registerCommandInput(labelStyleInput)
+    labelAlignmentInput = binTabFeaturesGroup.children.addDropDownCommandInput(BIN_TAB_LABEL_ALIGNMENT_INPUT_ID, 'Label alignment', adsk.core.DropDownStyles.TextListDropDownStyle)
+    labelAlignmentInput.tooltip = 'Where icon and text sit across the label tab, as one group. Auto centers text alone and puts an icon with its text at the left'
+    for alignment in labelGenerator.LABEL_ALIGNMENTS:
+        labelAlignmentInput.listItems.add(alignment, alignment == commandUIState.getState(BIN_TAB_LABEL_ALIGNMENT_INPUT_ID))
+    commandUIState.registerCommandInput(labelAlignmentInput)
     labelBoldInput = binTabFeaturesGroup.children.addBoolValueInput(BIN_TAB_LABEL_BOLD_INPUT_ID, 'Bold label text', True, '', commandUIState.getState(BIN_TAB_LABEL_BOLD_INPUT_ID))
     commandUIState.registerCommandInput(labelBoldInput)
     for input in binTabFeaturesGroup.children:
@@ -1334,6 +1342,7 @@ def configChoices() -> dict[str, configJson.Choice]:
         'binType': configJson.Choice([BIN_TYPE_HOLLOW, BIN_TYPE_SHELLED, BIN_TYPE_SOLID], DEFAULT_STATE.binType),
         'labelIcon': configJson.Choice(iconNames, DEFAULT_STATE.labelIcon),
         'labelStyle': configJson.Choice(labelGenerator.LABEL_STYLES, DEFAULT_STATE.labelStyle),
+        'labelAlignment': configJson.Choice(labelGenerator.LABEL_ALIGNMENTS, DEFAULT_STATE.labelAlignment),
         'lipType': configJson.Choice(LIP_TYPES, DEFAULT_STATE.lipType),
         'placement': configJson.Choice(binBuilder.PLACEMENT_OPTIONS, DEFAULT_STATE.placement),
     }

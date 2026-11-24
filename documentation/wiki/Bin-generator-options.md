@@ -305,6 +305,11 @@ Default: <!-- default:bin_tab_label_style -->
 - **Engraved** cuts the label into the tab
 - **Embossed** raises the label from a lowered tab
 
+### Label alignment
+Default: <!-- default:bin_tab_label_alignment -->
+
+Where the icon and the text sit across the label tab, together as one group: **Left**, **Center** or **Right**. **Auto** keeps the layout labels always had, text alone in the middle, an icon and its text at the left. Labels of bins built before the option keep it when they're rebuilt.
+
 ### Bold label text
 Default: <!-- default:bin_tab_label_bold -->
 
