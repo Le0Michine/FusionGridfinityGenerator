@@ -38,6 +38,7 @@
     "labelText": "M3",
     "labelIcon": "None",
     "labelStyle": "Embossed",
+    "labelAlignment": "Auto",
     "isLabelBold": true,
     "compartmentsX": 1,
     "compartmentsY": 1,

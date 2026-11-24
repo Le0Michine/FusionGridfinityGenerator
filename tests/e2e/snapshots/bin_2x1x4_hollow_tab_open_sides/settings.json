@@ -38,6 +38,7 @@
     "labelText": "",
     "labelIcon": "Hex nut",
     "labelStyle": "Engraved",
+    "labelAlignment": "Auto",
     "isLabelBold": true,
     "compartmentsX": 1,
     "compartmentsY": 1,
