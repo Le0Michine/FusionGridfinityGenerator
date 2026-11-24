@@ -1,6 +1,7 @@
 import os
 import adsk.core, adsk.fusion
 
+from .. import i18n
 from . import const, commonUtils, combineUtils, sketchUtils
 from .dim import Dim, valueInput, lengthInput, lengthExpression
 
@@ -188,7 +189,7 @@ def createLabel(
     labelPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
     labelPlaneInput.setByOffset(targetComponent.xYConstructionPlane, lengthInput(Dim.length(input.originZ.value)))
     labelPlane = targetComponent.constructionPlanes.add(labelPlaneInput)
-    labelPlane.name = f'{name} plane'
+    labelPlane.name = i18n.planeName(f'{name} plane')
     labelPlane.isLightBulbOn = False
 
     margin = const.BIN_LABEL_MARGIN
@@ -205,7 +206,7 @@ def createLabel(
     iconAspect = 0
     if iconPath is not None:
         iconSketch: adsk.fusion.Sketch = targetComponent.sketches.add(labelPlane)
-        iconSketch.name = f'{name} icon sketch'
+        iconSketch.name = i18n.sketchName(f'{name} icon sketch')
         iconAspect = _iconAspect(iconSketch, iconPath) or 1
 
     # the icon keeps the size of the tallest letters, the letters start as tall as the label allows and
@@ -216,7 +217,7 @@ def createLabel(
     textWidth = 0
     if len(text) > 0:
         textSketch: adsk.fusion.Sketch = targetComponent.sketches.add(labelPlane)
-        textSketch.name = f'{name} text sketch'
+        textSketch.name = i18n.sketchName(f'{name} text sketch')
         textHeight = contentHeight
         measured = _measureText(textSketch, text, textHeight, input.isBold)
         if measured is not None and measured[1] > 0:

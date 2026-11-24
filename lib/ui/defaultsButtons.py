@@ -1,12 +1,10 @@
 import adsk.core
-import os
-import pathlib
 from typing import Callable
 
 from . import browserPages
 
 # a row of buttons drawn in a page, native buttons in a table lose their frames
-DEFAULTS_BUTTONS_HTML_URL = pathlib.Path(os.path.dirname(os.path.abspath(__file__)), 'html', 'defaultsButtons.html').as_uri()
+DEFAULTS_BUTTONS_HTML_URL = browserPages.pageUrl(__file__, 'defaultsButtons.html')
 DEFAULTS_SAVE = 'save'
 DEFAULTS_RESET = 'reset'
 DEFAULTS_FACTORY_RESET = 'factoryReset'

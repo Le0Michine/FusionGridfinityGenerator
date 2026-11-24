@@ -7,6 +7,7 @@ from ...lib import fusion360utils as futil
 from ...lib import clipboard, errorReport, tagUtils
 from ... import config
 from . import browserPages
+from ...lib import i18n
 
 # A palette with the error of the last failed build, see html/errorReport.html. Fusion's own message for a failed
 # command goes away by itself and can't be copied, this one stays until it's closed and copies a report of the error
@@ -72,7 +73,7 @@ def show(title: str, err: BaseException, buildConfig: str | None, workflow: str,
         currentReport = errorReport.createReport(title, err, buildConfig, [['Workflow', workflow]] + environment(design), previousConfig)
         palette = ui.palettes.itemById(PALETTE_ID)
         if palette is None:
-            palette = ui.palettes.add(PALETTE_ID, PALETTE_TITLE, PAGE_URL, True, True, True, WIDTH, HEIGHT)
+            palette = ui.palettes.add(PALETTE_ID, i18n.t(PALETTE_TITLE), PAGE_URL, True, True, True, WIDTH, HEIGHT)
             # beside the model, out of the way of the command dialog
             palette.dockingState = adsk.core.PaletteDockingStates.PaletteDockStateRight
             futil.add_handler(palette.incomingFromHTML, palette_incoming_from_html, local_handlers=palette_handlers)

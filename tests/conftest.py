@@ -68,6 +68,18 @@ fu_pkg.handle_error = futil_stub.handle_error
 lib_pkg.fusion360utils = fu_pkg
 sys.modules["FusionGridfinityGenerator.lib.fusion360utils"] = fu_pkg
 
+# ── 3b. The real translations, commandUiState shows dropdown items through them ──
+import importlib.util
+
+_i18n_spec = importlib.util.spec_from_file_location(
+    "FusionGridfinityGenerator.lib.i18n",
+    os.path.join(project_root, "lib", "i18n.py"),
+)
+_i18n = importlib.util.module_from_spec(_i18n_spec)
+sys.modules["FusionGridfinityGenerator.lib.i18n"] = _i18n
+_i18n_spec.loader.exec_module(_i18n)
+lib_pkg.i18n = _i18n
+
 # ── 4. Load the real commandUiState into the virtual package ─────────────────
 import importlib.util
 

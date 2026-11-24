@@ -2,6 +2,7 @@ import math
 import adsk.core, adsk.fusion, traceback
 import os
 
+from .. import i18n
 from . import const, commonUtils, filletUtils, combineUtils, faceUtils, extrudeUtils, sketchUtils, baseGenerator, patternUtils, shapeUtils, geometryUtils, edgeUtils, baseplateLayout
 from .baseGeneratorInput import BaseGeneratorInput
 from .baseplateGeneratorInput import BaseplateGeneratorInput
@@ -139,12 +140,12 @@ def createBaseplateBodies(
         cellXZMidPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
         cellXZMidPlaneInput.setByOffset(targetComponent.xZConstructionPlane, lengthInput(input.baseLength / 2 - clearance))
         cellXZMidPlane = targetComponent.constructionPlanes.add(cellXZMidPlaneInput)
-        cellXZMidPlane.name = 'Skeleton cutout XZ mid plane'
+        cellXZMidPlane.name = i18n.planeName('Skeleton cutout XZ mid plane')
         cellXZMidPlane.isLightBulbOn = False
         cellYZMidPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
         cellYZMidPlaneInput.setByOffset(targetComponent.yZConstructionPlane, lengthInput(input.baseWidth / 2 - clearance))
         cellYZMidPlane = targetComponent.constructionPlanes.add(cellYZMidPlaneInput)
-        cellYZMidPlane.name = 'Skeleton cutout YZ mid plane'
+        cellYZMidPlane.name = i18n.planeName('Skeleton cutout YZ mid plane')
         cellYZMidPlane.isLightBulbOn = False
         mirrorXInput = features.mirrorFeatures.createInput(commonUtils.objectCollectionFromList([centerCutoutBody]), cellYZMidPlane)
         mirrorXFeature = features.mirrorFeatures.add(mirrorXInput)
@@ -294,13 +295,13 @@ def createBaseplateBodies(
         constructionPlaneXZInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
         constructionPlaneXZInput.setByOffset(targetComponent.xZConstructionPlane, lengthInput(input.baseLength * input.baseplateLength / 2 - clearance))
         constructionPlaneXZ = targetComponent.constructionPlanes.add(constructionPlaneXZInput)
-        constructionPlaneXZ.name = 'Plate XZ mid plane'
+        constructionPlaneXZ.name = i18n.planeName('Plate XZ mid plane')
         constructionPlaneXZ.isLightBulbOn = False
 
         constructionPlaneYZInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
         constructionPlaneYZInput.setByOffset(targetComponent.yZConstructionPlane, lengthInput(input.baseWidth * input.baseplateWidth / 2 - clearance))
         constructionPlaneYZ = targetComponent.constructionPlanes.add(constructionPlaneYZInput)
-        constructionPlaneYZ.name = 'Plate YZ mid plane'
+        constructionPlaneYZ.name = i18n.planeName('Plate YZ mid plane')
         constructionPlaneYZ.isLightBulbOn = False
 
         mirrorConnectionHolesYZInput = features.mirrorFeatures.createInput(commonUtils.objectCollectionFromList(connectionHoleXToolList), constructionPlaneYZ)
@@ -686,7 +687,7 @@ def createSocketCellGrid(
 
 def createConnectionHoleTool(connectionHoleFace: adsk.fusion.BRepFace, diameter: float, depth: Dim | float, targetComponent: adsk.fusion.Component, *, name: str):
     connectionHoleSketch: adsk.fusion.Sketch = targetComponent.sketches.add(connectionHoleFace)
-    connectionHoleSketch.name = f'{name} sketch'
+    connectionHoleSketch.name = i18n.sketchName(f'{name} sketch')
     sketchCurves = connectionHoleSketch.sketchCurves
     dimensions = connectionHoleSketch.sketchDimensions
     constraints = connectionHoleSketch.geometricConstraints

@@ -1,5 +1,15 @@
 import html
+import re
 import adsk.core
+if __package__:
+    from . import i18n
+else:
+    # loaded on its own, as the unit tests load it, the translations come from the file beside it
+    import importlib.util as _importlib_util
+    import os as _os
+    _i18n_spec = _importlib_util.spec_from_file_location('i18n', _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), 'i18n.py'))
+    i18n = _importlib_util.module_from_spec(_i18n_spec)
+    _i18n_spec.loader.exec_module(i18n)
 
 def _displayValue(input: adsk.core.CommandInput) -> str | None:
     """The value as the dialog shows it, none for inputs that only act, like buttons"""
@@ -17,7 +27,7 @@ def _displayValue(input: adsk.core.CommandInput) -> str | None:
         return f'{floatSpinnerInput.value:g}'
     dropDownInput = adsk.core.DropDownCommandInput.cast(input)
     if dropDownInput is not None:
-        return dropDownInput.selectedItem.name if dropDownInput.selectedItem is not None else None
+        return i18n.key(dropDownInput.selectedItem.name) if dropDownInput.selectedItem is not None else None
     stringInput = adsk.core.StringValueCommandInput.cast(input)
     if stringInput is not None and not stringInput.isReadOnly:
         return stringInput.value
@@ -52,18 +62,18 @@ def snapshotInputs(inputs: adsk.core.CommandInputs, ignoreIds: list[str], title:
                 continue
             group = adsk.core.GroupCommandInput.cast(input)
             if group is not None:
-                collect(group.children, group.name)
+                collect(group.children, i18n.key(group.name))
                 continue
             table = adsk.core.TableCommandInput.cast(input)
             if table is not None:
-                section['items'].extend(_tableRows(table, table.name.rstrip('s') or 'Row'))
+                section['items'].extend(_tableRows(table, i18n.key(table.name).rstrip('s') or 'Row'))
                 continue
             if not input.isEnabled:
                 continue
             value = _displayValue(input)
             if value is not None:
-                section['items'].append([input.name, value])
-    collect(inputs, title)
+                section['items'].append([i18n.key(input.name), value])
+    collect(inputs, i18n.key(title))
     return [section for section in sections if len(section['items']) > 0]
 
 def settingsText(settings: list[dict]) -> str:
@@ -75,29 +85,37 @@ def settingsText(settings: list[dict]) -> str:
             lines.append(f'  {label}: {value}')
     return '\n'.join(lines)
 
+def _label(text: str) -> str:
+    """A setting's or parameter's name as shown, the numbered ones of compartments and shape rows too"""
+    for (pattern, key) in [(r'Compartment (\d+) label', 'Compartment {index} label'), (r'Compartment (\d+)', 'Compartment {index}'), (r'Row (\d+)', 'Row {index}')]:
+        match = re.fullmatch(pattern, text)
+        if match:
+            return i18n.t(key, index=match.group(1))
+    return i18n.t(text)
+
 def settingsHtml(tag: dict, parameterExpression=None) -> str:
     """Tag settings for the settings page, with the user parameters the body is tied to
     and their current expressions looked up by name, none when one is gone"""
-    version = tag.get('generatorVersion') or 'unknown'
-    lines = [f'<span style="color:#808080">Generated with version {html.escape(str(version))}</span>']
+    version = tag.get('generatorVersion') or i18n.t('unknown')
+    lines = [f'<span style="color:#808080">{i18n.t("Generated with version {version}", version=html.escape(str(version)))}</span>']
     parameters = tag.get('parameters')
     if isinstance(parameters, list) and len(parameters) > 0:
-        lines.append('<br><br><b>Parameters</b>')
+        lines.append(f'<br><br><b>{i18n.t("Parameters")}</b>')
         for item in parameters:
             if isinstance(item, list) and len(item) == 2:
                 (label, name) = item
                 expression = parameterExpression(name) if parameterExpression is not None else None
-                current = html.escape(str(expression)) if expression is not None else '<span style="color:#808080">missing, deleted or renamed</span>'
-                lines.append(f'<br>{html.escape(str(label))}: {html.escape(str(name))} = {current}')
+                current = html.escape(str(expression)) if expression is not None else f'<span style="color:#808080">{i18n.t("missing, deleted or renamed")}</span>'
+                lines.append(f'<br>{html.escape(_label(str(label)))}: {html.escape(str(name))} = {current}')
     settings = tag.get('settings')
     if not isinstance(settings, list) or len(settings) == 0:
-        lines.append('<br>Settings weren\'t recorded, this was generated before the generator kept them.')
+        lines.append('<br>' + i18n.t("Settings weren't recorded, this was generated before the generator kept them."))
         return ''.join(lines)
     for section in settings:
         if not isinstance(section, dict):
             continue
-        lines.append(f'<br><br><b>{html.escape(str(section.get("title", "")))}</b>')
+        lines.append(f'<br><br><b>{html.escape(i18n.t(str(section.get("title", ""))))}</b>')
         for item in section.get('items', []):
             if isinstance(item, list) and len(item) == 2:
-                lines.append(f'<br>{html.escape(str(item[0]))}: {html.escape(str(item[1]))}')
+                lines.append(f'<br>{html.escape(_label(str(item[0])))}: {html.escape(i18n.t(str(item[1])))}')
     return ''.join(lines)

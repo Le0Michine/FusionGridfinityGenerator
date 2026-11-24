@@ -1,13 +1,11 @@
 import adsk.core
-import os
-import pathlib
 from dataclasses import dataclass, asdict
 from typing import Callable
 
 from . import browserPages
 
 # a row of buttons drawn in a page, native buttons in a table lose their frames, see defaultsButtons for a fixed row
-BUTTON_ROW_HTML_URL = pathlib.Path(os.path.dirname(os.path.abspath(__file__)), 'html', 'buttonRow.html').as_uri()
+BUTTON_ROW_HTML_URL = browserPages.pageUrl(__file__, 'buttonRow.html')
 CLICK = 'click'
 
 @dataclass

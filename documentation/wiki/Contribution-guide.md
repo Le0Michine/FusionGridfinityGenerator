@@ -86,6 +86,17 @@ When fixing a bug where a bin or baseplate fails to build, add a case with the s
 
 When a change adds or changes a dialog input, update its section on the wiki page and the screenshots that show it.
 
+# Translations
+
+The dialogs follow Fusion's language, German is translated, any other language shows English. The English text in the code is the key of its translation:
+
+- **Dialogs and messages** go through `i18n.t` (`lib/i18n.py`), with `{name}` placeholders for values: `i18n.t('Version {version}', version=version)`. A new label, tooltip or message needs an entry in the `DE` dictionary there, a text without one stays English.
+- **Dropdown items** are shown with `i18n.item` and read back with `i18n.key`, so the state, the config files and the settings kept in a body's tag stay English. `CommandUiState` does that for inputs it keeps.
+- **Sketches and construction planes** are named with `i18n.sketchName` and `i18n.planeName`, from the pieces in `PARTS_DE`. Bodies, timeline features and parameters keep their English names, the add-in finds them again by them.
+- **Pages** in dialogs have their own dictionary in `lib/ui/html/i18n.js`, include it before a page's own script. `browserPages.pageUrl` tells a page its language.
+
+`LANGUAGE` in `lib/i18n.py` can be set to `de` or `en` to try a language whatever Fusion is set to. The unit tests check that every translation keeps the placeholders of its English text.
+
 # Pull requests
 
 - Keep a pull request to one feature or fix.

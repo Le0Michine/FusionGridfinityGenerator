@@ -36,6 +36,13 @@ def _load_rebuild_utils():
         module.__dict__.update(attributes)
         sys.modules[package + "." + name] = module
         setattr(root, name, module)
+    # the real translations, the notes of a rebuild go through them
+    i18nPath = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "lib", "i18n.py")
+    i18nSpec = importlib.util.spec_from_file_location(package + ".i18n", i18nPath)
+    i18n = importlib.util.module_from_spec(i18nSpec)
+    i18nSpec.loader.exec_module(i18n)
+    sys.modules[package + ".i18n"] = i18n
+    root.i18n = i18n
     logged = []
     commonUtils = types.ModuleType(package + ".gridfinityUtils.commonUtils")
     commonUtils.fileLog = logged.append

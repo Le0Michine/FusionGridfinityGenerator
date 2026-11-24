@@ -35,6 +35,16 @@ CELL_LIST_FIELDS = {
 
 GENERATOR_TITLES = {GENERATOR_BIN: 'bin', GENERATOR_BASEPLATE: 'baseplate'}
 
+if __package__:
+    from . import i18n
+else:
+    # loaded on its own, as the unit tests load it, the translations come from the file beside it
+    import importlib.util as _importlib_util
+    import os as _os
+    _i18n_spec = _importlib_util.spec_from_file_location('i18n', _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), 'i18n.py'))
+    i18n = _importlib_util.module_from_spec(_i18n_spec)
+    _i18n_spec.loader.exec_module(i18n)
+
 # settings older versions saved under another name, their new name and what their value is multiplied by
 RENAMED_FIELDS = {
     GENERATOR_BIN: {},
@@ -212,9 +222,9 @@ def readConfig(text: str, generator: str, stateClass: type, current: object, cho
 
 def _displayValue(generator: str, name: str, value) -> str:
     if isinstance(value, bool):
-        return 'yes' if value else 'no'
+        return i18n.t('yes' if value else 'no')
     if isinstance(value, list):
-        return f'{len(value)} items'
+        return i18n.t('{count} items', count=len(value))
     if isinstance(value, str):
         return f'"{value}"'
     if name in MM_FIELDS[generator]:
@@ -227,13 +237,13 @@ def notesText(generator: str, notes: ConfigNotes) -> str:
     """What reading a config changed, a section per kind of change"""
     sections = []
     if notes.unknown:
-        sections.append('Not recognised, skipped:\n' + '\n'.join(f'  • {name}' for name in notes.unknown))
+        sections.append(i18n.t('Not recognised, skipped:') + '\n' + '\n'.join(f'  • {name}' for name in notes.unknown))
     if notes.missing:
-        sections.append('Not in the file, kept the current value:\n' + '\n'.join(
+        sections.append(i18n.t('Not in the file, kept the current value:') + '\n' + '\n'.join(
             f'  • {name} ({_displayValue(generator, name, value)})' for (name, value) in notes.missing
         ))
     if notes.replaced:
-        sections.append('Unknown option, used the default:\n' + '\n'.join(
+        sections.append(i18n.t('Unknown option, used the default:') + '\n' + '\n'.join(
             f'  • {name} "{value}" → {default}' for (name, value, default) in notes.replaced
         ))
     return '\n\n'.join(sections)

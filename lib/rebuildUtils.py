@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from . import configJson
+from . import i18n
 from . import tagUtils
 from .gridfinityUtils import commonUtils
 
@@ -354,7 +355,7 @@ def newlyUnhealthy(target: RebuildTarget) -> list[str]:
     for (item, health) in zip(target.laterItems, target.laterHealth):
         if not item.isValid or health != HEALTHY or item.healthState == HEALTHY:
             continue
-        notes.append(f'{item.name}: {item.errorOrWarningMessage or "needs its inputs picked again"}')
+        notes.append(f'{item.name}: {item.errorOrWarningMessage or i18n.t("needs its inputs picked again")}')
     return notes
 
 def removeUnusedParameters(design: adsk.fusion.Design, names: list[str]):
@@ -491,8 +492,8 @@ def rebuild(
     # shared units stay, the body's own ones it no longer has go, like the label of a tab turned off
     newNames = tagParameterNames(newBodies[0]) if len(newBodies) > 0 else []
     removeUnusedParameters(design, [name for name in oldNames if prefix is not None and prefixOf([name], baseName) == prefix and name not in newNames])
-    notes = [f'{name}: couldn\'t be given the new {title}' for name in failed] + newlyUnhealthy(target)
-    notes += [f'{name}: of the old {title}, Fusion wouldn\'t delete it, it\'s suppressed instead' for name in keptOldItems]
+    notes = [i18n.t("{name}: couldn't be given the new {title}", name=name, title=i18n.t(title)) for name in failed] + newlyUnhealthy(target)
+    notes += [i18n.t("{name}: of the old {title}, Fusion wouldn't delete it, it's suppressed instead", name=name, title=i18n.t(title)) for name in keptOldItems]
     return (newBodies, notes)
 
 def configChanges(generator: str, body: adsk.fusion.BRepBody, newConfig: dict) -> str:
