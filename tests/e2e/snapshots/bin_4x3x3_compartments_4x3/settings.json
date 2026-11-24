@@ -38,6 +38,7 @@
     "labelText": "",
     "labelIcon": "Hex nut",
     "labelStyle": "Outline",
+    "isRimSplit": false,
     "isLabelBold": true,
     "compartmentsX": 4,
     "compartmentsY": 3,

@@ -1,0 +1,84 @@
+{
+    "bodies": [
+        {
+            "name": "Gridfinity bin 1x2x4",
+            "file": "body1.smt",
+            "volume": 13588.627586,
+            "area": 22043.324504,
+            "bboxMin": [
+                0.0,
+                0.0,
+                -5.0
+            ],
+            "bboxMax": [
+                83.5,
+                41.5,
+                22.5
+            ],
+            "lumps": 1,
+            "faces": 191,
+            "edges": 456,
+            "vertices": 270
+        },
+        {
+            "name": "Label",
+            "file": "body2.smt",
+            "volume": 20.239663,
+            "area": 74.516572,
+            "bboxMin": [
+                43.501947,
+                31.000075,
+                21.5
+            ],
+            "bboxMax": [
+                48.641689,
+                38.899661,
+                22.5
+            ],
+            "lumps": 1,
+            "faces": 30,
+            "edges": 84,
+            "vertices": 56
+        },
+        {
+            "name": "Label (1)",
+            "file": "body3.smt",
+            "volume": 41.104204,
+            "area": 142.422481,
+            "bboxMin": [
+                34.858311,
+                31.131999,
+                21.5
+            ],
+            "bboxMax": [
+                42.330463,
+                38.867999,
+                22.5
+            ],
+            "lumps": 1,
+            "faces": 15,
+            "edges": 39,
+            "vertices": 26
+        },
+        {
+            "name": "Gridfinity bin 1x2x4 rim",
+            "file": "body4.smt",
+            "volume": 1604.166169,
+            "area": 2679.823851,
+            "bboxMin": [
+                0.0,
+                0.0,
+                22.5
+            ],
+            "bboxMax": [
+                83.5,
+                41.5,
+                26.8
+            ],
+            "lumps": 1,
+            "faces": 42,
+            "edges": 96,
+            "vertices": 56
+        }
+    ]
+}

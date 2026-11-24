@@ -38,6 +38,7 @@
     "labelText": "Bolts",
     "labelIcon": "Hex nut",
     "labelStyle": "Inlay",
+    "isRimSplit": false,
     "isLabelBold": true,
     "compartmentsX": 1,
     "compartmentsY": 1,
