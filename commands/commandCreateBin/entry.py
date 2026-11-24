@@ -160,6 +160,7 @@ BIN_TAB_LABEL_TEXT_INPUT_ID = 'bin_tab_label_text'
 BIN_TAB_LABEL_ICON_INPUT_ID = 'bin_tab_label_icon'
 BIN_TAB_LABEL_STYLE_INPUT_ID = 'bin_tab_label_style'
 BIN_TAB_LABEL_BOLD_INPUT_ID = 'bin_tab_label_bold'
+BIN_RIM_SPLIT_INPUT_ID = 'bin_rim_split'
 BIN_WITH_LIP_INPUT_ID = 'with_lip'
 BIN_WITH_LIP_NOTCHES_INPUT_ID = 'with_lip_notches'
 BIN_LIP_TYPE_INPUT_ID = 'lip_type'
@@ -229,6 +230,7 @@ STATE_INPUT_IDS = {
     'labelIcon': BIN_TAB_LABEL_ICON_INPUT_ID,
     'labelStyle': BIN_TAB_LABEL_STYLE_INPUT_ID,
     'isLabelBold': BIN_TAB_LABEL_BOLD_INPUT_ID,
+    'isRimSplit': BIN_RIM_SPLIT_INPUT_ID,
     'hasCreases': BIN_CREASES_INPUT_ID,
     'creaseDepth': BIN_CREASE_DEPTH_INPUT_ID,
     'creaseMinLength': BIN_CREASE_MIN_LENGTH_INPUT_ID,
@@ -332,6 +334,7 @@ def initDefaultUiState():
     commandUIState.initValue(BIN_TAB_LABEL_ICON_INPUT_ID, DEFAULT_STATE.labelIcon, adsk.core.DropDownCommandInput.classType())
     commandUIState.initValue(BIN_TAB_LABEL_STYLE_INPUT_ID, DEFAULT_STATE.labelStyle, adsk.core.DropDownCommandInput.classType())
     commandUIState.initValue(BIN_TAB_LABEL_BOLD_INPUT_ID, DEFAULT_STATE.isLabelBold, adsk.core.BoolValueCommandInput.classType())
+    commandUIState.initValue(BIN_RIM_SPLIT_INPUT_ID, DEFAULT_STATE.isRimSplit, adsk.core.BoolValueCommandInput.classType())
 
     commandUIState.initValue(BIN_GENERATE_BASE_INPUT_ID, DEFAULT_STATE.generateBase, adsk.core.BoolValueCommandInput.classType())
     commandUIState.initValue(BIN_JOINT_ORIGINS_INPUT_ID, DEFAULT_STATE.hasJointOrigins, adsk.core.BoolValueCommandInput.classType())
@@ -918,12 +921,15 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     addIconItems(labelIconInput, [labelGenerator.LABEL_ICON_NONE], commandUIState.getState(BIN_TAB_LABEL_ICON_INPUT_ID))
     commandUIState.registerCommandInput(labelIconInput)
     labelStyleInput = binTabFeaturesGroup.children.addDropDownCommandInput(BIN_TAB_LABEL_STYLE_INPUT_ID, 'Label style', adsk.core.DropDownStyles.TextListDropDownStyle)
-    labelStyleInput.tooltip = 'Outline splits the tab face along the label so a slicer can color it, engraved cuts it in, embossed raises it from a lowered tab'
+    labelStyleInput.tooltip = 'Outline splits the tab face along the label so a slicer can color it, engraved cuts it in, embossed raises it from a lowered tab, inlay makes it 1 mm thick bodies of their own in the tab, for a multicolor printer'
     for style in labelGenerator.LABEL_STYLES:
         labelStyleInput.listItems.add(style, style == commandUIState.getState(BIN_TAB_LABEL_STYLE_INPUT_ID))
     commandUIState.registerCommandInput(labelStyleInput)
     labelBoldInput = binTabFeaturesGroup.children.addBoolValueInput(BIN_TAB_LABEL_BOLD_INPUT_ID, 'Bold label text', True, '', commandUIState.getState(BIN_TAB_LABEL_BOLD_INPUT_ID))
     commandUIState.registerCommandInput(labelBoldInput)
+    rimSplitInput = binTabFeaturesGroup.children.addBoolValueInput(BIN_RIM_SPLIT_INPUT_ID, 'Split rim at tab top', True, '', commandUIState.getState(BIN_RIM_SPLIT_INPUT_ID))
+    rimSplitInput.tooltip = 'Splits the lip and the walls above the tab top off the bin as a body of its own, to print the rim in another color and tell bins apart. Hollow and shelled bins with a label tab'
+    commandUIState.registerCommandInput(rimSplitInput)
     for input in binTabFeaturesGroup.children:
         if not input.id == BIN_HAS_TAB_INPUT_ID:
             input.isEnabled = commandUIState.getState(BIN_HAS_TAB_INPUT_ID)

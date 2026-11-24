@@ -42,6 +42,7 @@
         "labelIcon": "None",
         "labelStyle": "Outline",
         "isLabelBold": true,
+        "isRimSplit": false,
         "compartmentsX": 1,
         "compartmentsY": 1,
         "showCompartmentsLayout": false,

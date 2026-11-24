@@ -304,6 +304,7 @@ Default: <!-- default:bin_tab_label_style -->
 - **Outline** splits the tab face along the label, so a slicer can print it in a color of its own. The label shows in its own color in Fusion, and **Gridfinity export** from the right-click menu paints it for the slicer
 - **Engraved** cuts the label into the tab
 - **Embossed** raises the label from a lowered tab
+- **Inlay** cuts the label 1 mm into the tab and keeps its letters and icon as bodies of their own, flush with the tab top, to print them in another color on a multicolor printer. They move with the bin, a rebuild replaces them, and **Gridfinity export** keeps them in their bin
 
 ### Bold label text
 Default: <!-- default:bin_tab_label_bold -->
@@ -311,6 +312,11 @@ Default: <!-- default:bin_tab_label_bold -->
 Sets the label text in bold.
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="../assets/gif/bin-label-options-dark.gif"><img src="../assets/gif/bin-label-options-light.gif" alt="Typing label text, picking an icon and each label style, with the bin at each change"></picture>
+
+### Split rim at tab top
+Default: <!-- default:bin_rim_split -->
+
+Splits the lip and the walls above the top of the label tab off the bin as a body of its own, so a multicolor printer can print the rim in another color, to tell bins apart at a glance. For hollow and shelled bins with a label tab that aren't drawn to a custom shape. The rim moves with the bin, a rebuild replaces it, and **Gridfinity export** keeps it on its bin.
 
 # Base interface features
 

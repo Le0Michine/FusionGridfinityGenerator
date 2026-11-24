@@ -141,3 +141,38 @@ def test_owned_parameters_are_found_by_their_owner(monkeypatch):
 
     monkeypatch.setattr(tagUtils.adsk.fusion.UserParameter, "cast", staticmethod(lambda parent: parent), raising=False)
     assert tagUtils.findOwnedParameters(_Design(), "gfBin2") == [(parameters[1], "binHeight")]
+
+
+class _Attributes:
+    """The attributes of a body, as Fusion keeps them by group and name"""
+    def __init__(self):
+        self.values = {}
+
+    def add(self, group, name, value):
+        self.values[(group, name)] = value
+
+    def itemByName(self, group, name):
+        return self.values.get((group, name))
+
+
+class _Body:
+    def __init__(self):
+        self.attributes = _Attributes()
+
+
+def test_inlaid_letters_are_secondary_bodies_the_bin_body_is_not():
+    binBody = _Body()
+    letters = _Body()
+    tagUtils.markLabelInlay(letters)
+    assert tagUtils.isSecondaryBody(letters)
+    assert not tagUtils.isSecondaryBody(binBody)
+
+
+def test_a_body_without_attributes_is_no_secondary_body():
+    assert not tagUtils.isSecondaryBody(object())
+
+
+def test_a_split_off_rim_is_a_secondary_body():
+    rim = _Body()
+    tagUtils.markRim(rim)
+    assert tagUtils.isSecondaryBody(rim)

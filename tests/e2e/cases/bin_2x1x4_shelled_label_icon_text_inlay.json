@@ -1,0 +1,15 @@
+{
+    "description": "2x1x4 shelled bin, its hollow tab carrying an inlaid label of an icon and text, the tab wall thick enough for the inlay",
+    "generator": "bin",
+    "settings": {
+        "binLength": 1,
+        "binHeight": 4,
+        "binType": "Shelled",
+        "hasTab": true,
+        "tabLength": 2,
+        "isTabHollow": true,
+        "labelText": "Bolts",
+        "labelIcon": "Hex nut",
+        "labelStyle": "Inlay"
+    }
+}

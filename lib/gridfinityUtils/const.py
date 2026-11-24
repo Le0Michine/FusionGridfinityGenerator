@@ -33,6 +33,8 @@ BIN_TAB_LABEL_ANGLE = 0
 BIN_TAB_EDGE_FILLET_RADIUS = 0.06
 # default of how far tabs and dividers are below the top of the bin body
 BIN_TAB_TOP_CLEARANCE = 0.05
+# inlaid labels are bodies of their own this deep in the tab, for printing them in another color
+BIN_LABEL_INLAY_DEPTH = 0.1
 BIN_LABEL_DEPTH = 0.05
 # what an engraved label leaves of a hollow tab's top
 BIN_TAB_HOLLOW_MIN_SKIN = 0.04

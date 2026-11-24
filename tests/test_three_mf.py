@@ -223,3 +223,24 @@ def test_without_a_version_or_title_the_generator_is_named_alone(tmp_path):
     found = metadata(read_model(path))
     assert found["Application"] == "Fusion Gridfinity Generator"
     assert "Title" not in found
+
+
+# ---------------------------------------------------------------------------
+# bottoms, the bodies of one bin standing on the bin's bottom
+# ---------------------------------------------------------------------------
+
+def test_an_inlay_stays_in_its_bin_on_the_plate():
+    placed = threeMf.placeOnPlate([cube("bin", z=0), cube("label", z=8)], bottoms=[0, 0])
+    assert min(z for (_, _, z) in placed[1].vertices) == 8
+
+
+def test_an_inlay_stays_in_its_bin_on_a_bed():
+    placements = [_placement(0, 10, 10, False), _placement(0, 10, 10, False)]
+    placed = threeMf.placeOnBeds([box("bin", 50, 20, z=3), box("label", 10, 4, z=12)], placements, (200, 100), [3, 3])
+    assert min(z for (_, _, z) in placed[1].vertices) == 9
+
+
+def test_box_and_bottom_of_an_object():
+    meshObject = box("a", 50, 20, z=7)
+    assert threeMf.box(meshObject) == (-5, -5, 45, 15)
+    assert threeMf.bottom(meshObject) == 7

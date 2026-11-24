@@ -12,6 +12,25 @@ TAG_PARAMETER_FIELD = 'parameterField'
 # Bump only on incompatible changes to the tag value, readers ignore fields they don't know
 TAG_SCHEMA_VERSION = 1
 
+# on bodies a bin has beside its bin body, the letters of an inlaid label or the rim split off at the tab top, see
+# isSecondaryBody
+TAG_LABEL_INLAY = 'labelInlay'
+TAG_RIM = 'rim'
+SECONDARY_BODY_TAGS = [TAG_LABEL_INLAY, TAG_RIM]
+
+def markLabelInlay(body: adsk.fusion.BRepBody):
+    body.attributes.add(TAG_GROUP, TAG_LABEL_INLAY, '1')
+
+def markRim(body: adsk.fusion.BRepBody):
+    body.attributes.add(TAG_GROUP, TAG_RIM, '1')
+
+def isSecondaryBody(body: adsk.fusion.BRepBody) -> bool:
+    """A body of a bin that isn't its bin body, it goes with the bin body: rebuilt with it and exported beside it"""
+    try:
+        return any(body.attributes.itemByName(TAG_GROUP, name) is not None for name in SECONDARY_BODY_TAGS)
+    except Exception:
+        return False
+
 MANIFEST_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'GridfinityGenerator.manifest')
 
 _generatorVersion = None

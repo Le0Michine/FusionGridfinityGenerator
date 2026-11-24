@@ -1,0 +1,15 @@
+{
+    "description": "2x1x4 shelled bin in three colors: its rim split off above the hollow tab, its inlaid label bodies of their own",
+    "generator": "bin",
+    "settings": {
+        "binLength": 1,
+        "binHeight": 4,
+        "binType": "Shelled",
+        "hasTab": true,
+        "tabLength": 2,
+        "isTabHollow": true,
+        "labelText": "M3",
+        "labelStyle": "Inlay",
+        "isRimSplit": true
+    }
+}

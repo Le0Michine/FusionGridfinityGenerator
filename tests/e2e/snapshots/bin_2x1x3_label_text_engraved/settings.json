@@ -38,6 +38,7 @@
     "labelText": "M3 screws",
     "labelIcon": "None",
     "labelStyle": "Engraved",
+    "isRimSplit": false,
     "isLabelBold": true,
     "compartmentsX": 1,
     "compartmentsY": 1,

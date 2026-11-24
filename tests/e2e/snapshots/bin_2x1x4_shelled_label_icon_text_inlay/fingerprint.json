@@ -1,0 +1,144 @@
+{
+    "bodies": [
+        {
+            "name": "Gridfinity bin 1x2x4",
+            "file": "body1.smt",
+            "volume": 15117.301181,
+            "area": 24242.37196,
+            "bboxMin": [
+                0.0,
+                0.0,
+                -5.0
+            ],
+            "bboxMax": [
+                83.5,
+                41.5,
+                26.8
+            ],
+            "lumps": 1,
+            "faces": 295,
+            "edges": 719,
+            "vertices": 438
+        },
+        {
+            "name": "Label",
+            "file": "body2.smt",
+            "volume": 34.484429,
+            "area": 115.22284,
+            "bboxMin": [
+                13.922402,
+                31.177252,
+                21.5
+            ],
+            "bboxMax": [
+                20.433483,
+                38.950252,
+                22.5
+            ],
+            "lumps": 1,
+            "faces": 35,
+            "edges": 99,
+            "vertices": 66
+        },
+        {
+            "name": "Label (1)",
+            "file": "body3.smt",
+            "volume": 18.712515,
+            "area": 69.086104,
+            "bboxMin": [
+                34.48957,
+                31.05,
+                21.5
+            ],
+            "bboxMax": [
+                39.749336,
+                36.935423,
+                22.5
+            ],
+            "lumps": 1,
+            "faces": 28,
+            "edges": 78,
+            "vertices": 52
+        },
+        {
+            "name": "Label (2)",
+            "file": "body4.smt",
+            "volume": 13.921951,
+            "area": 50.494405,
+            "bboxMin": [
+                30.783345,
+                31.05,
+                21.5
+            ],
+            "bboxMax": [
+                34.102511,
+                38.796489,
+                22.5
+            ],
+            "lumps": 1,
+            "faces": 23,
+            "edges": 63,
+            "vertices": 42
+        },
+        {
+            "name": "Label (3)",
+            "file": "body5.smt",
+            "volume": 11.581097,
+            "area": 41.688022,
+            "bboxMin": [
+                28.381455,
+                31.177252,
+                21.5
+            ],
+            "bboxMax": [
+                29.871368,
+                38.950252,
+                22.5
+            ],
+            "lumps": 1,
+            "faces": 6,
+            "edges": 12,
+            "vertices": 8
+        },
+        {
+            "name": "Label (4)",
+            "file": "body6.smt",
+            "volume": 19.707931,
+            "area": 67.922529,
+            "bboxMin": [
+                21.403782,
+                31.05,
+                21.5
+            ],
+            "bboxMax": [
+                27.214974,
+                36.935423,
+                22.5
+            ],
+            "lumps": 1,
+            "faces": 20,
+            "edges": 54,
+            "vertices": 36
+        },
+        {
+            "name": "Label (5)",
+            "file": "body7.smt",
+            "volume": 38.428519,
+            "area": 118.234845,
+            "bboxMin": [
+                3.0,
+                31.05,
+                21.5
+            ],
+            "bboxMax": [
+                12.122402,
+                38.95,
+                22.5
+            ],
+            "lumps": 1,
+            "faces": 9,
+            "edges": 20,
+            "vertices": 14
+        }
+    ]
+}
