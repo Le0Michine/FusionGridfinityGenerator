@@ -1,11 +1,10 @@
 import adsk.core, adsk.fusion, traceback
 import os
-import math
 
 from ...lib import fusion360utils as futil
 from . import const, combineUtils, faceUtils, commonUtils, sketchUtils, extrudeUtils, baseGenerator, edgeUtils, filletUtils, geometryUtils, binGrid, patternUtils
 from .baseGeneratorInput import BaseGeneratorInput
-from .binBodyLipGeneratorInput import BinBodyLipGeneratorInput, LIP_TYPE_FULL
+from .binBodyLipGeneratorInput import BinBodyLipGeneratorInput, LIP_TYPE_FULL, lipSharpTop
 from .dim import Dim, valueInput, lengthInput, applyTo
 
 app = adsk.core.Application.get()
@@ -14,12 +13,11 @@ ui = app.userInterface
 def lipSocketTop(xyClearance: float) -> Dim:
     """
     Height of the lip socket top above the lip bottom. It sits lower than the base it's shaped after, so its 45 degree
-    face keeps the clearance from the grid's measured square to the face rather than straight across. Its walls stay
-    the clearance out, its bottom goes past the lip bottom, it only cuts the lip. Fed as an expression, so the formula
-    stays readable in the model
+    face keeps the clearance from the grid's measured square to the face rather than straight across, and as high
+    again as puts the lip's sharp top on a round height, see lipSharpTop. Its walls stay the clearance out, its bottom
+    goes past the lip bottom, it only cuts the lip. Fed as an expression, the sharp top and twice the clearance above it
     """
-    drop = Dim.length(xyClearance) * Dim.number(math.sqrt(2) - 1, '(sqrt(2) - 1)')
-    return Dim.length(const.BIN_BASE_HEIGHT).asExpression() - drop
+    return Dim.length(lipSharpTop(xyClearance)).asExpression() + Dim.length(xyClearance) * Dim.number(2)
 
 def lipInnerInset(lipType: str, xyClearance: float) -> Dim:
     """

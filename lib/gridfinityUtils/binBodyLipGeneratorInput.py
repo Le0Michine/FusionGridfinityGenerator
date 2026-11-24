@@ -14,14 +14,22 @@ def lipTopTrimHeight(isTrimmed: bool) -> float:
     """How much is cut off the lip top to leave it flat, none leaves the sharp edge of the original profile"""
     return const.BIN_LIP_TOP_RECESS_HEIGHT if isTrimmed else 0
 
+# the lip's sharp top is put on a step of this, the socket raised to it
+LIP_SHARP_TOP_STEP = 0.01
+
+def lipSharpTop(xyClearance: float) -> float:
+    """
+    How far the sharp top of the lip stands above the bin wall. The 45 degree face of the socket, which starts the
+    clearance out from the grid line, meets the outer wall, the clearance in from it, twice the clearance below the
+    socket top, see binBodyLipGenerator.lipSocketTop. That is the base height less (1 + sqrt(2)) times the clearance,
+    4.396mm at the default clearance, rounded to the nearest step, 4.4mm, the socket moving with it
+    """
+    exact = const.BIN_BASE_HEIGHT - (1 + math.sqrt(2)) * xyClearance
+    return round(exact / LIP_SHARP_TOP_STEP) * LIP_SHARP_TOP_STEP
+
 def lipHeight(isTrimmed: bool, xyClearance: float) -> float:
-    """
-    How far the lip stands above the bin wall. Its sharp top is where the 45 degree face of the socket, which starts the
-    clearance out from the grid line, meets the outer wall, the clearance in from it, so twice the clearance below the
-    socket top, see binBodyLipGenerator.lipSocketTop. A trimmed lip is cut flat below it
-    """
-    sharpTop = const.BIN_BASE_HEIGHT - (1 + math.sqrt(2)) * xyClearance
-    return min(sharpTop, const.BIN_LIP_EXTRA_HEIGHT - lipTopTrimHeight(isTrimmed))
+    """How far the lip stands above the bin wall, its sharp top, see lipSharpTop. A trimmed lip is cut flat below it"""
+    return min(lipSharpTop(xyClearance), const.BIN_LIP_EXTRA_HEIGHT - lipTopTrimHeight(isTrimmed))
 
 class BinBodyLipGeneratorInput():
     def __init__(self):

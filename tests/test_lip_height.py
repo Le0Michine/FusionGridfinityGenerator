@@ -35,9 +35,15 @@ lip = _load_lip_input()
 
 
 def test_untrimmed_lip_at_the_default_clearance():
-    # 5mm - (1 + sqrt(2)) * 0.25mm, in cm
-    assert lip.lipHeight(False, 0.025) == pytest.approx(0.475 - math.sqrt(2) / 40)
-    assert lip.lipHeight(False, 0.025) == pytest.approx(0.43964, abs=1e-5)
+    # 5mm - (1 + sqrt(2)) * 0.25mm, 4.396mm, rounded up to 4.4mm
+    assert 0.475 - math.sqrt(2) / 40 == pytest.approx(0.43964, abs=1e-5)
+    assert lip.lipHeight(False, 0.025) == pytest.approx(0.44)
+
+
+def test_the_sharp_top_goes_to_the_nearest_tenth_of_a_mm():
+    # 5mm - 2.414 * 0.1mm = 4.759mm, 5mm - 2.414 * 0.5mm = 3.793mm
+    assert lip.lipSharpTop(0.01) == pytest.approx(0.48)
+    assert lip.lipSharpTop(0.05) == pytest.approx(0.38)
 
 
 def test_trimmed_lip_is_flat_at_3_8mm():
