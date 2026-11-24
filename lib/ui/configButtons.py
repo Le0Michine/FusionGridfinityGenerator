@@ -5,6 +5,7 @@ from typing import Callable
 from ...lib import clipboard
 from ...lib import configJson
 from ...lib import fusion360utils as futil
+from ...lib import i18n
 from . import browserPages
 from .buttonRow import Button, buttonRowHandlers
 
@@ -23,12 +24,13 @@ ui = app.userInterface
 _lastFolder = ''
 
 def configButtons(generatorTitle: str, canLoad: bool, canClone: bool) -> list[Button]:
-    buttons = [Button(CONFIG_SAVE, 'Save to file', f'Save these {generatorTitle} settings to a JSON file')]
+    title = i18n.t(generatorTitle)
+    buttons = [Button(CONFIG_SAVE, i18n.t('Save to file'), i18n.t('Save these {title} settings to a JSON file', title=title))]
     if canLoad:
-        buttons.append(Button(CONFIG_LOAD, 'Load from file', f'Set the inputs from {generatorTitle} settings saved to a file'))
-    buttons.append(Button(CONFIG_COPY, 'Copy', f'Copy these {generatorTitle} settings to the clipboard as JSON'))
+        buttons.append(Button(CONFIG_LOAD, i18n.t('Load from file'), i18n.t('Set the inputs from {title} settings saved to a file', title=title)))
+    buttons.append(Button(CONFIG_COPY, i18n.t('Copy'), i18n.t('Copy these {title} settings to the clipboard as JSON', title=title)))
     if canClone:
-        buttons.append(Button(CONFIG_CLONE, f'Clone into new {generatorTitle}', f'Open the {generatorTitle} dialog with these settings'))
+        buttons.append(Button(CONFIG_CLONE, i18n.t('Clone into new {title}', title=title), i18n.t('Open the {title} dialog with these settings', title=title)))
     return buttons
 
 def configButtonsHandlers(
@@ -67,8 +69,8 @@ def configButtonsHandlers(
 def saveConfigFile(text: str, fileName: str) -> None:
     global _lastFolder
     dialog = ui.createFileDialog()
-    dialog.title = 'Save Gridfinity config'
-    dialog.filter = FILE_FILTER
+    dialog.title = i18n.t('Save Gridfinity config')
+    dialog.filter = i18n.t(FILE_FILTER)
     dialog.initialFilename = f'{fileName}.json'
     if _lastFolder:
         dialog.initialDirectory = _lastFolder
@@ -80,14 +82,14 @@ def saveConfigFile(text: str, fileName: str) -> None:
             file.write(text)
         futil.log(f'Saved config to {dialog.filename}')
     except OSError as err:
-        ui.messageBox(f'Couldn\'t save the config to {dialog.filename}:\n{err}', 'Gridfinity config')
+        ui.messageBox(i18n.t("Couldn't save the config to {fileName}:\n{err}", fileName=dialog.filename, err=err), i18n.t('Gridfinity config'))
 
 def openConfigFile() -> tuple[str, str] | None:
     """Text and name of the file picked, none when the dialog was cancelled or the file can't be read"""
     global _lastFolder
     dialog = ui.createFileDialog()
-    dialog.title = 'Load Gridfinity config'
-    dialog.filter = FILE_FILTER
+    dialog.title = i18n.t('Load Gridfinity config')
+    dialog.filter = i18n.t(FILE_FILTER)
     dialog.isMultiSelectEnabled = False
     if _lastFolder:
         dialog.initialDirectory = _lastFolder
@@ -98,17 +100,17 @@ def openConfigFile() -> tuple[str, str] | None:
         with open(dialog.filename, encoding='utf-8') as file:
             return (file.read(), os.path.basename(dialog.filename))
     except (OSError, UnicodeDecodeError) as err:
-        ui.messageBox(f'Couldn\'t read {dialog.filename}:\n{err}', 'Gridfinity config')
+        ui.messageBox(i18n.t("Couldn't read {fileName}:\n{err}", fileName=dialog.filename, err=err), i18n.t('Gridfinity config'))
         return None
 
 def copyConfig(text: str) -> str | None:
     """What the button shows once it's copied"""
     try:
         clipboard.copyText(text)
-        return COPIED
+        return i18n.t(COPIED)
     except Exception as err:
         futil.log(f'Couldn\'t copy the config, {err}')
-        ui.messageBox(f'Couldn\'t copy to the clipboard:\n{err}', 'Gridfinity config')
+        ui.messageBox(i18n.t("Couldn't copy to the clipboard:\n{err}", err=err), i18n.t('Gridfinity config'))
         return None
 
 def readConfig(
@@ -127,10 +129,10 @@ def readConfig(
     try:
         (state, notes) = configJson.readConfig(text, generator, stateClass, current, choices, isFromTag)
     except configJson.ConfigError as err:
-        ui.messageBox(f'Couldn\'t read the config. {err}', 'Gridfinity config')
+        ui.messageBox(i18n.t("Couldn't read the config. {err}", err=err), i18n.t('Gridfinity config'))
         return None
     if not notes.isEmpty():
         details = configJson.notesText(generator, notes)
         futil.log(f'{source} config with changes:\n{details}')
-        ui.messageBox(f'{source} with changes:\n\n{details}', 'Gridfinity config', adsk.core.MessageBoxButtonTypes.OKButtonType, adsk.core.MessageBoxIconTypes.WarningIconType)
+        ui.messageBox(i18n.t('{source} with changes:\n\n{details}', source=source, details=details), i18n.t('Gridfinity config'), adsk.core.MessageBoxButtonTypes.OKButtonType, adsk.core.MessageBoxIconTypes.WarningIconType)
     return state

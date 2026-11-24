@@ -3,6 +3,7 @@ import os
 import math
 import copy
 
+from .. import i18n
 from ...lib import fusion360utils as futil
 from . import const, combineUtils, faceUtils, commonUtils, sketchUtils, extrudeUtils, baseGenerator, edgeUtils, filletUtils, geometryUtils, patternUtils, binShape
 from .binBodyCutoutGenerator import createGridfinityBinBodyCutout
@@ -409,7 +410,7 @@ def createShapeLipBottomChamfer(
     planeInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
     planeInput.setByOffset(targetComponent.xYConstructionPlane, lengthInput(topZ))
     plane = targetComponent.constructionPlanes.add(planeInput)
-    plane.name = 'Lip bottom chamfer plane'
+    plane.name = i18n.planeName('Lip bottom chamfer plane')
     (sketch, _) = baseGenerator.createShapeOutlineSketch(
         input.shapeCells,
         grid,
@@ -445,7 +446,7 @@ def createShapeCavity(
     planeInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
     planeInput.setByOffset(targetComponent.xYConstructionPlane, lengthInput(topZ))
     plane = targetComponent.constructionPlanes.add(planeInput)
-    plane.name = f'{name} plane'
+    plane.name = i18n.planeName(f'{name} plane')
     offset = baseConfiguration.xyClearance + wallThickness
     # a plain bin's compartment corners don't go below the bottom fillet either, see compartmentCutoutFilletRadius
     (sketch, _) = baseGenerator.createShapeOutlineSketch(

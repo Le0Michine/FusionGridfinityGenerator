@@ -6,6 +6,7 @@ import math
 
 
 
+from .. import i18n
 from .const import BIN_TAB_EDGE_FILLET_RADIUS
 from ...lib.gridfinityUtils import geometryUtils
 from ...lib import fusion360utils as futil
@@ -45,9 +46,9 @@ def createGridfinityBinBodyTab(
         lengthInput(input.originX)
         )
     tabProfilePlane = targetComponent.constructionPlanes.add(tabProfilePlaneInput)
-    tabProfilePlane.name = f'{name} plane'
+    tabProfilePlane.name = i18n.planeName(f'{name} plane')
     tabSketch: adsk.fusion.Sketch = targetComponent.sketches.add(tabProfilePlane)
-    tabSketch.name = f'{name} sketch'
+    tabSketch.name = i18n.sketchName(f'{name} sketch')
     with sketchUtils.deferSketchCompute(tabSketch):
         tabSketchLine = tabSketch.sketchCurves.sketchLines
         tabTopEdgeHeight = input.origin.z - input.topClearance

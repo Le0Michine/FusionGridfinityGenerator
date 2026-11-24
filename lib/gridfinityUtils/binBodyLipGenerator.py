@@ -1,6 +1,7 @@
 import adsk.core, adsk.fusion, traceback
 import os
 
+from .. import i18n
 from ...lib import fusion360utils as futil
 from . import const, combineUtils, faceUtils, commonUtils, sketchUtils, extrudeUtils, baseGenerator, edgeUtils, filletUtils, geometryUtils, binGrid, patternUtils
 from .baseGeneratorInput import BaseGeneratorInput
@@ -42,7 +43,7 @@ def createShapeLipSocket(
     planeInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
     planeInput.setByOffset(targetComponent.xYConstructionPlane, lengthInput(input.originZ + lipSocketTop(input.xyClearance)))
     plane = targetComponent.constructionPlanes.add(planeInput)
-    plane.name = 'Lip cutout plane'
+    plane.name = i18n.planeName('Lip cutout plane')
     (sketch, _) = baseGenerator.createShapeOutlineSketch(
         input.shapeCells,
         grid,
@@ -105,7 +106,7 @@ def createLipSupport(
     topPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
     topPlaneInput.setByOffset(targetComponent.xYConstructionPlane, lengthInput(topZ))
     topPlane = targetComponent.constructionPlanes.add(topPlaneInput)
-    topPlane.name = 'Lip support plane'
+    topPlane.name = i18n.planeName('Lip support plane')
     (outerSketch, _) = baseGenerator.createShapeOutlineSketch(cells, grid, outerOffset, topPlane, targetComponent, name='Lip support')
     support = extrudeUtils.simpleDistanceExtrude(
         outerSketch.profiles.item(0),
@@ -124,7 +125,7 @@ def createLipSupport(
     insidePlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
     insidePlaneInput.setByOffset(targetComponent.xYConstructionPlane, lengthInput(topZ - Dim.length(fullDepth + margin)))
     insidePlane = targetComponent.constructionPlanes.add(insidePlaneInput)
-    insidePlane.name = 'Lip support inside plane'
+    insidePlane.name = i18n.planeName('Lip support inside plane')
     (insideSketch, _) = baseGenerator.createShapeOutlineSketch(cells, grid, outerOffset - margin, insidePlane, targetComponent, name='Lip support inside')
     slopeSection = extrudeUtils.taperedExtrude(
         insideSketch.profiles.item(0),
@@ -156,7 +157,7 @@ def createShapeLipMiddleCutout(
     planeInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
     planeInput.setByOffset(targetComponent.xYConstructionPlane, lengthInput(input.originZ))
     plane = targetComponent.constructionPlanes.add(planeInput)
-    plane.name = 'Lip middle cutout plane'
+    plane.name = i18n.planeName('Lip middle cutout plane')
     (sketch, _) = baseGenerator.createShapeOutlineSketch(
         input.shapeCells,
         grid,
@@ -208,10 +209,10 @@ def createLipNotch(
     notchPlaneZ = input.originZ + lipSocketTop(input.xyClearance) - topSectionHeight
     notchPlaneInput.setByOffset(targetComponent.xYConstructionPlane, lengthInput(notchPlaneZ))
     notchPlane = targetComponent.constructionPlanes.add(notchPlaneInput)
-    notchPlane.name = 'Lip notch plane'
+    notchPlane.name = i18n.planeName('Lip notch plane')
 
     boxSketch: adsk.fusion.Sketch = targetComponent.sketches.add(notchPlane)
-    boxSketch.name = 'Lip notch sketch'
+    boxSketch.name = i18n.sketchName('Lip notch sketch')
     boxCornerOnSketch = boxSketch.modelToSketchSpace(adsk.core.Point3D.create(
         cornerCenterX.value,
         cornerCenterY.value,
@@ -240,7 +241,7 @@ def createLipNotch(
 
     # one cone per foot corner around the junction, the outer ones only clip what lies outside the bin
     coneSketch: adsk.fusion.Sketch = targetComponent.sketches.add(notchPlane)
-    coneSketch.name = 'Lip notch cone sketch'
+    coneSketch.name = i18n.sketchName('Lip notch cone sketch')
     with sketchUtils.deferSketchCompute(coneSketch):
         dimensions: adsk.fusion.SketchDimensions = coneSketch.sketchDimensions
         coneCircle = coneSketch.sketchCurves.sketchCircles.addByCenterRadius(boxCornerOnSketch, coneSketchRadius.value)
@@ -428,9 +429,9 @@ def createGridfinityBinBodyLip(
 
     if input.topTrimHeight > const.DEFAULT_FILTER_TOLERANCE:
         lipCutoutConstructionPlane = targetComponent.constructionPlanes.add(lipCutoutPlaneInput)
-        lipCutoutConstructionPlane.name = 'Lip top chamfer plane'
+        lipCutoutConstructionPlane.name = i18n.planeName('Lip top chamfer plane')
         topChamferSketch: adsk.fusion.Sketch = targetComponent.sketches.add(lipCutoutConstructionPlane)
-        topChamferSketch.name = 'Lip top chamfer sketch'
+        topChamferSketch.name = i18n.sketchName('Lip top chamfer sketch')
         sketchUtils.createRectangle(
             actualLipBodyWidth,
             actualLipBodyLength,

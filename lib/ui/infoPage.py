@@ -1,13 +1,11 @@
 import adsk.core
-import os
-import pathlib
 import webbrowser
 
 from ...lib import fusion360utils as futil
 from . import browserPages
 
 # the info text of a dialog drawn in a page, a text box input keeps a column for its label and wraps the text early
-INFO_HTML_URL = pathlib.Path(os.path.dirname(os.path.abspath(__file__)), 'html', 'info.html').as_uri()
+INFO_HTML_URL = browserPages.pageUrl(__file__, 'info.html')
 LINK = 'link'
 HEIGHT = 'height'
 # until the page tells how tall its text is, Fusion sizes a page by the dialog, not by what it shows

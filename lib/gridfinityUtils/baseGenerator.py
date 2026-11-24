@@ -3,6 +3,7 @@ import copy
 from typing import Callable
 import os
 
+from .. import i18n
 from .sketchUtils import createRectangle
 from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
 from .dim import Dim, valueInput, lengthInput, applyTo
@@ -23,7 +24,7 @@ def createCircleAtPointSketch(
 ):
     sketches: adsk.fusion.Sketches = targetComponent.sketches
     circleSketch: adsk.fusion.Sketch = sketches.add(plane)
-    circleSketch.name = name
+    circleSketch.name = i18n.sketchName(name)
     circleCenterOnSketch = circleSketch.modelToSketchSpace(circleCenterPoint)
     dimensions: adsk.fusion.SketchDimensions = circleSketch.sketchDimensions
     sketchUtils.convertToConstruction(circleSketch.sketchCurves)
@@ -132,11 +133,11 @@ def createSingleGridfinityBaseBody(
     baseConstructionPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
     baseConstructionPlaneInput.setByOffset(targetComponent.xYConstructionPlane, lengthInput(input.originZ))
     baseConstructionPlane = targetComponent.constructionPlanes.add(baseConstructionPlaneInput)
-    baseConstructionPlane.name = f'{name} plane'
+    baseConstructionPlane.name = i18n.planeName(f'{name} plane')
     # create rectangle for the base
     sketches: adsk.fusion.Sketches = targetComponent.sketches
     basePlateSketch: adsk.fusion.Sketch = sketches.add(baseConstructionPlane)
-    basePlateSketch.name = f'{name} sketch'
+    basePlateSketch.name = i18n.sketchName(f'{name} sketch')
     createRectangle(actual_base_width, actual_base_length, basePlateSketch.modelToSketchSpace(input.originPoint), basePlateSketch)
 
     # extrude top section
@@ -319,12 +320,12 @@ def createSingleGridfinityBaseBody(
         baseXZMidPlaneInput = targetComponent.constructionPlanes.createInput()
         baseXZMidPlaneInput.setByOffset(targetComponent.xZConstructionPlane, lengthInput(input.baseLength / 2 - Dim.length(input.xyClearance)))
         baseXZMidPlane = targetComponent.constructionPlanes.add(baseXZMidPlaneInput)
-        baseXZMidPlane.name = f'{name} XZ mid plane'
+        baseXZMidPlane.name = i18n.planeName(f'{name} XZ mid plane')
         baseXZMidPlane.isLightBulbOn = False
         baseYZMidPlaneInput = targetComponent.constructionPlanes.createInput()
         baseYZMidPlaneInput.setByOffset(targetComponent.yZConstructionPlane, lengthInput(input.baseWidth / 2 - Dim.length(input.xyClearance)))
         baseYZMidPlane = targetComponent.constructionPlanes.add(baseYZMidPlaneInput)
-        baseYZMidPlane.name = f'{name} YZ mid plane'
+        baseYZMidPlane.name = i18n.planeName(f'{name} YZ mid plane')
         baseYZMidPlane.isLightBulbOn = False
         # mirroring instead of a circular pattern keeps the holes in the corners of non square bases,
         # and the tabs and grooves still face the base center
@@ -466,7 +467,7 @@ def cutOutsideRoundedRectangles(
     The rectangle dims drive their position and size. Sketch and cut are named after the given name"""
     features = targetComponent.features
     cutSketch: adsk.fusion.Sketch = targetComponent.sketches.add(targetComponent.xYConstructionPlane)
-    cutSketch.name = f'{name} sketch'
+    cutSketch.name = i18n.sketchName(f'{name} sketch')
     sketchArcs = cutSketch.sketchCurves.sketchArcs
     geometricConstraints = cutSketch.geometricConstraints
     fillets = []
@@ -614,10 +615,10 @@ def createWallJunctionPocketCutter(
     pocketPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
     pocketPlaneInput.setByOffset(targetComponent.xYConstructionPlane, lengthInput(coneSketchHeight))
     pocketPlane = targetComponent.constructionPlanes.add(pocketPlaneInput)
-    pocketPlane.name = 'Wall junction pocket plane'
+    pocketPlane.name = i18n.planeName('Wall junction pocket plane')
 
     boxSketch: adsk.fusion.Sketch = targetComponent.sketches.add(pocketPlane)
-    boxSketch.name = 'Wall junction pocket sketch'
+    boxSketch.name = i18n.sketchName('Wall junction pocket sketch')
     boxCornerOnSketch = boxSketch.modelToSketchSpace(adsk.core.Point3D.create(
         cornerCenterX.value,
         cornerCenterY.value,
@@ -644,7 +645,7 @@ def createWallJunctionPocketCutter(
 
     # one cone per foot corner around the junction, the outer ones only clip what lies outside the bin
     coneSketch: adsk.fusion.Sketch = targetComponent.sketches.add(pocketPlane)
-    coneSketch.name = 'Wall junction pocket cone sketch'
+    coneSketch.name = i18n.sketchName('Wall junction pocket cone sketch')
     with sketchUtils.deferSketchCompute(coneSketch):
         dimensions: adsk.fusion.SketchDimensions = coneSketch.sketchDimensions
         coneCircle = coneSketch.sketchCurves.sketchCircles.addByCenterRadius(boxCornerOnSketch, coneSketchRadius.value)
@@ -810,10 +811,10 @@ def cutOutsideRoundedRectangle(
     cutConstructionPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
     cutConstructionPlaneInput.setByOffset(targetComponent.xYConstructionPlane, lengthInput(cornerPoint.z))
     cutConstructionPlane = targetComponent.constructionPlanes.add(cutConstructionPlaneInput)
-    cutConstructionPlane.name = f'{name} plane'
+    cutConstructionPlane.name = i18n.planeName(f'{name} plane')
     sketches: adsk.fusion.Sketches = targetComponent.sketches
     cutSketch: adsk.fusion.Sketch = sketches.add(cutConstructionPlane)
-    cutSketch.name = f'{name} sketch'
+    cutSketch.name = i18n.sketchName(f'{name} sketch')
     innerRectangle = createRectangle(
         width,
         length,
@@ -927,7 +928,7 @@ def createShapeOutlineSketch(
     ]
 
     sketch: adsk.fusion.Sketch = targetComponent.sketches.add(plane)
-    sketch.name = f'{name} sketch'
+    sketch.name = i18n.sketchName(f'{name} sketch')
     lines: list[adsk.fusion.SketchLine] = []
     with sketchUtils.deferSketchCompute(sketch):
         constraints = sketch.geometricConstraints

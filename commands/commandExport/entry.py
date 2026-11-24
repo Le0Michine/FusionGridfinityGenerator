@@ -12,6 +12,7 @@ from ...lib import stlFile
 from ...lib import bedPacking
 from ...lib import printBeds
 from ...lib import configUtils
+from ...lib import i18n
 from ...lib import fusion360utils as futil
 from ...lib.ui import browserPages
 from ...lib.gridfinityUtils import labelGenerator
@@ -22,8 +23,8 @@ app = adsk.core.Application.get()
 ui = app.userInterface
 
 CMD_ID = f'{config.COMPANY_NAME}_{config.ADDIN_NAME}_cmdExport'
-CMD_NAME = 'Gridfinity export'
-CMD_Description = 'Export bins and baseplates for printing, 3MF with the label letters in a color of their own, or STL and STEP files'
+CMD_NAME = i18n.t('Gridfinity export')
+CMD_Description = i18n.t('Export bins and baseplates for printing, 3MF with the label letters in a color of their own, or STL and STEP files')
 ICON_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources', '')
 # in the context menu after Fusion's Save As Mesh
 SAVE_AS_MESH_COMMAND_ID = 'FusionSaveAsSTLCommand'
@@ -366,57 +367,57 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     isKeepPurgeSet = False
     design = adsk.fusion.Design.cast(app.activeProduct)
     # the whole design when its root was picked
-    allInput = inputs.addBoolValueInput(ALL_INPUT_ID, 'All Gridfinity bodies', True, '', isRootSelected(design))
-    allInput.tooltip = 'Selects all visible bins and baseplates'
-    selectionInput = inputs.addSelectionInput(SELECTION_INPUT_ID, 'Bodies', 'Bins and baseplates')
+    allInput = inputs.addBoolValueInput(ALL_INPUT_ID, i18n.t('All Gridfinity bodies'), True, '', isRootSelected(design))
+    allInput.tooltip = i18n.t('Selects all visible bins and baseplates')
+    selectionInput = inputs.addSelectionInput(SELECTION_INPUT_ID, i18n.t('Bodies'), 'Bins and baseplates')
     # bodies only, Fusion puts a selected component in too as the command starts, beside its bodies
     selectionInput.addSelectionFilter(adsk.core.SelectionCommandInput.SolidBodies)
     selectionInput.setSelectionLimits(0, 0)
     selectAll(inputs, allInput.value)
-    formatInput = inputs.addDropDownCommandInput(FORMAT_INPUT_ID, 'Format', adsk.core.DropDownStyles.TextListDropDownStyle)
+    formatInput = inputs.addDropDownCommandInput(FORMAT_INPUT_ID, i18n.t('Format'), adsk.core.DropDownStyles.TextListDropDownStyle)
     for name in FORMATS:
-        formatInput.listItems.add(name, name == choices['format'])
-    formatInput.tooltip = 'Export file format'
-    folderInput = inputs.addTextBoxCommandInput(FOLDER_INPUT_ID, 'Folder', dialogFolder, 2, True)
-    folderInput.tooltip = 'Where the files go, the last folder chosen is kept'
+        formatInput.listItems.add(i18n.item(name), name == choices['format'])
+    formatInput.tooltip = i18n.t('Export file format')
+    folderInput = inputs.addTextBoxCommandInput(FOLDER_INPUT_ID, i18n.t('Folder'), dialogFolder, 2, True)
+    folderInput.tooltip = i18n.t('Where the files go, the last folder chosen is kept')
     browseInput = inputs.addBoolValueInput(BROWSE_INPUT_ID, '', False, '', False)
-    browseInput.text = 'Choose folder...'
-    fileNameInput = inputs.addStringValueInput(FILE_NAME_INPUT_ID, 'File name', '')
-    fileNameInput.tooltip = 'Export file name'
-    arrangeInput = inputs.addDropDownCommandInput(ARRANGE_INPUT_ID, 'Arrange', adsk.core.DropDownStyles.TextListDropDownStyle)
+    browseInput.text = i18n.t('Choose folder...')
+    fileNameInput = inputs.addStringValueInput(FILE_NAME_INPUT_ID, i18n.t('File name'), '')
+    fileNameInput.tooltip = i18n.t('Export file name')
+    arrangeInput = inputs.addDropDownCommandInput(ARRANGE_INPUT_ID, i18n.t('Arrange'), adsk.core.DropDownStyles.TextListDropDownStyle)
     for name in ARRANGEMENTS:
-        arrangeInput.listItems.add(name, name == choices['arrange'])
-    arrangeInput.tooltip = 'Keep design arrangement or split by print plates'
-    bedInput = inputs.addDropDownCommandInput(BED_PRESET_INPUT_ID, 'Printer', adsk.core.DropDownStyles.TextListDropDownStyle)
+        arrangeInput.listItems.add(i18n.item(name), name == choices['arrange'])
+    arrangeInput.tooltip = i18n.t('Keep design arrangement or split by print plates')
+    bedInput = inputs.addDropDownCommandInput(BED_PRESET_INPUT_ID, i18n.t('Printer'), adsk.core.DropDownStyles.TextListDropDownStyle)
     for name in [printBeds.PRINT_BED_CUSTOM] + list(printBeds.PRINT_BED_PRESETS.keys()):
-        bedInput.listItems.add(name, name == choices['bed'])
-    bedInput.tooltip = 'The bed size the plates are filled to'
+        bedInput.listItems.add(i18n.item(name), name == choices['bed'])
+    bedInput.tooltip = i18n.t('The bed size the plates are filled to')
     units = design.unitsManager.defaultLengthUnits if design is not None else 'mm'
-    for (inputId, name, value) in ((BED_WIDTH_INPUT_ID, 'Bed width, X', choices['bedWidth']), (BED_LENGTH_INPUT_ID, 'Bed length, Y', choices['bedLength'])):
+    for (inputId, name, value) in ((BED_WIDTH_INPUT_ID, i18n.t('Bed width, X'), choices['bedWidth']), (BED_LENGTH_INPUT_ID, i18n.t('Bed length, Y'), choices['bedLength'])):
         bedSizeInput = inputs.addValueInput(inputId, name, units, adsk.core.ValueInput.createByReal(value / 10))
         bedSizeInput.minimumValue = 0
         bedSizeInput.isMinimumInclusive = False
     # a number of mm whatever the design's units, it steps by half a millimeter
-    spacingInput = inputs.addFloatSpinnerCommandInput(SPACING_INPUT_ID, 'Spacing (mm)', '', MIN_SPACING, MAX_SPACING, SPACING_STEP, choices['spacing'])
-    spacingInput.tooltip = 'The space between bodies packed on a plate'
-    marginInput = inputs.addValueInput(MARGIN_INPUT_ID, 'Bed margin', units, adsk.core.ValueInput.createByReal(choices['margin'] / 10))
+    spacingInput = inputs.addFloatSpinnerCommandInput(SPACING_INPUT_ID, i18n.t('Spacing (mm)'), '', MIN_SPACING, MAX_SPACING, SPACING_STEP, choices['spacing'])
+    spacingInput.tooltip = i18n.t('The space between bodies packed on a plate')
+    marginInput = inputs.addValueInput(MARGIN_INPUT_ID, i18n.t('Bed margin'), units, adsk.core.ValueInput.createByReal(choices['margin'] / 10))
     marginInput.minimumValue = 0
-    marginInput.tooltip = 'The space kept clear along every edge of the bed'
-    keepPurgeInput = inputs.addBoolValueInput(KEEP_PURGE_INPUT_ID, 'Purge tower', True, '', False)
-    keepPurgeInput.tooltip = 'Leave room for the purge tower'
-    purgeInput = inputs.addValueInput(PURGE_INPUT_ID, 'Purge tower area', units, adsk.core.ValueInput.createByReal(choices['purge'] / 10))
+    marginInput.tooltip = i18n.t('The space kept clear along every edge of the bed')
+    keepPurgeInput = inputs.addBoolValueInput(KEEP_PURGE_INPUT_ID, i18n.t('Purge tower'), True, '', False)
+    keepPurgeInput.tooltip = i18n.t('Leave room for the purge tower')
+    purgeInput = inputs.addValueInput(PURGE_INPUT_ID, i18n.t('Purge tower area'), units, adsk.core.ValueInput.createByReal(choices['purge'] / 10))
     purgeInput.minimumValue = 0
     purgeInput.isMinimumInclusive = False
-    purgeInput.tooltip = 'The side of the square kept free for the purge tower'
-    filesInput = inputs.addDropDownCommandInput(FILES_INPUT_ID, '3MF files', adsk.core.DropDownStyles.TextListDropDownStyle)
+    purgeInput.tooltip = i18n.t('The side of the square kept free for the purge tower')
+    filesInput = inputs.addDropDownCommandInput(FILES_INPUT_ID, i18n.t('3MF files'), adsk.core.DropDownStyles.TextListDropDownStyle)
     for name in FILES_CHOICES:
-        filesInput.listItems.add(name, name == choices['files'])
-    filesInput.tooltip = '1 file for everything or 1 file for each plate'
+        filesInput.listItems.add(i18n.item(name), name == choices['files'])
+    filesInput.tooltip = i18n.t('1 file for everything or 1 file for each plate')
     inputs.addBrowserCommandInput(PLATES_INPUT_ID, '', PLATES_HTML_URL, 240, 240)
-    paintInput = inputs.addBoolValueInput(PAINT_INPUT_ID, 'Color text', True, '', choices['paint'])
-    paintInput.tooltip = 'Assign different color to use on text'
-    filamentInput = inputs.addIntegerSpinnerCommandInput(FILAMENT_INPUT_ID, 'Label color index', 1, threeMf.MAX_FILAMENT, 1, choices['filament'])
-    filamentInput.tooltip = 'Pick color/extruder index to be used for text on labels'
+    paintInput = inputs.addBoolValueInput(PAINT_INPUT_ID, i18n.t('Color text'), True, '', choices['paint'])
+    paintInput.tooltip = i18n.t('Assign different color to use on text')
+    filamentInput = inputs.addIntegerSpinnerCommandInput(FILAMENT_INPUT_ID, i18n.t('Label color index'), 1, threeMf.MAX_FILAMENT, 1, choices['filament'])
+    filamentInput.tooltip = i18n.t('Pick color/extruder index to be used for text on labels')
     inputs.addTextBoxCommandInput(SUMMARY_INPUT_ID, '', '', 2, True)
     # as wide as the bin dialog, the minimum widens one Fusion kept narrower from before
     command.setDialogInitialSize(450, 400)
@@ -443,7 +444,7 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
         updateInputs(args.inputs)
         return
     elif args.input.id == BED_PRESET_INPUT_ID:
-        size = printBeds.presetBedSize(adsk.core.DropDownCommandInput.cast(args.input).selectedItem.name)
+        size = printBeds.presetBedSize(i18n.key(adsk.core.DropDownCommandInput.cast(args.input).selectedItem.name))
         if size is not None:
             isApplyingBedPreset = True
             try:
@@ -454,7 +455,7 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
     elif args.input.id in (BED_WIDTH_INPUT_ID, BED_LENGTH_INPUT_ID) and not isApplyingBedPreset:
         # a bed size edited by hand no longer is the preset's
         bedInput = adsk.core.DropDownCommandInput.cast(args.inputs.itemById(BED_PRESET_INPUT_ID))
-        size = printBeds.presetBedSize(bedInput.selectedItem.name)
+        size = printBeds.presetBedSize(i18n.key(bedInput.selectedItem.name))
         if size is not None and not all(math.isclose(mm, cm * 10) for (mm, cm) in zip(dialogBeds(args.inputs).size, size)):
             bedInput.listItems.item(0).isSelected = True
     updateInputs(args.inputs)
@@ -491,10 +492,10 @@ def gridfinityBodies(design: adsk.fusion.Design) -> list[adsk.fusion.BRepBody]:
     return bodies
 
 def selectedFormat(inputs: adsk.core.CommandInputs) -> str:
-    return adsk.core.DropDownCommandInput.cast(inputs.itemById(FORMAT_INPUT_ID)).selectedItem.name
+    return i18n.key(adsk.core.DropDownCommandInput.cast(inputs.itemById(FORMAT_INPUT_ID)).selectedItem.name)
 
 def selectedArrangement(inputs: adsk.core.CommandInputs) -> str:
-    return adsk.core.DropDownCommandInput.cast(inputs.itemById(ARRANGE_INPUT_ID)).selectedItem.name
+    return i18n.key(adsk.core.DropDownCommandInput.cast(inputs.itemById(ARRANGE_INPUT_ID)).selectedItem.name)
 
 def dialogOptions(inputs: adsk.core.CommandInputs) -> ExportOptions:
     """What the dialog has chosen, lengths in mm rounded off the cm Fusion keeps them in"""
@@ -508,13 +509,13 @@ def dialogOptions(inputs: adsk.core.CommandInputs) -> ExportOptions:
         paint=adsk.core.BoolValueCommandInput.cast(inputs.itemById(PAINT_INPUT_ID)).value,
         filament=adsk.core.IntegerSpinnerCommandInput.cast(inputs.itemById(FILAMENT_INPUT_ID)).value,
         packed=selectedArrangement(inputs) == ARRANGE_PACKED,
-        printer=adsk.core.DropDownCommandInput.cast(inputs.itemById(BED_PRESET_INPUT_ID)).selectedItem.name,
+        printer=i18n.key(adsk.core.DropDownCommandInput.cast(inputs.itemById(BED_PRESET_INPUT_ID)).selectedItem.name),
         bedSize=(mm(BED_WIDTH_INPUT_ID), mm(BED_LENGTH_INPUT_ID)),
         spacing=mm(SPACING_INPUT_ID),
         margin=mm(MARGIN_INPUT_ID),
         purgeTower=adsk.core.BoolValueCommandInput.cast(inputs.itemById(KEEP_PURGE_INPUT_ID)).value,
         purgeSize=mm(PURGE_INPUT_ID),
-        perPlate=adsk.core.DropDownCommandInput.cast(inputs.itemById(FILES_INPUT_ID)).selectedItem.name == FILES_PER_PLATE,
+        perPlate=i18n.key(adsk.core.DropDownCommandInput.cast(inputs.itemById(FILES_INPUT_ID)).selectedItem.name) == FILES_PER_PLATE,
     )
 
 def dialogBeds(inputs: adsk.core.CommandInputs) -> Beds:
@@ -572,14 +573,14 @@ def updateInputs(inputs: adsk.core.CommandInputs):
             count = len(plates.get('plates', []))
             fileName = safeFileName(fileNameInput.value) or defaultFileName(items)
             fileName = fileName if fileName.lower().endswith('.3mf') else f'{fileName}.3mf'
-            summary = f'Writes {count} files, one per plate' if dialogBeds(inputs).perPlate and count > 1 else f'Writes {fileName}'
+            summary = i18n.t('Writes {count} files, one per plate', count=count) if dialogBeds(inputs).perPlate and count > 1 else i18n.t('Writes {name}', name=fileName)
         elif len(items) == 1:
-            summary = f'Writes {fileNames(items)[0]}.{extension}'
+            summary = i18n.t('Writes {name}', name=f'{fileNames(items)[0]}.{extension}')
         else:
-            summary = f'Writes {len(items)} {format} files, one per body'
-        summary = summary if items else 'Select bodies to export'
+            summary = i18n.t('Writes {count} {format} files, one per body', count=len(items), format=format)
+        summary = summary if items else i18n.t('Select bodies to export')
     except Exception as err:
-        summary = f'Bodies not found, {err}'
+        summary = i18n.t('Bodies not found, {error}', error=err)
     adsk.core.TextBoxCommandInput.cast(inputs.itemById(SUMMARY_INPUT_ID)).text = summary
 
 def selectedEntities(inputs: adsk.core.CommandInputs) -> list:
@@ -624,7 +625,7 @@ def command_execute(args: adsk.core.CommandEventArgs):
         saveDialogChoices(inputs, folder)
         items = exportItems(inputs)
         if len(items) == 0:
-            ui.messageBox('Nothing to export, select bodies or turn on All Gridfinity bodies.', CMD_NAME)
+            ui.messageBox(i18n.t('Nothing to export, select bodies or turn on All Gridfinity bodies.'), CMD_NAME)
             return
         progress = DialogProgress()
         try:
@@ -634,15 +635,15 @@ def command_execute(args: adsk.core.CommandEventArgs):
         if result is None:
             return
         if options.format == FORMAT_3MF:
-            where = result.paths[0] if len(result.paths) == 1 else f'{len(result.paths)} files in {folder}, a plate each'
-            ui.messageBox(f'Exported {len(items)} bod{"y" if len(items) == 1 else "ies"} to {where}.{plateNote(result)}{paintNote(options.paint, result.painted, options.filament)}', CMD_NAME)
+            where = result.paths[0] if len(result.paths) == 1 else i18n.t('{count} files in {folder}, a plate each', count=len(result.paths), folder=folder)
+            ui.messageBox(i18n.t('Exported 1 body to {where}.' if len(items) == 1 else 'Exported {count} bodies to {where}.', count=len(items), where=where) + plateNote(result) + paintNote(options.paint, result.painted, options.filament), CMD_NAME)
         else:
-            ui.messageBox(f'Exported {len(items)} {options.format} file{"" if len(items) == 1 else "s"} to {folder}.', CMD_NAME)
+            ui.messageBox(i18n.t('Exported 1 {format} file to {folder}.' if len(items) == 1 else 'Exported {count} {format} files to {folder}.', count=len(items), format=options.format, folder=folder), CMD_NAME)
     except Exception as err:
         futil.handle_error(f'{CMD_NAME} failed, {err}', show_message_box=True)
 
 def saveDialogChoices(inputs: adsk.core.CommandInputs, folder: str):
-    bedName = adsk.core.DropDownCommandInput.cast(inputs.itemById(BED_PRESET_INPUT_ID)).selectedItem.name
+    bedName = i18n.key(adsk.core.DropDownCommandInput.cast(inputs.itemById(BED_PRESET_INPUT_ID)).selectedItem.name)
     saveChoices(
         folder,
         selectedFormat(inputs),
@@ -652,7 +653,7 @@ def saveDialogChoices(inputs: adsk.core.CommandInputs, folder: str):
         bedName,
         dialogBeds(inputs),
         round(adsk.core.ValueCommandInput.cast(inputs.itemById(PURGE_INPUT_ID)).value * 10, 6),
-        adsk.core.DropDownCommandInput.cast(inputs.itemById(FILES_INPUT_ID)).selectedItem.name,
+        i18n.key(adsk.core.DropDownCommandInput.cast(inputs.itemById(FILES_INPUT_ID)).selectedItem.name),
     )
 
 def command_destroy(args: adsk.core.CommandEventArgs):
@@ -661,19 +662,19 @@ def command_destroy(args: adsk.core.CommandEventArgs):
     local_handlers = [handler for handler in local_handlers if handler is markingMenuHandler]
 
 def listed(names: list[str]) -> str:
-    return ', '.join(names[:MAX_LISTED_FILES]) + (f' and {len(names) - MAX_LISTED_FILES} more' if len(names) > MAX_LISTED_FILES else '')
+    return ', '.join(names[:MAX_LISTED_FILES]) + (i18n.t(' and {count} more', count=len(names) - MAX_LISTED_FILES) if len(names) > MAX_LISTED_FILES else '')
 
 def plateNote(result: ExportResult) -> str:
     """
     How many plates the bodies were packed on, which are bigger than the bed and the plates where an area couldn't be
     kept free, after the export's message
     """
-    note = f'\n\nPacked on {result.plates} plates.' if result.plates > 1 and len(result.paths) == 1 else ''
+    note = '\n\n' + i18n.t('Packed on {count} plates.', count=result.plates) if result.plates > 1 and len(result.paths) == 1 else ''
     if result.tooBig:
-        note += f'\n\nBigger than the bed, each on a plate of its own: {listed(result.tooBig)}.'
+        note += '\n\n' + i18n.t('Bigger than the bed, each on a plate of its own: {names}.', names=listed(result.tooBig))
     if result.notClear:
         plates = ', '.join(str(plate + 1) for plate in result.notClear)
-        note += f'\n\nNo room to keep the purge tower area or the area the printer keeps free clear on plate{"" if len(result.notClear) == 1 else "s"} {plates}, move the bodies or the tower in the slicer.'
+        note += '\n\n' + i18n.t('No room to keep the purge tower area or the area the printer keeps free clear on plate {plates}, move the bodies or the tower in the slicer.' if len(result.notClear) == 1 else 'No room to keep the purge tower area or the area the printer keeps free clear on plates {plates}, move the bodies or the tower in the slicer.', plates=plates)
     return note
 
 def paintNote(paint: bool, painted: int, filament: int) -> str:
@@ -681,9 +682,10 @@ def paintNote(paint: bool, painted: int, filament: int) -> str:
     if not paint:
         return ''
     if painted == 0:
-        return '\n\nNo outline label text to color.'
-    bodies = 'the body' if painted == 1 else f'{painted} bodies'
-    return f'\n\nLabel text of {bodies} is assigned color {filament}.'
+        return '\n\n' + i18n.t('No outline label text to color.')
+    if painted == 1:
+        return '\n\n' + i18n.t('Label text of the body is assigned color {filament}.', filament=filament)
+    return '\n\n' + i18n.t('Label text of {count} bodies is assigned color {filament}.', count=painted, filament=filament)
 
 def mayReplace(paths: list[str]) -> bool:
     """Whether the files there already may be replaced, asked once for all of them"""
@@ -692,9 +694,9 @@ def mayReplace(paths: list[str]) -> bool:
         return True
     shown = [os.path.basename(path) for path in existing[:MAX_LISTED_FILES]]
     if len(existing) > MAX_LISTED_FILES:
-        shown.append(f'and {len(existing) - MAX_LISTED_FILES} more')
+        shown.append(i18n.t('and {count} more', count=len(existing) - MAX_LISTED_FILES))
     folder = os.path.dirname(existing[0])
-    question = f'Replace {"the existing file" if len(existing) == 1 else f"{len(existing)} existing files"} in {folder}?\n\n' + '\n'.join(shown)
+    question = (i18n.t('Replace the existing file in {folder}?', folder=folder) if len(existing) == 1 else i18n.t('Replace {count} existing files in {folder}?', count=len(existing), folder=folder)) + '\n\n' + '\n'.join(shown)
     answer = ui.messageBox(question, CMD_NAME, adsk.core.MessageBoxButtonTypes.YesNoButtonType, adsk.core.MessageBoxIconTypes.WarningIconType)
     return answer == adsk.core.DialogResults.DialogYes
 
@@ -981,11 +983,11 @@ def bodiesCount(items: list[ExportItem]) -> str:
     """As 40 bins and 1 baseplate, bodies when some aren't bins or baseplates"""
     kinds = [bodyKind(item) for item in items]
     def counted(count: int, single: str, plural: str) -> str:
-        return f'{count} {single if count == 1 else plural}'
+        return f'{count} {i18n.t(single if count == 1 else plural)}'
     if '' in kinds:
         return counted(len(items), 'body', 'bodies')
     parts = [counted(kinds.count(kind), kind, f'{kind}s') for kind in (tagUtils.TAG_BIN, tagUtils.TAG_BASEPLATE) if kind in kinds]
-    return ' and '.join(parts)
+    return i18n.t(' and ').join(parts)
 
 def platesData(items: list[ExportItem], beds: Beds) -> dict:
     """
@@ -993,15 +995,15 @@ def platesData(items: list[ExportItem], beds: Beds) -> dict:
     packs their triangles or as placed around the middle of one bed
     """
     if len(items) == 0:
-        return {'error': 'Select bodies to export'}
+        return {'error': i18n.t('Select bodies to export')}
     if beds.size[0] <= 0 or beds.size[1] <= 0:
-        return {'error': 'The bed size has to be more than 0'}
+        return {'error': i18n.t('The bed size has to be more than 0')}
     isPacked = beds.spacing is not None
     boxes = [boxCorners(item, isPacked) for item in items]
     sizes = [footprint(corners) for corners in boxes]
-    areas = [{'area': list(area), 'name': 'Kept free by the printer'} for area in beds.excluded]
+    areas = [{'area': list(area), 'name': i18n.t('Kept free by the printer')} for area in beds.excluded]
     if beds.purge is not None:
-        areas.append({'area': list(beds.purge), 'name': 'Purge tower'})
+        areas.append({'area': list(beds.purge), 'name': i18n.t('Purge tower')})
     if isPacked:
         placements = bedPacking.arrange(sizes, beds.size, beds.spacing, beds.margin, beds.kept())
     else:
@@ -1034,10 +1036,10 @@ def platesData(items: list[ExportItem], beds: Beds) -> dict:
         'areas': areas,
         'plates': plates,
         'caption': [
-            f'{count} on {len(plates)} plate{"" if len(plates) == 1 else "s"}' if isPacked else f'{count} as placed',
-            f'{beds.size[0]:g}x{beds.size[1]:g}mm' + (f', {beds.margin:g}mm margin, {beds.spacing:g}mm apart' if isPacked else '')
-            + (f', {tooBig} bigger than the bed' if tooBig else '')
-            + (f', {notClear} plate{"" if notClear == 1 else "s"} without room to keep an area free' if notClear else ''),
+            (i18n.t('{count} on 1 plate', count=count) if len(plates) == 1 else i18n.t('{count} on {plates} plates', count=count, plates=len(plates))) if isPacked else i18n.t('{count} as placed', count=count),
+            f'{beds.size[0]:g}x{beds.size[1]:g}mm' + (i18n.t(', {margin}mm margin, {spacing}mm apart', margin=f'{beds.margin:g}', spacing=f'{beds.spacing:g}') if isPacked else '')
+            + (i18n.t(', {count} bigger than the bed', count=tooBig) if tooBig else '')
+            + ((i18n.t(', 1 plate without room to keep an area free') if notClear == 1 else i18n.t(', {count} plates without room to keep an area free', count=notClear)) if notClear else ''),
         ],
     }
 

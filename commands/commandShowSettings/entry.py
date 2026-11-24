@@ -2,6 +2,7 @@ import adsk.core, adsk.fusion
 import os
 
 from ...lib import tagUtils
+from ...lib import i18n
 from ...lib import settingsUtils
 from ...lib import configJson
 from ...lib import fusion360utils as futil
@@ -110,15 +111,15 @@ def start():
     global markingMenuHandler
     cmd_def = ui.commandDefinitions.itemById(CMD_ID)
     if not cmd_def:
-        cmd_def = ui.commandDefinitions.addButtonDefinition(CMD_ID, CMD_NAME, CMD_Description, ICON_FOLDER)
+        cmd_def = ui.commandDefinitions.addButtonDefinition(CMD_ID, i18n.t(CMD_NAME), i18n.t(CMD_Description), ICON_FOLDER)
     futil.add_handler(cmd_def.commandCreated, command_created)
     rebuild_def = ui.commandDefinitions.itemById(REBUILD_CMD_ID)
     if not rebuild_def:
-        rebuild_def = ui.commandDefinitions.addButtonDefinition(REBUILD_CMD_ID, REBUILD_CMD_NAME, REBUILD_CMD_DESCRIPTION, REBUILD_ICON_FOLDER)
+        rebuild_def = ui.commandDefinitions.addButtonDefinition(REBUILD_CMD_ID, i18n.t(REBUILD_CMD_NAME), i18n.t(REBUILD_CMD_DESCRIPTION), REBUILD_ICON_FOLDER)
     futil.add_handler(rebuild_def.commandCreated, rebuild_command_created)
     clone_def = ui.commandDefinitions.itemById(CLONE_CMD_ID)
     if not clone_def:
-        clone_def = ui.commandDefinitions.addButtonDefinition(CLONE_CMD_ID, CLONE_CMD_NAME, CLONE_CMD_DESCRIPTION, CLONE_ICON_FOLDER)
+        clone_def = ui.commandDefinitions.addButtonDefinition(CLONE_CMD_ID, i18n.t(CLONE_CMD_NAME), i18n.t(CLONE_CMD_DESCRIPTION), CLONE_ICON_FOLDER)
     futil.add_handler(clone_def.commandCreated, clone_command_created)
     markingMenuHandler = futil.add_handler(ui.markingMenuDisplaying, marking_menu_displaying, local_handlers=local_handlers)
 
@@ -152,9 +153,9 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     tag = selectedTag() or menuTag
     command = args.command
     command.isOKButtonVisible = False
-    command.cancelButtonText = 'Close'
+    command.cancelButtonText = i18n.t('Close')
     if tag is None:
-        command.commandInputs.addTextBoxCommandInput(SETTINGS_TEXT_INPUT, '', 'Select a generated bin or baseplate.', 1, True)
+        command.commandInputs.addTextBoxCommandInput(SETTINGS_TEXT_INPUT, '', i18n.t('Select a generated bin or baseplate.'), 1, True)
         return
     (body, tagName, value) = tag
     command.setDialogInitialSize(450, 500)
@@ -169,7 +170,7 @@ def rebuild_command_created(args: adsk.core.CommandCreatedEventArgs):
     tag = selectedTag() or menuTag
     try:
         if not canRebuild(tag):
-            ui.messageBox('Select a generated bin or baseplate to rebuild.', REBUILD_CMD_NAME)
+            ui.messageBox(i18n.t('Select a generated bin or baseplate to rebuild.'), i18n.t(REBUILD_CMD_NAME))
             return
         startRebuild(tag)
     except Exception as err:
@@ -180,7 +181,7 @@ def clone_command_created(args: adsk.core.CommandCreatedEventArgs):
     tag = selectedTag() or menuTag
     try:
         if not canClone(tag):
-            ui.messageBox('Select a generated bin or baseplate to clone.', CLONE_CMD_NAME)
+            ui.messageBox(i18n.t('Select a generated bin or baseplate to clone.'), i18n.t(CLONE_CMD_NAME))
             return
         (_, tagName, value) = tag
         CLONE_COMMANDS[tagName].startWithConfig(value['config'])
@@ -196,7 +197,7 @@ def pageHandlers(body: adsk.fusion.BRepBody, tagName: str, value: dict) -> dict[
     none, see html/settings.html
     """
     page = {
-        'title': TAG_TITLES.get(tagName, CMD_NAME),
+        'title': i18n.t(TAG_TITLES.get(tagName, CMD_NAME)),
         'settings': settingsUtils.settingsHtml(value, parameterExpression),
         'buttons': [],
     }
@@ -207,7 +208,7 @@ def pageHandlers(body: adsk.fusion.BRepBody, tagName: str, value: dict) -> dict[
     moreButtons = []
     if tagName in REBUILD_COMMANDS:
         moreButtons.append((
-            Button(REBUILD_ACTION, 'Rebuild', f'Open the {generatorTitle} dialog with these settings to build this {generatorTitle} again in its place, keeping the features after it'),
+            Button(REBUILD_ACTION, i18n.t('Rebuild'), i18n.t('Open the {title} dialog with these settings to build this {title} again in its place, keeping the features after it', title=i18n.t(generatorTitle))),
             lambda: startRebuild((body, tagName, value)),
         ))
     configText = configJson.configText(tagName, value['config'], str(value.get('generatorVersion') or ''))

@@ -1,6 +1,7 @@
 import adsk.core, adsk.fusion, traceback
 import os
 
+from .. import i18n
 from . import sketchUtils
 from .dim import Dim, valueInput, lengthInput
 
@@ -67,7 +68,7 @@ def createBox(
     extrudeFeatures: adsk.fusion.ExtrudeFeatures = features.extrudeFeatures
     sketches: adsk.fusion.Sketches = targetComponent.sketches
     recSketch: adsk.fusion.Sketch = sketches.add(targetPlane)
-    recSketch.name = f'{name} sketch'
+    recSketch.name = i18n.sketchName(f'{name} sketch')
     sketchUtils.createRectangle(width, length, recSketch.originPoint.geometry, recSketch)
 
     # extrude
@@ -99,10 +100,10 @@ def createBoxAtPoint(
         lengthInput(originPoint.z if originZ is None else originZ)
     )
     boxConstructionPlane = targetComponent.constructionPlanes.add(boxPlaneInput)
-    boxConstructionPlane.name = f'{name} plane'
+    boxConstructionPlane.name = i18n.planeName(f'{name} plane')
     sketches: adsk.fusion.Sketches = targetComponent.sketches
     recSketch: adsk.fusion.Sketch = sketches.add(boxConstructionPlane)
-    recSketch.name = f'{name} sketch'
+    recSketch.name = i18n.sketchName(f'{name} sketch')
     sketchUtils.createRectangle(width, length, recSketch.modelToSketchSpace(originPoint), recSketch, startX=originX, startY=originY)
         
     # extrude

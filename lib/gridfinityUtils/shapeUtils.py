@@ -1,6 +1,7 @@
 import adsk.core, adsk.fusion, traceback
 import os
 
+from .. import i18n
 from . import extrudeUtils, sketchUtils
 from .dim import Dim, lengthInput
 
@@ -21,9 +22,9 @@ def simpleCylinder(
     baseConstructionPlaneInput: adsk.fusion.ConstructionPlaneInput = targetComponent.constructionPlanes.createInput()
     baseConstructionPlaneInput.setByOffset(plane, lengthInput(planeOffset))
     baseConstructionPlane = targetComponent.constructionPlanes.add(baseConstructionPlaneInput)
-    baseConstructionPlane.name = f'{name} plane'
+    baseConstructionPlane.name = i18n.planeName(f'{name} plane')
     cylinderBaseSketch: adsk.fusion.Sketch = targetComponent.sketches.add(baseConstructionPlane)
-    cylinderBaseSketch.name = f'{name} sketch'
+    cylinderBaseSketch.name = i18n.sketchName(f'{name} sketch')
     dimensions: adsk.fusion.SketchDimensions = cylinderBaseSketch.sketchDimensions
     constraints: adsk.fusion.GeometricConstraints = cylinderBaseSketch.geometricConstraints
     centerOnSketch = cylinderBaseSketch.modelToSketchSpace(centerBottom)
@@ -91,10 +92,10 @@ def simpleBox(
         lengthInput(planeOffset)
     )
     boxConstructionPlane = targetComponent.constructionPlanes.add(boxPlaneInput)
-    boxConstructionPlane.name = f'{name} plane'
+    boxConstructionPlane.name = i18n.planeName(f'{name} plane')
     sketches: adsk.fusion.Sketches = targetComponent.sketches
     recSketch: adsk.fusion.Sketch = sketches.add(boxConstructionPlane)
-    recSketch.name = f'{name} sketch'
+    recSketch.name = i18n.sketchName(f'{name} sketch')
     startPointOnSketch = recSketch.modelToSketchSpace(originPoint)
     startPointOnSketch.z = 0
     sketchUtils.createRectangle(width, length, startPointOnSketch, recSketch, originX, originY)

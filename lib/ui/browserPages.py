@@ -11,6 +11,7 @@ import pathlib
 from typing import Any, Callable
 
 from ...lib import fusion360utils as futil
+from ...lib import i18n
 from .dialogFont import dialogFontUrl
 
 # the answer when the page has nothing to redraw
@@ -22,8 +23,8 @@ RESPONSE = 'response'
 Handler = Callable[[Any], Any]
 
 def pageUrl(commandFile: str, name: str) -> str:
-    """A page in the html folder beside a command's entry"""
-    return pathlib.Path(os.path.dirname(os.path.abspath(commandFile)), 'html', name).as_uri()
+    """A page in the html folder beside a command's entry, in the add-in's language, see lib/ui/html/i18n.js"""
+    return pathlib.Path(os.path.dirname(os.path.abspath(commandFile)), 'html', name).as_uri() + i18n.pageQuery()
 
 def encode(data) -> str:
     # without a bold cut the page would draw bold text as the regular one

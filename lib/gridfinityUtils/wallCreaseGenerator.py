@@ -1,5 +1,6 @@
 import adsk.core, adsk.fusion
 
+from .. import i18n
 from . import commonUtils, patternUtils, sketchUtils, wallCreases
 from .baseGenerator import cellLineDim
 from .baseGeneratorInput import BaseGeneratorInput
@@ -119,7 +120,7 @@ def _createSideFolds(
     gableSketch: adsk.fusion.Sketch = targetComponent.sketches.add(
         targetComponent.yZConstructionPlane if along == 'x' else targetComponent.xZConstructionPlane
     )
-    gableSketch.name = f'{name} profile sketch'
+    gableSketch.name = i18n.sketchName(f'{name} profile sketch')
     with sketchUtils.deferSketchCompute(gableSketch):
         _closedPolygon(gableSketch, [
             (modelPoint(0, wall.value, bottom.value), {across: wall, 'z': bottom}),
@@ -136,7 +137,7 @@ def _createSideFolds(
 
     # along the wall, the first panel's fold from its ends in to the ridge, as tall as the profile
     panelSketch: adsk.fusion.Sketch = targetComponent.sketches.add(targetComponent.xYConstructionPlane)
-    panelSketch.name = f'{name} panel sketch'
+    panelSketch.name = i18n.sketchName(f'{name} panel sketch')
     with sketchUtils.deferSketchCompute(panelSketch):
         _closedPolygon(panelSketch, [
             (modelPoint(start.value, wall.value, 0), {along: start, across: wall}),

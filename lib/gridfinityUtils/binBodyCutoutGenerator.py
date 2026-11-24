@@ -2,6 +2,7 @@ import adsk.core, adsk.fusion, traceback
 import os
 import math
 
+from .. import i18n
 from ...lib.gridfinityUtils import geometryUtils
 from ...lib import fusion360utils as futil
 from ...lib.gridfinityUtils import filletUtils
@@ -33,9 +34,9 @@ def createGridfinityBinBodyCutout(
         lengthInput(input.originZ)
     )
     cutoutConstructionPlane = targetComponent.constructionPlanes.add(cutoutPlaneInput)
-    cutoutConstructionPlane.name = f'{name} plane'
+    cutoutConstructionPlane.name = i18n.planeName(f'{name} plane')
     innerCutoutSketch: adsk.fusion.Sketch = targetComponent.sketches.add(cutoutConstructionPlane)
-    innerCutoutSketch.name = f'{name} sketch'
+    innerCutoutSketch.name = i18n.sketchName(f'{name} sketch')
     sketchUtils.createRectangle(
         input.width,
         input.length,
